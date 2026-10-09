@@ -1,0 +1,13 @@
+node_modules/
+.scratch/db-started-test-runtime/
+dist/
+coverage/
+.env
+.env.local
+.next/
+playwright-report/
+test-results/
+.runtime/
+.docker-build-provenance.bundle
+.vibe-owner.json
+.superpowers/sdd/task-1-report.md

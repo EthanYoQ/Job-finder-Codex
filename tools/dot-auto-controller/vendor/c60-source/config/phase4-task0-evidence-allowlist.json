@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "phase4-task0-evidence-allowlist-v1",
+  "planId": "phase4-p1-4-secret-evidence-policy",
+  "scope": "PHASE4_TASK0_ONLY",
+  "paths": [
+    "outputs/p0-rc/p0-rc-20260710-001/phase-4/task-0-clean-worktree-baseline-20260711T231413+0800.json",
+    "outputs/p0-rc/p0-rc-20260710-001/phase-4/task-0-clean-worktree-baseline-20260711T231413+0800.md",
+    "outputs/p0-rc/p0-rc-20260710-001/phase-4/task-0-readonly-git-rc-audit.json",
+    "outputs/p0-rc/p0-rc-20260710-001/phase-4/task-0-readonly-git-rc-audit.md"
+  ]
+}

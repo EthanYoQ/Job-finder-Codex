@@ -1,0 +1,12 @@
+{
+  "main": {
+    "apiSha256": "f6ab5b0a52acc280e3553f1343b13aabe7304d2b1961ef2ef6260e9563904e85",
+    "handlerSha256": "924af9168c2977a9b5dc2fa5077ca627086e9d63b2936773bc92c64dc10a681a",
+    "locationSha256": "8fdb174e0b61e0d4a26a5bceca470a8bb42b6fd3cf6fdfbc0ae2d8a4d03e2fa5"
+  },
+  "fallback": {
+    "apiSha256": "f6ab5b0a52acc280e3553f1343b13aabe7304d2b1961ef2ef6260e9563904e85",
+    "handlerSha256": "2060ea5c99a648bce11dc01a04d71a3be945e70c650e9df1a9aacfc4aaf14d13",
+    "locationSha256": "8fdb174e0b61e0d4a26a5bceca470a8bb42b6fd3cf6fdfbc0ae2d8a4d03e2fa5"
+  }
+}

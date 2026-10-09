@@ -1,0 +1,13 @@
+{
+  "name": "jobfinder-auto-controller-offline-candidate",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/offline-tests.mjs",
+    "verify-pins": "node src/verify-pins.mjs",
+    "test:unit": "node --test --test-concurrency=1 test/*.test.mjs transport/*.test.mjs reader-identity/test/*.test.mjs"
+  },
+  "engines": {
+    "node": "22.23.3"
+  }
+}

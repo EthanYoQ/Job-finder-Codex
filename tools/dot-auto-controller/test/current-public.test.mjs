@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {currentPublicRound} from '../native/current-public.mjs';
+test('CURRENT verification rejects redirected response and never opts into redirect following',async()=>{let options;await assert.rejects(currentPublicRound({fetchImpl:async(url,o)=>{assert.equal(new URL(url).origin,'https://job.orz.md');options=o;return {redirected:true};}}),/CURRENT_PUBLIC_REDIRECT_FORBIDDEN/);assert.equal(options.redirect,'error');});

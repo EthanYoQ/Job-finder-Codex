@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "classification": "PRIVACY_SANITIZED_DERIVATIVE",
+  "removedDirectOccurrences": 6,
+  "remainingDirectOccurrences": 0,
+  "replacementCredentialOrRetrieval": false,
+  "sourceScopeUnchanged": "Takeda-only inactive; BI and other35 routes blocked",
+  "changes": [
+    {
+      "capsule": "c60-source",
+      "path": "src/crawler/officialJsonSourceFetch.ts",
+      "originSha256": "d132a53f6a10fae1a3c566c33359c0532b9f9c9cac85226bd0c7f1b708ed051f",
+      "sha256": "1fd2983f9a773357c13131f283b538f31f0e803304545a1e963f4c18d3f0429b",
+      "bytes": 396854,
+      "classification": "PRIVACY_SANITIZED_DERIVATIVE",
+      "change": "51job acquisition and BI semantic admission disabled; signing material and request signer removed"
+    },
+    {
+      "capsule": "c60-source",
+      "path": "src/crawler/biSemanticCompleteness.ts",
+      "originSha256": "b9cdb9ab89176826d6f09af5c229da684100d8038b88c0778e2015a0d9726d42",
+      "sha256": "53e749c99ba1afee373e75f5107bb99975b5f52e25113198e7ce7ad1d2e708be",
+      "bytes": 5632,
+      "classification": "PRIVACY_SANITIZED_DERIVATIVE",
+      "change": "51job acquisition and BI semantic admission disabled; signing material and request signer removed"
+    },
+    {
+      "capsule": "reader-main",
+      "path": "src/crawler/officialJsonSourceFetch.ts",
+      "originSha256": "f261c0934a6fe5e4c40a84d62b2d4b1832301fadb9e54152b9a1b1974f8269cd",
+      "sha256": "db476adb54180526d9b1c42857106a2bc4ed4dc237548ff7c9aafbfd2a226162",
+      "bytes": 394075,
+      "classification": "PRIVACY_SANITIZED_DERIVATIVE",
+      "change": "51job acquisition and BI semantic admission disabled; signing material and request signer removed"
+    },
+    {
+      "capsule": "reader-main",
+      "path": "src/crawler/biSemanticCompleteness.ts",
+      "originSha256": "b9cdb9ab89176826d6f09af5c229da684100d8038b88c0778e2015a0d9726d42",
+      "sha256": "53e749c99ba1afee373e75f5107bb99975b5f52e25113198e7ce7ad1d2e708be",
+      "bytes": 5632,
+      "classification": "PRIVACY_SANITIZED_DERIVATIVE",
+      "change": "51job acquisition and BI semantic admission disabled; signing material and request signer removed"
+    },
+    {
+      "capsule": "reader-fallback",
+      "path": "src/crawler/officialJsonSourceFetch.ts",
+      "originSha256": "f261c0934a6fe5e4c40a84d62b2d4b1832301fadb9e54152b9a1b1974f8269cd",
+      "sha256": "db476adb54180526d9b1c42857106a2bc4ed4dc237548ff7c9aafbfd2a226162",
+      "bytes": 394075,
+      "classification": "PRIVACY_SANITIZED_DERIVATIVE",
+      "change": "51job acquisition and BI semantic admission disabled; signing material and request signer removed"
+    },
+    {
+      "capsule": "reader-fallback",
+      "path": "src/crawler/biSemanticCompleteness.ts",
+      "originSha256": "b9cdb9ab89176826d6f09af5c229da684100d8038b88c0778e2015a0d9726d42",
+      "sha256": "53e749c99ba1afee373e75f5107bb99975b5f52e25113198e7ce7ad1d2e708be",
+      "bytes": 5632,
+      "classification": "PRIVACY_SANITIZED_DERIVATIVE",
+      "change": "51job acquisition and BI semantic admission disabled; signing material and request signer removed"
+    }
+  ],
+  "liveQualification": false,
+  "readerEndpointIndependentReview": "INCOMPLETE"
+}

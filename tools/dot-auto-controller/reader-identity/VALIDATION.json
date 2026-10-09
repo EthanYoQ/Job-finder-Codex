@@ -1,0 +1,107 @@
+{
+  "scope": "source-only optional original-web integration; not deployed",
+  "nodeVersion": "v22.23.3",
+  "sourceSha256": {
+    ".gitignore": "6d79b7567482630a15cc8060da31642cd507b323f018fd7fe091ec6e7a0e9ac4",
+    "README.md": "d7aa2c3e839f8629375c72ac942a23042ea74e4319a0a59a4f2a2a7843f7887c",
+    "integration/BASES.json": "005bde803a03483809ad258c025b14751120c5ca5898626c84438606fe1a0641",
+    "integration/fallback-httpServer.patch": "26b9b364500406119c5a362e88d003f0b452549fae48aaa0f40ec701b023c611",
+    "integration/main-httpServer.patch": "2121341a34913bdd9efc58d2f4a62fae59460c0fd16464eb110847e38d86b3ee",
+    "integration/verify-client-contract.mjs": "7f39eeace8d1661e722c8a4b0dcfba654e2dd478c4a0e4f440256b722ece5fd3",
+    "integration/verify-http-integration.mjs": "95c50d0a3fbc68a071f33b719f7ccd99ca4b09840e93ad78e6357f6295d6afce",
+    "package.json": "4b292e4566737b2e621c1e9491d59657ef88303724c4088411ab4ea8ae8b9f09",
+    "test/helpers.mjs": "438832edb437125572f6a46c3908755dd077be6efee47ff884e0a512f6ab8dec",
+    "test/reader-identity.test.mjs": "002efffe7db44c773042dd142a0b85a3003309c09582b16989ba517ddf6960ff",
+    "web-module/src/server/readerIdentity.d.mts": "ffa47a29a1f32a549b50719774ff4b9673d571360944fed633eac953199450d0",
+    "web-module/src/server/readerIdentity.mjs": "9d3ccd061c3fd5a866dc752576fc94eaf7c563c4b5b28c671a8ca3dc166ed137"
+  },
+  "offlineUnitTests": {
+    "passed": 19,
+    "failed": 0,
+    "verifiedLauncher": {
+      "status": "PASS",
+      "verified": true,
+      "run_id": "reader-identity-final-unit-20261009T0654Z",
+      "reason": null,
+      "resource_reason": null,
+      "actual_worker_returncode": 0,
+      "launcher_exit_code": 0,
+      "evidence_sha256": {
+        "queued.json": "e92fc855581f1eff6d34b1ce6536c912dac6e30a23364fe8e8022808f92675f4",
+        "final.json": "60473dac6f729a29ca276058904dcae1507c71cdcc04bb174311a313de1dc230",
+        "started.json": "93fc37cb2e1ea030391420ff87a8b5171e4df60c2029e7cad70c3ccc6d273773"
+      }
+    }
+  },
+  "focusedTypechecks": {
+    "main": {
+      "status": "PASS",
+      "verified": true,
+      "run_id": "reader-identity-main-focused-20261009T0651Z",
+      "reason": null,
+      "resource_reason": null,
+      "actual_worker_returncode": 0,
+      "launcher_exit_code": 0,
+      "evidence_sha256": {
+        "queued.json": "fce8ca5fee2f3a72e992d962b7cc1435e49982b105185acdf911e3cf392fb8d3",
+        "final.json": "7cd5cff00c454fe20d9afc31ad26d3441d34a2ce973e46d68f2a05a33b484d38",
+        "started.json": "1dfcad5b71243f639581f3962021f3c804fb5dd362e9b6db9b193955dbb7183b"
+      }
+    },
+    "fallback": {
+      "status": "PASS",
+      "verified": true,
+      "run_id": "reader-identity-fallback-focused-20261009T0652Z",
+      "reason": null,
+      "resource_reason": null,
+      "actual_worker_returncode": 0,
+      "launcher_exit_code": 0,
+      "evidence_sha256": {
+        "queued.json": "db9558b73602e5d2d1c405b0a4b8f38b90d193f52bb67c832d69387c1819b5b9",
+        "final.json": "f3ea27f35617743cc1976761282244e08854d0f9fabe68834eb8a9c0eb96535b",
+        "started.json": "b74977b0a79e15b120d55149a0d2587a6540457502d8cd55a3d2891a986d8bf0"
+      }
+    },
+    "scope": "Patched HTTP server and transitive TypeScript imports; implementation mjs exercised by tests. HTTP patches/declarations unchanged across final internal stamp hardening."
+  },
+  "actualHttpIntegration": {
+    "main": "PASS",
+    "fallback": "PASS",
+    "mode": "in-process request dispatch only; no listen or startServer"
+  },
+  "nativeClientIntegration": {
+    "status": "PASS",
+    "tests": [
+      "real measured aggregate accepted by actual native client",
+      "static response replay rejected",
+      "refreshed envelope cannot hide stale fallback observation",
+      "native replay file mismatch rejected before fetch"
+    ],
+    "clientSha256": "51304274299b316cb62c682770c1c1263a673723bfcf7a74ed29d814e97c3058",
+    "nodeVersion": "v22.23.3",
+    "networkCalls": 0,
+    "databaseCalls": 0
+  },
+  "earlierMainTypecheck": {
+    "exitCode": 137,
+    "classification": "Process killed; cause not established. Superseded by shared-queue verified PASS."
+  },
+  "independentPostFixEndpointReview": {
+    "status": "INCOMPLETE",
+    "reason": "Independent reviewer ended before completing its final post-fix report. No retry or substitute review was requested.",
+    "preservedFindings": [
+      "Startup file modification and restoration could hide loaded code; fixed by retaining private file metadata, with local regression.",
+      "Startup release subdirectory swap and restoration could hide loaded code; fixed by retaining private release-directory metadata, with local regression."
+    ]
+  },
+  "deploymentStatus": "NOT_DEPLOYED",
+  "productionOrDbMutations": false,
+  "realNetworkCalls": 0,
+  "listenersStarted": 0,
+  "remaining": [
+    "Third-party review of the draft PR, including endpoint fixes.",
+    "Separate review/authorization for deployment packaging, expected identity manifests and bootstrap start command.",
+    "Verify actual main and existing loopback3031 fallback endpoint identities before enabling controller.",
+    "Keep outer deployment ancestry, process startup and loader trusted and immutable; not hardware attestation."
+  ]
+}

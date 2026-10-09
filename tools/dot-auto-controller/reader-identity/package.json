@@ -1,0 +1,1 @@
+{"name":"jobfinder-reader-identity-source-only","private":true,"type":"module","engines":{"node":"22.23.3"},"scripts":{"test":"node --test --test-concurrency=1 test/*.test.mjs"}}
