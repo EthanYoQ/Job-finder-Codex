@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {pathToFileURL} from 'node:url';
+import {fileURLToPath} from 'node:url';
 
 // Executes the actual builtin bootstrap with deliberately inert dependencies.
 // The stub compiler records its entry cwd and stops before any runtime import,
@@ -27,7 +27,7 @@ test('bootstrap binds the original producer working directory before runtime mod
   const bootstrap=fs.readFileSync(new URL('../native/takeda-bootstrap.mjs',import.meta.url),'utf8');
   write('native/takeda-bootstrap.mjs',bootstrap);
   const guard=new URL('./no-network.cjs',import.meta.url);
-  const result=spawnSync(process.execPath,['--require',guard.pathname,path.join(fixture,'native/takeda-bootstrap.mjs')],{cwd:path.join(fixture,'launch'),env:{PATH:process.env.PATH,JOBFINDER_CLOUD_SOURCE_ID:'source-takeda-china-social'},encoding:'utf8'});
+  const result=spawnSync(process.execPath,['--require',fileURLToPath(guard),path.join(fixture,'native/takeda-bootstrap.mjs')],{cwd:path.join(fixture,'launch'),env:{PATH:process.env.PATH,JOBFINDER_CLOUD_SOURCE_ID:'source-takeda-china-social'},encoding:'utf8'});
   assert.equal(result.status,1);assert.equal(result.signal,null);
   const observed=JSON.parse(fs.readFileSync(path.join(fixture,'observed.json'),'utf8'));
   assert.equal(observed.authorityChecked,true);
