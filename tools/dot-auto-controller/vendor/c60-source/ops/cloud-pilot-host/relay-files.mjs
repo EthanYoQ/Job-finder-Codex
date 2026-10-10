@@ -1,17 +1,20 @@
 import {readFile,writeFile,readdir,lstat,link,unlink} from 'node:fs/promises';
 import {resolve,join,basename} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
+import {loadBinding,verifyBinding,relayDirectory,taskFile,readChecked,SELECTOR} from './connector-host-binding.mjs';
+const connector=process.env[SELECTOR]!==undefined;
+if(connector)loadBinding();
 const PROJECT='yiopvxysxrtrnvqxwgbx';
 const kinds=new Set(['LEASE_ACQUIRE','LEASE_RENEW','LEASE_RELEASE','CREATE_PENDING','READ_CONTEXT','READ_PUBLICATION_CONTEXT','ARCHIVE_STORE','PUBLISH','READ_OUTCOME']);
 const sha=x=>createHash('sha256').update(x).digest('hex');
 async function readRequest(file){
  if((await lstat(file)).isSymbolicLink())throw Error('REQUEST_SYMLINK');
- const r=JSON.parse(await readFile(file,'utf8'));
+ const r=JSON.parse(connector?readChecked(taskFile(file)).bytes.toString('utf8'):await readFile(file,'utf8'));
  if(Object.keys(r).sort().join(',')!=='expiresAt,kind,payload,requestId,requestSha256,schemaVersion'||r.schemaVersion!==1||!kinds.has(r.kind)||
  !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(r.requestId)||basename(file)!==r.requestId+'.request.json')throw Error('REQUEST_SHAPE');
  const {requestSha256,...body}=r;if(sha(JSON.stringify(body))!==requestSha256)throw Error('REQUEST_HASH');
  if(r.kind!=='ARCHIVE_STORE'&&r.payload.projectId!==PROJECT)throw Error('REQUEST_PROJECT');
- if(!Number.isFinite(Date.parse(r.expiresAt)))throw Error('REQUEST_EXPIRY');
+ if(!Number.isFinite(Date.parse(r.expiresAt))||connector&&r.payload.dispatchBefore!==undefined&&!Number.isFinite(Date.parse(r.payload.dispatchBefore)))throw Error('REQUEST_EXPIRY');
  return r;
 }
 async function writeResponse(dir,r,result){
@@ -21,7 +24,8 @@ async function writeResponse(dir,r,result){
  try{await link(temp,dest);}finally{await unlink(temp);}
 }
 const [command,directory,arg,expectedRequestSha256]=process.argv.slice(2);const dir=resolve(directory??'');
-if(!dir.startsWith('/workspace/shared/job-finder-recovery/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
+if(connector)relayDirectory(directory);
+else if(!dir.startsWith('/workspace/shared/job-finder-recovery/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
 if(command==='next'||command==='next-meta'){
  const names=await readdir(dir),rows=[];
  for(const name of names.filter(n=>n.endsWith('.request.json')).sort()){
@@ -31,6 +35,7 @@ if(command==='next'||command==='next-meta'){
  }
  console.log(JSON.stringify(rows));
 }else if(command==='mark-dispatch'){
+ if(connector)verifyBinding();
  const r=await readRequest(join(dir,arg+'.request.json'));
  if(!/^[a-f0-9]{64}$/.test(expectedRequestSha256??'')||r.requestSha256!==expectedRequestSha256)throw Error('REQUEST_REVIEW_HASH');
  if(Date.now()>=Date.parse(r.expiresAt)||r.payload.dispatchBefore&&Date.now()>=Date.parse(r.payload.dispatchBefore))throw Error('REQUEST_EXPIRED');
@@ -63,7 +68,7 @@ if(command==='next'||command==='next-meta'){
   console.log(JSON.stringify({settled:true,requestId:r.requestId}));
  }
 }else if(command==='respond'){
- const input=JSON.parse(await readFile(arg,'utf8'));const r=await readRequest(join(dir,input.requestId+'.request.json'));
+ const input=JSON.parse(connector?readChecked(taskFile(arg)).bytes.toString('utf8'):await readFile(arg,'utf8'));const r=await readRequest(join(dir,input.requestId+'.request.json'));
  if(input.requestSha256!==r.requestSha256)throw Error('RESPONSE_HASH');
  const dest=join(dir,r.requestId+'.response.json');
  try{await lstat(dest);throw Error('RESPONSE_ALREADY_EXISTS');}catch(e){if(e.code!=='ENOENT')throw e;}
