@@ -20,7 +20,8 @@ export async function currentPublicRound({expected,fetchImpl=fetch,now=Date.now}
  while(coverage.snapshotRefresh.state!=='CURRENT'){if(performance.now()+2500>=deadline)throw Error('CURRENT_45S_EXPIRED');await new Promise(r=>setTimeout(r,2500));coverage=await get('/api/coverage?limit=41');}
  const search=await get('/api/search?'+new URLSearchParams({city:'全部城市',limit:'50',offset:'0'}));
  assert.equal(search.snapshotRefresh.state,'CURRENT');assert.equal(canonical(search.snapshotRefresh),canonical(coverage.snapshotRefresh));
- assert.equal(coverage.hasMore,false);assert.equal(coverage.offset,0);assert(coverage.companies.length<=coverage.limit);assert(search.companies.length<50);assert.equal(search.companies.length,search.coverageSummary.publishingCompanyCount);
+ assert.equal(coverage.hasMore,false);assert.equal(coverage.offset,0);assert(coverage.companies.length<=coverage.limit);assert(search.companies.length<50);
+ // Coverage includes publishing companies with zero jobs; search omits them.
  const jobs=search.companies.flatMap(c=>c.jobs);assert.equal(new Set(jobs.map(j=>j.id)).size,jobs.length);assert.equal(jobs.length,search.totalJobs);assert.equal(jobs.length,search.publishedJobSummary.totalJobs);assert(search.companies.every(c=>c.jobs.every(j=>j.companyId===c.id)));
  if(expected){
   assert.equal(expected.afterRequestCases.length,9);const withoutSnapshot=o=>Object.fromEntries(Object.entries(o).filter(([k])=>k!=='snapshotRefresh'));
