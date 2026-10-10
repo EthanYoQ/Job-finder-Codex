@@ -16,6 +16,9 @@ const route=loadCatalog().sources.takeda;
 requireAuthority(deployment,route,{reconcile:['--reconcile','--verify-completion'].includes(process.argv[2])});
 if(route.configured!==true||route.enabled!==true)throw Error('NEW_RUNTIME_QUALIFICATION_REQUIRED');
 if(process.env.JOBFINDER_CLOUD_SOURCE_ID!==route.sourceId)throw Error('FIXED_SOURCE_PROCESS_REQUIRED');
+// Original build/authority modules bind process.cwd() during their first import.
+// Use the fixed catalog root before the verifier registers any TypeScript loader.
+process.chdir(route.producer);
 const expectedLockSha256=createHash('sha256').update(fs.readFileSync(route.producer+'/package-lock.json')).digest('hex');
 // expectedBuild is supplied only by reviewed immutable deployment config.
 // This builtin verifier checks /proc/exe and all native runtime content before
