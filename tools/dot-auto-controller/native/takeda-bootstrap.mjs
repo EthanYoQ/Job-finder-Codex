@@ -2,6 +2,7 @@
 import {createMutationFence} from '../src/mutation-fence.mjs';
 import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';
 import {loadCatalog,PACKAGE_ROOT} from '../src/catalog.mjs';
+import {loadDeployment,assertDeploymentBinding} from '../src/deployment.mjs';
 import {requireAuthority} from '../src/authority.mjs';
 import {combinedReaderPins} from '../src/reader-pin-binding.mjs';
 import {createControlPlane} from '../src/control-plane.mjs';
@@ -11,7 +12,7 @@ import {createExistingCompiler} from '../transport/existing-compiler.mjs';
 const mutationFence=createMutationFence({batchId:process.env.JOBFINDER_AUTO_BATCH_ID,sourceId:process.env.JOBFINDER_CLOUD_SOURCE_ID,nonce:process.env.JOBFINDER_AUTO_PROOF_NONCE});
 for(const signal of ['SIGTERM','SIGINT','SIGHUP']){const stop=()=>{mutationFence.revoke();process.kill(process.pid,signal);};process.once(signal,stop);}
 async function main(){
-const deployment=JSON.parse(fs.readFileSync(PACKAGE_ROOT+'/config/deployment.json','utf8'));
+const deployment=loadDeployment();
 const route=loadCatalog().sources.takeda;
 requireAuthority(deployment,route,{reconcile:['--reconcile','--verify-completion'].includes(process.argv[2])});
 if(route.configured!==true||route.enabled!==true)throw Error('NEW_RUNTIME_QUALIFICATION_REQUIRED');
@@ -24,10 +25,14 @@ const expectedLockSha256=createHash('sha256').update(fs.readFileSync(route.produ
 // This builtin verifier checks /proc/exe and all native runtime content before
 // registering that verified checkout's default TypeScript loader.
 await createExistingCompiler({runtimeRoot:route.producer,expectedBuild:route.build,expectedLockSha256,expectedSourceId:route.sourceId,expectedSourceConfigSha256:route.sourceConfigSha256,expectedReaderCandidateId:route.candidate.id});
+assertDeploymentBinding();
 const pg=await import(pathToFileURL(route.producer+'/node_modules/pg/lib/index.js').href);
+assertDeploymentBinding();
 const openConnection=createPgConnectionFactory({Client:pg.default.Client,config:deployment.pg,passwordProvider:async()=>{const s=process.env.JOBFINDER_PG_PASSWORD;if(!s)throw Error('SECURE_SECRET_NOT_PROVISIONED');return s;}});
-const controlPlane=createControlPlane({openConnection,onMutationAttempt:()=>mutationFence.markMutationAttempt(),readerFilePins:combinedReaderPins(JSON.parse(fs.readFileSync(PACKAGE_ROOT+'/config/reader-pins.json','utf8')),JSON.parse(fs.readFileSync(PACKAGE_ROOT+'/config/reader-api-pins.json','utf8')))});
+const controlPlane=createControlPlane({openConnection,assertScope:assertDeploymentBinding,onMutationAttempt:()=>{assertDeploymentBinding();mutationFence.markMutationAttempt();},readerFilePins:combinedReaderPins(JSON.parse(fs.readFileSync(PACKAGE_ROOT+'/config/reader-pins.json','utf8')),JSON.parse(fs.readFileSync(PACKAGE_ROOT+'/config/reader-api-pins.json','utf8')))});
+assertDeploymentBinding();
 const startupToken=await controlPlane.verifyStartup(route.sourceId,deployment.deployedReaderIdentity,{reconcile:['--reconcile','--verify-completion'].includes(process.argv[2])});
+assertDeploymentBinding();
 if(['--reconcile','--verify-completion'].includes(process.argv[2])){
  const {reconcileTakeda}=await import('./takeda-reconcile.mts');const result=await reconcileTakeda(process.argv[3],{controlPlane,startupToken,allowEarlyRead:process.argv[2]==='--verify-completion'});console.log(JSON.stringify(result));if(!(process.argv[2]==='--verify-completion'&&result.status==='DB_AND_CURRENT_PUBLIC_RECONCILED'))process.exitCode=75;
 }else if(process.argv.length===2){

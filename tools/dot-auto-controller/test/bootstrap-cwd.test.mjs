@@ -18,6 +18,7 @@ test('bootstrap binds the original producer working directory before runtime mod
   fs.writeFileSync(path.join(fixture,'config/deployment.json'),'{}\n');
   const write=(name,body)=>fs.writeFileSync(path.join(fixture,name),body);
   write('src/catalog.mjs',`export const PACKAGE_ROOT=${JSON.stringify(fixture)};export function loadCatalog(){return {sources:{takeda:{producer:${JSON.stringify(producer)},configured:true,enabled:true,sourceId:'source-takeda-china-social',sourceConfigSha256:'a'.repeat(64),candidate:{id:'offline-fixture-only'},build:{}}}};}`);
+  write('src/deployment.mjs',`export function loadDeployment(){return {};}export function assertDeploymentBinding(){return true;}`);
   write('src/authority.mjs',`export function requireAuthority(){globalThis.authorityChecked=true;}`);
   write('src/mutation-fence.mjs',`export function createMutationFence(){return {revoke(){},markMutationAttempt(){throw Error('UNEXPECTED_MUTATION');},async sealTerminal(){}};}`);
   write('src/reader-pin-binding.mjs',`export function combinedReaderPins(){throw Error('UNEXPECTED_READER');}`);
