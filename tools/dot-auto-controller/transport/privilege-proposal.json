@@ -1,0 +1,167 @@
+{
+  "status": "LOCAL_PROPOSAL_NOT_EXECUTED_NOT_YET_AUTHORIZED",
+  "projectId": "yiopvxysxrtrnvqxwgbx",
+  "role": "dot_jobfinder_writer",
+  "attributes": {
+    "superuser": false,
+    "createdb": false,
+    "createrole": false,
+    "replication": false,
+    "bypassrls": false,
+    "memberships": []
+  },
+  "selectTables": [
+    "Company",
+    "RecruitmentSource",
+    "ReleaseCandidate",
+    "_prisma_migrations",
+    "CrawlCoordinatorLock",
+    "Job",
+    "CrawlBatch",
+    "CrawlBatchSourceResult",
+    "EvidenceArtifact",
+    "PaginationEvidence",
+    "LossLedgerEntry",
+    "TransportAttemptEvidence",
+    "TransportAttemptArtifact",
+    "CrawlObservation",
+    "LifecycleSetEvidenceMember"
+  ],
+  "insertTables": [
+    "CrawlCoordinatorLock",
+    "Job",
+    "CrawlBatch",
+    "CrawlBatchSourceResult",
+    "EvidenceArtifact",
+    "PaginationEvidence",
+    "LossLedgerEntry",
+    "TransportAttemptEvidence",
+    "TransportAttemptArtifact",
+    "CrawlObservation",
+    "LifecycleSetEvidenceMember"
+  ],
+  "updateColumns": {
+    "CrawlCoordinatorLock": [
+      "holderId",
+      "acquiredAt",
+      "heartbeatAt",
+      "metadata"
+    ],
+    "Job": [
+      "sourceJobId",
+      "officialTitle",
+      "officialUrl",
+      "listUrl",
+      "locationRaw",
+      "city",
+      "cities",
+      "officialPublishedAt",
+      "lastSeenAt",
+      "missingSuccessCount",
+      "lifecycleStatus",
+      "visibleInFrontend",
+      "isNew",
+      "sourceChangedAt"
+    ],
+    "CrawlBatch": [
+      "transportSucceededCount",
+      "adapterSucceededCount",
+      "completenessVerifiedCount",
+      "atomicCommittedCount",
+      "aggregateJobSetSha256",
+      "heartbeatAt",
+      "finishedAt",
+      "status"
+    ],
+    "CrawlBatchSourceResult": [
+      "transportState",
+      "adapterState",
+      "completenessState",
+      "atomicCommitState",
+      "finishedAt",
+      "rawCount",
+      "parsedCount",
+      "validCount",
+      "normalizedCount",
+      "dedupeInputCount",
+      "dedupeOutputCount",
+      "parseDiscardCount",
+      "validationDiscardCount",
+      "normalizationDiscardCount",
+      "dedupeDiscardCount",
+      "collisionCount",
+      "discardCount",
+      "expectedJobCount",
+      "expectedEvidenceKind",
+      "expectedSurfaceSha256",
+      "visitedSurfaceSha256",
+      "expectedChannelSha256",
+      "visitedChannelSha256",
+      "canonicalCurrentJobSetSha256",
+      "canonicalGraceJobSetSha256",
+      "canonicalVisibleJobSetSha256",
+      "canonicalOutputSetSha256",
+      "adapterInputCount",
+      "adapterOutputCount",
+      "adapterLossCount",
+      "adapterCollisionGroupCount",
+      "adapterReconciliationSha256",
+      "collisionLedgerSha256",
+      "blockerCode",
+      "completenessCertificate",
+      "completenessCertificateSha256",
+      "baselinePreviousSourceResultId",
+      "baselinePreviousJobCount",
+      "baselineChangeReason",
+      "blockerReason",
+      "failureCategory",
+      "failureDiagnosticCode",
+      "fetchAttemptCount",
+      "retryCount",
+      "retryReasonCodes",
+      "failureCode",
+      "failureReason"
+    ],
+    "ReleaseCandidate": [
+      "commitSha"
+    ],
+    "Company": [
+      "updatedAt"
+    ],
+    "RecruitmentSource": [
+      "updatedAt"
+    ]
+  },
+  "pg17MaintainTables": [
+    "_prisma_migrations",
+    "Job",
+    "CrawlBatch",
+    "CrawlBatchSourceResult",
+    "CrawlObservation"
+  ],
+  "executeFunctions": [
+    "public.job_projection_canonical_json(jsonb)",
+    "public.job_persisted_projection_sha256(public.\"Job\")",
+    "public.job_delta_effective_legacy_certificate(jsonb,text,jsonb,timestamp without time zone)",
+    "extensions.digest(bytea,text)"
+  ],
+  "requiresFreshChecks": [
+    "actual row/column RLS compatibility",
+    "PUBLIC grants and transitive role membership",
+    "all invoked/check/trigger function privileges",
+    "exact migration/profile/schema identity",
+    "reference column immutable trigger and timestamp impact",
+    "PG17 MAINTAIN support and explicit risk approval",
+    "ledger functions and migration separately approved"
+  ],
+  "notGranted": [
+    "DELETE",
+    "TRUNCATE",
+    "CREATE",
+    "ownership",
+    "GRANT OPTION",
+    "anon/authenticated/PUBLIC expansion",
+    "auth/storage/admin access",
+    "SET ROLE membership"
+  ]
+}

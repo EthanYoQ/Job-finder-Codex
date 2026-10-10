@@ -1,0 +1,7 @@
+{
+  "name": "20261002103742_lilly_source_policy",
+  "path": "/workspace/shared/job-finder-recovery/candidate-investigation/cloud-lilly-active-pilot/prisma/migrations/20261002103742_lilly_source_policy/migration.sql",
+  "checksum": "114e13d80c68e2aa1d7e2a862befa3dd1168d2a5436e99c5e2f46d0cebd5b354",
+  "previousGuardMd5": "0dc966770f95b8d593ea2404317287f3",
+  "newGuardMd5": "ac53207da219d8f07c3a58ae48ccb0a4"
+}

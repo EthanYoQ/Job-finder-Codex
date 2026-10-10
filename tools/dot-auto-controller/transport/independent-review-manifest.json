@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-10-09T06:56:30.214034+00:00",
+  "disposition": "INACTIVE_DRAFT_PR_REVIEW_ONLY",
+  "productionReady": false,
+  "activationAuthorized": false,
+  "liveDatabaseAccessPerformed": false,
+  "networkRequestsPerformed": false,
+  "productionStateModified": false,
+  "nodeProfile": {
+    "version": "v22.23.3",
+    "binarySha256": "fde6a4bf8d0562f7751d1a2d6cb9b417c4cfe107bbcb0aa3e9a24e125e348f48"
+  },
+  "verification": {
+    "offlineTests": {
+      "passed": 89,
+      "failed": 0,
+      "skipped": 0
+    },
+    "hostileRuntimePreImport": "PASS_APPROVED_NODE",
+    "portableCompilerRealRuntime": "PASS",
+    "realOwnedAdmissionToOriginalPublicationCompiler": "PASS_SYNTHETIC_HTTP_NO_DB",
+    "stableControlSnapshotAndRealPacketLedgerWire": "PASS",
+    "ledgerNativeFieldMapAgainstOriginalSource": "PASS_STATIC_ONLY",
+    "ledgerTimingSkewAndRounding": "PASS_ARITHMETIC_AND_STATIC_ONLY",
+    "moduleSyntax": "PASS",
+    "postgresSQLParseExecutionMVCCRLSACLAndTriggers": "NOT_RUN",
+    "realPostgresTLSACLAndPublication": "NOT_RUN",
+    "durableCrossWorkspaceLedger": "SOURCE_IMPLEMENTED_NOT_PROVISIONED",
+    "claimIndependentAutocommitAndSynchronousWAL": "SOURCE_CONTRACT_ONLY_LIVE_NOT_RUN"
+  },
+  "code": [
+    {
+      "path": "restricted-transport.mjs",
+      "sha256": "d39da74f08ac853f566d5c0590fd4dd260a0d55b1ee48657dca8a4dfd9e9699d",
+      "bytes": 9211
+    },
+    {
+      "path": "file-journal.mjs",
+      "sha256": "365a7ef61ae16acc4940efc49b0a7750421836b1ff80c8a42606cf7ec1945717",
+      "bytes": 3416
+    },
+    {
+      "path": "pg-connection.mjs",
+      "sha256": "fe4ad42e2146f80f4e20f968b35bb19accca113ff8b789d69147163e6952fbe2",
+      "bytes": 4187
+    },
+    {
+      "path": "existing-compiler.mjs",
+      "sha256": "ae8e08ea8f1771e66e49c37e10d58a9c1d6a601f2bc63147864b1f3c43d72652",
+      "bytes": 8280
+    },
+    {
+      "path": "runtime-integrity.mjs",
+      "sha256": "cfb3cb9e744036fc1848c89b81f9f79f469db5d2cf9af2c14584cad34287ff09",
+      "bytes": 3757
+    },
+    {
+      "path": "reader-template.mjs",
+      "sha256": "d7e61869dfdec67674fd83c9ea3cc739009ee84aa8c42e32806a984f0c0faf91",
+      "bytes": 1109
+    },
+    {
+      "path": "ledger-contract.mjs",
+      "sha256": "f7b40769ee0badfa81a0d52b7dcb1d8a06673a2648d082cd49eb3d2e1483cb16",
+      "bytes": 6282
+    },
+    {
+      "path": "ledger-contract-fields.json",
+      "sha256": "f411ea63e31cce610a192506ea099118e754d3c1a7b101234629b663148e5102",
+      "bytes": 2188
+    },
+    {
+      "path": "proposal/jobfinder-control-ledger.sql",
+      "sha256": "2ab34ed08a2457a288eda887d9a0c127505e487f8a850df33b068573c7cb06e6",
+      "bytes": 27212
+    },
+    {
+      "path": "queries/takeda-c60-reader-before.sql",
+      "sha256": "3fb412f37a0a285658040fa4886b894ec3400eb86246ce85f4ee86859e74f55e",
+      "bytes": 6684
+    }
+  ],
+  "tests": [
+    {
+      "path": "restricted-transport.test.mjs",
+      "sha256": "59cf7573d720be9dfccb91f4ed6e44a95b6571cfab6d5d9b8f1eac238041a4de",
+      "bytes": 18528
+    },
+    {
+      "path": "independent-review.test.mjs",
+      "sha256": "218d7bc6dcff8135234968a223c53a50009dc39971cb8b3827d9993b4ca375f3",
+      "bytes": 7500
+    },
+    {
+      "path": "independent-runtime-integrity.test.mjs",
+      "sha256": "ecf15db1cb219f075da8af46d221a0e4d4d7eb466385facbf5b76fcc5c013f76",
+      "bytes": 2935
+    },
+    {
+      "path": "ledger-contract.test.mjs",
+      "sha256": "4859b24a974c704db7e1fb2d87eb1c1ac1f4cd5b4e4a70adf944da2e5f1fb7bf",
+      "bytes": 11699
+    },
+    {
+      "path": "reader-template.test.mjs",
+      "sha256": "4fbf396e89ec12a58e9b111108ed7bf0962ad82cdd0fcc8e0280cc20ac9013ba",
+      "bytes": 1723
+    },
+    {
+      "path": "independent-ledger-review.test.mjs",
+      "sha256": "1e46597fd9de9cf31b76be6f4e27ac23b7af0dd8c4eb5ec79cf7a72fa493157c",
+      "bytes": 3341
+    },
+    {
+      "path": "independent-owned-admission-review.mjs",
+      "sha256": "4e09f155ee2c6cecfe4e95cbca09343baf29644cd05716e0c62d7537fcaafdb8",
+      "bytes": 7651
+    },
+    {
+      "path": "independent-portable-compiler-review.mjs",
+      "sha256": "302f8d18224683038f30d9d86cf71a91dad349676875a565a2b0bd38bc176c75",
+      "bytes": 2088
+    }
+  ],
+  "docs": [
+    {
+      "path": "README.md",
+      "sha256": "81fee442e67970998f6a7951452d27f28a634f257435e45ad819b68a80356e24",
+      "bytes": 3861
+    },
+    {
+      "path": "DESIGN.md",
+      "sha256": "646a6bfaf9fb775bf7cb2cc7531c517208547b3738337101d529aa6f0f5efc93",
+      "bytes": 17878
+    },
+    {
+      "path": "LEDGER_PROPOSAL.md",
+      "sha256": "491fc4f49e40f9841b1f61c876c95bca95868e458fd7039ef7c74e7c3b0a18dd",
+      "bytes": 9317
+    },
+    {
+      "path": "privilege-proposal.json",
+      "sha256": "c887a3133ae552a9f36179f74c6aaf867c016faca1db40afae44f17c1ec2375c",
+      "bytes": 4245
+    },
+    {
+      "path": "INDEPENDENT_REVIEW.md",
+      "sha256": "d6dce8a2199807e60e15684bcf64040ea84e0f26d606ca786ea2029703b0afa3",
+      "bytes": 10328
+    }
+  ],
+  "evidence": [
+    {
+      "path": "independent-final-results.tap",
+      "sha256": "a95966d0f1e5e20b37ac08c459640b5cf909cb51af3c806c31fa948a3e959ceb",
+      "bytes": 18227
+    },
+    {
+      "path": "independent-owned-admission-results.log",
+      "sha256": "6965cfcf3d59ffb28f3db91b0a1c2f0f3e9b5df75e4d2a9a47eb17d6a89a6327",
+      "bytes": 687
+    },
+    {
+      "path": "independent-portable-compiler-results.log",
+      "sha256": "4168efa25c6570b1e50d1434022dacda2a57b6aa34073a660819905996152cf8",
+      "bytes": 569
+    }
+  ],
+  "applicability": "HISTORICAL_PRE_SANITIZATION_REVIEW_ONLY",
+  "currentSanitizedExportQualification": false
+}
