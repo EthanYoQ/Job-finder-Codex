@@ -1,3 +1,11 @@
 import fs from 'node:fs';import path from 'node:path';
-export const PACKAGE_ROOT=path.resolve(import.meta.dirname,'..');
-export function loadCatalog(){const c=JSON.parse(fs.readFileSync(PACKAGE_ROOT+'/config/native-catalog.json','utf8'));for(const [key,r] of Object.entries(c.sources)){if(key==='takeda'){r.producer=path.join(PACKAGE_ROOT,'vendor/c60-source');r.node=process.execPath;const d=JSON.parse(fs.readFileSync(PACKAGE_ROOT+'/config/deployment.json','utf8'));r.hostReference=d.authorityDirectory?path.join(d.authorityDirectory,'takeda'):null;}}return c;}
+import {PACKAGE_ROOT,loadDeploymentBinding} from './deployment.mjs';
+export {PACKAGE_ROOT} from './deployment.mjs';
+export function loadCatalog(){
+ const binding=loadDeploymentBinding(),c=JSON.parse(fs.readFileSync(PACKAGE_ROOT+'/config/native-catalog.json','utf8'));
+ const r=c.sources.takeda;
+ if(binding.external){Object.assign(r,structuredClone(binding.takeda));r.pins=r.pins.map(p=>({...p,path:path.join(PACKAGE_ROOT,p.path)}));r.newBuildAndCandidateRequired=!r.configured;}
+ r.producer=path.join(PACKAGE_ROOT,'vendor/c60-source');r.node=process.execPath;
+ r.hostReference=binding.deployment.authorityDirectory?path.join(binding.deployment.authorityDirectory,'takeda'):null;
+ return c;
+}
