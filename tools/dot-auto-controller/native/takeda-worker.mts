@@ -1,4 +1,5 @@
 import {loadCatalog} from '../src/catalog.mjs';
+import {loadDeployment,assertDeploymentBinding,deploymentBindingSha256} from '../src/deployment.mjs';
 /** Original PORTABLE native vertical slice, run only by fixed supervisor.
  * All source/SQL/reader operations are programmatic; no plugin tool is hidden.
  * This deployment candidate is inert until an independently reviewed secure
@@ -27,11 +28,11 @@ const read=(p:string)=>JSON.parse(fs.readFileSync(p,'utf8'));
 const write=(p:string,v:any)=>{const fd=fs.openSync(p,'wx',0o600);try{fs.writeFileSync(fd,JSON.stringify(v,null,2)+'\n');fs.fsyncSync(fd);}finally{fs.closeSync(fd);}};
 const fields=['id','goalId','status','version','commitSha','rosterHash','schemaHash','oracleVersion','dbSnapshotHash','sourcePlanHash','sourceTreeHash','runtimeTreeHash','migrationVersion','sourceConfigHash','adapterBundleHash','minimumStableCompanyCount'];
 export async function runNativeTakedaCycle({controlPlane,startupToken}:any){
- const deployment=read(ROOT+'/config/deployment.json'),route=loadCatalog().sources.takeda;
+ const deployment=loadDeployment(),route=loadCatalog().sources.takeda;
  const authority=requireAuthority(deployment,route),journal=new Journal(authority.directory+'/controller');
  if(route.enabled!==true)throw Error('TAKEDA_ROUTE_DISABLED');
  const batchId=process.env.JOBFINDER_AUTO_BATCH_ID;if(!batchId||!/^auto-takeda-[a-f0-9-]{36}$/.test(batchId))throw Error('SUPERVISOR_BATCH_REQUIRED');
- const run=journal.get(batchId,'00-run'),claim=journal.get(batchId,'01-source-claim');if(!run||claim?.sourceId!==route.sourceId)throw Error('SUPERVISOR_AUTHORITY_CLAIM_REQUIRED');
+ const run=journal.get(batchId,'00-run'),claim=journal.get(batchId,'01-source-claim');if(!run||run.deploymentBindingSha256!==deploymentBindingSha256()||claim?.sourceId!==route.sourceId)throw Error('SUPERVISOR_AUTHORITY_CLAIM_REQUIRED');
  const outerDeadline=Math.min(Number(process.env.P0_PILOT_OUTER_DEADLINE_MS),run.outerDeadline);requireDbStartedOuterDeadline(outerDeadline);
  const startup=controlPlane.accept(startupToken,route.sourceId);
  const runDir=path.join(authority.directory,'takeda',batchId),artifacts=path.join(runDir,'artifacts'),out=path.join(runDir,'review');
@@ -41,7 +42,7 @@ export async function runNativeTakedaCycle({controlPlane,startupToken}:any){
  const openConnection=createPgConnectionFactory({Client:pg.default.Client,config:deployment.pg,passwordProvider:async()=>{const v=process.env.JOBFINDER_PG_PASSWORD;if(!v)throw Error('SECURE_SECRET_NOT_PROVISIONED');return v;}});
  const transport=createRestrictedTransport({compiler,journal:controlPlane.wrapJournal(await createFileJournal(authority.directory+'/transport',{expectedAuthorityId:authority.identity.authorityId})),openConnection,activated:true});
  const binding=(expires:number)=>({projectId:route.projectId,sourceId:route.sourceId,sourceConfigSha256:route.sourceConfigSha256,candidateId:route.candidate.id,batchId,sourceResultId:batchId+'--'+route.sourceId,overallDeadline:outerDeadline,expiresAt:expires,dispatchBefore:expires-25000});
- const assertScope=()=>{equal(read(ROOT+'/config/deployment.json'),deployment,'DEPLOYMENT_CHANGED');equal(loadCatalog().sources.takeda,route,'ROUTE_CHANGED');requireAuthority(deployment,route);if(Date.now()>=outerDeadline)throw Error('OUTER_DEADLINE');return true;};
+ const assertScope=()=>{assertDeploymentBinding();equal(loadDeployment(),deployment,'DEPLOYMENT_CHANGED');equal(loadCatalog().sources.takeda,route,'ROUTE_CHANGED');requireAuthority(deployment,route);if(Date.now()>=outerDeadline)throw Error('OUTER_DEADLINE');return true;};
  const query=async(kind:string,input:any,expires=Math.min(outerDeadline,Date.now()+PILOT_BUDGET.controlMs))=>{const p=await transport.prepare(kind,input,binding(expires));const r:any=await transport.dispatch(p.ticket,{assertScope});if(r.status!=='SUCCEEDED')throw Error(kind+':'+r.outcome+':'+r.code);return r.rows;};
  const reader=async()=>{const requestedAt=Date.now(),rows=await query('READ_READER_CONTEXT',null);if(rows.length!==1)throw Error('READER_ROW_COUNT');const value=rows[0].reader_before;if(Date.parse(value.checkedAt)<requestedAt-1000||Date.now()-Date.parse(value.checkedAt)>60000)throw Error('READER_NOT_FRESH');return value;};
  const before=await reader();const context=before.publicationContext;
