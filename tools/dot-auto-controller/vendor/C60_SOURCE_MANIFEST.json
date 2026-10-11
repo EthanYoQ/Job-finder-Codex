@@ -61,8 +61,7 @@
       "path": "ops/cloud-pilot-host/CONNECTOR_BINDING.md",
       "sha256": "958e322f908eb1d4bb0719e32f40a64261a417b3b91b2b2a4965e775585b4305",
       "bytes": 9096,
-      "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
-      "originSha256": "ec319c7a25790eeab69c5804f7a7cff1bd3449e0f2a9a6286b33bca706447fcb"
+      "classification": "NEW_CONNECTOR_HOST_SOURCE"
     },
     {
       "path": "ops/cloud-pilot-host/archive-transfer.mjs",
@@ -98,15 +97,13 @@
       "path": "ops/cloud-pilot-host/connector-host-binding.mjs",
       "sha256": "9ec5281423112d8d77d3f68fd9c47cfd98ff43c9b944e0dd164803a3ca5ccb13",
       "bytes": 11118,
-      "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
-      "originSha256": "6c64a45ad2259f87ddf6d93166eec7e3a5a63660dba9e61525f77c41dc04feef"
+      "classification": "NEW_CONNECTOR_HOST_SOURCE"
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-launch.py",
       "sha256": "b410a05e947f390ab8d5f898aa37ebdc650cc8591d01364011b57fee29492ad1",
       "bytes": 3937,
-      "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
-      "originSha256": "2ead483f16c68990cce758bd4c583cb53327694fb166b93a9138a8577cbb418a"
+      "classification": "NEW_CONNECTOR_HOST_SOURCE"
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-no-network.cjs",
@@ -118,8 +115,7 @@
       "path": "ops/cloud-pilot-host/connector-host.test.mjs",
       "sha256": "e3d7f2c32c9e93a1f5639163de0131eabd562afa5bfc9ed9a731dd27bdaa9973",
       "bytes": 24887,
-      "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
-      "originSha256": "11fd54deb0dbd4bba55ca6c7bb0ae558799e04de8b29181706d650d800459de0"
+      "classification": "NEW_CONNECTOR_HOST_SOURCE"
     },
     {
       "path": "ops/cloud-pilot-host/host-bindings.test.mjs",
