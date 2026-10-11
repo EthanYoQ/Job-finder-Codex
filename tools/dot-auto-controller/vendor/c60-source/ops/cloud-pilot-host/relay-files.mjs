@@ -35,7 +35,7 @@ if(command==='next'||command==='next-meta'){
  }
  console.log(JSON.stringify(rows));
 }else if(command==='mark-dispatch'){
- if(connector)verifyBinding();
+ if(connector)await verifyBinding();
  const r=await readRequest(join(dir,arg+'.request.json'));
  if(!/^[a-f0-9]{64}$/.test(expectedRequestSha256??'')||r.requestSha256!==expectedRequestSha256)throw Error('REQUEST_REVIEW_HASH');
  if(Date.now()>=Date.parse(r.expiresAt)||r.payload.dispatchBefore&&Date.now()>=Date.parse(r.payload.dispatchBefore))throw Error('REQUEST_EXPIRED');

@@ -59,8 +59,8 @@
     },
     {
       "path": "ops/cloud-pilot-host/CONNECTOR_BINDING.md",
-      "sha256": "ec319c7a25790eeab69c5804f7a7cff1bd3449e0f2a9a6286b33bca706447fcb",
-      "bytes": 5810,
+      "sha256": "958e322f908eb1d4bb0719e32f40a64261a417b3b91b2b2a4965e775585b4305",
+      "bytes": 9096,
       "classification": "NEW_CONNECTOR_HOST_SOURCE"
     },
     {
@@ -95,14 +95,14 @@
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-binding.mjs",
-      "sha256": "6c64a45ad2259f87ddf6d93166eec7e3a5a63660dba9e61525f77c41dc04feef",
-      "bytes": 8301,
+      "sha256": "9ec5281423112d8d77d3f68fd9c47cfd98ff43c9b944e0dd164803a3ca5ccb13",
+      "bytes": 11118,
       "classification": "NEW_CONNECTOR_HOST_SOURCE"
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-launch.py",
-      "sha256": "2ead483f16c68990cce758bd4c583cb53327694fb166b93a9138a8577cbb418a",
-      "bytes": 2669,
+      "sha256": "b410a05e947f390ab8d5f898aa37ebdc650cc8591d01364011b57fee29492ad1",
+      "bytes": 3937,
       "classification": "NEW_CONNECTOR_HOST_SOURCE"
     },
     {
@@ -113,8 +113,8 @@
     },
     {
       "path": "ops/cloud-pilot-host/connector-host.test.mjs",
-      "sha256": "11fd54deb0dbd4bba55ca6c7bb0ae558799e04de8b29181706d650d800459de0",
-      "bytes": 15490,
+      "sha256": "e3d7f2c32c9e93a1f5639163de0131eabd562afa5bfc9ed9a731dd27bdaa9973",
+      "bytes": 24887,
       "classification": "NEW_CONNECTOR_HOST_SOURCE"
     },
     {
@@ -125,22 +125,22 @@
     },
     {
       "path": "ops/cloud-pilot-host/host-files.mts",
-      "sha256": "e6aa5798af593ba5230a0a6239156b662fa33a5fba475fcf4478098f6ee3ff49",
-      "bytes": 11463,
+      "sha256": "5d43f9ac110f72e38464b7db90c39d6f5dc603260a9e1ab88504c9c46126379d",
+      "bytes": 11336,
       "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
       "originSha256": "4a8df2db69cf0d09f6f58f1ec9e7c7ebe532c75542453e71e237e74a574367c2"
     },
     {
       "path": "ops/cloud-pilot-host/host-helper-functions.js",
-      "sha256": "24add8415ce343d2e6496a67008fb94b5de90cbe4babcc3b99459e55201d72fe",
-      "bytes": 10091,
+      "sha256": "1ed511a59f3591b3958f2c109e47c78d35373492ee868541232f2aeebcc57c36",
+      "bytes": 10369,
       "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
       "originSha256": "885ac8e12c3465451fcf8604166a9fc1f69c184ca7fe58a5b7ea3ec7683a4d23"
     },
     {
       "path": "ops/cloud-pilot-host/host-stage-functions.js",
-      "sha256": "04e116559a4d23148343c18e7af4af0053e115763b85c8448b78c17c18c7eee2",
-      "bytes": 7825,
+      "sha256": "e33698f3372cb576e2cc6e9f57ef912c4c326f5d55b9381add718e465bbed1ce",
+      "bytes": 7866,
       "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
       "originSha256": "7171a80f703481f0c3095f6da7be8b4901eda3093a9aa3bf04a0a2aa66f39f2e"
     },
@@ -188,8 +188,8 @@
     },
     {
       "path": "ops/cloud-pilot-host/relay-files.mjs",
-      "sha256": "2480b2b17ced8ebbef523ed53b5fc7e601618b26803f814a7ff35df2e0791fe4",
-      "bytes": 5924,
+      "sha256": "d8b2ddff74dc5f6b5cb02ff3acebc0fc44321745150abbeab7a6aede4e352c98",
+      "bytes": 5930,
       "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
       "originSha256": "a4adb5462b5e7e82f18dc93aedf77c92ae82244214ef65dccacb02d2fe225198"
     },

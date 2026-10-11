@@ -1,8 +1,11 @@
 
 const loaded=load("cloudPilotHostConfig");
-const cfg=loaded?.mode==="TAKEDA_PORTABLE_CONNECTOR_V1"?Object.freeze({...loaded}):loaded;
+const isConnector=mode=>["TAKEDA_PORTABLE_CONNECTOR_V1","NATIVE_PORTABLE_CONNECTOR_V1"].includes(mode);
+const cfg=isConnector(loaded?.mode)?Object.freeze({...loaded}):loaded;
 if(!cfg)throw Error("HOST_CONFIG_REQUIRED");
-const connector=cfg.mode==="TAKEDA_PORTABLE_CONNECTOR_V1";
+const connector=isConnector(cfg.mode);
+const sourceId=cfg?.sourceId??(cfg.mode==="TAKEDA_PORTABLE_CONNECTOR_V1"?"source-takeda-china-social":undefined);
+if(connector&&!/^source-[a-z0-9-]+$/.test(sourceId??""))throw Error("HOST_SOURCE_ENV");
 if(connector&&!/^[a-f0-9]{64}$/.test(cfg.bindingSha256??""))throw Error("HOST_CONFIG_REQUIRED");
 const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'";
 async function cmd(command,max=10000){
@@ -11,7 +14,7 @@ async function cmd(command,max=10000){
   if(!script)throw Error("HOST_COMMAND_SCOPE");
   command="/usr/bin/python3 -I "+q(cfg.root+"/connector-host-launch.py")+" "+q(script)+command.slice(("node "+q(cfg.root+"/"+script)).length);
  }
- const r=await tools.exec_command({cmd:connector?"JOBFINDER_CONNECTOR_HOST_SHA256="+q(cfg.bindingSha256)+" JOBFINDER_CLOUD_SOURCE_ID=source-takeda-china-social "+command:command,workdir:cfg.repo,max_output_tokens:max,yield_time_ms:10000});if(r.session_id)throw Error("HOST_UNEXPECTED_LONG_COMMAND:"+r.session_id);if(r.exit_code!==0)throw Error("HOST_COMMAND:"+r.output);return r.output;}
+ const r=await tools.exec_command({cmd:connector?"JOBFINDER_CONNECTOR_HOST_SHA256="+q(cfg.bindingSha256)+" JOBFINDER_CLOUD_SOURCE_ID="+q(sourceId)+" "+command:command,workdir:cfg.repo,max_output_tokens:max,yield_time_ms:10000});if(r.session_id)throw Error("HOST_UNEXPECTED_LONG_COMMAND:"+r.session_id);if(r.exit_code!==0)throw Error("HOST_COMMAND:"+r.output);return r.output;}
 async function save(path,value){if(connector)throw Error("HOST_SAVE_USE_RESPOND");const data=typeof value==="string"?value:JSON.stringify(value);const result=await tools.apply_patch("*** Begin Patch\n*** Add File: "+path+"\n"+data.split("\n").map(x=>"+"+x).join("\n")+"\n*** End Patch");if(result?.isError)throw Error("HOST_SAVE");return path;}
 async function readFile(path){let offset=0,parts=[],hash,total;while(true){const r=JSON.parse(await cmd("node "+q(cfg.root+"/host-files.mts")+(connector?" connector-read ":" read ")+q(path)+" "+offset,100000));if(hash&&hash!==r.sha256)throw Error("HOST_READ_CHANGED");hash=r.sha256;total=r.charCount;parts.push(r.text);if(r.next===null)break;offset=r.next;}const text=parts.join("");if(text.length!==total)throw Error("HOST_READ_INCOMPLETE");return {text,hash};}
 function rows(result){if(result.isError)throw Error("HOST_SQL_TOOL_ERROR:"+JSON.stringify(result));const t=result.structuredContent?.result??JSON.parse(result.content.find(x=>x.type==="text").text).result; if(typeof t!=="string")throw Error("HOST_SQL_RESULT_SHAPE");const m=t.match(/\n<untrusted-data-[^>]+>\n([\s\S]*?)\n<\/untrusted-data-/);if(!m)throw Error("HOST_SQL_ROWS_MISSING");const r=JSON.parse(m[1]);if(!Array.isArray(r))throw Error("HOST_SQL_ROWS_INVALID");return r;}
@@ -94,6 +97,6 @@ async function next(dir){
 async function binding(){
  if(!connector)throw Error("HOST_CONFIG_REQUIRED");
  const b=JSON.parse(await cmd("node "+q(cfg.root+"/host-files.mts")+" connector-validate"));
- if(b.root!==cfg.root||b.repo!==cfg.repo||b.project!==cfg.project||b.mode!==cfg.mode)throw Error("HOST_CONFIG_BINDING");return b;
+ if(b.root!==cfg.root||b.repo!==cfg.repo||b.project!==cfg.project||b.mode!==cfg.mode||b.sourceId!==sourceId)throw Error("HOST_CONFIG_BINDING");return b;
 }
 return {cfg,q,cmd,save,readFile,rows,mark,respond,sqlDispatch,next,binding,responseDigest};

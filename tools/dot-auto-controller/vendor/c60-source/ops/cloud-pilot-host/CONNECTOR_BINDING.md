@@ -1,15 +1,19 @@
-# Explicit Takeda official-connector host mode
+# Closed native PORTABLE official-connector host modes
 
 This opt-in repairs the existing dot AsyncFunction host and FilePilotRelay path. It does not use the inactive direct controller, a private ledger, a new database profile, credentials or a new transport. The legacy branch remains unchanged. Missing new-mode configuration fails closed. No configuration, task directory, runtime executable or owner state is provisioned by host code.
 
 ## Fixed scope
 
-The only new mode is `TAKEDA_PORTABLE_CONNECTOR_V1`, fixed to project `yiopvxysxrtrnvqxwgbx`, `source-takeda-china-social`, `PORTABLE` and `DB_STARTED_JOB_PROJECTION_DELTA_V1`. The original source plan must derive `048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f`. The owner ID is the original producer's `CLOUD_PILOT_SOURCE.ownerId`, not evidence that an old process or publication was reconciled.
+`TAKEDA_PORTABLE_CONNECTOR_V1` remains compatible and accepts only Takeda. The opt-in `NATIVE_PORTABLE_CONNECTOR_V1` accepts exactly the 20 PORTABLE rows of the existing 36-source native catalogue. The other 13 TRUE_A and 3 TRUE_B rows, unknown sources, other projects, other routes and other publication modes are rejected. Both modes remain fixed to project `yiopvxysxrtrnvqxwgbx` and `DB_STARTED_JOB_PROJECTION_DELTA_V1`.
+
+The catalogue is the fixed `config/native-catalog.json` relative to this package, 12,274 bytes, SHA-256 `3457b2f2e6aa2c8086ddc4aba39a5303c8f827e398adc3e822b5e58d8ab37503`. The producer source/runtime build hashes include the host code that pins this digest. Both the launcher and binding reader check the catalogue's bytes and file identity; neither trusts mutable catalogue content to expand the allowlist. The catalogue is unchanged, all direct-controller sources remain disabled, and its per-source `executionAuthorizedByAudit: false` and known-fix warnings remain in force. Host binding eligibility is not live execution qualification. Before context compilation or dispatch marking, `verifyBinding` also requires the selected catalogue row to carry `NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE`. The seven `PROHIBITED_MISSING_KNOWN_SOURCE_FIX` rows (Abbvie, BMS, Gilead, Kelun, Novartis, Novo Nordisk and Organon) therefore fail with `HOST_SOURCE_FIX_REQUIRED`, even with their original correct hashes. JSON cannot waive this gate. The catalogue-wide `executionAuthorizedByAudit: false` flag does not independently block the remaining 13 PORTABLE rows; they still require all other build, registration, source and owner checks.
+
+After Node/runtime/Git/entrypoint verification, the host imports the original `PORTABLE_REFRESH_SOURCE_IDS` and requires exact set equality with the catalogue's 20 PORTABLE source IDs. It derives the selected plan from the original full-41 compiler authority, compares `sourcePlanConfigSha256`, calls the original `assertPortableRefreshPlan`, and requires the original `CLOUD_PILOT_SOURCE` ID/hash/owner to match. No producer, compiler, wrapper or DB49 file is modified. Owner identity is not evidence that an old process or publication was reconciled. The 36-source native scope and full-41 compiler authority serve different existing purposes; neither replaces the other.
 
 `JOBFINDER_CONNECTOR_HOST_SHA256` selects only `<repository-parent>/connector-host-bindings/<sha256>.json`. The sole task directory is `<repository-parent>/connector-host-task/relay`. The fixed reviewed Node binary is `<repository-parent>/connector-host-runtime/node`. These are outside the runtime source tree. Configuration cannot select paths, code, loaders, providers or SQL. It has exact keys:
 
 - schemaVersion: 1, kind, enabled: true
-- fixed projectId, sourceId, sourceConfigSha256, route, publicationMode and ownerId
+- fixed projectId, catalogue-bound sourceId/sourceConfigSha256, PORTABLE route, publicationMode and original source-derived ownerId
 - control: the original `{projectId, build, candidate, databaseIdentity}` input
 - lockSha256
 - entrypointHashes: exact hashes for producer, wrapper, controlCompiler, publicationCompiler and dbStarted; all paths are constants
@@ -18,11 +22,11 @@ The configuration directory, task/relay directories and fixed runtime directory 
 
 ## Tool-host startup
 
-The parent loads the reviewed helper/stage source into its existing tool orchestration environment, as before. Its trusted in-memory `cloudPilotHostConfig` supplies mode, bindingSha256, root (this host directory), repo (the original producer directory), and the fixed project. Those existing root/repo paths are checked against the bound host's own location. The JSON cannot override them.
+The parent loads the reviewed helper/stage source into its existing tool orchestration environment, as before. Its trusted in-memory `cloudPilotHostConfig` supplies mode, bindingSha256, root (this host directory), repo (the original producer directory), and the fixed project. The new native mode also requires sourceId; the old Takeda mode retains its fixed default. Those existing root/repo paths are checked against the bound host's own location. The JSON cannot override them.
 
-In this mode every helper subprocess goes through the reviewed `connector-host-launch.py` using `/usr/bin/python3 -I`. The launcher does not use PATH to select Node. It verifies the fixed Node 22.23.3 executable's owner, type and SHA-256 before execution, strips inherited Node preload/loader variables, and uses the fixed original tsx API only after full runtime verification. Its fixed network-denial preload prevents file/compiler subprocesses from using sockets, DNS or fetch. Supabase MCP calls remain in the original tool host.
+In this mode every helper subprocess goes through the reviewed `connector-host-launch.py` using `/usr/bin/python3 -I`. The launcher does not use PATH to select Node. It verifies the fixed Node 22.23.3 executable's owner, type and SHA-256 before execution, strips inherited Node preload/loader/provider variables, accepts only a catalogue-listed PORTABLE source environment, and uses the fixed original tsx API only after full runtime verification. Its fixed network-denial preload prevents file/compiler subprocesses from using sockets, DNS or fetch. Supabase MCP calls remain in the original tool host.
 
-Before context compilation and actual dispatch marking, the host verifies the exact Node profile, clean real Git commit, source/runtime/dependency hashes, control build and fixed entrypoint hashes. The original compiler still derives the full 41-plan identity. Changing these ops files changes the producer build; a local test commit is not remote provenance. Production candidate registration must wait for the final remote commit and freshly qualified runtime.
+Every binding read requires the selected source environment to exactly match the immutable configuration. Before context compilation and actual dispatch marking, the host verifies the exact Node profile, clean real Git commit, source/runtime/dependency hashes, control build and fixed entrypoint hashes. The original compiler still derives the full 41-plan identity. Changing these ops files changes the producer build; a local test commit is not remote provenance. Production candidate registration must wait for the final remote commit and freshly qualified runtime.
 
 ## Request semantics
 
@@ -35,3 +39,9 @@ The offline tests stub only the connector result. Their positive path executes t
 ## Bounded response transfer
 
 The tool helper hashes its actual JSON result with its own pure-JavaScript UTF-8 SHA-256 before any file call. Response parts contain at most 16,000 string characters and use only request-derived fixed names. Every part binds the original request hash, index/count, full digest and total size. Total size is capped at 16 MiB, and all parts/ready/final writes are exclusive mode-0600 writes. Duplicate, out-of-order, missing, mismatched or corrupt parts fail closed. Assembly validates complete JSON and its full byte digest before creating a ready file. Finalization checks the helper's original digest again before creating host-result; only the original relay respond step makes a response visible. No partial file, ready file or interrupted transfer establishes completion or permits a SQL resend.
+
+## Offline validation contract
+
+`connector-host.test.mjs` requires an independently measured local build fixture via `CONNECTOR_TEST_CONFIG_SHA`. Its added native cases use real Astellas and Biogen compiler/plan/owner modules with synthetic connector result rows. They verify the exact 20/36 catalogue, closed source/hash/owner/route binding, rejected TRUE_A/TRUE_B/unknown sources, environment mismatch and stripping, configuration selector/replacement changes, catalogue drift, dirty Git, old candidates, unchanged parent-review boundary, absolute deadlines and exclusive no-replay markers. Existing Takeda, file-policy, request SHA, UNKNOWN and bounded-response tests remain in the same suite.
+
+These fixtures do not create database registrations, execute SQL, contact official sites, or establish production source qualification. This code changes the source/runtime identity. It cannot use the old Takeda v74 build identity; publication requires review plus a new real commit/build/candidate before any later live execution.

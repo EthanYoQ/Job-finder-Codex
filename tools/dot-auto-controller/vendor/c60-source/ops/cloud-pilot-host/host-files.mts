@@ -2,7 +2,7 @@ import { readFile, writeFile, readdir, lstat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { loadBinding, verifyBinding, taskFile, readChecked, HOST_ROOT, PRODUCER_ROOT, RELAY_ROOT, TASK_ROOT, SOURCE, SOURCE_HASH, MODE } from './connector-host-binding.mjs';
+import { loadBinding, verifyBinding, taskFile, readChecked, HOST_ROOT, PRODUCER_ROOT, RELAY_ROOT, TASK_ROOT } from './connector-host-binding.mjs';
 import { packArchiveTransfer,unpackArchiveTransfer } from './archive-transfer.mjs';
 const root=resolve(fileURLToPath(new URL('.',import.meta.url)))+'/';
 const sha=(x:string|Buffer)=>createHash('sha256').update(x).digest('hex');
@@ -53,17 +53,16 @@ if(op?.startsWith('connector-')){
    console.log(JSON.stringify({sha256:data.sha256,byteCount:data.byteCount}));
   }
  }else{
-  verifyBinding();
-  if(op==='connector-validate')console.log(JSON.stringify({mode:MODE,root:HOST_ROOT,repo:PRODUCER_ROOT,relayDirectory:RELAY_ROOT,taskRoot:TASK_ROOT,project:cfg.projectId,sourceId:cfg.sourceId,sourceConfigSha256:cfg.sourceConfigSha256,candidateId:cfg.control.candidate.id,buildContentSha256:cfg.control.build.contentSha256}));
+  await verifyBinding();
+  if(op==='connector-validate')console.log(JSON.stringify({mode:cfg.kind,root:HOST_ROOT,repo:PRODUCER_ROOT,relayDirectory:RELAY_ROOT,taskRoot:TASK_ROOT,project:cfg.projectId,sourceId:cfg.sourceId,sourceConfigSha256:cfg.sourceConfigSha256,ownerId:cfg.ownerId,candidateId:cfg.control.candidate.id,buildContentSha256:cfg.control.build.contentSha256}));
   else if(op==='connector-context'){
    const {r}=request();
    if(!['READ_CONTEXT','READ_PUBLICATION_CONTEXT'].includes(r.kind)||Date.now()>=Date.parse(r.expiresAt)||r.payload.dispatchBefore&&Date.now()>=Date.parse(r.payload.dispatchBefore))throw Error('HOST_CONTEXT_REQUEST');
-   if(r.kind==='READ_CONTEXT'&&(r.payload.sourceId!==SOURCE||r.payload.sourceConfigSha256!==SOURCE_HASH||r.payload.purpose!=='PRE_CAPTURE'))throw Error('HOST_CONTEXT_SOURCE_BINDING');
+   if(r.kind==='READ_CONTEXT'&&(r.payload.sourceId!==cfg.sourceId||r.payload.sourceConfigSha256!==cfg.sourceConfigSha256||r.payload.purpose!=='PRE_CAPTURE'))throw Error('HOST_CONTEXT_SOURCE_BINDING');
    // Import original modules only after the exact Node/build/dependency checks.
-   const {register}=await import(pathToFileURL(PRODUCER_ROOT+'/node_modules/tsx/dist/esm/api/index.mjs').href);register({tsconfig:PRODUCER_ROOT+'/tsconfig.json'});
    const {CLOUD_PILOT_SOURCE,compileCloudPilotPublicationContextSql}=await import(pathToFileURL(PRODUCER_ROOT+'/src/db/cloudPilotSqlControl.ts').href);
    const {SOURCE_QUALITY_POLICY_ID}=await import(pathToFileURL(PRODUCER_ROOT+'/src/crawler/sourceQualityAdmission.ts').href);
-   if(CLOUD_PILOT_SOURCE.id!==SOURCE||CLOUD_PILOT_SOURCE.sourceConfigSha256!==SOURCE_HASH||CLOUD_PILOT_SOURCE.ownerId!==cfg.ownerId)throw Error('HOST_SOURCE_MODULE_DRIFT');
+   if(CLOUD_PILOT_SOURCE.id!==cfg.sourceId||CLOUD_PILOT_SOURCE.sourceConfigSha256!==cfg.sourceConfigSha256||CLOUD_PILOT_SOURCE.ownerId!==cfg.ownerId)throw Error('HOST_SOURCE_MODULE_DRIFT');
    const sql=compileCloudPilotPublicationContextSql(cfg.control,SOURCE_QUALITY_POLICY_ID);
    if(r.kind==='READ_PUBLICATION_CONTEXT'&&sql!==r.payload.sql)throw Error('HOST_CONTEXT_SQL_BINDING');
    console.log(JSON.stringify({sql,sha256:sha(sql),requestId:r.requestId,requestSha256:r.requestSha256,candidateId:cfg.control.candidate.id,buildContentSha256:cfg.control.build.contentSha256}));
