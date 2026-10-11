@@ -1,7 +1,7 @@
 
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const h=await new AsyncFunction(load("cloudPilotHostHelpers"))(); const {cfg}=h;
 async function handle(r,dir){
- if(cfg.mode==="TAKEDA_PORTABLE_CONNECTOR_V1"){
+ if(["TAKEDA_PORTABLE_CONNECTOR_V1","NATIVE_PORTABLE_CONNECTOR_V1"].includes(cfg.mode)){
   const b=await h.binding();if(dir!==b.relayDirectory)throw Error("RELAY_DIRECTORY_OUTSIDE_TASK");
   if(r.expired||r.dispatchRecorded)throw Error("HOST_STALE_OR_UNCERTAIN_REQUEST:"+r.kind);
   if(["ARCHIVE_STORE","CREATE_PENDING","LEASE_ACQUIRE","LEASE_RENEW","LEASE_RELEASE"].includes(r.kind))throw Error("HOST_DB_STARTED_KIND");

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {createHash,randomUUID} from 'node:crypto';
-import {HOST_ROOT,PRODUCER_ROOT,BINDING_ROOT,TASK_ROOT,RELAY_ROOT,SOURCE,SOURCE_HASH,MODE,PROJECT,SELECTOR} from './connector-host-binding.mjs';
+import {HOST_ROOT,PRODUCER_ROOT,BINDING_ROOT,TASK_ROOT,RELAY_ROOT,SOURCE,SOURCE_HASH,MODE,NATIVE_MODE,PROJECT,SELECTOR,portableCatalogue,CATALOG_FILE} from './connector-host-binding.mjs';
 const testRoot=process.env.CONNECTOR_TEST_HOST_ROOT??HOST_ROOT;
 const sha=x=>createHash('sha256').update(x).digest('hex'),A=Object.getPrototypeOf(async function(){}).constructor;
 const configSha=process.env.CONNECTOR_TEST_CONFIG_SHA;
@@ -18,8 +18,9 @@ function make(kind='READ_CONTEXT',payload={projectId:PROJECT,sourceId:SOURCE,sou
 function put(r){const file=path.join(RELAY_ROOT,r.requestId+'.request.json');fs.writeFileSync(file,JSON.stringify(r),{flag:'wx',mode:0o600});return file;}
 function binding(change){const c=structuredClone(config);change(c);const text=JSON.stringify(c),s=sha(text);fs.writeFileSync(path.join(BINDING_ROOT,s+'.json'),text,{flag:'wx',mode:0o400});return s;}
 async function host(selected=configSha,launchEnv={},contextExtra={}){const calls=[],commands=[],state=new Map();
- const cfg={mode:MODE,bindingSha256:selected,root:testRoot,repo:PRODUCER_ROOT,project:PROJECT};
- const tools={exec_command:async({cmd,workdir})=>{commands.push(cmd);const r=spawnSync('/bin/bash',['-c',cmd],{cwd:workdir,env:env(launchEnv),encoding:'utf8'});return {exit_code:r.status,output:r.stdout+(r.status===0?'':r.stderr)};},apply_patch:async()=>{throw Error('NO_PATCH_WRITES_IN_CONNECTOR_MODE');},mcp__codex_apps__supabase_execute_sql:async x=>{calls.push(x);return {structuredContent:{result:'\n<untrusted-data-fixture>\n'+JSON.stringify([{context:{checkedAt:new Date().toISOString(),sourceId:SOURCE,sourceConfigSha256:SOURCE_HASH,jobs:[],latestAccepted:null,firstAccepted:null,...contextExtra}}])+'\n</untrusted-data-fixture>'}};}};
+ const selectedConfig=JSON.parse(fs.readFileSync(path.join(BINDING_ROOT,selected+'.json')));
+ const cfg={mode:selectedConfig.kind,bindingSha256:selected,root:testRoot,repo:PRODUCER_ROOT,project:PROJECT,...selectedConfig.kind===NATIVE_MODE?{sourceId:selectedConfig.sourceId}:{}};
+ const tools={exec_command:async({cmd,workdir})=>{commands.push(cmd);const r=spawnSync('/bin/bash',['-c',cmd],{cwd:workdir,env:env({JOBFINDER_CLOUD_SOURCE_ID:selectedConfig.sourceId,...launchEnv}),encoding:'utf8'});return {exit_code:r.status,output:r.stdout+(r.status===0?'':r.stderr)};},apply_patch:async()=>{throw Error('NO_PATCH_WRITES_IN_CONNECTOR_MODE');},mcp__codex_apps__supabase_execute_sql:async x=>{calls.push(x);return {structuredContent:{result:'\n<untrusted-data-fixture>\n'+JSON.stringify([{context:{checkedAt:new Date().toISOString(),sourceId:selectedConfig.sourceId,sourceConfigSha256:selectedConfig.sourceConfigSha256,jobs:[],latestAccepted:null,firstAccepted:null,...contextExtra}}])+'\n</untrusted-data-fixture>'}};}};
  const helpers=fs.readFileSync(path.join(testRoot,'host-helper-functions.js'),'utf8'),h=await new A('tools','load','store',helpers)(tools,()=>cfg,(k,v)=>state.set(k,v));
  const text=fs.readFileSync(path.join(testRoot,'host-stage-functions.js'),'utf8'),body='const cfg=h.cfg;\n'+text.slice(text.indexOf('async function handle')).replace('return {h,handle};','return handle;');
  const handle=await new A('h','tools','store','load',body)(h,tools,(k,v)=>state.set(k,v),k=>state.get(k));return {h,handle,calls,commands,state};
@@ -65,7 +66,7 @@ test('control-generated publication context rejects wrong candidate SQL',async()
  const r=make('READ_PUBLICATION_CONTEXT',{projectId:PROJECT,sql:"SELECT 'wrong-candidate'"});put(r);const {handle,calls}=await host();await assert.rejects(handle(r,RELAY_ROOT),/HOST_CONTEXT_SQL_BINDING/);assert.equal(calls.length,0);
 });
 test('config cannot select a path, loader, provider, source, route or new publication mode',()=>{
- for(const change of [c=>{c.path='/etc/passwd';},c=>{c.loader='/tmp/code.mjs';},c=>{c.provider='postgres';},c=>{c.sourceId='source-lilly-china-social';},c=>{c.route='A';},c=>{c.publicationMode='DB_STARTED_OWNER_V1';}]){const selected=binding(change);mustReject(cli('host-files.mts',['connector-validate'],{[SELECTOR]:selected}),/HOST_CONFIG_SCOPE/);}
+ for(const change of [c=>{c.path='/etc/passwd';},c=>{c.loader='/tmp/code.mjs';},c=>{c.provider='postgres';},c=>{c.sql='SELECT 1';},c=>{c.executable='/bin/sh';},c=>{c.sourceId='source-lilly-china-social';},c=>{c.route='A';},c=>{c.publicationMode='DB_STARTED_OWNER_V1';}]){const selected=binding(change);mustReject(cli('host-files.mts',['connector-validate'],{[SELECTOR]:selected}),/HOST_CONFIG_SCOPE/);}
 });
 
 test('actual launcher ignores default PATH and inherited Node preload',async()=>{
@@ -105,4 +106,59 @@ test('1MiB response retains the original 60-second control window',async()=>{
  const extra={large:'x'.repeat(1024*1024)},r=make();put(r);const {handle,calls}=await host(configSha,{},extra),started=performance.now();
  const out=await handle(r,RELAY_ROOT),elapsedMs=Math.round(performance.now()-started);assert.equal(out.status,'READ_CONTEXT');assert.equal(calls.length,1);assert.ok(Date.now()<Date.parse(r.expiresAt));
  const response=JSON.parse(fs.readFileSync(path.join(RELAY_ROOT,r.requestId+'.response.json')));assert.equal(response.result.large,extra.large);console.log(JSON.stringify({event:'ONE_MIB_RESPONSE_TIMING',elapsedMs,originalExpiresAt:r.expiresAt,sqlCalls:calls.length,fixtureOnly:true}));
+});
+
+// Every following binding is a local synthetic candidate, never production evidence.
+function nativeBinding(id,change=()=>{}){return binding(c=>{const row=portableCatalogue().find(r=>r.sourceId===id);c.kind=NATIVE_MODE;c.sourceId=id;c.sourceConfigSha256=row?.sourceConfigSha256??'a'.repeat(64);c.ownerId=`dot-cloud-${id.slice(7)}-pilot`;change(c);});}
+function nativeRequest(id,change={}){const row=portableCatalogue().find(r=>r.sourceId===id);return make('READ_CONTEXT',{projectId:PROJECT,sourceId:id,sourceConfigSha256:row?.sourceConfigSha256,purpose:'PRE_CAPTURE',...change});}
+const astellas='source-astellas-china-social',biogen='source-biogen-china-social';
+test('native catalogue is the exact closed 20 of the actual 36 sources',()=>{
+ const all=JSON.parse(fs.readFileSync(CATALOG_FILE)).routingCatalogue,portable=portableCatalogue();
+ assert.equal(all.length,36);assert.equal(portable.length,20);assert.equal(all.filter(r=>r.route==='TRUE_A').length,13);assert.equal(all.filter(r=>r.route==='TRUE_B').length,3);
+ for(const row of portable){const selected=nativeBinding(row.sourceId,c=>{c.control.candidate.id='OFFLINE_CLOSED_'+row.sourceId;});const r=spawnSync(process.execPath,['--input-type=module','-e',`import {loadBinding} from ${JSON.stringify(path.join(testRoot,'connector-host-binding.mjs'))}; console.log(loadBinding().sourceId);`],{cwd:PRODUCER_ROOT,env:env({[SELECTOR]:selected,JOBFINDER_CLOUD_SOURCE_ID:row.sourceId}),encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.equal(r.stdout.trim(),row.sourceId);}
+});
+test('two PORTABLE sources use the real original compiler and derived owner/hash',async()=>{
+ for(const id of [astellas,biogen]){const selected=nativeBinding(id),r=nativeRequest(id);put(r);const {h,handle,calls,commands}=await host(selected);const b=await h.binding();assert.equal(b.mode,NATIVE_MODE);assert.equal(b.sourceId,id);assert.equal(b.sourceConfigSha256,r.payload.sourceConfigSha256);assert.equal(b.ownerId,`dot-cloud-${id.slice(7)}-pilot`);
+  const out=await handle(r,RELAY_ROOT);assert.equal(out.status,'READ_CONTEXT');assert.equal(calls.length,1);assert.match(calls[0].query,new RegExp(id));assert.ok(calls[0].query.includes(r.payload.sourceConfigSha256));assert.ok(calls[0].query.includes('plan-bound-source-quality-v1'));assert.ok(!calls[0].query.includes('source-lilly-china-social'));assert.ok(commands.every(c=>c.includes('/usr/bin/python3 -I ')));
+  const response=JSON.parse(fs.readFileSync(path.join(RELAY_ROOT,r.requestId+'.response.json')));assert.equal(response.result.sourceId,id);assert.equal(response.result.sourceConfigSha256,r.payload.sourceConfigSha256);
+ }
+});
+test('TRUE_A, TRUE_B and unknown source bindings fail before any SQL',async()=>{
+ for(const id of ['source-lilly-china-social','source-gsk-china-social','source-pfizer-china-social','source-not-in-native-catalog']){const selected=nativeBinding(id),r=make();put(r);const {handle,calls}=await host(selected);await assert.rejects(handle(r,RELAY_ROOT),/HOST_SOURCE_ENV|HOST_CONFIG_SCOPE/);assert.equal(calls.length,0);}
+});
+test('native hash drift, route drift, owner drift and old candidate fail closed',()=>{
+ for(const [name,change] of [['hash',c=>c.sourceConfigSha256='f'.repeat(64)],['route',c=>c.route='TRUE_A'],['owner',c=>c.ownerId='dot-cloud-biogen-china-social-pilot'],['old-candidate',c=>c.control.candidate.version=49],['old-mode',c=>c.kind=MODE]]){const selected=nativeBinding(astellas,c=>{change(c);c.control.candidate.id='OFFLINE_NEGATIVE_'+name;});mustReject(cli('host-files.mts',['connector-validate'],{[SELECTOR]:selected,JOBFINDER_CLOUD_SOURCE_ID:astellas}),/HOST_CONFIG_SCOPE|HOST_CONFIG_CANDIDATE/);}
+});
+test('native cross-source request and environment mismatch cannot call SQL',async()=>{
+ const selected=nativeBinding(astellas,c=>c.control.candidate.id='OFFLINE_CROSS_SOURCE');
+ const r=nativeRequest(biogen);put(r);const {handle,calls}=await host(selected);await assert.rejects(handle(r,RELAY_ROOT),/HOST_CONTEXT_SOURCE_BINDING/);assert.equal(calls.length,0);
+ mustReject(cli('host-files.mts',['connector-validate'],{[SELECTOR]:selected,JOBFINDER_CLOUD_SOURCE_ID:biogen}),/HOST_SOURCE_ENV/);
+ const launch=spawnSync('/usr/bin/python3',['-I',path.join(testRoot,'connector-host-launch.py'),'host-files.mts','connector-validate'],{cwd:PRODUCER_ROOT,env:env({[SELECTOR]:selected,JOBFINDER_CLOUD_SOURCE_ID:'source-lilly-china-social'}),encoding:'utf8'});mustReject(launch,/HOST_SOURCE_ENV/);
+});
+test('config selector swap, same-path replacement and source env change fail in one process',()=>{
+ for(const how of ['selector','replace','environment']){const selected=nativeBinding(astellas,c=>c.control.candidate.id='OFFLINE_SWAP_'+how),other=nativeBinding(biogen,c=>c.control.candidate.id='OFFLINE_SWAP_OTHER_'+how),file=path.join(BINDING_ROOT,selected+'.json');
+  const action=how==='selector'?`process.env[SELECTOR]=${JSON.stringify(other)};`:how==='environment'?`process.env.JOBFINDER_CLOUD_SOURCE_ID=${JSON.stringify(biogen)};`:`const f=${JSON.stringify(file)},b=fs.readFileSync(f);fs.unlinkSync(f);fs.writeFileSync(f,b,{mode:0o400,flag:'wx'});`;
+  const r=spawnSync(process.execPath,['--input-type=module','-e',`import fs from 'node:fs';import {loadBinding,SELECTOR} from ${JSON.stringify(path.join(testRoot,'connector-host-binding.mjs'))};loadBinding();${action}loadBinding();`],{cwd:PRODUCER_ROOT,env:env({[SELECTOR]:selected,JOBFINDER_CLOUD_SOURCE_ID:astellas}),encoding:'utf8'});mustReject(r,/HOST_CONFIG_CHANGED|HOST_SOURCE_ENV/);
+ }
+});
+test('native launcher strips hostile preload, loader, source aliases and provider environment',async()=>{
+ const selected=nativeBinding(biogen,c=>c.control.candidate.id='OFFLINE_ENV_STRIPPING'),r=nativeRequest(biogen);put(r);const {handle,calls}=await host(selected,{PATH:'/untrusted',NODE_OPTIONS:'--require=/must-not-execute.cjs',NODE_PATH:'/untrusted',JOBFINDER_SOURCE_ID:'source-lilly-china-social',PGHOST:'/must-not-open',DATABASE_URL:'postgresql://must-not-open/fixture'});assert.equal((await handle(r,RELAY_ROOT)).status,'READ_CONTEXT');assert.equal(calls.length,1);
+});
+test('native PUBLISH still waits for review; UNKNOWN, deadline and wx replay remain closed',async()=>{
+ const selected=nativeBinding(astellas,c=>c.control.candidate.id='OFFLINE_NATIVE_REPLAY'),{handle,calls}=await host(selected),extra={[SELECTOR]:selected,JOBFINDER_CLOUD_SOURCE_ID:astellas};
+ const r=make('PUBLISH',{projectId:PROJECT,sql:'SELECT 1',dispatchBefore:new Date(Date.now()+30000).toISOString()});put(r);assert.equal((await handle(r,RELAY_ROOT)).status,'AWAITING_PARENT_REVIEW');assert.equal(calls.length,0);assert.ok(!fs.existsSync(path.join(RELAY_ROOT,r.requestId+'.dispatch.json')));
+ const first=cli('relay-files.mjs',['mark-dispatch',RELAY_ROOT,r.requestId,r.requestSha256],extra);assert.equal(first.status,0,first.stderr);mustReject(cli('relay-files.mjs',['mark-dispatch',RELAY_ROOT,r.requestId,r.requestSha256],extra),/EEXIST/);await assert.rejects(handle({...r,dispatchRecorded:true},RELAY_ROOT),/HOST_STALE_OR_UNCERTAIN_REQUEST/);assert.equal(calls.length,0);
+ const expired=make('PUBLISH',{projectId:PROJECT,sql:'SELECT 1',dispatchBefore:new Date(Date.now()-1000).toISOString()});put(expired);mustReject(cli('relay-files.mjs',['mark-dispatch',RELAY_ROOT,expired.requestId,expired.requestSha256],extra),/REQUEST_EXPIRED/);assert.ok(!fs.existsSync(path.join(RELAY_ROOT,expired.requestId+'.dispatch.json')));
+});
+test('native catalogue drift and dirty Git are rejected without source repair',()=>{
+ const selected=nativeBinding(astellas,c=>c.control.candidate.id='OFFLINE_CATALOG_GIT'),extra={[SELECTOR]:selected,JOBFINDER_CLOUD_SOURCE_ID:astellas},bytes=fs.readFileSync(CATALOG_FILE);
+ try{fs.writeFileSync(CATALOG_FILE,bytes.toString().replace('source-takeda','source-Takeda'));mustReject(cli('host-files.mts',['connector-validate'],extra),/HOST_CATALOG_DRIFT/);}finally{fs.writeFileSync(CATALOG_FILE,bytes);}
+ const file=path.join(PRODUCER_ROOT,'ops','OFFLINE_DIRTY_FIXTURE');try{fs.writeFileSync(file,'fixture only',{flag:'wx'});mustReject(cli('host-files.mts',['connector-validate'],extra),/HOST_RUNTIME_DIRTY/);}finally{fs.unlinkSync(file);}
+});
+
+test('all seven known missing-fix PORTABLE sources retain original hashes but cannot dispatch',async()=>{
+ const blocked=portableCatalogue().filter(r=>r.c60Use==='PROHIBITED_MISSING_KNOWN_SOURCE_FIX');assert.equal(blocked.length,7);
+ for(const row of blocked){const selected=nativeBinding(row.sourceId,c=>c.control.candidate.id='OFFLINE_MISSING_FIX_'+row.sourceId),r=nativeRequest(row.sourceId);put(r);assert.equal(r.payload.sourceConfigSha256,row.sourceConfigSha256);const {handle,calls}=await host(selected);await assert.rejects(handle(r,RELAY_ROOT),/HOST_SOURCE_FIX_REQUIRED/);assert.equal(calls.length,0);
+  mustReject(cli('relay-files.mjs',['mark-dispatch',RELAY_ROOT,r.requestId,r.requestSha256],{[SELECTOR]:selected,JOBFINDER_CLOUD_SOURCE_ID:row.sourceId}),/HOST_SOURCE_FIX_REQUIRED/);assert.ok(!fs.existsSync(path.join(RELAY_ROOT,r.requestId+'.dispatch.json')));
+ }
 });
