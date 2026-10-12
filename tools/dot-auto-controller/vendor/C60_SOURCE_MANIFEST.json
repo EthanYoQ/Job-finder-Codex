@@ -95,15 +95,23 @@
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-binding.mjs",
-      "sha256": "9ec5281423112d8d77d3f68fd9c47cfd98ff43c9b944e0dd164803a3ca5ccb13",
-      "bytes": 11118,
-      "classification": "NEW_CONNECTOR_HOST_SOURCE"
+      "sha256": "a44f915693bc5114756ddf184d6e86a44bf5e37ed2331e6ea125f6eb7bc3ba5e",
+      "bytes": 11464,
+      "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+      "derivativeBaseSha256": "9ec5281423112d8d77d3f68fd9c47cfd98ff43c9b944e0dd164803a3ca5ccb13"
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-launch.py",
-      "sha256": "b410a05e947f390ab8d5f898aa37ebdc650cc8591d01364011b57fee29492ad1",
-      "bytes": 3937,
-      "classification": "NEW_CONNECTOR_HOST_SOURCE"
+      "sha256": "0b37f8441bc84c0a0f787763b14ab4e733e8c367455754711c3aec2c2c8ef3cb",
+      "bytes": 4157,
+      "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+      "derivativeBaseSha256": "b410a05e947f390ab8d5f898aa37ebdc650cc8591d01364011b57fee29492ad1"
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-no-network.cjs",
@@ -753,9 +761,14 @@
     },
     {
       "path": "scripts/p0-cloud-portable-source-pilot.ts",
-      "sha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
-      "bytes": 18211,
-      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      "sha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+      "bytes": 19776,
+      "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+      "derivativeBaseSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
+      "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
     },
     {
       "path": "scripts/p0-cloud-source-pilot.ts",
@@ -1337,9 +1350,11 @@
     },
     {
       "path": "src/crawler/cloudDbStartedPilot.ts",
-      "sha256": "42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3",
-      "bytes": 6911,
-      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      "sha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
+      "bytes": 8254,
+      "classification": "CONNECTOR_PUBLICATION_REVIEW_DERIVATIVE",
+      "originSha256": "42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3",
+      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f"
     },
     {
       "path": "src/crawler/cloudPilotContext.ts",
@@ -1349,9 +1364,14 @@
     },
     {
       "path": "src/crawler/cloudSourcePilotRelay.ts",
-      "sha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6",
-      "bytes": 13222,
-      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      "sha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
+      "bytes": 21229,
+      "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+      "derivativeBaseSha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6",
+      "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
     },
     {
       "path": "src/crawler/companyRecruitmentProfiles/README.md",
@@ -1784,6 +1804,14 @@
       "sha256": "2c5ee156d38cb43e00156a3818fafc32f20db791284d1685c7777389b24e74ca",
       "bytes": 13921,
       "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/fixedJobProjectionSidecar.ts",
+      "sha256": "51b6913a549c6f5860dd528de1a72976ab99c8cb74133580a4e4fd13b698504c",
+      "bytes": 4814,
+      "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false
     },
     {
       "path": "src/crawler/formalAdvisoryLock.ts",
@@ -2551,9 +2579,14 @@
     },
     {
       "path": "src/db/ingestionRepository.ts",
-      "sha256": "56a16ca89ae417c1613cb37f7beb53db82dbc55f181219c6db7f48b7e487223b",
-      "bytes": 126571,
-      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      "sha256": "4155b8e974cc8316ecd15f72203bb15b847169b5b40c6a353d1ad9192b9a6a6d",
+      "bytes": 128750,
+      "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+      "derivativeBaseSha256": "56a16ca89ae417c1613cb37f7beb53db82dbc55f181219c6db7f48b7e487223b",
+      "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
     },
     {
       "path": "src/db/jnjDomEvidenceAdmission.ts",

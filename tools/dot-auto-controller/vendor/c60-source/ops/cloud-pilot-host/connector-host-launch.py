@@ -64,4 +64,8 @@ if len(rows) != 36 or sum(r['route'] == 'PORTABLE' for r in rows) != 20 or sourc
     fail('HOST_SOURCE_ENV')
 # No inherited NODE_OPTIONS/NODE_PATH/preload or alternate source/loader escapes.
 env = {'PATH': str(RUNTIME) + ':/usr/bin:/bin', 'LANG': 'C.UTF-8', 'TZ': 'UTC', 'TSX_DISABLE_CACHE': '1', 'NODE_DISABLE_COMPILE_CACHE': '1', 'JOBFINDER_CONNECTOR_HOST_SHA256': selector, 'JOBFINDER_CLOUD_SOURCE_ID': source}
+round_id = os.environ.get('JOBFINDER_CONNECTOR_ROUND_ID')
+if round_id is not None:
+    if not re.fullmatch(r'round-[a-f0-9]{32}', round_id): fail('HOST_ROUND_SELECTOR')
+    env['JOBFINDER_CONNECTOR_ROUND_ID'] = round_id
 os.execve(NODE, [str(NODE), '--require', str(HOST / 'connector-host-no-network.cjs'), str(HOST / sys.argv[1]), *sys.argv[2:]], env)

@@ -1,0 +1,1 @@
+BEGIN READ ONLY; SET LOCAL statement_timeout='4s'; SELECT clock_timestamp() AS "checkedAt",to_jsonb(r) AS candidate FROM public."ReleaseCandidate" r WHERE id='__JOBFINDER_CANDIDATE_ID__'; COMMIT;

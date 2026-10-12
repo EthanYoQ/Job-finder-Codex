@@ -23,9 +23,20 @@ export class PilotSqlFailure extends Error {
   }
 }
 export type PilotRequestKind="LEASE_ACQUIRE"|"LEASE_RENEW"|"LEASE_RELEASE"|"CREATE_PENDING"|"READ_CONTEXT"|"READ_PUBLICATION_CONTEXT"|"ARCHIVE_STORE"|"PUBLISH"|"READ_OUTCOME";
+/** Fixed, default-unselected Takeda candidate path. No callback can approve SQL. */
+export type TakedaOwnedPipeSelection={mode:"TAKEDA_OWNED_PIPE_CANDIDATE_V1";launchChallenge:string};
+type TakedaGate=Awaited<ReturnType<typeof import("../../../../connector-gate/takeda-publication-review.mts").prepareTakedaConnectorPublicationReview>>;
+export type OwnedTakedaPublication=Readonly<{packet:TakedaGate["packet"]}>;
+const ownedTakedaPublications=new WeakMap<object,{relay:FilePilotRelay;gate:TakedaGate;launchChallenge:string}>();
+const ownedTakedaOutcomes=new WeakMap<object,{relay:FilePilotRelay;packet:TakedaGate["packet"];publishAttempted:boolean;publishRequestSha256?:string;readAttempted:boolean;outerDeadline:number}>();
 export class FilePilotRelay {
   constructor(readonly directory:string){}
   async request<T>(kind:PilotRequestKind,payload:unknown,deadline:number,parse:(v:unknown)=>T,signal?:AbortSignal):Promise<T>{
+    const prepared=await this.createRequest(kind,payload,deadline,signal);
+    await writeFile(prepared.base+".request.json",prepared.serializedRequest,{flag:"wx",mode:0o600});
+    return this.waitResponse(prepared,parse,signal);
+  }
+  private async createRequest(kind:PilotRequestKind,payload:unknown,deadline:number,signal?:AbortSignal){
     signal?.throwIfAborted();if(Date.now()>=deadline)throw Error("RELAY_DEADLINE");
     if(kind==="CREATE_PENDING"||kind==="READ_CONTEXT"){
       const dispatchBefore=deadline-PILOT_BUDGET.controlCompletionMs;
@@ -35,19 +46,91 @@ export class FilePilotRelay {
     await mkdir(this.directory,{recursive:true});
     const requestId=randomUUID(),body={schemaVersion:1,requestId,kind,expiresAt:new Date(deadline).toISOString(),payload};
     const requestSha256=sha256(JSON.stringify(body)),base=join(this.directory,requestId);
-    await writeFile(base+".request.json",JSON.stringify({...body,requestSha256}),{flag:"wx",mode:0o600});
+    const request={...body,requestSha256};
+    return {base,deadline,request,serializedRequest:JSON.stringify(request),responseSha256:undefined as string|undefined};
+  }
+  private async waitResponse<T>(prepared:Awaited<ReturnType<FilePilotRelay["createRequest"]>>,parse:(v:unknown)=>T,signal?:AbortSignal):Promise<T>{
+    const {base,deadline,request:{requestId,requestSha256,kind}}=prepared;
     while(Date.now()<deadline){
       signal?.throwIfAborted();
       try{
-        const raw=await readFile(base+".response.json","utf8");
+        const rawBytes=await readFile(base+".response.json"),raw=rawBytes.toString("utf8");
         const response=z.object({schemaVersion:z.literal(1),requestId:z.literal(requestId),requestSha256:z.literal(requestSha256),kind:z.literal(kind),result:z.unknown()}).strict().safeParse(JSON.parse(raw));
         if(!response.success)throw Error("RELAY_RESPONSE_BINDING");
         if(Date.now()>=deadline)throw Error("RELAY_DEADLINE");
-        return parse(response.data.result);
+        const value=parse(response.data.result);prepared.responseSha256=sha256(rawBytes);return value;
       }catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}
       await delay(Math.min(25,Math.max(1,deadline-Date.now())),undefined,signal?{signal}:{});
     }
     throw Error("RELAY_DEADLINE");
+  }
+  async prepareOwnedTakedaPublish(input:import("../../../../connector-gate/takeda-publication-review.mts").TakedaReviewInput,selection:TakedaOwnedPipeSelection):Promise<OwnedTakedaPublication>{
+    const fixed=z.object({mode:z.literal("TAKEDA_OWNED_PIPE_CANDIDATE_V1"),launchChallenge:SHA}).strict().parse(selection);
+    if(!process.send||!process.connected)throw Error("RELAY_OWNED_CHILD_IPC_REQUIRED");
+    const {prepareTakedaConnectorPublicationReview}=await import("../../../../connector-gate/takeda-publication-review.mts");
+    const gate=await prepareTakedaConnectorPublicationReview(input),handle=Object.freeze({packet:gate.packet});
+    // Default path remains untouched. This optional, fixed TEST_ONLY data export
+    // reads only the exact packet AFTER original full review; it grants no authority.
+    if(process.env.JOBFINDER_FIXED_PROJECTION_MODE!==undefined){
+      const {writeReviewedJobProjectionSidecar}=await import("./fixedJobProjectionSidecar");
+      await writeReviewedJobProjectionSidecar(gate.packet,this.directory);
+    }
+    ownedTakedaPublications.set(handle,{relay:this,gate,launchChallenge:fixed.launchChallenge});
+    ownedTakedaOutcomes.set(handle,{relay:this,packet:gate.packet,publishAttempted:false,readAttempted:false,outerDeadline:input.outerDeadline});return handle;
+  }
+  async publishOwnedTakeda(handle:OwnedTakedaPublication,signal?:AbortSignal){
+    const owned=ownedTakedaPublications.get(handle);
+    if(!owned||owned.relay!==this)throw Error("RELAY_SAME_PROCESS_REVIEW_REQUIRED");
+    ownedTakedaPublications.delete(handle); // claim before any await; no retry after ambiguity
+    const outcomeBinding=ownedTakedaOutcomes.get(handle)!;outcomeBinding.publishAttempted=true;
+    const {sql,expiresAt}=owned.gate.packet,deadline=Date.parse(expiresAt);
+    const dispatchBefore=deadline-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs;
+    if(dispatchBefore<=Date.now())throw Error("RELAY_DISPATCH_BUDGET");
+    const prepared=await this.createRequest("PUBLISH",{projectId:"yiopvxysxrtrnvqxwgbx",sql,dispatchBefore:new Date(dispatchBefore).toISOString()},deadline,signal);
+    outcomeBinding.publishRequestSha256=prepared.request.requestSha256;
+    const token=await owned.gate.review(prepared.request);
+    signal?.throwIfAborted();if(Date.now()>=dispatchBefore)throw Error("RELAY_DISPATCH_BUDGET");
+    await writeFile(prepared.base+".request.json",prepared.serializedRequest,{flag:"wx",mode:0o600});
+    const {emitConsumedProducerReview}=await import("../../../../connector-gate/producer-adapter.mts");
+    await emitConsumedProducerReview(token,prepared.request as import("../../../../connector-gate/takeda-publication-review.mts").ConnectorPublishRequest,owned.launchChallenge);
+    return this.waitResponse(prepared,value=>{
+      const result=sqlResult.parse(value);if(result.status==="FAILED")throw new PilotSqlFailure(result.outcome,result.code);return result.rows;
+    },signal);
+  }
+  /** One original tuple read. The original inspector/batch/holder gates are run
+   * here from module-owned packet data; no external boolean/result is accepted. */
+  async readAndVerifyOwnedTakedaOutcome(handle:OwnedTakedaPublication,deadline:number,signal?:AbortSignal){
+    const binding=ownedTakedaOutcomes.get(handle);
+    if(!binding||binding.relay!==this||!binding.publishAttempted||!binding.publishRequestSha256||binding.readAttempted)throw Error("RELAY_OWNED_OUTCOME_REQUIRED");
+    binding.readAttempted=true; // no concurrent/duplicate read or completion event
+    if(!Number.isSafeInteger(deadline)||deadline>binding.outerDeadline-PILOT_BUDGET.controlMs||deadline>Date.now()+PILOT_BUDGET.controlMs)throw Error("PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION");
+    const packet=binding.packet,sourceResult=packet.commit.sourceResult;
+    const literal=(value:string)=>`E'${value.replaceAll('\\','\\\\').replaceAll("'","''")}'`;
+    const sql=`SELECT
+ (SELECT to_jsonb(s) FROM public."CrawlBatchSourceResult" s WHERE id=${literal(sourceResult.id)}) AS row,
+ (SELECT to_jsonb(b) FROM public."CrawlBatch" b WHERE id=${literal(sourceResult.batchId)}) AS batch,
+ (SELECT "holderId" FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS "holderId"`;
+    const dispatchBefore=deadline-PILOT_BUDGET.controlCompletionMs;
+    if(Date.now()>=dispatchBefore)throw Error("PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION");
+    let prepared:Awaited<ReturnType<FilePilotRelay["createRequest"]>>,rows:Record<string,unknown>[];
+    try{
+      prepared=await this.createRequest("READ_OUTCOME",{projectId:"yiopvxysxrtrnvqxwgbx",sql,dispatchBefore:new Date(dispatchBefore).toISOString()},deadline,signal);
+      await writeFile(prepared.base+".request.json",prepared.serializedRequest,{flag:"wx",mode:0o600});
+      rows=await this.waitResponse(prepared,value=>{const result=sqlResult.parse(value);if(result.status==="FAILED")throw new PilotSqlFailure(result.outcome,result.code);return result.rows;},signal);
+      if(Date.now()>=deadline)throw Error("RELAY_DEADLINE");
+    }catch(cause){throw new Error("PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION",{cause});}
+    if(rows.length!==1)throw Error("PILOT_OUTCOME_ROW_COUNT");
+    const persisted=rows[0]!.row===null?null:reviveUtcFields(z.record(z.unknown()).parse(rows[0]!.row),['startedAt','finishedAt']);
+    const {inspectPersistedAtomicCommitOutcome}=await import("../db/ingestionRepository");
+    const outcome=await inspectPersistedAtomicCommitOutcome(packet.commit,{crawlBatchSourceResult:{findUnique:async()=>persisted,findMany:async()=>{throw Error("PILOT_OUTCOME_FIND_MANY_FORBIDDEN");}}});
+    if(outcome.state==='COMMITTED_EXACT'){
+      const batch=z.record(z.unknown()).parse(rows[0]!.batch);
+      if(batch.id!==sourceResult.batchId||batch.releaseCandidateId!==sourceResult.releaseCandidateId||batch.status!=='SUCCESS'||batch.atomicCommittedCount!==1||batch.completenessVerifiedCount!==1||rows[0]!.holderId===packet.holderId)throw Error('PILOT_DB_STARTED_TERMINAL_NOT_EXACT');
+      if(!process.send||!process.connected||!prepared.responseSha256)throw Error("RELAY_OWNED_CHILD_IPC_REQUIRED");
+      const event={type:"PRODUCER_OUTCOME_VERIFIED_V1",tuple:{releaseCandidateId:sourceResult.releaseCandidateId,batchId:sourceResult.batchId,sourceId:sourceResult.sourceId,sourceResultId:sourceResult.id},readRequestSha256:prepared.request.requestSha256,responseSha256:prepared.responseSha256};
+      await new Promise<void>((resolve,reject)=>process.send!(event,error=>error?reject(error):resolve()));
+    }
+    return outcome;
   }
   sql(kind:Exclude<PilotRequestKind,"ARCHIVE_STORE"|"READ_CONTEXT"|"CREATE_PENDING">,sql:string,deadline:number,signal?:AbortSignal){
     const dispatchBefore=kind==="PUBLISH"?deadline-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs:deadline-PILOT_BUDGET.controlCompletionMs;

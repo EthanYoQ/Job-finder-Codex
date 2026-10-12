@@ -2,7 +2,7 @@
 import {readFile} from 'node:fs/promises';
 import {setTimeout as delay} from 'node:timers/promises';
 import {z} from 'zod';
-import {FilePilotRelay,PilotSqlFailure,PILOT_BUDGET,reviveUtcFields} from './cloudSourcePilotRelay';
+import {FilePilotRelay,PilotSqlFailure,PILOT_BUDGET,reviveUtcFields,type TakedaOwnedPipeSelection,type OwnedTakedaPublication} from './cloudSourcePilotRelay';
 import {compileCloudPilotPublicationContextSql,type CloudPilotControlInput,type CloudPilotPublicationContext} from '../db/cloudPilotSqlControl';
 import {compileDbStartedCloudSourcePublication,deriveDbStartedPublicationExpiry,inspectPersistedAtomicCommitOutcome,type DbStartedCloudSourceInput,type PlannedBatchWithSourcesInput} from '../db/ingestionRepository';
 import type {AGradeOfficialTotalCertificate} from './completenessCertificate';
@@ -18,7 +18,7 @@ export function requireDbStartedOuterDeadline(deadline:number|undefined):number{
  return deadline;
 }
 
-export async function runDbStartedCloudPublication(input:{relay:FilePilotRelay;controlPath:string;planned:PlannedBatchWithSourcesInput;source:DbStartedCloudSourceInput;initialCertificate:AGradeOfficialTotalCertificate|BGradeTraversalCertificate|SourceQualityReceipt;overallDeadline:number;signal?:AbortSignal}){
+export async function runDbStartedCloudPublication(input:{relay:FilePilotRelay;controlPath:string;planned:PlannedBatchWithSourcesInput;source:DbStartedCloudSourceInput;initialCertificate:AGradeOfficialTotalCertificate|BGradeTraversalCertificate|SourceQualityReceipt;overallDeadline:number;signal?:AbortSignal;ownedTakedaPipe?:{selection:TakedaOwnedPipeSelection;archive:import("../../../../connector-gate/takeda-publication-review.mts").TakedaReviewInput["archive"];producerRoot:string}}){
  const overallDeadline=requireDbStartedOuterDeadline(input.overallDeadline);
  const control=JSON.parse(await readFile(input.controlPath,'utf8')) as Omit<CloudPilotControlInput,'expiresAt'>;
  const requestedAt=Date.now();
@@ -39,13 +39,21 @@ export async function runDbStartedCloudPublication(input:{relay:FilePilotRelay;c
  // Preserve the original <=60-second response-age limit while allowing the
  // still-undispatched SELECT to queue longer. Earlier snapshots remain invalid.
  if(!Number.isFinite(checkedAt)||checkedAt<Math.max(requestedAt,receivedAt-PILOT_BUDGET.controlMs)-1000||checkedAt>receivedAt+1000)throw Error('PILOT_CONTEXT_FRESH_READ_REQUIRED');
- const packet=await compileDbStartedCloudSourcePublication({control:{...control,planned:input.planned,context},source:input.source,publicationDeadline,...(control.databaseIdentity?{jobProjectionDelta:true as const}:{})});
+ const publication={control:{...control,planned:input.planned,context},source:input.source,publicationDeadline,...(control.databaseIdentity?{jobProjectionDelta:true as const}:{})};
+ let reviewed:OwnedTakedaPublication|undefined;
+ if(input.ownedTakedaPipe){
+  const {REGISTRATION_FIELDS}=await import("../../../../src/deployment.mjs");
+  const registration=Object.fromEntries(REGISTRATION_FIELDS.map(key=>[key,context.candidateRow[key]]));
+  reviewed=await input.relay.prepareOwnedTakedaPublish({publication,scope:{producerRoot:input.ownedTakedaPipe.producerRoot,build:control.build,registration},
+   archive:input.ownedTakedaPipe.archive,contextRead:{requestedAt,receivedAt},outerDeadline:overallDeadline},input.ownedTakedaPipe.selection);
+ }
+ const packet=reviewed?.packet??await compileDbStartedCloudSourcePublication(publication);
  const expiresAt=Date.parse(packet.expiresAt);
  if(!Number.isFinite(expiresAt)||expiresAt>publicationDeadline)throw Error('PILOT_EVIDENCE_EXPIRY_CHANGED');
  input.signal?.throwIfAborted();
  if(Date.now()+PILOT_BUDGET.publishDbMs+PILOT_BUDGET.publishTransportMs>=expiresAt)throw Error('PILOT_PUBLICATION_BUDGET_EXHAUSTED');
  let publishAcknowledged=false;
- try{await input.relay.sql('PUBLISH',packet.sql,expiresAt,input.signal);publishAcknowledged=true;}
+ try{if(reviewed)await input.relay.publishOwnedTakeda(reviewed,input.signal);else await input.relay.sql('PUBLISH',packet.sql,expiresAt,input.signal);publishAcknowledged=true;}
  catch(error){
   // A stopped response wait does not stop SQL. Its DB entry/terminal gates use
   // this same absolute proof cutoff, so wait before one read-only reconciliation.
@@ -56,6 +64,10 @@ export async function runDbStartedCloudPublication(input:{relay:FilePilotRelay;c
  // A delayed event loop/response may consume the reserve. Never report absence
  // as a resolved outcome without a completed final read, or restart the budget.
  if(Date.now()+PILOT_BUDGET.controlCompletionMs>=outcomeDeadline)throw Error('PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION');
+ if(reviewed){
+  const outcome=await input.relay.readAndVerifyOwnedTakedaOutcome(reviewed,outcomeDeadline,AbortSignal.timeout(Math.max(1,outcomeDeadline-Date.now())));
+  return {...outcome,publishAcknowledged,batchFinalizationRequired:false,jobCount:packet.commit.sourceResult.dedupeOutputCount,publicationMode:control.databaseIdentity?'DB_STARTED_JOB_PROJECTION_DELTA_V1' as const:'DB_STARTED_OWNER_V1' as const};
+ }
  let resultRows:Record<string,unknown>[];
  try{resultRows=await input.relay.sql('READ_OUTCOME',`SELECT
  (SELECT to_jsonb(s) FROM public."CrawlBatchSourceResult" s WHERE id=${literal(packet.commit.sourceResult.id)}) AS row,
