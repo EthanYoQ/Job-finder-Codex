@@ -39,11 +39,14 @@
     ],
     "transport/existing-compiler.mjs": [
       "vendor/c60-source"
+    ],
+    "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": [
+      "vendor/c60-source"
     ]
   },
   "sourceBoundary": "All executable source imports must resolve inside this package. Only Node builtins and dependencies declared by the frozen producer package/lock are external dependencies.",
   "quarantinedNotEntrypoints": [
-    "vendor/c60-source/ops/cloud-pilot-host",
+    "vendor/c60-source/ops/cloud-pilot-host except explicitly reached connector-host-binding.mjs",
     "vendor/c60-source/scripts except explicitly reached modules",
     "transport/independent-owned-admission-review.mjs",
     "transport/independent-portable-compiler-review.mjs"
@@ -80,6 +83,9 @@
     "transport/existing-compiler.mjs": [
       "import(pathToFileURL(join(root,'node_modules/tsx/dist/esm/api/index.mjs')).href)",
       "import(pathToFileURL(join(root,name)).href)"
+    ],
+    "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": [
+      "import(pathToFileURL(path.join(PRODUCER_ROOT,p)).href)"
     ]
   }
 }
