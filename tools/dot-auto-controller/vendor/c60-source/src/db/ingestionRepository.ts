@@ -1,5 +1,5 @@
 import { buildJobProjectionDeltaReceipt } from "./jobProjectionDeltaCompiler";
-import { hashJobPersistedProjection, JOB_SOURCE_UPDATE_FIELDS, isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
+import { persistedJobProjection, hashJobPersistedProjection, JOB_SOURCE_UPDATE_FIELDS, isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
 import { hasBoundJnjDomOfficialArtifact } from "./jnjDomEvidenceAdmission";
 import { compileAtomicJsonDeclarations } from "./atomicJsonDeclarations";
 import type { CloudPilotDbStartedInput } from "./cloudPilotSqlControl";
@@ -798,6 +798,13 @@ async function upsertJobCommand(
   await db.job.upsert(jobUpsertArgs(command));
 }
 
+/** Pure data export from the SAME private persisted mapper used by delta receipts.
+ * No write, callback, SQL parse, authority, or compiler behavior is introduced. */
+export function jobPersistedProjectionForCommand(command: Extract<IngestionCommand, { type: "UPSERT_JOB" }>) {
+  const args = jobUpsertArgs(command);
+  return persistedJobProjection({...args.create, ...args.update});
+}
+
 function jobUpsertArgs(command: Extract<IngestionCommand, { type: "UPSERT_JOB" }>): JobUpsertArgs {
   const primaryCity = command.record.cities[0];
   if (!primaryCity) {
@@ -1201,7 +1208,36 @@ export function deriveDbStartedPublicationExpiry(source:Pick<AtomicSourceResultI
 /** Opt-in, local preparation only. Builds from the exact context subsequently
  * compared in PostgreSQL; accepts neither serialized write plans nor leases.
  * The prospective holder is acquired and released by the same atomic DO. */
-export async function compileDbStartedCloudSourcePublication(input:{source:DbStartedCloudSourceInput;control:CloudPilotDbStartedInput;publicationDeadline?:number;jobProjectionDelta?:true}){
+export type DbStartedCloudPublicationInput={source:DbStartedCloudSourceInput;control:CloudPilotDbStartedInput;publicationDeadline?:number;jobProjectionDelta?:true};
+export async function compileDbStartedCloudSourcePublication(input:DbStartedCloudPublicationInput){
+ return compileDbStartedCloudSourcePublicationWithIds(input,randomUUID);
+}
+
+/** Same-process review seam only. Does not dispatch or grant publication authority.
+ * The allocator is private: callers cannot submit UUID tapes or SQL fragments.
+ * Each replay repeats the COMPLETE original preparation/attestation/control path.
+ * Only random identifiers are reused, to permit exact full-byte comparison.
+ * The live admission/result/attempt tracker identities are intentionally retained.
+ */
+export async function prepareDbStartedCloudPublicationReplay(input:DbStartedCloudPublicationInput){
+ const before=JSON.stringify(input),ids:string[]=[];
+ const original=await compileDbStartedCloudSourcePublicationWithIds(input,()=>{const id=randomUUID();ids.push(id);return id;});
+ if(JSON.stringify(input)!==before)throw Error('PILOT_REVIEW_INPUT_CHANGED');
+ const originalBytes=JSON.stringify(original);
+ return Object.freeze({packet:structuredClone(original),async recompile(){
+  if(JSON.stringify(input)!==before)throw Error('PILOT_REVIEW_INPUT_CHANGED');
+  let index=0;
+  const replay=await compileDbStartedCloudSourcePublicationWithIds(input,()=>{
+   const id=ids[index++];if(id===undefined)throw Error('PILOT_REVIEW_UUID_EXHAUSTED');return id;
+  });
+  if(index!==ids.length)throw Error('PILOT_REVIEW_UUID_COUNT');
+  if(JSON.stringify(input)!==before)throw Error('PILOT_REVIEW_INPUT_CHANGED');
+  if(JSON.stringify(replay)!==originalBytes)throw Error('PILOT_REVIEW_FULL_RECOMPILE_MISMATCH');
+  return replay;
+ }});
+}
+
+async function compileDbStartedCloudSourcePublicationWithIds(input:DbStartedCloudPublicationInput,allocateUuid:()=>string){
  const {loadPilotContext}=await import('../crawler/cloudPilotContext');
  const {buildAtomicRuntimeCommit}=await import('../crawler/runtimeAtomicEvidence');
  const {buildJobDedupeKey}=await import('../crawler/normalizedJob');
@@ -1245,20 +1281,20 @@ export async function compileDbStartedCloudSourcePublication(input:{source:DbSta
     try{return hashJobPersistedProjection(old)!==hashJobPersistedProjection({...write.args.create,...write.args.update});}catch{return true;}
    }).map(write=>write.kind==="terminal"?{...write,data:sourceResultTerminalData(publicationCommit.sourceResult)}:write);
   }
-  const holderId=randomUUID(),expiresAt=new Date(deadline).toISOString();
+  const holderId=allocateUuid(),expiresAt=new Date(deadline).toISOString();
   const originalTimesThrough=new Date(Math.max(captureStarted,commit.sourceResult.finishedAt!.getTime(),...commit.artifacts.map(a=>a.capturedAt.getTime()),
    ...(certificate?.schemaVersion==='b-grade-independent-traversal-v2'?[Date.parse(certificate.independentValidation?.observedAt??'')]:[]))).toISOString();
   const controls=prepareCloudPilotDbStartedControl(control,{...publicationCommit.sourceResult},holderId,expiresAt,originalTimesThrough,source.sourceAdmissionPolicy);
   // One complete terminal value feeds the existing update columns and exact
   // postcondition, so large B evidence is serialized only once in this DO.
-  const statements=["PERFORM set_config('TimeZone', 'UTC', true);","PERFORM set_config('lock_timeout', '1000ms', true);","SET CONSTRAINTS ALL DEFERRED;",controls.before,...compileAtomicWriteStatements(writes,next=>{stage=next;},true,input.jobProjectionDelta?commit.sourceResult.finishedAt!.toISOString():undefined),controls.after];
+  const statements=["PERFORM set_config('TimeZone', 'UTC', true);","PERFORM set_config('lock_timeout', '1000ms', true);","SET CONSTRAINTS ALL DEFERRED;",controls.before,...compileAtomicWriteStatements(writes,next=>{stage=next;},true,input.jobProjectionDelta?commit.sourceResult.finishedAt!.toISOString():undefined,allocateUuid),controls.after];
   const body=`DECLARE affected bigint; job_data jsonb; ${compileAtomicJsonDeclarations(publicationCommit.sourceResult,controls.expectedContext)} current_context jsonb; current_count bigint; current_hash text; aggregate_hash text;\nBEGIN\n${statements.join('\n')}\nEND;`;
-  let delimiter:string;do{delimiter=`$atomic_${randomUUID().replaceAll('-','')}$`;}while(body.includes(delimiter));
+  let delimiter:string;do{delimiter=`$atomic_${allocateUuid().replaceAll('-','')}$`;}while(body.includes(delimiter));
   return {sql:`SET LOCAL statement_timeout = '120000ms';\nDO ${delimiter}\n${body}\n${delimiter};`,commit:publicationCommit,holderId,expiresAt};
  }catch(error){throw tagAtomicEvidencePersistenceStage(error,stage);}
 }
 
-function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(stage:AtomicEvidencePersistenceStage)=>void,sharedTerminal=false,deltaVerifiedAt?:string):string[]{
+function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(stage:AtomicEvidencePersistenceStage)=>void,sharedTerminal=false,deltaVerifiedAt?:string,allocateUuid:()=>string=randomUUID):string[]{
     const statements:string[]=[];
     for (let index = 0; index < writes.length;) {
       const write = writes[index++]!;
@@ -1269,7 +1305,7 @@ function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(sta
         let current = write;
         do {
           rows.push(sqlRecordData(table, current.model === "transportAttemptArtifact" || current.model === "transportAttemptEvidence"
-            ? current.data : { id: randomUUID(), ...current.data }));
+            ? current.data : { id: allocateUuid(), ...current.data }));
           const next = writes[index];
           if (next?.kind !== "insert" || next.model !== write.model ||
             JSON.stringify(definedKeys(next.data)) !== JSON.stringify(definedKeys(write.data))) break;
@@ -1285,7 +1321,7 @@ function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(sta
         const rows: Record<string, unknown>[] = [];
         let current = write;
         do {
-          const create = sqlRecordData("Job", { id: randomUUID(), ...current.args.create, ...(deltaVerifiedAt?{sourceChangedAt:deltaVerifiedAt}:{}) });
+          const create = sqlRecordData("Job", { id: allocateUuid(), ...current.args.create, ...(deltaVerifiedAt?{sourceChangedAt:deltaVerifiedAt}:{}) });
           // Share values between create and update without changing either mapping.
           const update = Object.fromEntries(definedKeys(current.args.update).filter(key =>
             JSON.stringify(current.args.update[key as keyof typeof current.args.update]) !== JSON.stringify(create[key]))

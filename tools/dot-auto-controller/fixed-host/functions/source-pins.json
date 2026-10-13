@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "inputs": {
+    "connector-gate/dispatch-observer.functions.js": "5b1c87bdfc1d70a886bc3c0cab106270b44068b26fa7f852e98bd5a491c96f71",
+    "connector-gate/functions-bundle.js": "fbd6bdf1c13b2a6a86ef4b88c8d92e25c01cb81d517cc3298cea8befd62f87be",
+    "fixed-host/functions/body.template.js": "ab6d33493771f7a8bb29a66fc6ca3fdfcba36409eefc26c78e82939711d89a84",
+    "fixed-host/functions/bootstrap-query.sql.template": "bb7002d086d553abc783ad4e192b79500f4365ecfffc15828d2905ecfe265dbd",
+    "fixed-host/functions/host-helper.js": "b20382fb08b0f84be1dd11aaad5166a3dd73fc121df92a51f4a6c06f3bcb6be0",
+    "fixed-host/functions/private-live-permits.js": "c9849419e8e2b98078a71e36755bfa77ace06eb072f653f48a5fb9a7d6f4026a",
+    "fixed-host/functions/read-response-transport.js": "11f3d9a309459962d3ecc88d2c7c4859afda6296f18d63cc2b7a834d879f54b3",
+    "fixed-host/functions/sha256.js": "143c2e35774c1bdaf71f00df318420c8368460f1e0cb6e98498f27d471873a9c",
+    "fixed-host/render-fixed-live-source.py": "f7adbf0d4401beb3004534450dc18b7ed1901b5e60818c76b167e1e1f898e8a2",
+    "fixed-host/scripts/build-functions-entry.py": "7e43eec9ef6993903a7685a1afad132915ccf59ec66a17eec6f245b68bbb559a",
+    "fixed-host/scripts/build-shared-cores.py": "9b0eeb0b11d7aa669cabfa87dac1619262896546f857aaa1b238a74e036d7842",
+    "fixed-host/templates/fixed-preflight.mjs.in": "aa0f08f047e723f442e6d0da48a23d6da289d6a53b5a8053c6f1f63cffbc6698",
+    "fixed-host/templates/fixed-preimport-launch.py.in": "ffc52eccc93432db98fbff353ce4689fc07d68e82ef63a5518c8584e5ff5495e",
+    "fixed-host/templates/fixed-recovery-helper.mts.in": "e371efd86e1a0274c9aed0a58090c81a149c48747bebe84e2ad049f7bb350238",
+    "public-verification/functions-bundle.js": "8f96dfa3e5cc320a7e1841492eb228b04ca39af2c27686e93264fa69086361d3",
+    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c"
+  }
+}

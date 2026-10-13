@@ -47,7 +47,8 @@ export function portablePreLockReadyDeadline(acquisition:{startedAt:string;finis
 function assertProjection(actual:Record<string,unknown>,expected:object){
   for(const [key,value] of Object.entries(expected))if(JSON.stringify(actual[key])!==JSON.stringify(value))throw Error(`PILOT_BOOTSTRAP_MISMATCH:${key}`);
 }
-export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;reviewedSha256:string;workspaceRoot:string;relayDirectory:string;signal?:AbortSignal;dbStartedControlPath?:string;overallDeadline?:number}){
+export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;reviewedSha256:string;workspaceRoot:string;relayDirectory:string;signal?:AbortSignal;dbStartedControlPath?:string;overallDeadline?:number;ownedTakedaPipe?:import("../src/crawler/cloudSourcePilotRelay").TakedaOwnedPipeSelection}){
+  if(input.ownedTakedaPipe&&(!input.dbStartedControlPath||PILOT_SOURCE!=="source-takeda-china-social"||!process.send||!process.connected))throw Error("PILOT_OWNED_TAKEDA_PIPE_SCOPE");
   if(input.dbStartedControlPath)requireDbStartedOuterDeadline(input.overallDeadline);
   const bytes=await readFile(input.bootstrapPath);if(sha256(bytes)!==input.reviewedSha256)throw Error("PILOT_REVIEWED_BOOTSTRAP_HASH_REQUIRED");
   const bootstrap=z.object({schemaVersion:z.literal(1),checkedAt:z.string().datetime(),candidateRows:z.array(record),batchId:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/)}).strict().parse(JSON.parse(bytes.toString("utf8")));
@@ -70,6 +71,12 @@ export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;re
     if(Date.parse(pre.checkedAt)<preRequestedAt-1000||Date.parse(pre.checkedAt)>Date.now()+1000)throw Error("PILOT_CONTEXT_FRESH_READ_REQUIRED");
     const preContext=await loadPilotContext(pre,plan);
     const captureStartedAt=new Date();
+    if(input.ownedTakedaPipe){
+      // Fixed automation path only; the original publication check still rechecks its fresh context.
+      const {evaluateTakedaSourceDue}=await import("../../../connector-gate/takeda-due-policy.mts");
+      const due=evaluateTakedaSourceDue(pre.latestAccepted,captureStartedAt.getTime());
+      if(!due.due)return {state:"SKIPPED_NOT_DUE" as const,batchId,sourceId:PILOT_SOURCE,observedAt:due.observedAt,nextDueAt:due.nextDueAt,captureStarted:false as const};
+    }
     const sourceFetch=createOwnedSourceQualityFetch();
     const captureSignal=input.signal??new AbortController().signal;
     phase="ACQUIRE_SOURCE";const currentAttemptTracker=attemptTracker=createSourceFetchAttemptTracker();
@@ -101,6 +108,7 @@ export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;re
       phase="DB_STARTED_PUBLICATION";
       const outcome=await runDbStartedCloudPublication({relay,controlPath:input.dbStartedControlPath,planned,initialCertificate:admission.receipt,overallDeadline:input.overallDeadline!,
         source:{plan,pending,identity,batchId,result,artifacts,attemptTracker,publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1",sourceAdmissionPolicy:SOURCE_QUALITY_POLICY_ID,sourceQualityAdmission:admission},
+        ...(input.ownedTakedaPipe?{ownedTakedaPipe:{selection:input.ownedTakedaPipe,producerRoot:resolve(import.meta.dirname,".."),archive:{originalRoot:workspaceRoot,restoredRoot,bundlePath,bundleSha256,bundleByteCount,evidenceSubdirectory:EVIDENCE}}}:{}),
         ...(input.signal?{signal:input.signal}:{})});
       const report={...outcome,batchId,sourceResultId:pending.id,sourceId:PILOT_SOURCE,bundlePath,bundleSha256,bundleByteCount,archiveRetention:"PENDING",recoveryVerification:"PENDING",certificateGrade:SOURCE_QUALITY_POLICY_ID};
       await writeFile(join(workspaceRoot,`${batchId}.outcome.json`),JSON.stringify(report),{flag:"wx",mode:0o600});return report;
@@ -155,6 +163,9 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   const [bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,...extra]=process.argv.slice(2);
   if(!bootstrapPath||!reviewedSha256||!workspaceRoot||!relayDirectory||extra.length&&!(extra.length===2&&extra[0]==="--db-started-control"&&extra[1])){console.error("Usage: p0-cloud-portable-source-pilot.ts <fresh-reviewed-bootstrap.json> <sha256> <artifact-workspace> <relay-directory> [--db-started-control <control-base.json>]");process.exitCode=2;}
   else{const controller=new AbortController();process.once("SIGINT",()=>controller.abort());process.once("SIGTERM",()=>controller.abort());
-    try{const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,signal:controller.signal,...(extra[1]?{dbStartedControlPath:extra[1],overallDeadline:Number(process.env.P0_PILOT_OUTER_DEADLINE_MS)}:{})});console.log(JSON.stringify(report));if(report.state!=="COMMITTED_EXACT")process.exitCode=1;}
+    try{const mode=process.env.JOBFINDER_TAKEDA_OWNED_PIPE_MODE,challenge=process.env.JOBFINDER_TAKEDA_LAUNCH_CHALLENGE;
+      if(mode!==undefined&&mode!=="TAKEDA_OWNED_PIPE_CANDIDATE_V1"||mode===undefined&&challenge!==undefined)throw Error("PILOT_OWNED_PIPE_SELECTION_INVALID");
+      const ownedTakedaPipe=mode?{mode:"TAKEDA_OWNED_PIPE_CANDIDATE_V1" as const,launchChallenge:z.string().regex(/^[a-f0-9]{64}$/).parse(challenge)}:undefined;
+      const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,signal:controller.signal,...(ownedTakedaPipe?{ownedTakedaPipe}:{}),...(extra[1]?{dbStartedControlPath:extra[1],overallDeadline:Number(process.env.P0_PILOT_OUTER_DEADLINE_MS)}:{})});console.log(JSON.stringify(report));if(report.state!=="COMMITTED_EXACT"&&!(ownedTakedaPipe&&report.state==="SKIPPED_NOT_DUE"))process.exitCode=1;}
     catch{console.error("CLOUD_SOURCE_PILOT_STOPPED_REVIEW_RELAY_AND_PERSISTED_OUTCOME");process.exitCode=1;}}
 }
