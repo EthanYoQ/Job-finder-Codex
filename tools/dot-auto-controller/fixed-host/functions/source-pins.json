@@ -5,7 +5,7 @@
     "connector-gate/functions-bundle.js": "fbd6bdf1c13b2a6a86ef4b88c8d92e25c01cb81d517cc3298cea8befd62f87be",
     "fixed-host/functions/body.template.js": "ab6d33493771f7a8bb29a66fc6ca3fdfcba36409eefc26c78e82939711d89a84",
     "fixed-host/functions/bootstrap-query.sql.template": "bb7002d086d553abc783ad4e192b79500f4365ecfffc15828d2905ecfe265dbd",
-    "fixed-host/functions/host-helper.js": "b20382fb08b0f84be1dd11aaad5166a3dd73fc121df92a51f4a6c06f3bcb6be0",
+    "fixed-host/functions/host-helper.js": "8d6d7bfe19462a4798e051c2fc250e0fdd790010c6eae9950e480d93e8bbf530",
     "fixed-host/functions/private-live-permits.js": "c9849419e8e2b98078a71e36755bfa77ace06eb072f653f48a5fb9a7d6f4026a",
     "fixed-host/functions/read-response-transport.js": "11f3d9a309459962d3ecc88d2c7c4859afda6296f18d63cc2b7a834d879f54b3",
     "fixed-host/functions/sha256.js": "143c2e35774c1bdaf71f00df318420c8368460f1e0cb6e98498f27d471873a9c",
