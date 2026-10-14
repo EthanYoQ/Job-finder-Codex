@@ -7,14 +7,15 @@ async function drainOriginalCommand(initial,max,pollYieldMs=10000){
  if(initial&&initial.session_id!==undefined){if(!Number.isSafeInteger(initial.session_id)||initial.session_id<=0)throw Error('HOST_COMMAND_SESSION');session=initial.session_id;}
  function ingest(r){
   if(!r||typeof r!=='object'){bad('HOST_COMMAND_TOOL_SHAPE');return;}
+  if(r.isError===true){bad('HOST_COMMAND_POLL_REJECTED');return;}
   if(r.session_id!==undefined&&r.session_id!==session){bad('HOST_COMMAND_FOREIGN_SESSION');return;}
   if(typeof r.output==='string')output+=r.output;else bad('HOST_COMMAND_OUTPUT_SHAPE');
   if(r.exit_code!==undefined){if(Number.isInteger(r.exit_code)){ended=true;exitCode=r.exit_code;}else bad('HOST_COMMAND_EXIT_SHAPE');}
  }
  ingest(initial);
- if(session!==null){observe(null);while(!ended){let r;try{polls++;r=await tools.write_stdin({session_id:session,chars:'',max_output_tokens:max,yield_time_ms:pollYieldMs});}catch{bad('HOST_COMMAND_POLL_REJECTED');await new Promise(resolve=>setTimeout(resolve,1000));continue;}ingest(r);if(ended||polls%25===0)observe(null);}}
+ if(session!==null){observe(null);while(!ended&&!fault){let r;try{polls++;r=await tools.write_stdin({session_id:session,chars:'',max_output_tokens:max,yield_time_ms:pollYieldMs});}catch{bad('HOST_COMMAND_POLL_REJECTED');break;}ingest(r);if(ended||polls%25===0)observe(null);}}
  else if(!ended)bad('HOST_COMMAND_MISSING_TERMINAL');
- if(fault)throw Error(fault);
+ if(fault)throw Object.assign(Error(fault),{code:fault,status:'UNKNOWN',originalSessionId:session,toolEnded:ended,exitCode,polls});
  if(exitCode!==0)throw Error('HOST_COMMAND:'+output);
  return output;
 }
