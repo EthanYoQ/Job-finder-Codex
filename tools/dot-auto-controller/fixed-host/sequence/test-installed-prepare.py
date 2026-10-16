@@ -1,6 +1,6 @@
 """Final TEST_ONLY installed wiring probe. Leaves the original global HOLD.
 
-The original holder keeps SH/ACTIVE while the two exact installed stable CLIs
+The original holder keeps SH/ACTIVE while the three exact installed stable CLIs
 are independently invoked with only prepare. No business entry is evaluated,
 no child is launched, no bootstrap SQL is called, and no cycle is completed.
 Do not reuse this retained case as a fresh cycle after this final probe.
@@ -9,6 +9,19 @@ from pathlib import Path
 import hashlib,json,os,select,subprocess,sys,types
 sys.dont_write_bytecode=True
 sha=lambda raw:hashlib.sha256(raw).hexdigest()
+SOURCE_IDS={'takeda':'source-takeda-china-social','biogen':'source-biogen-china-social','hengrui':'source-hengrui-social'}
+REPORT_KIND='ACTUAL_INSTALLED_THREE_STABLE_CLI_PREPARE_ONLY_FINAL_HOLD'
+def validate_prepared_identities(results):
+ # Pure checks over the actual probe results; this never creates authority or
+ # fabricates a receipt. Every individual identity must be distinct three ways.
+ assert type(results) is list and [r['profile'] for r in results]==['takeda','biogen','hengrui']
+ for r in results:
+  assert r['prepared']['seed']['sourceId']==SOURCE_IDS[r['profile']]
+  assert r['prepared']['cfg']['sourceId']==SOURCE_IDS[r['profile']]
+ assert len({r['prepared']['roundId'] for r in results})==3
+ assert len({r['stateRoot'] for r in results})==3
+ for field in ('batchId','launchChallenge'):
+  assert len({r['prepared']['seed'][field] for r in results})==3
 def probe(case,evidence):
  case=Path(case).resolve();evidence=Path(evidence).resolve()
  assert case.parent==evidence/'lifecycle-cases' and case.name.startswith('case-')
@@ -38,16 +51,14 @@ def probe(case,evidence):
    assert run.returncode==0,(profile,run.stdout,run.stderr)
    value=json.loads(run.stdout);assert value['kind']=='FIXED_PREFLIGHT'
    root=target/'sources'/profile;round_root=root/'rounds'/value['roundId'];task=round_root/'connector-host-task'
-   assert value['seed']['sourceId']=='source-'+profile+'-china-social'
+   assert value['seed']['sourceId']==SOURCE_IDS[profile]
    assert value['cfg']['sourceId']==value['seed']['sourceId'] and value['cfg']['taskRoot']==str(task)
    assert value['cfg']['relayDirectory']==str(task/'relay') and sha(value['bootstrap']['query'].encode())==value['bootstrap']['querySha256']
    assert (root/'active-round.json').is_file() and (task/'prepared.json').is_file()
    assert not (task/'launch-intent.json').exists() and list((task/'relay').iterdir())==[]
    assert process.poll() is None and active.exists()
    results.append({'profile':profile,'prepared':value,'stateRoot':str(root),'launchIntentAbsent':True,'relayEmpty':True,'nativeConnectorValidatePassed':True})
-  assert results[0]['prepared']['roundId']!=results[1]['prepared']['roundId']
-  for field in ('batchId','launchChallenge'):
-   assert results[0]['prepared']['seed'][field]!=results[1]['prepared']['seed'][field]
+  validate_prepared_identities(results)
  finally:
   if process.stdin:process.stdin.close()
   try:process.wait(timeout=15)
@@ -61,7 +72,7 @@ def probe(case,evidence):
  try:
   with m.exclusive_transaction(domain):raise AssertionError('UNKNOWN_PROBE_UNEXPECTEDLY_ALLOWED_EX')
  except m.Hold as error:assert str(error)=='ACTIVE_OR_UNKNOWN_ROUND'
- report={'kind':'ACTUAL_INSTALLED_TWO_STABLE_CLI_PREPARE_ONLY_FINAL_HOLD','passed':True,'before':before,'sources':results,'originalHolderExit':process.returncode,'globalActiveRetained':True,'caseReusableForFreshCycle':False,'businessEntryEvaluated':False,'sourceChildLaunches':0,'officialSqlCalls':0,'realExternalNetworkCalls':0,'cycleCompleted':False,'productionQualified':False}
+ report={'kind':REPORT_KIND,'passed':True,'before':before,'sources':results,'originalHolderExit':process.returncode,'globalActiveRetained':True,'caseReusableForFreshCycle':False,'businessEntryEvaluated':False,'sourceChildLaunches':0,'officialSqlCalls':0,'realExternalNetworkCalls':0,'cycleCompleted':False,'productionQualified':False}
  (case/'final-prepare-probe-HOLD.json').write_text(json.dumps(report,indent=2)+'\n')
  return report
 if __name__=='__main__':
