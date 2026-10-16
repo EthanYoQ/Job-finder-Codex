@@ -1965,9 +1965,20 @@
     },
     {
       "path": "src/crawler/completenessAnomalyPolicy.ts",
-      "sha256": "ca58a779b0d4f673f8a76657e17db0d71aef9a65533bdbe37128800e99909ff7",
-      "bytes": 12794,
-      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      "classification": "SHARED_COMPLETENESS_GUARD_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "9629790860e68df0a8f09fb14f7ab05e1a2fbbfa",
+      "derivativeBaseSha256": "ca58a779b0d4f673f8a76657e17db0d71aef9a65533bdbe37128800e99909ff7",
+      "priorProvenanceSha256": "691324ade19ddc3e2c337be6ba3df68d0850e9d085a83e056409636deed4ee27",
+      "priorProvenance": {
+        "path": "src/crawler/completenessAnomalyPolicy.ts",
+        "sha256": "ca58a779b0d4f673f8a76657e17db0d71aef9a65533bdbe37128800e99909ff7",
+        "bytes": 12794,
+        "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      },
+      "sha256": "e262debff0e51a49ef9eb228c192514d50729b7ad3e7b90ac8a71f9aebe086c6",
+      "bytes": 14275
     },
     {
       "path": "src/crawler/completenessCertificate.ts",
@@ -2449,9 +2460,20 @@
     },
     {
       "path": "src/crawler/runCrawlBatch.ts",
-      "sha256": "eea47ce762ae619a25c372d35cfaee85c289ba53b506419d3cc572a43e6f401b",
-      "bytes": 51620,
-      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      "classification": "SHARED_COMPLETENESS_GUARD_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "9629790860e68df0a8f09fb14f7ab05e1a2fbbfa",
+      "derivativeBaseSha256": "eea47ce762ae619a25c372d35cfaee85c289ba53b506419d3cc572a43e6f401b",
+      "priorProvenanceSha256": "a4a59c3b86da20bb9d2e15994707f45ae2f75e13acdb90e66f8d618326371058",
+      "priorProvenance": {
+        "path": "src/crawler/runCrawlBatch.ts",
+        "sha256": "eea47ce762ae619a25c372d35cfaee85c289ba53b506419d3cc572a43e6f401b",
+        "bytes": 51620,
+        "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      },
+      "sha256": "d9af77be94c7c7f236a43fc2c1bfdf6147c252b369292329362392e9be6944e2",
+      "bytes": 50267
     },
     {
       "path": "src/crawler/runSourceCrawl.ts",
@@ -2783,14 +2805,25 @@
     },
     {
       "path": "src/db/ingestionRepository.ts",
-      "sha256": "4155b8e974cc8316ecd15f72203bb15b847169b5b40c6a353d1ad9192b9a6a6d",
-      "bytes": 128750,
-      "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+      "classification": "SHARED_COMPLETENESS_GUARD_SOURCE_DERIVATIVE",
       "originCommit": null,
       "productionQualified": false,
-      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
-      "derivativeBaseSha256": "56a16ca89ae417c1613cb37f7beb53db82dbc55f181219c6db7f48b7e487223b",
-      "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+      "derivativeBaseCommit": "9629790860e68df0a8f09fb14f7ab05e1a2fbbfa",
+      "derivativeBaseSha256": "4155b8e974cc8316ecd15f72203bb15b847169b5b40c6a353d1ad9192b9a6a6d",
+      "priorProvenanceSha256": "be63ed1f198c2fed995091f51e315be399656f95f9ba8b880b61fc99c20d72ff",
+      "priorProvenance": {
+        "path": "src/db/ingestionRepository.ts",
+        "sha256": "4155b8e974cc8316ecd15f72203bb15b847169b5b40c6a353d1ad9192b9a6a6d",
+        "bytes": 128750,
+        "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+        "originCommit": null,
+        "productionQualified": false,
+        "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+        "derivativeBaseSha256": "56a16ca89ae417c1613cb37f7beb53db82dbc55f181219c6db7f48b7e487223b",
+        "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+      },
+      "sha256": "eb86ba50cf06e37ecdede78f80b22fb4e3048df06103ea1cb288d5e24089f640",
+      "bytes": 129451
     },
     {
       "path": "src/db/jnjDomEvidenceAdmission.ts",

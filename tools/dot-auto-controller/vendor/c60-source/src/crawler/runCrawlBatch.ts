@@ -93,7 +93,7 @@ import {
 } from "./independentTraversalDiagnostics";
 import { requiresAGradeOfficialTotalCertificate } from "./completenessCertificate";
 import {
-  evaluateCompletenessAnomaly,
+  evaluateCompletenessAnomalyForCrawl,
   comparablePortableBaseline,
   selectCompletenessValidationTrigger,
   type PersistedTrustedCompletenessBaseline
@@ -1084,37 +1084,4 @@ class AtomicCommitOutcomeUnverifiedError extends Error {
 
 function resolveNow(now: RunP0CrawlBatchDeps["now"]): Date {
   return now instanceof Date ? now : now();
-}
-
-function evaluateCompletenessAnomalyForCrawl(
-  plan: SourceCrawlPlan,
-  result: SourceCrawlResult,
-  baseline: PersistedTrustedCompletenessBaseline | null
-) {
-  const pages = result.fetchEvidence?.pages ?? [];
-  const finalPage = pages.length > 0 ? pages[pages.length - 1]! : undefined;
-  const terminalSignalProven = finalPage !== undefined &&
-    finalPage.nextPageSignalAfter === null &&
-    ["NEXT_ABSENT", "EMPTY_PAGE", "DECLARED_TOTAL_REACHED"].includes(finalPage.termination);
-  const pagination = plan.adapterId === "html-table" ? plan.table.pagination : undefined;
-  const suspiciousAdapterCapacity = pagination?.pageSize !== undefined &&
-      pages.length === pagination.maxPages
-    ? pagination.pageSize * pagination.maxPages
-    : undefined;
-  return evaluateCompletenessAnomaly({
-    baseline,
-    currentJobCount: result.jobs.length,
-    ...(result.paginationEvaluation ? {
-      paginationAnomalyCodes: result.paginationEvaluation.derivedAnomalyCodes
-    } : {}),
-    ...(finalPage ? {
-      finalPage: {
-        returnedPageSize: finalPage.returnedPageSize ?? null,
-        requestedPageSize: finalPage.requestedPageSize ?? null,
-        terminalSignalProven,
-        nextSignalPresent: finalPage.nextPageSignalAfter !== null
-      }
-    } : {}),
-    ...(suspiciousAdapterCapacity === undefined ? {} : { suspiciousAdapterCapacity })
-  });
 }

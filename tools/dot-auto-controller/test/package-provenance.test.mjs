@@ -1,3 +1,5 @@
+import {retainedSharedGuardManifest} from './shared-completeness-guard-ancestry.mjs';
+import {SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS,sharedCompletenessGuardSourceProvenance} from '../scripts/shared-completeness-guard-source-provenance.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -16,15 +18,19 @@ test('PR5-added and subsequently modified connector host files never inherit a h
   else if(source.classification==='SCHEMA50_SOURCE_DERIVATIVE'){assert.equal(entry.provenance.kind,'schema50-source-derivative');assert.equal(entry.provenance.originCommit,null);assert.equal(entry.provenance.derivativeBaseCommit,'ea12881e9f8c7d1133b068bbbc0e483b9f020714');} else {assert.equal(source.classification,'LOCAL_AUTOMATION_SOURCE_DERIVATIVE',relative);assert.equal(entry.provenance.kind,'local-automation-source-derivative');assert.equal(entry.provenance.originCommit,null);assert.equal(entry.provenance.sourceStatus,'LOCAL_UNREGISTERED');assert.equal(entry.provenance.derivativeBaseCommit,'d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f');assert.match(entry.provenance.derivativeBaseSha256,/^[a-f0-9]{64}$/);assert.equal(entry.provenance.ancestorOriginCommit,undefined);}
  }
 });
-test('local automation source exports explicit null origin and only exact-history ancestors',()=>{
- const local=manifest.files.filter(f=>f.classification==='LOCAL_AUTOMATION_SOURCE_DERIVATIVE');assert.equal(local.length,2);
- for(const source of local){const entry=entryFor(source);assert.equal(source.originCommit,null);assert.equal(entry.provenance.originCommit,null);assert.equal(entry.provenance.sourceStatus,'LOCAL_UNREGISTERED');assert.equal(entry.provenance.newBuildQualificationRequired,true);
-  if(source.path==='src/crawler/fixedJobProjectionSidecar.ts'){assert.equal(entry.provenance.ancestorOriginCommit,undefined);assert.equal(entry.provenance.derivativeBaseCommit,undefined);}
-  else if(!source.path.startsWith('ops/cloud-pilot-host/')){assert.equal(entry.provenance.ancestorOriginCommit,manifest.originCommit);assert.equal(entry.provenance.derivativeBaseCommit,'d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f');assert.match(entry.provenance.derivativeBaseSha256,/^[a-f0-9]{64}$/);}
+test('both original local automation ancestors survive the validated shared guard layer',()=>{
+ const local=retainedSharedGuardManifest.files.filter(f=>f.classification==='LOCAL_AUTOMATION_SOURCE_DERIVATIVE');assert.equal(local.length,2);
+ for(const source of local){
+  const current=manifest.files.find(f=>f.path===source.path),entry=entryFor(current);
+  assert.equal(source.originCommit,null);assert.equal(entry.provenance.originCommit,null);assert.equal(entry.provenance.sourceStatus,'LOCAL_UNREGISTERED');assert.equal(entry.provenance.newBuildQualificationRequired,true);
+  if(current.classification===SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS){assert.deepEqual(entry.provenance,sharedCompletenessGuardSourceProvenance(current));assert.deepEqual(entry.provenance.priorProvenance,source);}
+  else {assert.deepEqual(current,source);assert.equal(entry.provenance.kind,'local-automation-source-derivative');}
+  if(source.path==='src/crawler/fixedJobProjectionSidecar.ts'){assert.equal(source.ancestorOriginCommit,undefined);assert.equal(source.derivativeBaseCommit,undefined);assert.equal(entry.provenance.ancestorOriginCommit,undefined);assert.equal(entry.provenance.derivativeBaseCommit,undefined);}
+  else if(!source.path.startsWith('ops/cloud-pilot-host/')){assert.equal(source.ancestorOriginCommit,manifest.originCommit);assert.equal(source.derivativeBaseCommit,'d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f');assert.match(source.derivativeBaseSha256,/^[a-f0-9]{64}$/);}
  }
 });
 test('historical C60 provenance retains original exact hashes and origin metadata',()=>{
- const historical=manifest.files.filter(f=>!['FOUR_SOURCE_SEQUENCE_SOURCE_DERIVATIVE','UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE','UCB_OWNED_BRIDGE_NEW_SOURCE','HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE','HENGRUI_OWNED_BRIDGE_NEW_SOURCE','SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE','REQUEST_READY_SOURCE_DERIVATIVE','BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE','NEW_CONNECTOR_HOST_SOURCE','LOCAL_AUTOMATION_SOURCE_DERIVATIVE','SCHEMA50_SOURCE_DERIVATIVE'].includes(f.classification));assert(historical.length>0);
+ const historical=manifest.files.filter(f=>![SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS,'FOUR_SOURCE_SEQUENCE_SOURCE_DERIVATIVE','UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE','UCB_OWNED_BRIDGE_NEW_SOURCE','HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE','HENGRUI_OWNED_BRIDGE_NEW_SOURCE','SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE','REQUEST_READY_SOURCE_DERIVATIVE','BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE','NEW_CONNECTOR_HOST_SOURCE','LOCAL_AUTOMATION_SOURCE_DERIVATIVE','SCHEMA50_SOURCE_DERIVATIVE'].includes(f.classification));assert(historical.length>0);
  for(const source of historical){const entry=entryFor(source);assert.equal(entry.provenance.originCommit,manifest.originCommit,source.path);assert.equal(entry.provenance.originCommitIsProvenanceOnly,true,source.path);assert.equal(entry.provenance.originSha256,source.originSha256,source.path);assert.equal(entry.provenance.newBuildQualificationRequired,true,source.path);}
 });
 test('generated build identity is excluded from source export',()=>{assert(!exported.entries.some(f=>f.path===prefix+'build-identity.json'));});

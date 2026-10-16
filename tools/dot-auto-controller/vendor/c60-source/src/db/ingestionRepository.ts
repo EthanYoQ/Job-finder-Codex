@@ -43,6 +43,8 @@ import {
 } from "../crawler/traversalCertificate";
 import {
   assertTrustedBaselineTransition,
+  canonicalCompletenessAnomalyTriggerCodes,
+  evaluateCompletenessAnomalyForCrawl,
   type TrustedBaselineChangeReason
 } from "../crawler/completenessAnomalyPolicy";
 import { isRetryableSourceTransportFailureCode } from "../crawler/sourceFetchFailure";
@@ -1251,7 +1253,14 @@ async function compileDbStartedCloudSourcePublicationWithIds(input:DbStartedClou
  if(context.trustedCompletenessBaseline&&Date.parse(context.trustedCompletenessBaseline.verifiedAt)>captureStarted)throw Error('PILOT_CAPTURE_PRECEDES_ACCEPTED_OBSERVATION');
  const currentKeys=new Set(source.result.jobs.map(buildJobDedupeKey));
  const previousJobs=portable?context.previousJobs:context.previousJobs.filter(job=>currentKeys.has(job.dedupeKey)||(context.acceptedVisibilityFloor!==null&&Date.parse(job.lastSeenAt)>=context.acceptedVisibilityFloor.getTime()));
- const commit=buildAtomicRuntimeCommit({...source,...context,previousJobs});
+ // Caller hints cannot suppress anomalies derived from the verified context.
+ // Validate a supplied list before unioning so an explicit [] remains invalid.
+ const suppliedAnomalyCodes=source.completenessAnomalyTriggerCodes
+  ?canonicalCompletenessAnomalyTriggerCodes(source.completenessAnomalyTriggerCodes):[];
+ const anomaly=evaluateCompletenessAnomalyForCrawl(source.plan,source.result,context.trustedCompletenessBaseline);
+ const completenessAnomalyTriggerCodes=[...new Set([...suppliedAnomalyCodes,...anomaly.triggerCodes])];
+ const commit=buildAtomicRuntimeCommit({...source,...context,previousJobs,
+  ...(completenessAnomalyTriggerCodes.length>0?{completenessAnomalyTriggerCodes}:{})});
  const certificate=commit.sourceResult.completenessCertificate as {schemaVersion?:string;independentValidation?:{observedAt?:string;expiresAt?:string}}|null;
  if(commit.sourceResult.completenessState!=='VERIFIED'||!(portable?[SOURCE_QUALITY_RECEIPT_SCHEMA]:['a-grade-official-total-v2','b-grade-independent-traversal-v2']).includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
  // Original acquisition and B validation times are preserved. No renewed local

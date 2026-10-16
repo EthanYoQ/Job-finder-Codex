@@ -1,3 +1,6 @@
+import type { SourceCrawlPlan } from "./sourcePlan";
+import type { SourceCrawlResult } from "./runSourceCrawl";
+
 export const DEFAULT_COMPLETENESS_DROP_PERCENT = 40;
 export const DEFAULT_COMPLETENESS_DROP_MINIMUM_JOBS = 20;
 
@@ -307,4 +310,37 @@ function proofReasonPrefix(kind: TrustedCompletenessProofKind): string {
   if (kind === "B") return "INDEPENDENT_VALIDATION_CONFIRMED";
   if (kind === "PLAN_BOUND_SOURCE_QUALITY_V1") return "PLAN_BOUND_REPLAY_CONFIRMED";
   throw new Error("Trusted completeness proof kind is invalid");
+}
+
+export function evaluateCompletenessAnomalyForCrawl(
+  plan: SourceCrawlPlan,
+  result: SourceCrawlResult,
+  baseline: PersistedTrustedCompletenessBaseline | null
+) {
+  const pages = result.fetchEvidence?.pages ?? [];
+  const finalPage = pages.length > 0 ? pages[pages.length - 1]! : undefined;
+  const terminalSignalProven = finalPage !== undefined &&
+    finalPage.nextPageSignalAfter === null &&
+    ["NEXT_ABSENT", "EMPTY_PAGE", "DECLARED_TOTAL_REACHED"].includes(finalPage.termination);
+  const pagination = plan.adapterId === "html-table" ? plan.table.pagination : undefined;
+  const suspiciousAdapterCapacity = pagination?.pageSize !== undefined &&
+      pages.length === pagination.maxPages
+    ? pagination.pageSize * pagination.maxPages
+    : undefined;
+  return evaluateCompletenessAnomaly({
+    baseline,
+    currentJobCount: result.jobs.length,
+    ...(result.paginationEvaluation ? {
+      paginationAnomalyCodes: result.paginationEvaluation.derivedAnomalyCodes
+    } : {}),
+    ...(finalPage ? {
+      finalPage: {
+        returnedPageSize: finalPage.returnedPageSize ?? null,
+        requestedPageSize: finalPage.requestedPageSize ?? null,
+        terminalSignalProven,
+        nextSignalPresent: finalPage.nextPageSignalAfter !== null
+      }
+    } : {}),
+    ...(suspiciousAdapterCapacity === undefined ? {} : { suspiciousAdapterCapacity })
+  });
 }

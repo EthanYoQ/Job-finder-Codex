@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import path from 'node:path';
 import {hengruiSourceProvenance,HENGRUI_BASE_HASHES} from '../scripts/hengrui-source-provenance.mjs';
+import {ucbSourceProvenance,UCB_DERIVATIVE_CLASS} from '../scripts/ucb-source-provenance.mjs';
+import {sharedCompletenessGuardSourceProvenance,SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/shared-completeness-guard-source-provenance.mjs';
 const root=path.resolve(import.meta.dirname,'..');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'vendor/C60_SOURCE_MANIFEST.json')));
 const exported=JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{encoding:'utf8',maxBuffer:4*1024*1024}));
@@ -41,6 +43,12 @@ function assertDirectLocalDerivative(relative,source,entry){
 // d02f assertions on the preserved ancestor, not on today's derivative bytes.
 function assertHengruiDerivative(relative,source,entry){
  assert(source,relative);assert(entry,relative);
+ // Validate the current UCB layer before applying the unchanged c53/d02f contract.
+ if(source.classification===UCB_DERIVATIVE_CLASS){
+  assert.doesNotThrow(()=>ucbSourceProvenance(source));assert.deepEqual(entry.provenance,ucbSourceProvenance(source));
+  assert.equal(entry.sha256,source.sha256);assert.equal(entry.bytes,source.bytes);
+  source=source.priorProvenance;entry={sha256:source.sha256,bytes:source.bytes,provenance:hengruiSourceProvenance(source)};
+ }
  assert.equal(source.classification,'HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE');
  assert.equal(source.derivativeBaseCommit,'c53de6e43569febc515c445ca74292eac355f569');
  assert.equal(source.derivativeBaseSha256,HENGRUI_BASE_HASHES[relative]);
@@ -54,7 +62,15 @@ function assertHengruiDerivative(relative,source,entry){
  return c53.priorProvenance;
 }
 function assertLocalDerivative(relative,source,entry){
- if(relative==='src/db/ingestionRepository.ts')return assertDirectLocalDerivative(relative,source,entry);
+ if(relative==='src/db/ingestionRepository.ts'){
+  assert.equal(source.classification,SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS);
+  assert.doesNotThrow(()=>sharedCompletenessGuardSourceProvenance(source));
+  assert.deepEqual(entry.provenance,sharedCompletenessGuardSourceProvenance(source));
+  assert.equal(entry.sha256,source.sha256);assert.equal(entry.bytes,source.bytes);
+  const ancestor=source.priorProvenance;
+  const oldEntry={sha256:ancestor.sha256,bytes:ancestor.bytes,provenance:{kind:'local-automation-source-derivative',originCommit:null,path:relative,sourceStatus:'LOCAL_UNREGISTERED',derivativeBaseCommit:baseCommit,derivativeBaseSha256:localBaseHashes[relative],ancestorOriginCommit,newBuildQualificationRequired:true}};
+  return assertDirectLocalDerivative(relative,ancestor,oldEntry);
+ }
  const ancestor=assertHengruiDerivative(relative,source,entry);
  const oldEntry={sha256:ancestor.sha256,bytes:ancestor.bytes,provenance:{kind:'local-automation-source-derivative',originCommit:null,path:relative,sourceStatus:'LOCAL_UNREGISTERED',derivativeBaseCommit:baseCommit,derivativeBaseSha256:localBaseHashes[relative],ancestorOriginCommit,newBuildQualificationRequired:true}};
  assertDirectLocalDerivative(relative,ancestor,oldEntry);
@@ -68,10 +84,11 @@ test('new connector gate files never inherit historical source origin',()=>{
    assert.deepEqual(base,{kind:'new-hengrui-owned-bridge-source',originCommit:null,sourceStatus:'LOCAL_UNREGISTERED',productionQualified:false,newBuildQualificationRequired:true});
    if(entry.path.endsWith('/hengrui-synthetic-fixture.mts')){assert.equal(sourceBasis,'ORIGINAL_HENGRUI_CANDIDATE_DERIVATIVE');assert.deepEqual(portInput,{candidate:'hengrui-auto-adapter-candidate-20261016T0315Z',path:'connector-gate/hengrui-synthetic-fixture.mts',sha256:'70be97883ad332a1c8fae76cc1f4c46f906efd0fa8d6b504274e755558391037',bytes:9058});}
    else {assert.equal(sourceBasis,undefined);assert.equal(portInput,undefined);}
-  }else assert.deepEqual(entry.provenance,{kind:'new-connector-publication-review-source'});
+  }else if(/\/connector-gate\/(?:ucb[-.]|UCB_OWNED_BRIDGE\.md$)/.test(entry.path)){assert.deepEqual(entry.provenance,{kind:'new-ucb-owned-bridge-source',originCommit:null,sourceStatus:'LOCAL_UNREGISTERED',productionQualified:false,newBuildQualificationRequired:true});}
+  else assert.deepEqual(entry.provenance,{kind:'new-connector-publication-review-source'});
  }
 });
-test('local compiler derivative retains exact d02f base without inheriting source qualification',()=>{
+test('local compiler ancestor retains exact d02f base beneath the validated shared guard layer',()=>{
  const relative='src/db/ingestionRepository.ts',{source,entry}=records(relative);
  assertLocalDerivative(relative,source,entry);
 });
