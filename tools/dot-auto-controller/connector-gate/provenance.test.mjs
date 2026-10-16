@@ -3,10 +3,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {viatrisSourceProvenance,VIATRIS_BASE_COMMIT} from '../scripts/viatris-source-provenance.mjs';
+import {ucbSourceProvenance,UCB_BASE_COMMIT} from '../scripts/ucb-source-provenance.mjs';
 import {hengruiSourceProvenance,HENGRUI_BASE_HASHES} from '../scripts/hengrui-source-provenance.mjs';
 const root=path.resolve(import.meta.dirname,'..');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'vendor/C60_SOURCE_MANIFEST.json')));
 const exported=JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{encoding:'utf8',maxBuffer:4*1024*1024}));
+const gitBytes=(commit,relative)=>execFileSync('git',['show',commit+':tools/dot-auto-controller/vendor/'+relative],{cwd:root,maxBuffer:8*1024*1024});
+const frozenManifests=new Map([VIATRIS_BASE_COMMIT,UCB_BASE_COMMIT].map(commit=>[commit,JSON.parse(gitBytes(commit,'C60_SOURCE_MANIFEST.json'))]));
+const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const baseCommit='d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f';
 const ancestorOriginCommit='3a2400768e8b087b8600dd05e1a32ac006bd7102';
 // These hashes name the exact d02f inputs, not the current local derivatives.
@@ -37,10 +43,26 @@ function assertDirectLocalDerivative(relative,source,entry){
  });
  assert.equal(entry.sha256,source.sha256);assert.equal(entry.bytes,source.bytes);
 }
-// The three worker files now have an exact c53 parent. Keep the historical
-// d02f assertions on the preserved ancestor, not on today's derivative bytes.
+// Peel each validated Viatris and UCB layer, comparing its entire retained
+// record and input bytes with the original Git parent before testing Hengrui.
 function assertHengruiDerivative(relative,source,entry){
  assert(source,relative);assert(entry,relative);
+ assert.equal(sha(fs.readFileSync(path.join(root,'vendor/c60-source',relative))),source.sha256);
+ for(const [classification,validator,parentCommit,nextValidator] of [
+  ['VIATRIS_OWNED_BRIDGE_SOURCE_DERIVATIVE',viatrisSourceProvenance,VIATRIS_BASE_COMMIT,ucbSourceProvenance],
+  ['UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE',ucbSourceProvenance,UCB_BASE_COMMIT,hengruiSourceProvenance],
+ ]){
+  assert.equal(source.classification,classification);
+  assert.doesNotThrow(()=>validator(source));
+  assert.deepEqual(entry.provenance,validator(source));
+  assert.equal(entry.sha256,source.sha256);assert.equal(entry.bytes,source.bytes);
+  assert.equal(source.derivativeBaseCommit,parentCommit);
+  const original=frozenManifests.get(parentCommit).files.find(file=>file.path===relative),bytes=gitBytes(parentCommit,'c60-source/'+relative);
+  assert.deepEqual(source.priorProvenance,original);
+  assert.equal(source.derivativeBaseSha256,sha(bytes));assert.equal(original.sha256,sha(bytes));assert.equal(original.bytes,bytes.length);
+  source=source.priorProvenance;
+  entry={...entry,sha256:source.sha256,bytes:source.bytes,provenance:nextValidator(source)};
+ }
  assert.equal(source.classification,'HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE');
  assert.equal(source.derivativeBaseCommit,'c53de6e43569febc515c445ca74292eac355f569');
  assert.equal(source.derivativeBaseSha256,HENGRUI_BASE_HASHES[relative]);
@@ -68,7 +90,9 @@ test('new connector gate files never inherit historical source origin',()=>{
    assert.deepEqual(base,{kind:'new-hengrui-owned-bridge-source',originCommit:null,sourceStatus:'LOCAL_UNREGISTERED',productionQualified:false,newBuildQualificationRequired:true});
    if(entry.path.endsWith('/hengrui-synthetic-fixture.mts')){assert.equal(sourceBasis,'ORIGINAL_HENGRUI_CANDIDATE_DERIVATIVE');assert.deepEqual(portInput,{candidate:'hengrui-auto-adapter-candidate-20261016T0315Z',path:'connector-gate/hengrui-synthetic-fixture.mts',sha256:'70be97883ad332a1c8fae76cc1f4c46f906efd0fa8d6b504274e755558391037',bytes:9058});}
    else {assert.equal(sourceBasis,undefined);assert.equal(portInput,undefined);}
-  }else assert.deepEqual(entry.provenance,{kind:'new-connector-publication-review-source'});
+  }else if(/\/connector-gate\/(?:ucb[-.]|UCB_OWNED_BRIDGE\.md$)/.test(entry.path))assert.deepEqual(entry.provenance,{kind:'new-ucb-owned-bridge-source',originCommit:null,sourceStatus:'LOCAL_UNREGISTERED',productionQualified:false,newBuildQualificationRequired:true});
+  else if(/\/connector-gate\/(?:viatris[-.]|VIATRIS_OWNED_BRIDGE\.md$)/.test(entry.path))assert.deepEqual(entry.provenance,{kind:'new-viatris-owned-bridge-source',originCommit:null,sourceStatus:'LOCAL_UNREGISTERED',productionQualified:false,newBuildQualificationRequired:true});
+  else assert.deepEqual(entry.provenance,{kind:'new-connector-publication-review-source'});
  }
 });
 test('local compiler derivative retains exact d02f base without inheriting source qualification',()=>{

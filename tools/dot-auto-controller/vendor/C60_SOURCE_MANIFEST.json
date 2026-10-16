@@ -858,44 +858,55 @@
     },
     {
       "path": "scripts/p0-cloud-portable-source-pilot.ts",
-      "classification": "UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE",
+      "classification": "VIATRIS_OWNED_BRIDGE_SOURCE_DERIVATIVE",
       "originCommit": null,
+      "sourceStatus": "LOCAL_UNREGISTERED",
       "productionQualified": false,
-      "derivativeBaseCommit": "48e56500bfe6a77ed712abfd54a98154cf963032",
-      "derivativeBaseSha256": "93b7c38704df5d3270190c2f13d6c29071379c06443172e76cd52f9911713efb",
+      "derivativeBaseCommit": "9629790860e68df0a8f09fb14f7ab05e1a2fbbfa",
+      "derivativeBaseSha256": "f0114fea872ebf53b66686ffbb041aabc5bdda8be650a72b153dc929536ee9dc",
       "priorProvenance": {
         "path": "scripts/p0-cloud-portable-source-pilot.ts",
-        "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
+        "classification": "UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE",
         "originCommit": null,
         "productionQualified": false,
-        "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
-        "derivativeBaseSha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
+        "derivativeBaseCommit": "48e56500bfe6a77ed712abfd54a98154cf963032",
+        "derivativeBaseSha256": "93b7c38704df5d3270190c2f13d6c29071379c06443172e76cd52f9911713efb",
         "priorProvenance": {
           "path": "scripts/p0-cloud-portable-source-pilot.ts",
-          "sha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
-          "bytes": 21498,
-          "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
+          "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
           "originCommit": null,
           "productionQualified": false,
-          "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
-          "derivativeBaseSha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+          "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
+          "derivativeBaseSha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
           "priorProvenance": {
             "path": "scripts/p0-cloud-portable-source-pilot.ts",
-            "sha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
-            "bytes": 19776,
-            "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+            "sha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
+            "bytes": 21498,
+            "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
             "originCommit": null,
             "productionQualified": false,
-            "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
-            "derivativeBaseSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
-            "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
-          }
+            "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
+            "derivativeBaseSha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+            "priorProvenance": {
+              "path": "scripts/p0-cloud-portable-source-pilot.ts",
+              "sha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+              "bytes": 19776,
+              "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+              "originCommit": null,
+              "productionQualified": false,
+              "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+              "derivativeBaseSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
+              "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+            }
+          },
+          "sha256": "93b7c38704df5d3270190c2f13d6c29071379c06443172e76cd52f9911713efb",
+          "bytes": 23218
         },
-        "sha256": "93b7c38704df5d3270190c2f13d6c29071379c06443172e76cd52f9911713efb",
-        "bytes": 23218
+        "sha256": "f0114fea872ebf53b66686ffbb041aabc5bdda8be650a72b153dc929536ee9dc",
+        "bytes": 24810
       },
-      "sha256": "f0114fea872ebf53b66686ffbb041aabc5bdda8be650a72b153dc929536ee9dc",
-      "bytes": 24810
+      "sha256": "1b54102201898eac56dbdabaf92ab9719162353cd9086b224fff75c76eb6610c",
+      "bytes": 26524
     },
     {
       "path": "scripts/p0-cloud-source-pilot.ts",
@@ -1490,41 +1501,52 @@
     },
     {
       "path": "src/crawler/cloudDbStartedPilot.ts",
-      "classification": "UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE",
+      "classification": "VIATRIS_OWNED_BRIDGE_SOURCE_DERIVATIVE",
       "originCommit": null,
+      "sourceStatus": "LOCAL_UNREGISTERED",
       "productionQualified": false,
-      "derivativeBaseCommit": "48e56500bfe6a77ed712abfd54a98154cf963032",
-      "derivativeBaseSha256": "6dcfa1c504bb1d8bcd7ece80e1fa43010c42b877bcd9f11bc44df2ee73b7281b",
+      "derivativeBaseCommit": "9629790860e68df0a8f09fb14f7ab05e1a2fbbfa",
+      "derivativeBaseSha256": "5c7edc8ab5fd54b176c4e7396b8aa16e1f50d907c0dc2e4f3a1495d2b21e5dc7",
       "priorProvenance": {
         "path": "src/crawler/cloudDbStartedPilot.ts",
-        "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
+        "classification": "UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE",
         "originCommit": null,
         "productionQualified": false,
-        "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
-        "derivativeBaseSha256": "8440d0b5e08203aecca5e9c4e9aead822ea7b242e1cec11f7eae4cdd70a2ebc1",
+        "derivativeBaseCommit": "48e56500bfe6a77ed712abfd54a98154cf963032",
+        "derivativeBaseSha256": "6dcfa1c504bb1d8bcd7ece80e1fa43010c42b877bcd9f11bc44df2ee73b7281b",
         "priorProvenance": {
           "path": "src/crawler/cloudDbStartedPilot.ts",
-          "sha256": "8440d0b5e08203aecca5e9c4e9aead822ea7b242e1cec11f7eae4cdd70a2ebc1",
-          "bytes": 9729,
-          "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
+          "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
           "originCommit": null,
           "productionQualified": false,
-          "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
-          "derivativeBaseSha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
+          "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
+          "derivativeBaseSha256": "8440d0b5e08203aecca5e9c4e9aead822ea7b242e1cec11f7eae4cdd70a2ebc1",
           "priorProvenance": {
             "path": "src/crawler/cloudDbStartedPilot.ts",
-            "sha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
-            "bytes": 8254,
-            "classification": "CONNECTOR_PUBLICATION_REVIEW_DERIVATIVE",
-            "originSha256": "42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3",
-            "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f"
-          }
+            "sha256": "8440d0b5e08203aecca5e9c4e9aead822ea7b242e1cec11f7eae4cdd70a2ebc1",
+            "bytes": 9729,
+            "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
+            "originCommit": null,
+            "productionQualified": false,
+            "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
+            "derivativeBaseSha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
+            "priorProvenance": {
+              "path": "src/crawler/cloudDbStartedPilot.ts",
+              "sha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
+              "bytes": 8254,
+              "classification": "CONNECTOR_PUBLICATION_REVIEW_DERIVATIVE",
+              "originSha256": "42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3",
+              "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f"
+            }
+          },
+          "sha256": "6dcfa1c504bb1d8bcd7ece80e1fa43010c42b877bcd9f11bc44df2ee73b7281b",
+          "bytes": 11173
         },
-        "sha256": "6dcfa1c504bb1d8bcd7ece80e1fa43010c42b877bcd9f11bc44df2ee73b7281b",
-        "bytes": 11173
+        "sha256": "5c7edc8ab5fd54b176c4e7396b8aa16e1f50d907c0dc2e4f3a1495d2b21e5dc7",
+        "bytes": 12503
       },
-      "sha256": "5c7edc8ab5fd54b176c4e7396b8aa16e1f50d907c0dc2e4f3a1495d2b21e5dc7",
-      "bytes": 12503
+      "sha256": "327d5f67a3c8add9445707416f112fafe31b819595b9d56c4c74e793b346f2d2",
+      "bytes": 13921
     },
     {
       "path": "src/crawler/cloudPilotContext.ts",
@@ -1534,44 +1556,55 @@
     },
     {
       "path": "src/crawler/cloudSourcePilotRelay.ts",
-      "classification": "UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE",
+      "classification": "VIATRIS_OWNED_BRIDGE_SOURCE_DERIVATIVE",
       "originCommit": null,
+      "sourceStatus": "LOCAL_UNREGISTERED",
       "productionQualified": false,
-      "derivativeBaseCommit": "48e56500bfe6a77ed712abfd54a98154cf963032",
-      "derivativeBaseSha256": "821e7b687e304f78273d191027a51ad5e020e361d592bec01ad14d12e896c4ce",
+      "derivativeBaseCommit": "9629790860e68df0a8f09fb14f7ab05e1a2fbbfa",
+      "derivativeBaseSha256": "d82d920b0e2ed59af7032427840f6f5d1c5b05adbd85450c5ef93ad5de821333",
       "priorProvenance": {
         "path": "src/crawler/cloudSourcePilotRelay.ts",
-        "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
+        "classification": "UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE",
         "originCommit": null,
         "productionQualified": false,
-        "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
-        "derivativeBaseSha256": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f",
+        "derivativeBaseCommit": "48e56500bfe6a77ed712abfd54a98154cf963032",
+        "derivativeBaseSha256": "821e7b687e304f78273d191027a51ad5e020e361d592bec01ad14d12e896c4ce",
         "priorProvenance": {
           "path": "src/crawler/cloudSourcePilotRelay.ts",
-          "sha256": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f",
-          "bytes": 29706,
-          "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
+          "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
           "originCommit": null,
           "productionQualified": false,
-          "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
-          "derivativeBaseSha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
+          "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
+          "derivativeBaseSha256": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f",
           "priorProvenance": {
             "path": "src/crawler/cloudSourcePilotRelay.ts",
-            "sha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
-            "bytes": 21229,
-            "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+            "sha256": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f",
+            "bytes": 29706,
+            "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
             "originCommit": null,
             "productionQualified": false,
-            "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
-            "derivativeBaseSha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6",
-            "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
-          }
+            "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
+            "derivativeBaseSha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
+            "priorProvenance": {
+              "path": "src/crawler/cloudSourcePilotRelay.ts",
+              "sha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
+              "bytes": 21229,
+              "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+              "originCommit": null,
+              "productionQualified": false,
+              "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+              "derivativeBaseSha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6",
+              "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+            }
+          },
+          "sha256": "821e7b687e304f78273d191027a51ad5e020e361d592bec01ad14d12e896c4ce",
+          "bytes": 37479
         },
-        "sha256": "821e7b687e304f78273d191027a51ad5e020e361d592bec01ad14d12e896c4ce",
-        "bytes": 37479
+        "sha256": "d82d920b0e2ed59af7032427840f6f5d1c5b05adbd85450c5ef93ad5de821333",
+        "bytes": 45104
       },
-      "sha256": "d82d920b0e2ed59af7032427840f6f5d1c5b05adbd85450c5ef93ad5de821333",
-      "bytes": 45104
+      "sha256": "361a562a6e9deaa9d9290fa9e8d88b8e833ad38efb3f25c71ddbf34c3a7845e9",
+      "bytes": 52877
     },
     {
       "path": "src/crawler/companyRecruitmentProfiles/README.md",
@@ -5502,6 +5535,15 @@
       "productionQualified": false,
       "sha256": "099fb748032f54c1abe4f57d863ff6ed527b9af84dc5d76a8e60d32687724afc",
       "bytes": 4811
+    },
+    {
+      "path": "src/crawler/viatrisFixedJobProjectionSidecar.ts",
+      "classification": "VIATRIS_OWNED_BRIDGE_NEW_SOURCE",
+      "originCommit": null,
+      "sourceStatus": "LOCAL_UNREGISTERED",
+      "productionQualified": false,
+      "sha256": "0c745bbf2a0df4305b824334966654a311d11b708575398d5d3c14334f157435",
+      "bytes": 4809
     }
   ],
   "originCommitIsProvenanceOnly": true,
