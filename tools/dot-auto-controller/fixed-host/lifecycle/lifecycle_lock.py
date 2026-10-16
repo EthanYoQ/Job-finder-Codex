@@ -354,13 +354,14 @@ def require_sequence_history(lease: Lease, strict: bool = False) -> None:
             "SEQUENCE_HISTORY_COMPLETION_SET")
     for cycle, values in groups.items():
         values.sort(key=lambda item: item[0])
-        require(len(values) == 6 and [x[0] for x in values] == list(range(values[0][0], values[0][0] + 6)),
+        require(len(values) == 8 and [x[0] for x in values] == list(range(values[0][0], values[0][0] + 8)),
                 "SEQUENCE_HISTORY_PARTIAL_CYCLE")
         entry = values[0][1]["entrySha256"]
         release = None
         for (_, value), (phase, profile) in zip(values, (("source-start", "takeda"), ("source-settle", "takeda"),
                                                         ("source-start", "biogen"), ("source-settle", "biogen"),
-                                                        ("source-start", "hengrui"), ("source-settle", "hengrui"))):
+                                                        ("source-start", "hengrui"), ("source-settle", "hengrui"),
+                                                        ("source-start", "ucb"), ("source-settle", "ucb"))):
             record = value["record"]
             require(value["phase"] == phase and value["entrySha256"] == entry and type(record) is dict
                     and set(record) == ({"profile", "releaseSha256"} if phase == "source-start" else {"profile", "releaseSha256", "fact"})
@@ -372,7 +373,7 @@ def require_sequence_history(lease: Lease, strict: bool = False) -> None:
             if phase == "source-settle":
                 fact = record["fact"]
                 require(type(fact) is dict and fact.get("kind") in ("VERIFIED", "NOT_DUE", "KNOWN_NOT_DISPATCHED")
-                        and fact.get("sourceId") == {"takeda":"source-takeda-china-social","biogen":"source-biogen-china-social","hengrui":"source-hengrui-social"}[profile]
+                        and fact.get("sourceId") == {"takeda":"source-takeda-china-social","biogen":"source-biogen-china-social","hengrui":"source-hengrui-social","ucb":"source-ucb-china-social"}[profile]
                         and re.fullmatch(r"round-[a-f0-9]{32}", fact.get("roundId", "")) is not None,
                         "SEQUENCE_HISTORY_SOURCE")
         require(_sequence_file(lease, prefix + "round-complete-" + cycle)

@@ -44,7 +44,7 @@ class Durable(unittest.TestCase):
    self.assertTrue(changed);self.assertEqual(destination.read_bytes(),data)
    self.assertNotEqual(destination.stat().st_ino,(folder/'preserved-original-receipt.json').stat().st_ino)
   reports.append({'profile':profile,'scenario':scenario,'case':str(case),'passed':True,'compiledCliSha256':hashlib.sha256(raw).hexdigest()})
- def test_two_original_compiled_cli_durable_primitives(self):
+ def test_four_original_compiled_cli_durable_primitives(self):
   for profile in b.ORDER:
    for scenario in ('ordinary','replace-before-ack','replace-after-parent-fsync'):
     with self.subTest(profile=profile,scenario=scenario):self.one(profile,scenario)

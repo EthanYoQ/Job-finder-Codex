@@ -76,10 +76,10 @@ def complete_never_activated_disabled(domain,lease):
     # Reuse the original source/runtime/derived-identity preflight. This is a
     # disabled integrity check, not a round, DB read or producer launch.
     release=json.loads(exact_file(domain.target/'deployments'/(digest+'.json')))
-    require(release['kind']=='CLOSED_THREE_SOURCE_RELEASE' and release['order']==['takeda','biogen','hengrui'] and set(release['profiles'])=={'takeda','biogen','hengrui'},'SEQUENCE_DISABLED_RELEASE')
+    require(release['kind']=='CLOSED_FOUR_SOURCE_RELEASE' and release['order']==['takeda','biogen','hengrui','ucb'] and set(release['profiles'])=={'takeda','biogen','hengrui','ucb'},'SEQUENCE_DISABLED_RELEASE')
     prior_mode=os.environ.get('JOBFINDER_FIXED_LOCAL_MODE');prior_selector=os.environ.get('JOBFINDER_FIXED_DEPLOYMENT_SHA256')
     try:
-        for profile in ('takeda','biogen','hengrui'):
+        for profile in ('takeda','biogen','hengrui','ucb'):
             deployment=release['profiles'][profile]
             profile_sha=hashlib.sha256(json.dumps(deployment,ensure_ascii=True,separators=(',',':')).encode()).hexdigest()
             require(hashlib.sha256(exact_file(domain.target/'deployments'/(profile_sha+'.json'))).hexdigest()==profile_sha,'SEQUENCE_DISABLED_PROFILE')
@@ -150,11 +150,11 @@ def main():
                     require(offset==len(raw),'LIFECYCLE_NOT_LOADED')
                     record=command['record'];phase=command['op']
                     require(type(record) is dict and set(record)==({'profile','releaseSha256'} if phase=='source-start' else {'profile','releaseSha256','fact'}),'SEQUENCE_RECORD_KEYS')
-                    require(source_index<3 and record['profile']==('takeda','biogen','hengrui')[source_index] and re.fullmatch('[a-f0-9]{64}',record['releaseSha256']) and (release_digest is None or release_digest==record['releaseSha256']),'SEQUENCE_RECORD_ORDER')
+                    require(source_index<4 and record['profile']==('takeda','biogen','hengrui','ucb')[source_index] and re.fullmatch('[a-f0-9]{64}',record['releaseSha256']) and (release_digest is None or release_digest==record['releaseSha256']),'SEQUENCE_RECORD_ORDER')
                     if phase=='source-start':require(source_pending is None,'SEQUENCE_SOURCE_PENDING')
                     else:
                         require(source_pending==record['profile'],'SEQUENCE_SOURCE_NOT_STARTED')
-                        fact=record['fact'];require(type(fact) is dict and fact.get('kind') in ('VERIFIED','NOT_DUE','KNOWN_NOT_DISPATCHED') and fact.get('sourceId')=={'takeda':'source-takeda-china-social','biogen':'source-biogen-china-social','hengrui':'source-hengrui-social'}[source_pending] and re.fullmatch('round-[a-f0-9]{32}',fact.get('roundId','')),'SEQUENCE_SETTLED_FACT')
+                        fact=record['fact'];require(type(fact) is dict and fact.get('kind') in ('VERIFIED','NOT_DUE','KNOWN_NOT_DISPATCHED') and fact.get('sourceId')=={'takeda':'source-takeda-china-social','biogen':'source-biogen-china-social','hengrui':'source-hengrui-social','ucb':'source-ucb-china-social'}[source_pending] and re.fullmatch('round-[a-f0-9]{32}',fact.get('roundId','')),'SEQUENCE_SETTLED_FACT')
                     # Diagnostic ledger only. It cannot restore the live close
                     # authority held by the original functions closure.
                     leaf='.'+domain.target_name+'.lifecycle-cycle-'+journal.round_id+'-'+str(serial)+'.json'
@@ -172,7 +172,7 @@ def main():
                     else:source_pending=None;source_index+=1
                     emit({'kind':'LIFECYCLE_SOURCE_STARTED' if phase=='source-start' else 'LIFECYCLE_SOURCE_SETTLED','serial':serial,'holderId':journal.round_id,'recordSha256':hashlib.sha256(evidence).hexdigest()})
                 elif command['op']=='finish':
-                    require(offset==len(raw) and source_index==3 and source_pending is None and len(cycle_records)==6,'SEQUENCE_NOT_ALL_CLOSED')
+                    require(offset==len(raw) and source_index==4 and source_pending is None and len(cycle_records)==8,'SEQUENCE_NOT_ALL_CLOSED')
                     check_owned_cycle()
                     # No caller-supplied boolean/result can request qualification.
                     # This endpoint belongs to the original private owned session.

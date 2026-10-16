@@ -1,6 +1,6 @@
-# Closed local Takeda → Biogen → Hengrui sequence
+# Closed local Takeda → Biogen → Hengrui → UCB sequence
 
-This candidate adds one compile-fixed, no-argument entry for three sources in one
+This candidate adds one compile-fixed, no-argument entry for four sources in one
 immutable release. It is disabled by default. It is not a production activation,
 scheduled-tick result, recovery authority, or a 36-source implementation.
 
@@ -8,9 +8,9 @@ scheduled-tick result, recovery authority, or a 36-source implementation.
 
 - One candidate, original 16 fields, schema50 and 41-company registration
 - One immutable source/runtime identity and original source-specific rules
-- Fixed order: Takeda, then Biogen, then Hengrui. No runtime source selector is exposed
+- Fixed order: Takeda, then Biogen, then Hengrui, then UCB. No runtime source selector is exposed
 - Shared readonly runtime checkout and Node/dependency tree
-- Separate fixed `sources/takeda`, `sources/biogen` and `sources/hengrui` state roots, rounds,
+- Separate fixed `sources/takeda`, `sources/biogen`, `sources/hengrui` and `sources/ucb` state roots, rounds,
   binding files, allocation/execution locks and active-round pointers
 - Separate pinned candidate CLI/preflight/recovery files and stable CLI entries
 - One original lifecycle SH and durable ACTIVE throughout the complete sequence
@@ -20,7 +20,7 @@ scheduled-tick result, recovery authority, or a 36-source implementation.
 
 `build-functions-entry.py` deterministically compiles the original source bodies,
 pipe/observer cores, SQL extraction and source-specific UI ports. Its source
-manifest closes all three profiles plus the native path binding, installer and
+manifest closes all four profiles plus the native path binding, installer and
 activation renderers. Missing/cross-wired profile or shared identity drift rejects
 the whole release. A profile cannot be installed or activated independently by
 this release's outer entry.
@@ -40,7 +40,7 @@ It does not become a successful Observation or refresh crawledAt. The ordinary
 reported source status remains HOLD for that safely closed failure.
 
 The original holder records source start and settlement durably and completes
-only after all three private close capabilities have been consumed by the same
+only after all four private close capabilities have been consumed by the same
 coordinator. A durable BEGIN precedes ACTIVE creation, and complete historical lineage is
 checked before a new cycle or EX mutation. Lost ACTIVE, partial records or
 missing completion never restore authority. Each command and source barrier
@@ -59,7 +59,7 @@ No lock is cleared on timeout, process death, recovered JSON, or exit status.
 `render-install.py`, `bound-artifacts.py.in` and `activation-renderer.py` retain
 the original EX install transaction, full source/runtime gates, reader identity,
 registration freshness and one-boolean activation transform. The rendered
-artifact map contains all three profile CLIs and all three profile deployment documents,
+artifact map contains all four profile CLIs and all four profile deployment documents,
 as well as the single closed-release document. Generation never executes them.
 
 Tests under `tests/` clearly distinguish source-only/unit/synthetic composition.
@@ -69,10 +69,10 @@ fresh owned case. Do not run it without the original free-space gate. Runtime,
 measurement manifests and test evidence belong outside this source tree.
 
 The last step of that TEST_ONLY installation is a prepare-only wiring probe of
-all three installed stable CLIs under the original holder. It performs no child
+all four installed stable CLIs under the original holder. It performs no child
 launch or SQL call and deliberately retains unlaunched state and global HOLD.
 The pre-probe installation/activation receipt is saved separately; this case
-cannot be reused as a fresh cycle or called a completed three-source execution.
+cannot be reused as a fresh cycle or called a completed four-source execution.
 
 Production publication, official Supabase execution, the Aliyun reader/UI and a
 real future scheduling tick still require their own authorized verification.
@@ -85,10 +85,30 @@ US/HK exclusions. It does not use the Biogen Workday parser or zero-job rule.
 The native Hengrui builder/core/UI and all seven original ready publications stay
 unchanged; the private source-seal bridge is the same reviewed implementation.
 
-This new local merge has the reviewed b52 and Hengrui 5ff real parents, with c53
-as common base. Prior qualifications do not qualify the merged build. Negative
-history now requires exactly six ordered records; there is no automatic migration
-of prior single-source or two-source history. Only fresh installation is in scope.
-The strict original Hengrui-only manifest refresh still refuses unrelated changes
-when invoked against its c53 baseline; it is not a merged-release regeneration
-command. Closed merged pins and derivative records require combined-source review.
+This candidate directly descends from actual UCB head
+36bd3c5a6052159cac47609bbc58750012b74eb0. Its 48e three-source ancestry and
+original b52/5ff merge parents remain exact history. Prior qualifications do not
+qualify this new source. Negative history requires exactly eight ordered records;
+there is no migration of prior single/two/three-source history and no recovered
+completion authority. This iteration is source-only and small tests. Runtime,
+measurement, fresh test installation and production remain separately gated.
+
+The strict original Hengrui-only and UCB-only manifest refreshers still refuse
+unrelated changes. Two four-source native state bindings carry explicit 36bd
+parent provenance while retaining their full prior c53 chain. No original
+source plan, configuration hash, roster, parser, compiler or reader is changed.
+
+## UCB observed UI identity
+
+UCB retains its original Phenom page-size 50/verified-zero/China and city rules,
+independent 12-hour due gate, exact original READ_CONTEXT, source observation
+and receipt tuple. Its native ID hashes jobSeqNo (or fallback reqId/jobId), while
+the public URL may use a distinct reqId or same-origin applyUrl. The original
+reader exposes the actual URL and original title, not native sourceJobId.
+The fixed UI port therefore joins independently observed exact URL/title to a
+receipt-verified, copied/frozen one-to-one projection map. Unknown or duplicate
+URLs and ambiguous mappings HOLD; it never derives a native ID from a URL or
+replaces observed page data with expected data. Raw AX and fixed DOM traversal,
+count/deletion/source-card checks remain part of the actual composed test path.
+Tests use synthetic external AX/DOM and database results; no real public UI or
+application authorization is established here.

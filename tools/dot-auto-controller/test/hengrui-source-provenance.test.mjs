@@ -12,7 +12,7 @@ const packagePrefix='tools/dot-auto-controller/';
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const currentManifest=JSON.parse(fs.readFileSync(path.join(root,'vendor/C60_SOURCE_MANIFEST.json')));
 // Verify the retained Hengrui layer against its exact frozen 48e Git bytes.
-const manifest={...currentManifest,files:currentManifest.files.filter(f=>f.classification!=='UCB_OWNED_BRIDGE_NEW_SOURCE').map(f=>f.classification==='UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE'?f.priorProvenance:f)};
+const manifest={...currentManifest,files:currentManifest.files.filter(f=>f.classification!=='UCB_OWNED_BRIDGE_NEW_SOURCE').map(f=>['UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE','FOUR_SOURCE_SEQUENCE_SOURCE_DERIVATIVE'].includes(f.classification)?f.priorProvenance:f)};
 const ucbPaths=new Set(currentManifest.files.filter(f=>f.classification==='UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE').map(f=>f.path));
 const portManifest=JSON.parse(fs.readFileSync(path.join(root,'config/hengrui-port-provenance.json')));
 const exported=JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{encoding:'utf8',maxBuffer:8*1024*1024}));
@@ -27,7 +27,7 @@ const priorHashes={
 // Exact c53 Hengrui base records plus the independently reviewed merged records
 // outside the Hengrui refresh scope. This is not a claim that all rows are c53.
 const refreshBase={...manifest,files:manifest.files.filter(file=>file.path!==HENGRUI_NEW_SOURCE_PATH).map(file=>HENGRUI_SHARED_SOURCE_PATHS.includes(file.path)?file.priorProvenance:file)};
-const bytesByPath=new Map(manifest.files.map(file=>[file.path,ucbPaths.has(file.path)?execFileSync('git',['show','48e56500bfe6a77ed712abfd54a98154cf963032:'+sourcePrefix+file.path],{cwd:root}):fs.readFileSync(path.join(root,'vendor/c60-source',file.path))]));
+const bytesByPath=new Map(manifest.files.map(file=>[file.path,(ucbPaths.has(file.path)||file.classification==='SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE')?execFileSync('git',['show','48e56500bfe6a77ed712abfd54a98154cf963032:'+sourcePrefix+file.path],{cwd:root}):fs.readFileSync(path.join(root,'vendor/c60-source',file.path))]));
 const readSource=relative=>bytesByPath.get(relative);
 
 function assertLocal(source,entry){
