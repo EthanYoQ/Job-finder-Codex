@@ -11,12 +11,15 @@ export function createOriginalExecObserver({pollOriginal,validateNativeChain,now
     async observe(expected,{stopAt,onPoll=()=>{}}={}) {
       while(now()<stopAt){
         const raw=await withinDeadline(()=>pollOriginal({session_id:expected.originalSessionId,chars:'',yield_time_ms:Math.min(1000,Math.max(1,stopAt-now())),max_output_tokens:10000}),stopAt,{now});
-        await onPoll(raw);
+        // Diagnostics and native terminal validation share the original absolute
+        // budget. A timeout is only a HOLD, not cancellation or rollback proof.
+        await withinDeadline(()=>onPoll(raw),stopAt,{now});
         if(raw.session_id!==undefined){if(raw.session_id!==expected.originalSessionId)throw Error('ORIGINAL_EXEC_SESSION_CHANGED');continue;}
         if(!Number.isInteger(raw.exit_code))throw Error('ORIGINAL_EXEC_MISSING_REAL_TERMINAL');
-        const native=await validateNativeChain(expected,raw);
+        const native=await withinDeadline(()=>validateNativeChain(expected,raw),stopAt,{now});
         const value={...native,schemaVersion:1,originalSessionId:expected.originalSessionId,originalLaunchSha256:expected.originalLaunchSha256,bindingSha256:expected.bindingSha256,raw};
         verifyOriginalTerminal(expected,value);
+        if(now()>=stopAt)throw Error('ORIGINAL_BUDGET_EXHAUSTED');
         const token=Object.freeze({});receipts.set(token,{expected:structuredClone(expected),value});return token;
       }
       throw Error('ORIGINAL_MONITOR_BUDGET_EXHAUSTED');
