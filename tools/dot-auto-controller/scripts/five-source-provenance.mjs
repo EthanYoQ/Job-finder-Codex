@@ -33,6 +33,6 @@ export function refreshFiveSourceManifest({baseManifest,currentManifest,readSour
   const next={...FIVE_EXPECTED[record.path],priorProvenance:structuredClone(prior)};fiveSourceProvenance(next);
   if(sha(bytes)!==next.sha256||bytes.length!==next.bytes)fail('HOST_CURRENT_BYTES');return next;
  });
- const result={...structuredClone(baseMeta),files},restored={...result,files:files.map(f=>FIVE_SOURCE_PATHS.includes(f.path)?f.priorProvenance:f)};
+ const result={...structuredClone(baseManifest),files},restored={...result,files:files.map(f=>FIVE_SOURCE_PATHS.includes(f.path)?f.priorProvenance:f)};
  if(!same(restored,baseManifest))fail('FULL_PRIOR_RESTORE');return result;
 }
