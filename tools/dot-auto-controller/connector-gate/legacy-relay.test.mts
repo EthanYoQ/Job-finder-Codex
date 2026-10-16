@@ -1,3 +1,4 @@
+import {readyRequestNames} from '../vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtemp,readdir,readFile,writeFile,rm,stat} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';import {setTimeout as delay} from 'node:timers/promises';
 import {FilePilotRelay,PILOT_BUDGET,sha256} from '../vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts';
@@ -5,7 +6,7 @@ for(const kind of ['READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME'] as const
  const directory=await mkdtemp(join(tmpdir(),'legacy-relay-')),relay=new FilePilotRelay(directory),deadline=Date.now()+200000;
  try{
   const promise=relay.sql(kind,'SYNTHETIC_NON_EXECUTABLE_SQL',deadline);let path='';
-  while(!path){path=(await readdir(directory)).find(f=>f.endsWith('.request.json'))??'';if(!path)await delay(5);}
+  while(!path){path=readyRequestNames(await readdir(directory))[0]??'';if(!path)await delay(5);}
   const r=JSON.parse(await readFile(join(directory,path),'utf8')),{requestSha256,...body}=r;
   assert.equal(sha256(JSON.stringify(body)),requestSha256);assert.equal((await stat(join(directory,path))).mode&0o777,0o600);
   assert.equal(Date.parse(r.payload.dispatchBefore),deadline-(kind==='PUBLISH'?PILOT_BUDGET.publishDbMs+PILOT_BUDGET.publishTransportMs:PILOT_BUDGET.controlCompletionMs));

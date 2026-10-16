@@ -13,7 +13,7 @@ const selection={mode:'BIOGEN_OWNED_PIPE_CANDIDATE_V1' as const,launchChallenge:
 async function setup(){const f=await fixture(),dir=await mkdtemp(join(tmpdir(),'biogen-owned-relay-'));dirs.push(dir);return {...f,dir,relay:new FilePilotRelay(dir)};}
 async function reply(dir:string,kind:string,rows:unknown[]){
  for(let n=0;n<200;n++){
-  for(const name of await readdir(dir)){if(!name.endsWith('.request.json'))continue;const request=JSON.parse(await readFile(join(dir,name),'utf8'));if(request.kind!==kind)continue;
+  for(const name of await readdir(dir)){if(!name.endsWith('.request.json')||!(await readdir(dir)).includes(name.replace(/\.json$/,'.ready')))continue;const request=JSON.parse(await readFile(join(dir,name),'utf8'));if(request.kind!==kind)continue;
    await writeFile(join(dir,name.replace('.request.json','.response.json')),JSON.stringify({schemaVersion:1,requestId:request.requestId,requestSha256:request.requestSha256,kind,result:{status:'SUCCEEDED',rows}}),{flag:'wx'});return request;
   }
   await new Promise(r=>setTimeout(r,10));

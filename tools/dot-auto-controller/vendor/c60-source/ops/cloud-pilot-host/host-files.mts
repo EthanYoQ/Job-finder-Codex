@@ -1,3 +1,4 @@
+import {assertRelayRequestReady} from './relay-request-ready.mjs';
 import { readFile, writeFile, readdir, lstat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve, join } from 'node:path';
@@ -11,18 +12,19 @@ const [op,pathArg,arg]=process.argv.slice(2);
 if(op?.startsWith('connector-')){
  const cfg=loadBinding();
  const request=()=>{
-  const path=taskFile(pathArg),r=JSON.parse(readChecked(path).bytes.toString('utf8'));
+  const path=taskFile(pathArg);assertRelayRequestReady(path);const r=JSON.parse(readChecked(path).bytes.toString('utf8'));
   const {requestSha256,...body}=r;
   if(r.schemaVersion!==1||Object.keys(r).sort().join(',')!=='expiresAt,kind,payload,requestId,requestSha256,schemaVersion'||sha(JSON.stringify(body))!==requestSha256||path!==RELAY_ROOT+'/'+r.requestId+'.request.json'||r.payload?.projectId!==cfg.projectId||!Number.isFinite(Date.parse(r.expiresAt)))throw Error('HOST_REQUEST_BINDING');
   return {path,r};
  };
  if(op==='connector-read'){
+  if(pathArg.endsWith('.request.json'))assertRelayRequestReady(taskFile(pathArg));
   const bytes=readChecked(taskFile(pathArg)).bytes,text=bytes.toString('utf8'),offset=Number(arg??0);
   if(!Number.isInteger(offset)||offset<0)throw Error('HOST_OFFSET');
   console.log(JSON.stringify({sha256:sha(bytes),byteCount:bytes.length,charCount:text.length,offset,text:text.slice(offset,offset+100000),next:offset+100000<text.length?offset+100000:null}));
  }else if(['connector-save-part','connector-save-assemble','connector-save-finalize'].includes(op)){
   const dest=taskFile(pathArg);if(!dest.endsWith('.host-result.json'))throw Error('HOST_SAVE_SCOPE');
-  const requestPath=dest.replace(/\.host-result\.json$/,'.request.json'),r=JSON.parse(readChecked(requestPath).bytes.toString('utf8')),{requestSha256,...body}=r;
+  const requestPath=dest.replace(/\.host-result\.json$/,'.request.json');assertRelayRequestReady(requestPath);const r=JSON.parse(readChecked(requestPath).bytes.toString('utf8')),{requestSha256,...body}=r;
   if(r.schemaVersion!==1||sha(JSON.stringify(body))!==requestSha256||requestPath!==RELAY_ROOT+'/'+r.requestId+'.request.json'||r.payload?.projectId!==cfg.projectId)throw Error('HOST_RESPONSE_BINDING');
   const data=JSON.parse(arg??''),metaKeys=['requestSha256','sha256','byteCount','charCount','count'],keys=(v:any,expected:string[])=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join(',')===expected.sort().join(',');
   const valid=(v:any,part=false)=>keys(v,part?[...metaKeys,'index','text']:metaKeys)&&v.requestSha256===requestSha256&&/^[a-f0-9]{64}$/.test(v.sha256??'')&&Number.isSafeInteger(v.byteCount)&&v.byteCount>0&&v.byteCount<=16*1024*1024&&Number.isSafeInteger(v.charCount)&&v.charCount>0&&v.charCount<=v.byteCount&&Number.isSafeInteger(v.count)&&v.count===Math.ceil(v.charCount/16000)&&v.count<=2048;
@@ -74,13 +76,13 @@ if(op?.startsWith('connector-')){
   }else throw Error('HOST_OPERATION');
  }
 }else if(op==='read'){
- const path=scoped(pathArg);if((await lstat(path)).isSymbolicLink())throw Error('HOST_SYMLINK');
+ const path=scoped(pathArg);if(path.endsWith('.request.json'))assertRelayRequestReady(path);if((await lstat(path)).isSymbolicLink())throw Error('HOST_SYMLINK');
  const bytes=await readFile(path),text=bytes.toString('utf8'),offset=Number(arg??0);
  if(!Number.isInteger(offset)||offset<0)throw Error('HOST_OFFSET');
  console.log(JSON.stringify({sha256:sha(bytes),byteCount:bytes.length,charCount:text.length,offset,text:text.slice(offset,offset+100000),next:offset+100000<text.length?offset+100000:null}));
 }else if(op==='pending'){
  const { compileCloudPilotCreatePendingSql }=await import('/workspace/shared/job-finder-recovery/candidate-investigation/cloud-lilly-active-pilot/src/db/cloudPilotSqlControl.ts');
- const path=scoped(pathArg),r=JSON.parse(await readFile(path,'utf8'));
+ const path=scoped(pathArg);assertRelayRequestReady(path);const r=JSON.parse(await readFile(path,'utf8'));
  const {requestSha256,...body}=r;
  if(r.kind!=='CREATE_PENDING'||sha(JSON.stringify(body))!==requestSha256||Date.now()>=Date.parse(r.expiresAt))throw Error('HOST_PENDING_REQUEST');
  const base=JSON.parse(await readFile(root+'control-base.json','utf8'));
@@ -101,7 +103,7 @@ if(op?.startsWith('connector-')){
  await writeFile(output,packed,{flag:'wx',mode:0o600});
  console.log(JSON.stringify({sha256:sha(bytes),bytes:bytes.length,audit,output,packedSha256:sha(packed),packedBytes:packed.length}));
 }else if(op==='publish'){
- const path=scoped(pathArg),r=JSON.parse(await readFile(path,'utf8')),{requestSha256,...body}=r;
+ const path=scoped(pathArg);assertRelayRequestReady(path);const r=JSON.parse(await readFile(path,'utf8')),{requestSha256,...body}=r;
  if(r.kind!=='PUBLISH'||sha(JSON.stringify(body))!==requestSha256)throw Error('HOST_PUBLISH_REQUEST');
  const sql=r.payload.sql,output=path+'.sql';await writeFile(output,sql,{flag:'wx',mode:0o600});
  console.log(JSON.stringify({output,sha256:sha(sql),bytes:Buffer.byteLength(sql),jobUpserts:(sql.match(/INSERT INTO public\."Job"/g)??[]).length,dispatchBefore:r.payload.dispatchBefore,expiresAt:r.expiresAt,projectId:r.payload.projectId}));

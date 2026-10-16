@@ -4,6 +4,7 @@ import { lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
+import { publishRelayRequest } from "../../ops/cloud-pilot-host/relay-request-ready.mjs";
 import { acquirePortableCrawlLease, releasePortableCrawlLease, assertPortableCrawlLeaseOwned, type PortableCrawlLease, type PortableLeaseDatabase } from "./portableCrawlLease";
 import { verifyArchivedSourceEvidence, type VerifyArchivedEvidenceRequest } from "./artifactArchive";
 export const sha256=(bytes:string|Buffer)=>createHash("sha256").update(bytes).digest("hex");
@@ -39,7 +40,7 @@ export class FilePilotRelay {
   constructor(readonly directory:string){}
   async request<T>(kind:PilotRequestKind,payload:unknown,deadline:number,parse:(v:unknown)=>T,signal?:AbortSignal):Promise<T>{
     const prepared=await this.createRequest(kind,payload,deadline,signal);
-    await writeFile(prepared.base+".request.json",prepared.serializedRequest,{flag:"wx",mode:0o600});
+    await publishRelayRequest(prepared.base+".request.json",prepared.serializedRequest,{deadline:prepared.deadline,dispatchBefore:(prepared.request.payload as {dispatchBefore?:string}|null)?.dispatchBefore===undefined?undefined:Date.parse((prepared.request.payload as {dispatchBefore:string}).dispatchBefore),signal});
     return this.waitResponse(prepared,parse,signal);
   }
   private async createRequest(kind:PilotRequestKind,payload:unknown,deadline:number,signal?:AbortSignal){
@@ -96,7 +97,7 @@ export class FilePilotRelay {
     outcomeBinding.publishRequestSha256=prepared.request.requestSha256;
     const token=await owned.gate.review(prepared.request);
     signal?.throwIfAborted();if(Date.now()>=dispatchBefore)throw Error("RELAY_DISPATCH_BUDGET");
-    await writeFile(prepared.base+".request.json",prepared.serializedRequest,{flag:"wx",mode:0o600});
+    await publishRelayRequest(prepared.base+".request.json",prepared.serializedRequest,{deadline:prepared.deadline,dispatchBefore:(prepared.request.payload as {dispatchBefore?:string}|null)?.dispatchBefore===undefined?undefined:Date.parse((prepared.request.payload as {dispatchBefore:string}).dispatchBefore),signal});
     const {emitConsumedProducerReview}=await import("../../../../connector-gate/producer-adapter.mts");
     await emitConsumedProducerReview(token,prepared.request as import("../../../../connector-gate/takeda-publication-review.mts").ConnectorPublishRequest,owned.launchChallenge);
     return this.waitResponse(prepared,value=>{
@@ -121,7 +122,7 @@ export class FilePilotRelay {
     let prepared:Awaited<ReturnType<FilePilotRelay["createRequest"]>>,rows:Record<string,unknown>[];
     try{
       prepared=await this.createRequest("READ_OUTCOME",{projectId:"yiopvxysxrtrnvqxwgbx",sql,dispatchBefore:new Date(dispatchBefore).toISOString()},deadline,signal);
-      await writeFile(prepared.base+".request.json",prepared.serializedRequest,{flag:"wx",mode:0o600});
+      await publishRelayRequest(prepared.base+".request.json",prepared.serializedRequest,{deadline:prepared.deadline,dispatchBefore:(prepared.request.payload as {dispatchBefore?:string}|null)?.dispatchBefore===undefined?undefined:Date.parse((prepared.request.payload as {dispatchBefore:string}).dispatchBefore),signal});
       rows=await this.waitResponse(prepared,value=>{const result=sqlResult.parse(value);if(result.status==="FAILED")throw new PilotSqlFailure(result.outcome,result.code);return result.rows;},signal);
       if(Date.now()>=deadline)throw Error("RELAY_DEADLINE");
     }catch(cause){throw new Error("PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION",{cause});}
@@ -164,7 +165,7 @@ export class FilePilotRelay {
     outcomeBinding.publishRequestSha256=prepared.request.requestSha256;
     const token=await owned.gate.review(prepared.request);
     signal?.throwIfAborted();if(Date.now()>=dispatchBefore)throw Error("RELAY_DISPATCH_BUDGET");
-    await writeFile(prepared.base+".request.json",prepared.serializedRequest,{flag:"wx",mode:0o600});
+    await publishRelayRequest(prepared.base+".request.json",prepared.serializedRequest,{deadline:prepared.deadline,dispatchBefore:(prepared.request.payload as {dispatchBefore?:string}|null)?.dispatchBefore===undefined?undefined:Date.parse((prepared.request.payload as {dispatchBefore:string}).dispatchBefore),signal});
     const {emitConsumedBiogenProducerReview}=await import("../../../../connector-gate/biogen-producer-adapter.mts");
     await emitConsumedBiogenProducerReview(token,prepared.request as import("../../../../connector-gate/biogen-publication-review.mts").ConnectorPublishRequest,owned.launchChallenge);
     return this.waitResponse(prepared,value=>{
@@ -189,7 +190,7 @@ export class FilePilotRelay {
     let prepared:Awaited<ReturnType<FilePilotRelay["createRequest"]>>,rows:Record<string,unknown>[];
     try{
       prepared=await this.createRequest("READ_OUTCOME",{projectId:"yiopvxysxrtrnvqxwgbx",sql,dispatchBefore:new Date(dispatchBefore).toISOString()},deadline,signal);
-      await writeFile(prepared.base+".request.json",prepared.serializedRequest,{flag:"wx",mode:0o600});
+      await publishRelayRequest(prepared.base+".request.json",prepared.serializedRequest,{deadline:prepared.deadline,dispatchBefore:(prepared.request.payload as {dispatchBefore?:string}|null)?.dispatchBefore===undefined?undefined:Date.parse((prepared.request.payload as {dispatchBefore:string}).dispatchBefore),signal});
       rows=await this.waitResponse(prepared,value=>{const result=sqlResult.parse(value);if(result.status==="FAILED")throw new PilotSqlFailure(result.outcome,result.code);return result.rows;},signal);
       if(Date.now()>=deadline)throw Error("RELAY_DEADLINE");
     }catch(cause){throw new Error("PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION",{cause});}

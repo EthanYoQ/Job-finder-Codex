@@ -15,14 +15,18 @@
     "fixed-host/lifecycle/exclusive-holder.py.in": "f760b15d47aab5e0256f7b4d3b6eb41df35553499b7ccbaa99064bcdaa306a90",
     "fixed-host/lifecycle/holder.py.in": "b54491500ff6fff526c4120475a3c36fa023d142494c516da5626070e8c474ca",
     "fixed-host/lifecycle/lifecycle_lock.py": "71e642491992e7c6180f8424fea6b1c5b457326b1954d87af1cf2c0c6b41f3ae",
-    "fixed-host/render-fixed-live-source.py": "8be1d9a3005f7c57b5d48d3e9ca19b0a31828aa825756c05dca990950bc061b9",
-    "fixed-host/scripts/build-functions-entry.py": "7d31c30cf5eec37e0cebe9a283ea16588dddf8954dbb950e60833f7d8ee92238",
+    "fixed-host/render-fixed-live-source.py": "094605bc2c978ada596e2aa6dc63691389ce531ccf07142bc05dcb446f13322c",
+    "fixed-host/scripts/build-functions-entry.py": "2429c49f3ce722618abaf9f215c93db27bb754892d416edf27a188803532064c",
     "fixed-host/scripts/build-lifecycle-artifacts.py": "d0c77fbc8fa445d78d93c51666c67d18713897fbd89e37ed4d7033b7c482236b",
     "fixed-host/scripts/build-shared-cores.py": "9b0eeb0b11d7aa669cabfa87dac1619262896546f857aaa1b238a74e036d7842",
     "fixed-host/templates/fixed-preflight.mjs.in": "f09a93e82ce95b67ecbe34838fbe7c1690fee7543412163b7cbd2eff073290cf",
-    "fixed-host/templates/fixed-preimport-launch.py.in": "14c665ae66055f4f5f50b69d9d7badd34e989fac8d864ddbe4b31ed097ee064a",
-    "fixed-host/templates/fixed-recovery-helper.mts.in": "e371efd86e1a0274c9aed0a58090c81a149c48747bebe84e2ad049f7bb350238",
+    "fixed-host/templates/fixed-preimport-launch.py.in": "1a50263d0d3a29fcb0dc9843ec83c2d4db55fb987844f4df99c24d1f85d5f9d7",
+    "fixed-host/templates/fixed-recovery-helper.mts.in": "2c253a75e1f8d7e54f965e24125098e6856a8ce45227b21807d8644c50d0bb85",
     "public-verification/functions-bundle.js": "8f96dfa3e5cc320a7e1841492eb228b04ca39af2c27686e93264fa69086361d3",
-    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "f8ce44c42cbd7f9596c689522d7c867e78ce7c0d74cefa02c48b6f191d632e30"
+    "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": "d6e07ed10622c648a08456fb8bdb4372f9165a55778d7a3ee4dca68f8cbcccee",
+    "vendor/c60-source/ops/cloud-pilot-host/host-files.mts": "ffca12aab4f11596f19fbbcf132dabe269b016f90f5c618dcb8fb57c8bff9784",
+    "vendor/c60-source/ops/cloud-pilot-host/relay-files.mjs": "d76370351b5da497f33856d64ba2a3110129898560b8d210cab1fdb20d6f18c2",
+    "vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs": "875ad0b954df6cd6516eeec177e5fb5ec5e5a482dfb87165839e55f82cd0ccd2",
+    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f"
   }
 }

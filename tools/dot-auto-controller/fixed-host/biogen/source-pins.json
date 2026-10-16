@@ -4,13 +4,13 @@
     "connector-gate/biogen-functions-bundle.js": "d4dc9e76242fdc37ff24d838d97965274d06ff582f4c582487e70b1b7b30d2fe",
     "connector-gate/dispatch-observer.functions.js": "5b1c87bdfc1d70a886bc3c0cab106270b44068b26fa7f852e98bd5a491c96f71",
     "fixed-host/biogen/body.template.js": "4974d042ee6fd2885ff25cc8d2746b361f024df73edcfaf1e347d90944befc16",
-    "fixed-host/biogen/build-functions-entry.py": "29a010d4047f0f6936a6a627ca44078372f22e95f36f3563edd17991819f70fc",
+    "fixed-host/biogen/build-functions-entry.py": "c86dff2aace23779f9dfb50386d05254181736fd485249e1e1a11c6fdfa6d050",
     "fixed-host/biogen/build-shared-cores.py": "c433ee8a88d8080613c38690bc340b271332a3d1721dafb931c15e7738a58459",
     "fixed-host/biogen/fixed-preflight.mjs.in": "c5e69093c0b700d5e33a9dabe2a14a08d09f36082b500af2f64585067860ee2b",
-    "fixed-host/biogen/fixed-preimport-launch.py.in": "fe32aacd33961ef400e11a53c579848bb97c4c6d7433f3929c530ef29169d1eb",
-    "fixed-host/biogen/fixed-recovery-helper.mts.in": "fff52e945f14fbfcfaf4221fccb23d9887fbc4522645bf4abb3af979f6d4f986",
+    "fixed-host/biogen/fixed-preimport-launch.py.in": "04d636944b347245fceb37c310471418d460664ac7ddd630bbec8a1d72e0a808",
+    "fixed-host/biogen/fixed-recovery-helper.mts.in": "8ae152651371d77c76eb53eeb7187074448cbfc221f4546e164dad602d7822b2",
     "fixed-host/biogen/lifecycle-activation.template.js": "5286bc6fe5940d2393e20b2850f885ef5bc22bde02762f1cb0677ade9f63a4b9",
-    "fixed-host/biogen/render-biogen-source.py": "06c3329007a879d6fcaa1cfeb62a2c4b865639d037d69dcc5ea1d7fb49ace0c3",
+    "fixed-host/biogen/render-biogen-source.py": "0818b4a9928a55ebcec00ecf05c96cc4743f9637e666dafa73f88d9620a6e194",
     "fixed-host/functions/bootstrap-query.sql.template": "bb7002d086d553abc783ad4e192b79500f4365ecfffc15828d2905ecfe265dbd",
     "fixed-host/functions/host-helper.js": "8d6d7bfe19462a4798e051c2fc250e0fdd790010c6eae9950e480d93e8bbf530",
     "fixed-host/functions/lifecycle-loader.template.js": "c85b6e2614c70dc0a58aa36e00a3dc6a7c65db41c5c0a52602e6125c0cb75ca4",
@@ -23,6 +23,10 @@
     "fixed-host/lifecycle/lifecycle_lock.py": "71e642491992e7c6180f8424fea6b1c5b457326b1954d87af1cf2c0c6b41f3ae",
     "fixed-host/scripts/build-lifecycle-artifacts.py": "d0c77fbc8fa445d78d93c51666c67d18713897fbd89e37ed4d7033b7c482236b",
     "public-verification/biogen/functions-bundle.js": "82228323138f7f601070bd743951c7834059fb2891aae33559d36a49a4f5a34c",
-    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "f8ce44c42cbd7f9596c689522d7c867e78ce7c0d74cefa02c48b6f191d632e30"
+    "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": "d6e07ed10622c648a08456fb8bdb4372f9165a55778d7a3ee4dca68f8cbcccee",
+    "vendor/c60-source/ops/cloud-pilot-host/host-files.mts": "ffca12aab4f11596f19fbbcf132dabe269b016f90f5c618dcb8fb57c8bff9784",
+    "vendor/c60-source/ops/cloud-pilot-host/relay-files.mjs": "d76370351b5da497f33856d64ba2a3110129898560b8d210cab1fdb20d6f18c2",
+    "vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs": "875ad0b954df6cd6516eeec177e5fb5ec5e5a482dfb87165839e55f82cd0ccd2",
+    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f"
   }
 }

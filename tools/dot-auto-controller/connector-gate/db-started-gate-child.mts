@@ -1,3 +1,4 @@
+import {readyRequestNames} from '../vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs';
 /** Original DB-started worker with real gate/relay; synthetic response files only. */
 import assert from 'node:assert/strict';import {readdir,readFile,writeFile,rm,mkdir} from 'node:fs/promises';import {join} from 'node:path';import {setTimeout as delay} from 'node:timers/promises';
 import {Prisma} from '@prisma/client';
@@ -7,7 +8,7 @@ import {runDbStartedCloudPublication} from '../vendor/c60-source/src/crawler/clo
 const [directory,launchJson,scenario='success']=process.argv.slice(2),launch={...JSON.parse(launchJson),outerDeadline:Number(process.env.P0_PILOT_OUTER_DEADLINE_MS)||JSON.parse(launchJson).outerDeadline};let ended=false;
 try{
  assert.equal(initialize().contentSha256,launch.buildSha256);
- const f=await fixture({at:new Date().toISOString(),syntheticBatchId:launch.batchId,syntheticOuterDeadline:launch.outerDeadline});
+ const f=await fixture({databaseProfile:'SQL49',at:new Date().toISOString(),syntheticBatchId:launch.batchId,syntheticOuterDeadline:launch.outerDeadline});
  let packet:any;const kinds:string[]=[];
  // Test observation only; the original fixed method and its owned capability are unchanged.
  class ObservedRelay extends FilePilotRelay{override async prepareOwnedTakedaPublish(...args:Parameters<FilePilotRelay['prepareOwnedTakedaPublish']>){const h=await super.prepareOwnedTakedaPublish(...args);packet=h.packet;return h;}}
@@ -16,7 +17,7 @@ try{
  await writeFile(controlPath,JSON.stringify(control),{flag:'wx',mode:0o600});
  const responded=new Set<string>(),deadline=Date.now()+60_000;
  const syntheticResponder=(async()=>{while(!ended&&Date.now()<deadline){
-  for(const name of await readdir(relayDirectory)){
+  for(const name of readyRequestNames(await readdir(relayDirectory))){
    if(!name.endsWith('.request.json')||responded.has(name))continue;
    const r=JSON.parse(await readFile(join(relayDirectory,name),'utf8'));let rows:unknown[];
    if(r.kind==='READ_PUBLICATION_CONTEXT')rows=[{context:{...context,checkedAt:new Date().toISOString()}}];

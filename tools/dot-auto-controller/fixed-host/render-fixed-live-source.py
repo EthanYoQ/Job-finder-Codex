@@ -10,9 +10,9 @@ LIVE_ROOT='/workspace/scratch/5e9614251709/job-finder-fixed-live-controller-v1'
 EXPORT_ROOT=Path('/workspace/scratch/5e9614251709/job-finder-fixed-live-source-export-v1')
 TOKEN=b'__JOBFINDER_FIXED_DEPLOYMENT_ROOT__'
 TEMPLATES={
- 'fixed-preimport-launch.py':'14c665ae66055f4f5f50b69d9d7badd34e989fac8d864ddbe4b31ed097ee064a',
+ 'fixed-preimport-launch.py':'1a50263d0d3a29fcb0dc9843ec83c2d4db55fb987844f4df99c24d1f85d5f9d7',
  'fixed-preflight.mjs':'f09a93e82ce95b67ecbe34838fbe7c1690fee7543412163b7cbd2eff073290cf',
- 'fixed-recovery-helper.mts':'e371efd86e1a0274c9aed0a58090c81a149c48747bebe84e2ad049f7bb350238'}
+ 'fixed-recovery-helper.mts':'2c253a75e1f8d7e54f965e24125098e6856a8ce45227b21807d8644c50d0bb85'}
 def require(ok,code):
  if not ok:raise RuntimeError(code)
 def sha(data):return hashlib.sha256(data).hexdigest()

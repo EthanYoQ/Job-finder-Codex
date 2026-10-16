@@ -1,8 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import {verifyActiveImports} from '../scripts/verify-active-imports.mjs';
 const root=path.resolve(import.meta.dirname,'..');
-// The existing projection sidecar reaches this binding. No other host module is
-// an active source root; its private loader uses only these reviewed literals.
+// Projection sidecars reach the binding; relay publication reaches the reviewed
+// ready barrier. The binding private loader retains its exact reviewed literals.
 const reviewedHostBinding='vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs';
+const reviewedReadyBarrier='vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs';
 const reviewedHostExpression='import(pathToFileURL(path.join(PRODUCER_ROOT,p)).href)';
 const reviewedHostTargets=[
  'scripts/p0-cloud-portable-source-pilot.ts',
@@ -13,7 +14,7 @@ const reviewedHostTargets=[
  'src/crawler/stagedScheduleAuthority.ts',
  'src/crawler/sourcePlan.ts'
 ];
-test('all active native/controller/transport source closures resolve inside declared package roots',()=>{const result=verifyActiveImports(root);assert(result.sourceFiles>100);assert(result.files.some(f=>f.path==='vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts'));assert.deepEqual(result.files.filter(f=>f.path.startsWith('vendor/c60-source/ops/cloud-pilot-host/')).map(f=>f.path),[reviewedHostBinding]);
+test('all active native/controller/transport source closures resolve inside declared package roots',()=>{const result=verifyActiveImports(root);assert(result.sourceFiles>100);assert(result.files.some(f=>f.path==='vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts'));assert.deepEqual(result.files.filter(f=>f.path.startsWith('vendor/c60-source/ops/cloud-pilot-host/')).map(f=>f.path),[reviewedHostBinding,reviewedReadyBarrier]);assert.equal(result.dynamic.some(d=>d.file===reviewedReadyBarrier),false);
  const config=JSON.parse(fs.readFileSync(path.join(root,'config/active-import-roots.json')));
  assert.deepEqual(config.dynamicSourceRoots[reviewedHostBinding],['vendor/c60-source']);
  assert.deepEqual(config.dynamicExpressions[reviewedHostBinding],[reviewedHostExpression]);

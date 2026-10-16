@@ -28,7 +28,7 @@ test('never dispatches a request for a different project',async()=>{
 });
 test('mark refuses a newer on-disk request than the reviewed hash',async()=>{
  const dir=await newTestDirectory(),old=request(),changed={...old,payload:{...old.payload,sql:'SELECT 2'}};const {requestSha256,...body}=changed;changed.requestSha256=sha(JSON.stringify(body));
- await writeFile(join(dir,old.requestId+'.request.json'),JSON.stringify(changed));
+ await writeFile(join(dir,old.requestId+'.request.json'),JSON.stringify(changed));await writeFile(join(dir,old.requestId+'.request.ready'),'',{flag:'wx',mode:0o600});
  assert.throws(()=>execFileSync('node',[root+'/relay-files.mjs','mark-dispatch',dir,old.requestId,old.requestSha256],{stdio:'pipe'}),/REQUEST_REVIEW_HASH/);
  await assert.rejects(stat(join(dir,old.requestId+'.dispatch.json')),e=>e.code==='ENOENT');
 });
@@ -39,7 +39,7 @@ test('in-memory request mutation is rejected against its stored bytes',async()=>
  const r=request(),{h,calls}=await helpers(r);r.payload.sql='SELECT 2';await assert.rejects(h.sqlDispatch(r,root,r.payload.sql),/HOST_REQUEST_CHANGED/);assert.equal(calls.length,0);
 });
 test('a matching disk request can be marked only once',async()=>{
- const dir=await newTestDirectory(),r=request();await writeFile(join(dir,r.requestId+'.request.json'),JSON.stringify(r));
+ const dir=await newTestDirectory(),r=request();await writeFile(join(dir,r.requestId+'.request.json'),JSON.stringify(r));await writeFile(join(dir,r.requestId+'.request.ready'),'',{flag:'wx',mode:0o600});
  execFileSync('node',[root+'/relay-files.mjs','mark-dispatch',dir,r.requestId,r.requestSha256],{stdio:'pipe'});
  assert.throws(()=>execFileSync('node',[root+'/relay-files.mjs','mark-dispatch',dir,r.requestId,r.requestSha256],{stdio:'pipe'}),/EEXIST/);
 });
@@ -72,7 +72,7 @@ test('next rejects a changed request between metadata and bounded reads',async()
 });
 test('next-meta never prints source SQL payload',async()=>{
  const dir=await newTestDirectory(),r=request('SELECT '+JSON.stringify('q'.repeat(500000)));
- await writeFile(join(dir,r.requestId+'.request.json'),JSON.stringify(r));
+ await writeFile(join(dir,r.requestId+'.request.json'),JSON.stringify(r));await writeFile(join(dir,r.requestId+'.request.ready'),'',{flag:'wx',mode:0o600});
  const output=execFileSync('node',[root+'/relay-files.mjs','next-meta',dir],{encoding:'utf8'});
  assert.ok(output.length<1000);assert.equal(output.includes('SELECT'),false);
  assert.equal(JSON.parse(output)[0].requestSha256,r.requestSha256);

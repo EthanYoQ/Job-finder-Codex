@@ -1,3 +1,4 @@
+import {readyRequestNames} from '../vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs';
 /** Real owned child / IPC / gate, synthetic tool-session port only. Never dispatches. */
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createHash,randomBytes,randomUUID} from 'node:crypto';
@@ -25,7 +26,7 @@ for(const entry of ['pipe-gate-child.mts','relay-gate-child.mts'])test('real sam
   assert.equal(consumer.snapshot().status,'REVIEW_OBSERVED');assert.equal(consumer.snapshot().dispatchAllowed,false);
   const files=entry!=='pipe-gate-child.mts'?await readdir(join(directory,'relay')):[];
   if(files.length)assert.equal(files.filter(n=>n.endsWith('.request.json')).length,entry==='db-started-gate-child.mts'?2:1);
-  let publishFile='';for(const name of files){if(name.endsWith('.request.json')&&JSON.parse(await readFile(join(directory,'relay',name),'utf8')).kind==='PUBLISH')publishFile=name;}
+  let publishFile='';for(const name of readyRequestNames(files)){if(name.endsWith('.request.json')&&JSON.parse(await readFile(join(directory,'relay',name),'utf8')).kind==='PUBLISH')publishFile=name;}
   const requestPath=entry!=='pipe-gate-child.mts'?join(directory,'relay',publishFile):join(directory,'request.json');
   assert.equal((await stat(requestPath)).mode&0o777,0o600);
   const r=JSON.parse(await readFile(requestPath,'utf8')),{requestSha256,...body}=r;
@@ -42,7 +43,7 @@ for(const entry of ['pipe-gate-child.mts','relay-gate-child.mts'])test('real sam
   assert.match(await readFile(join(directory,'stdout'),'utf8'),/forgedOrdinaryLog/);
  }finally{
   await writeFile(join(directory,'finish-test-only'),'test-only').catch(()=>{});
-  if(entry==='relay-gate-child.mts'&&!closed){try{for(const name of await readdir(join(directory,'relay'))){if(!name.endsWith('.request.json'))continue;const r=JSON.parse(await readFile(join(directory,'relay',name),'utf8'));await writeFile(join(directory,'relay',r.requestId+'.response.json'),JSON.stringify({schemaVersion:1,requestId:r.requestId,requestSha256:r.requestSha256,kind:r.kind,result:{status:'FAILED',code:'SYNTHETIC_TEST_ABORT',outcome:'UNKNOWN'}}),{flag:'wx'}).catch(()=>{});}}catch{}}
+  if(entry==='relay-gate-child.mts'&&!closed){try{for(const name of readyRequestNames(await readdir(join(directory,'relay')))){if(!name.endsWith('.request.json'))continue;const r=JSON.parse(await readFile(join(directory,'relay',name),'utf8'));await writeFile(join(directory,'relay',r.requestId+'.response.json'),JSON.stringify({schemaVersion:1,requestId:r.requestId,requestSha256:r.requestSha256,kind:r.kind,result:{status:'FAILED',code:'SYNTHETIC_TEST_ABORT',outcome:'UNKNOWN'}}),{flag:'wx'}).catch(()=>{});}}catch{}}
   await terminal;await rm(directory,{recursive:true,force:true});
  }
 });

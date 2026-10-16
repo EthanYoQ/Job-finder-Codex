@@ -1,3 +1,4 @@
+import {readyRequestNames} from "../../ops/cloud-pilot-host/relay-request-ready.mjs";
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -10,7 +11,7 @@ const dirs:string[]=[];
 async function dir(){const p=await mkdtemp(join(tmpdir(),"cloud-pilot-test-"));dirs.push(p);return p;}
 afterEach(async()=>{vi.useRealTimers();vi.restoreAllMocks();await Promise.all(dirs.splice(0).map(p=>rm(p,{recursive:true,force:true})));});
 async function requestFile(root:string){
-  for(let i=0;i<100;i++){const name=(await readdir(root)).find(n=>n.endsWith(".request.json"));if(name)return {name,value:JSON.parse(await readFile(join(root,name),"utf8"))};await new Promise(r=>setTimeout(r,5));}
+  for(let i=0;i<100;i++){const names=await readdir(root),name=readyRequestNames(names).find(n=>!names.includes(n.replace(".request.",".response.")));if(name)return {name,value:JSON.parse(await readFile(join(root,name),"utf8"))};await new Promise(r=>setTimeout(r,5));}
   throw Error("No request");
 }
 async function reply(root:string,req:Awaited<ReturnType<typeof requestFile>>,result:unknown,hash=req.value.requestSha256){
@@ -38,7 +39,7 @@ describe("bounded tool relay",()=>{
     const holder=req.value.payload.sql.match(/'([a-f0-9-]{36})'/)[1];
     await reply(root,req,{status:"SUCCEEDED",rows:[{holderId:holder}]});
     const lease=await acquired;expect(lease.handle.holderId).toBe(holder);
-    await rm(join(root,req.name));const releasing=lease.release();const release=await requestFile(root);
+    const releasing=lease.release();const release=await requestFile(root);
     expect(release.value.kind).toBe("LEASE_RELEASE");expect(release.value.payload.sql).toContain(holder);
     await reply(root,release,{status:"SUCCEEDED",rows:[{holderId:""}]});await releasing;
   });

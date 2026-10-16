@@ -1,3 +1,4 @@
+import {assertRelayRequestReady,readyRequestNames} from './relay-request-ready.mjs';
 import {readFile,writeFile,readdir,lstat,link,unlink} from 'node:fs/promises';
 import {resolve,join,basename} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
@@ -8,6 +9,7 @@ const PROJECT='yiopvxysxrtrnvqxwgbx';
 const kinds=new Set(['LEASE_ACQUIRE','LEASE_RENEW','LEASE_RELEASE','CREATE_PENDING','READ_CONTEXT','READ_PUBLICATION_CONTEXT','ARCHIVE_STORE','PUBLISH','READ_OUTCOME']);
 const sha=x=>createHash('sha256').update(x).digest('hex');
 async function readRequest(file){
+ assertRelayRequestReady(file);
  if((await lstat(file)).isSymbolicLink())throw Error('REQUEST_SYMLINK');
  const r=JSON.parse(connector?readChecked(taskFile(file)).bytes.toString('utf8'):await readFile(file,'utf8'));
  if(Object.keys(r).sort().join(',')!=='expiresAt,kind,payload,requestId,requestSha256,schemaVersion'||r.schemaVersion!==1||!kinds.has(r.kind)||
@@ -28,7 +30,7 @@ if(connector)relayDirectory(directory);
 else if(!dir.startsWith('/workspace/shared/job-finder-recovery/'))throw Error('RELAY_DIRECTORY_OUTSIDE_TASK');
 if(command==='next'||command==='next-meta'){
  const names=await readdir(dir),rows=[];
- for(const name of names.filter(n=>n.endsWith('.request.json')).sort()){
+ for(const name of readyRequestNames(names)){
   const r=await readRequest(join(dir,name));
   if(names.includes(r.requestId+'.response.json'))continue;
   rows.push({...command==='next-meta'?{requestId:r.requestId,requestSha256:r.requestSha256,kind:r.kind}:r,expired:Date.now()>=Date.parse(r.expiresAt),dispatchRecorded:names.includes(r.requestId+'.dispatch.json')});

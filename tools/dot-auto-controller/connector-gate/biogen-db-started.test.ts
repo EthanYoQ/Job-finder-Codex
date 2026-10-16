@@ -9,7 +9,7 @@ beforeAll(()=>{initialize();configureSyntheticFixtureRuntime({setClock:at=>{vi.u
 afterEach(async()=>{vi.useRealTimers();vi.unstubAllGlobals();vi.restoreAllMocks();await Promise.all(dirs.splice(0).map(p=>rm(p,{recursive:true,force:true})));});
 async function respond(dir:string,kind:string,rows:()=>unknown[]){
  for(let i=0;i<500;i++){
-  for(const name of await readdir(dir)){if(!name.endsWith('.request.json'))continue;const request=JSON.parse(await readFile(join(dir,name),'utf8'));if(request.kind!==kind)continue;
+  for(const name of await readdir(dir)){if(!name.endsWith('.request.json')||!(await readdir(dir)).includes(name.replace(/\.json$/,'.ready')))continue;const request=JSON.parse(await readFile(join(dir,name),'utf8'));if(request.kind!==kind)continue;
    await writeFile(join(dir,name.replace('.request.json','.response.json')),JSON.stringify({schemaVersion:1,requestId:request.requestId,requestSha256:request.requestSha256,kind,result:{status:'SUCCEEDED',rows:rows()}}),{flag:'wx'});return request;
   }
   await new Promise(r=>setTimeout(r,10));

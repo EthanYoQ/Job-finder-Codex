@@ -1,3 +1,4 @@
+import {assertRelayRequestReady,readyRequestNames} from '../vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs';
 /** Fixed, single-round TEST_ONLY composition. No production ports or callbacks. */
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -15,7 +16,7 @@ const sha=(b:string|Buffer)=>createHash('sha256').update(b).digest('hex');
 const {createDispatchObserver}=new Function(readFileSync(join(ROOT,'connector-gate/dispatch-observer.functions.js'),'utf8'))();
 const plain=(v:any)=>JSON.parse(JSON.stringify(v));
 function checkedRequest(raw:Buffer){const r=JSON.parse(raw.toString('utf8'));assert.deepEqual(Object.keys(r).sort(),['expiresAt','kind','payload','requestId','requestSha256','schemaVersion']);const {requestSha256,...body}=r;assert.equal(sha(JSON.stringify(body)),requestSha256);assert.equal(r.schemaVersion,1);assert.equal(r.payload.projectId,'yiopvxysxrtrnvqxwgbx');return r;}
-async function readOriginalRequest(file:string){const cutoff=Date.now()+1000;for(;;){const bytes=await readFile(file);try{return checkedRequest(bytes);}catch(error){if(!(error instanceof SyntaxError)||Date.now()>=cutoff)throw error;await delay(5);}}}
+async function readOriginalRequest(file:string){assertRelayRequestReady(file);return checkedRequest(await readFile(file));}
 const envelope=(r:any,result:any)=>Buffer.from(JSON.stringify({schemaVersion:1,requestId:r.requestId,requestSha256:r.requestSha256,kind:r.kind,result}));
 function toolRows(rows:any[]){return {content:[{type:'text',text:JSON.stringify({result:'\n<untrusted-data-fixed-synthetic>\n'+JSON.stringify(rows)+'\n</untrusted-data-fixed-synthetic>'})}]};}
 
@@ -62,7 +63,7 @@ export async function runOneRound(scenario:string,directory:string){
   })().catch(error=>{pipeFailure??=String(error?.message??error);emit('OUTCOME_HELD_CONTINUE_DRAIN',{code:pipeFailure});stopped();});await outcomeProcessing;
  };
  const service=(async()=>{const seen=new Set<string>();while(!stop){
-  for(const name of await readdir(relay)){
+  for(const name of readyRequestNames(await readdir(relay))){
    if(!name.endsWith('.request.json')||seen.has(name))continue;
    const r=await readOriginalRequest(join(relay,name));
    if(r.kind==='PUBLISH')continue;
@@ -89,7 +90,7 @@ export async function runOneRound(scenario:string,directory:string){
   while(true){
    const s=consumer.snapshot();
    if(s.reviewSeen&&!publishRequest){
-    for(const name of await readdir(relay)){if(name.endsWith('.request.json')){const r=await readOriginalRequest(join(relay,name));if(r.kind==='PUBLISH'){assert.equal(publishRequest,null);publishRequest=r;}}}
+    for(const name of readyRequestNames(await readdir(relay))){if(name.endsWith('.request.json')){const r=await readOriginalRequest(join(relay,name));if(r.kind==='PUBLISH'){assert.equal(publishRequest,null);publishRequest=r;}}}
     assert(publishRequest,'ORIGINAL_PUBLISH_REQUEST_REQUIRED');
     if(scenario==='sql-tamper'){
      publishRequest.payload.sql+='\n-- synthetic exact-byte tamper';const {requestSha256,...body}=publishRequest;publishRequest.requestSha256=sha(JSON.stringify(body));

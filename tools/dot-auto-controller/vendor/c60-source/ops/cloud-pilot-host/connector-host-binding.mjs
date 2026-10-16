@@ -84,7 +84,7 @@ export function loadBinding(){
  snapshot=freeze(c);fileIdentity=r.identity;return snapshot;
 }
 export function taskFile(file){
- if(typeof file!=='string'||file!==path.resolve(file)||path.dirname(file)!==RELAY_ROOT||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\.(?:request\.json(?:\.sql)?|host-result(?:\.ready|\.part-[0-9]{6})?\.json|response\.json|dispatch\.json)$/.test(path.basename(file)))fail('HOST_PATH_SCOPE');
+ if(typeof file!=='string'||file!==path.resolve(file)||path.dirname(file)!==RELAY_ROOT||!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\.(?:request\.(?:json(?:\.sql)?|ready)|host-result(?:\.ready|\.part-[0-9]{6})?\.json|response\.json|dispatch\.json)$/.test(path.basename(file)))fail('HOST_PATH_SCOPE');
  directories(file);return file;
 }
 export function relayDirectory(dir){if(dir!==RELAY_ROOT)fail('RELAY_DIRECTORY_OUTSIDE_TASK');directories(path.join(dir,'scope-check'));return dir;}

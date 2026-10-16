@@ -15,12 +15,12 @@ for(const scenario of ['success','bad-row'])test('original runDb readback throug
   terminal=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',(code,signal)=>{ended={code,signal};resolve();});});
   return {session_id:202,output:await next()};
  },poll:async(id:number)=>{assert.equal(id,202);const output=await next();return {session_id:202,output,...(ended?{exit_code:ended.code}: {})};}};
- const h=createOwnedSessionConsumer({launch:seed,toolsPort,mode:'TEST_ONLY'} as any);
+ const h=createOwnedSessionConsumer({launch:seed,toolsPort,mode:'TEST_ONLY'} as any);let passed=false;
  try{
   await h.start();assert.equal(typeof h.snapshot().outerDeadline,'number');
-  while(!h.snapshot().reviewSeen&&!h.snapshot().toolEnded)await h.poll();assert.equal(h.snapshot().held,false);
+  while(!h.snapshot().reviewSeen&&!h.snapshot().toolEnded)await h.poll();assert.equal(h.snapshot().held,false,stderr+'\n'+await readFile(join(directory,'diagnostics/stderr.log'),'utf8'));
   const directoryRelay=join(directory,'relay');let publish:any;
-  for(const name of await readdir(directoryRelay)){if(name.endsWith('.request.json')){const r=JSON.parse(await readFile(join(directoryRelay,name),'utf8'));if(r.kind==='PUBLISH')publish=r;}}
+  for(const name of await readdir(directoryRelay)){if(name.endsWith('.request.json')&&(await readdir(directoryRelay)).includes(name.replace(/\.json$/,'.ready'))){const r=JSON.parse(await readFile(join(directoryRelay,name),'utf8'));if(r.kind==='PUBLISH')publish=r;}}
   assert(publish);const {requestSha256,...body}=publish;assert.equal(sha(JSON.stringify(body)),requestSha256);
   const expected={...seed,outerDeadline:h.snapshot().outerDeadline,sourceResultId:seed.batchId+'--'+seed.sourceId,requestId:publish.requestId,requestSha256,sqlSha256:sha(publish.payload.sql),expiresAt:Date.parse(publish.expiresAt),dispatchBefore:Date.parse(publish.payload.dispatchBefore)};
   h.acceptExpectedRequest(expected);h.consumeReview();await writeFile(join(directory,'finish-test-only'),'synthetic',{flag:'wx'});
@@ -28,11 +28,11 @@ for(const scenario of ['success','bad-row'])test('original runDb readback throug
   assert.equal(ended.code,0,stderr+'\n'+await readFile(join(directory,'diagnostics/stderr.log'),'utf8'));assert.equal(h.snapshot().held,false);assert.equal(h.snapshot().childEnded,true);
   if(scenario==='success'){
    assert.equal(h.snapshot().outcomeSeen,true);let read:any;
-   for(const name of await readdir(directoryRelay)){if(name.endsWith('.request.json')){const r=JSON.parse(await readFile(join(directoryRelay,name),'utf8'));if(r.kind==='READ_OUTCOME')read=r;}}
+   for(const name of await readdir(directoryRelay)){if(name.endsWith('.request.json')&&(await readdir(directoryRelay)).includes(name.replace(/\.json$/,'.ready'))){const r=JSON.parse(await readFile(join(directoryRelay,name),'utf8'));if(r.kind==='READ_OUTCOME')read=r;}}
    assert(read);const raw=await readFile(join(directoryRelay,read.requestId+'.response.json'));
    const expectedOutcome={type:'PRODUCER_OUTCOME_VERIFIED_V1',tuple:{releaseCandidateId:seed.candidateId,batchId:seed.batchId,sourceId:seed.sourceId,sourceResultId:expected.sourceResultId},readRequestSha256:read.requestSha256,responseSha256:sha(raw)};
    h.acceptExpectedOutcome(expectedOutcome);assert.deepEqual(h.consumeOutcome(),expectedOutcome);assert.throws(()=>h.consumeOutcome(),/NOT_VERIFIED/);
   }else{assert.equal(h.snapshot().outcomeSeen,false);assert.throws(()=>h.consumeOutcome(),/NOT_VERIFIED/);}
-  assert.equal(h.snapshot().dispatchAllowed,false);assert.match(await readFile(join(directory,'diagnostics/stdout.log'),'utf8'),/forgedOrdinaryLog/);
- }finally{await writeFile(join(directory,'finish-test-only'),'synthetic').catch(()=>{});await terminal;await rm(directory,{recursive:true,force:true});}
+  assert.equal(h.snapshot().dispatchAllowed,false);assert.match(await readFile(join(directory,'diagnostics/stdout.log'),'utf8'),/forgedOrdinaryLog/);passed=true;
+ }finally{await writeFile(join(directory,'finish-test-only'),'synthetic').catch(()=>{});await terminal;if(passed)await rm(directory,{recursive:true,force:true});else console.error('PRESERVED_FAILED_FIXTURE:'+directory);}
 });

@@ -43,7 +43,7 @@ if(expectError[scenario]){
   assert.equal(projections.projections.length,7);assert.equal(publication.projectionsSha256,sha(pbytes));assert.equal(publication.sql,handle.packet.sql);assert.equal(publication.sqlSha256,sha(handle.packet.sql));assert.equal(publication.sourceResult.sourceId,'source-biogen-china-social');
   for(const name of ['reviewed-projections.json','reviewed-publication-data.json','test-only-reviewed-packet.json'])assert.equal(fs.lstatSync(task+'/'+name).mode&0o777,0o600);
   const pending=port.publishOwnedBiogen(handle);let request:any;
-  for(let n=0;n<500&&!request;n++){const file=fs.readdirSync(relay).find(n=>n.endsWith('.request.json'));if(file)request=JSON.parse(fs.readFileSync(relay+'/'+file,'utf8'));else await delay(10);}
+  for(let n=0;n<500&&!request;n++){const marker=fs.readdirSync(relay).find(n=>n.endsWith('.request.ready'));if(marker){const file=relay+'/'+marker.replace(/\.ready$/,'.json');const {assertRelayRequestReady}=await import('../../vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs');assertRelayRequestReady(file);request=JSON.parse(fs.readFileSync(file,'utf8'));}else await delay(10);}
   assert(request,'ORIGINAL_PUBLISH_REQUEST_MISSING');assert.equal(request.kind,'PUBLISH');assert.equal(request.payload.sql,handle.packet.sql);
   // The official SQL tool is the only simulated seam: no database is contacted.
   fs.writeFileSync(relay+'/'+request.requestId+'.response.json',JSON.stringify({schemaVersion:1,requestId:request.requestId,requestSha256:request.requestSha256,kind:'PUBLISH',result:{status:'SUCCEEDED',rows:[]}}),{flag:'wx',mode:0o600});

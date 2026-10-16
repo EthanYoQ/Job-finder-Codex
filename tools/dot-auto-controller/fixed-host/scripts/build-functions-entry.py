@@ -27,6 +27,10 @@ DEPENDENCIES = (
     'connector-gate/dispatch-observer.functions.js',
     'public-verification/functions-bundle.js',
     'vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts',
+    'vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs',
+    'vendor/c60-source/ops/cloud-pilot-host/relay-files.mjs',
+    'vendor/c60-source/ops/cloud-pilot-host/host-files.mts',
+    'vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs',
 )
 OWN_INPUTS = (
     'fixed-host/functions/body.template.js',

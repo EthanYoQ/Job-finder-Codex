@@ -82,7 +82,7 @@ async function directory(t) {
   return dir;
 }
 const run = (dir, command, r, hash = r?.requestSha256) => JSON.parse(execFileSync('node', [root + '/relay-files.mjs', command, dir, ...(r ? [r.requestId, hash] : [])], { encoding: 'utf8', stdio: 'pipe' }));
-const put = (dir, r) => writeFile(join(dir, r.requestId + '.request.json'), JSON.stringify(r), { flag: 'wx' });
+const put = async (dir, r) => {await writeFile(join(dir, r.requestId + '.request.json'), JSON.stringify(r), { flag: 'wx' });await writeFile(join(dir,r.requestId+'.request.ready'),'',{flag:'wx',mode:0o600});};
 const response = (dir, r) => readFile(join(dir, r.requestId + '.response.json'), 'utf8').then(JSON.parse);
 const marker = (r, state) => ({ schemaVersion: 1, requestId: r.requestId, requestSha256: r.requestSha256, kind: r.kind, state, markedAt: new Date().toISOString() });
 

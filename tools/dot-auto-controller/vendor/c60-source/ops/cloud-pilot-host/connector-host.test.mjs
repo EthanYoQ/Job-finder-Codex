@@ -15,7 +15,7 @@ const env=extra=>({...process.env,JOBFINDER_CLOUD_SOURCE_ID:SOURCE,[SELECTOR]:co
 function cli(script,args,extra={}){return spawnSync(process.execPath,[path.join(testRoot,script),...args],{cwd:PRODUCER_ROOT,env:env(extra),encoding:'utf8'});}
 function mustReject(r,pattern){assert.notEqual(r.status,0,r.stdout);assert.match(r.stderr,pattern);}
 function make(kind='READ_CONTEXT',payload={projectId:PROJECT,sourceId:SOURCE,sourceConfigSha256:SOURCE_HASH,purpose:'PRE_CAPTURE'},expires=Date.now()+60000){const b={schemaVersion:1,requestId:randomUUID(),kind,expiresAt:new Date(expires).toISOString(),payload};return {...b,requestSha256:sha(JSON.stringify(b))};}
-function put(r){const file=path.join(RELAY_ROOT,r.requestId+'.request.json');fs.writeFileSync(file,JSON.stringify(r),{flag:'wx',mode:0o600});return file;}
+function put(r){const file=path.join(RELAY_ROOT,r.requestId+'.request.json');fs.writeFileSync(file,JSON.stringify(r),{flag:'wx',mode:0o600});fs.writeFileSync(file.replace(/\.json$/,'.ready'),'',{flag:'wx',mode:0o600});return file;}
 function binding(change){const c=structuredClone(config);change(c);const text=JSON.stringify(c),s=sha(text);fs.writeFileSync(path.join(BINDING_ROOT,s+'.json'),text,{flag:'wx',mode:0o400});return s;}
 async function host(selected=configSha,launchEnv={},contextExtra={}){const calls=[],commands=[],state=new Map();
  const selectedConfig=JSON.parse(fs.readFileSync(path.join(BINDING_ROOT,selected+'.json')));
@@ -36,7 +36,7 @@ test('missing configuration is rejected before SQL',async()=>{const source=fs.re
 test('fixed task path and ancestor symlink are rejected',()=>{
  mustReject(cli('relay-files.mjs',['next-meta',TASK_ROOT]),/RELAY_DIRECTORY_OUTSIDE_TASK/);
  const r=make(),file=put(r),link=path.join(RELAY_ROOT,randomUUID()+'.request.json');fs.symlinkSync(file,link);
- mustReject(cli('host-files.mts',['connector-read',link]),/HOST_FILE/);fs.unlinkSync(link);
+ mustReject(cli('host-files.mts',['connector-read',link]),/HOST_FILE|ENOENT/);fs.unlinkSync(link);
  const outside=path.join(TASK_ROOT,r.requestId+'.request.json');fs.writeFileSync(outside,JSON.stringify(r),{mode:0o600});mustReject(cli('host-files.mts',['connector-read',outside]),/HOST_PATH_SCOPE/);
 });
 test('PUBLISH only waits for parent review, never marks or calls SQL',async()=>{

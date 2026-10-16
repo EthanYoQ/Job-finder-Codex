@@ -180,19 +180,30 @@ def allocate_stopped(derived,previous_active=None):
     require(r.returncode==0,'FIXED_ORIGINAL_BINDING:'+r.stderr.decode(errors='replace')[-1800:]);v=decode(r.stdout);require(v['taskRoot']==str(private) and v['relayDirectory']==str(private/'relay') and v['candidateId']==seed['candidateId'] and v['buildContentSha256']==seed['buildSha256'],'FIXED_ORIGINAL_BINDING_IDENTITY')
     return public_prepared(s)
 
+def request_ready(rid):
+    require(type(rid) is str and UUID.fullmatch(rid),'FIXED_REQUEST_FILENAME')
+    marker=PRIVATE/'relay'/(rid+'.request.ready')
+    try:marker.lstat()
+    except FileNotFoundError:return False
+    require(checked(marker,0o600,maximum=0)==b'','FIXED_REQUEST_READY')
+    return True
+
 def relay_publication_state():
     # Independent marker enumeration: a missing or changed request never erases
     # evidence that publication may have been sent. Validate selectors BEFORE I/O.
-    requests={}
-    for f in (PRIVATE/'relay').glob('*.request.json'):
+    entries=tuple((PRIVATE/'relay').iterdir())
+    requests={};incomplete=[]
+    for f in (p for p in entries if p.name.endswith('.request.json')):
         rid=f.name[:-len('.request.json')]
         require(UUID.fullmatch(rid),'FIXED_REQUEST_FILENAME')
+        if not request_ready(rid):
+            incomplete.append(rid);continue
         r=decode(checked(f,0o600))
         require(exact(r,['schemaVersion','requestId','kind','expiresAt','payload','requestSha256']) and r['schemaVersion']==1 and type(r['requestId']) is str and UUID.fullmatch(r['requestId']) and r['requestId']==rid and r['kind'] in ('READ_CONTEXT','READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME') and type(r['requestSha256']) is str and SHA.fullmatch(r['requestSha256']),'FIXED_REQUEST_IDENTITY')
         require(sha(encoded({k:v for k,v in r.items() if k!='requestSha256'}))==r['requestSha256'],'FIXED_REQUEST_HASH')
         requests[rid]=r
     marked=[];not_dispatched=[]
-    for f in (PRIVATE/'relay').glob('*.dispatch.json'):
+    for f in (p for p in entries if p.name.endswith('.dispatch.json')):
         rid=f.name[:-len('.dispatch.json')]
         require(UUID.fullmatch(rid),'FIXED_MARKER_FILENAME')
         m=decode(checked(f,0o600))
@@ -216,6 +227,17 @@ def relay_publication_state():
                 response=decode(checked(response_file,0o600))
                 require(type(response) is dict and not (type(response.get('result')) is dict and response['result'].get('outcome')=='NOT_DISPATCHED'),'FIXED_MAY_SENT_NOT_DISPATCHED_CONTRADICTION')
             marked.append(r)
+    # Incomplete transport evidence cannot become a no-publication terminal.
+    # Scan dispatch first so a missing/unready request never erases its marker.
+    for f in (p for p in entries if '.request-publishing-' in p.name and p.name.endswith('.tmp')):
+        parts=f.name[:-4].split('.request-publishing-')
+        require(len(parts)==2 and UUID.fullmatch(parts[0]) and UUID.fullmatch(parts[1]),'FIXED_REQUEST_TEMP_FILENAME')
+        incomplete.append(parts[0])
+    for f in (p for p in entries if p.name.endswith('.request.ready')):
+        rid=f.name[:-len('.request.ready')]
+        require(request_ready(rid),'FIXED_REQUEST_READY')
+        require(rid in requests,'FIXED_ORPHAN_REQUEST_READY_HOLD')
+    require(not incomplete,'FIXED_REQUEST_NOT_READY_HOLD')
     return [r for r in requests.values() if r['kind']=='PUBLISH'],marked,not_dispatched
 
 def prepare():
@@ -426,6 +448,7 @@ def read_test_oracle():
 def record_tool_result():
     s=state(historical_diagnostic=True);require((PRIVATE/'launch-intent.json').exists(),'FIXED_NO_LAUNCH');x=decode(stdin_bytes())
     require(exact(x,['requestId','requestSha256','kind','rawBytes','rawSha256','settlementType','observedAt']) and x['settlementType'] in ('FULFILLED','REJECTED','THREW') and type(x['observedAt']) is int and 0<x['observedAt']<=int(datetime.datetime.now(UTC).timestamp()*1000) and type(x['rawBytes']) is str and len(x['rawBytes'].encode())<=16*1024*1024 and type(x['requestId']) is str and UUID.fullmatch(x['requestId']) and x['kind'] in ('READ_CONTEXT','READ_PUBLICATION_CONTEXT','READ_OUTCOME','PUBLISH') and SHA.fullmatch(x['requestSha256']) and sha(x['rawBytes'].encode())==x['rawSha256'],'FIXED_DIAGNOSTIC_INPUT')
+    require(request_ready(x['requestId']),'FIXED_REQUEST_NOT_READY_HOLD')
     r=decode(checked(PRIVATE/'relay'/(x['requestId']+'.request.json'),0o600));require(r['requestId']==x['requestId'] and r['requestSha256']==x['requestSha256'] and r['kind']==x['kind'],'FIXED_DIAGNOSTIC_REQUEST')
     mark=decode(checked(PRIVATE/'relay'/(x['requestId']+'.dispatch.json'),0o600));require(mark['requestId']==x['requestId'] and mark['requestSha256']==x['requestSha256'] and mark['kind']==x['kind'] and mark['state']=='MAY_HAVE_BEEN_SENT','FIXED_DIAGNOSTIC_MARKER')
     receipt=put(PRIVATE/('tool-result-'+x['requestId']+'.json'),x['rawBytes'].encode());put(PRIVATE/('tool-result-'+x['requestId']+'.fact.json'),{k:x[k] for k in ('requestId','requestSha256','kind','rawSha256','settlementType','observedAt')})

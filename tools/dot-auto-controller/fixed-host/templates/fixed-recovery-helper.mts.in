@@ -10,6 +10,7 @@ check(process.argv.length===4&&/^round-[a-f0-9]{32}$/.test(roundId)&&process.env
 check(['TEST_ONLY','LIVE'].includes(process.env.JOBFINDER_FIXED_LOCAL_MODE??''),'FIXED_HELPER_MODE');
 const {readChecked,loadBinding,TASK_ROOT,RELAY_ROOT}=await import(pathToFileURL(V+'/ops/cloud-pilot-host/connector-host-binding.mjs').href);
 check(TASK_ROOT===BASE+'/rounds/'+roundId+'/connector-host-task'&&RELAY_ROOT===TASK_ROOT+'/relay','FIXED_HELPER_PATH');
+const {assertRelayRequestReady,readyRequestNames}=await import(pathToFileURL(V+'/ops/cloud-pilot-host/relay-request-ready.mjs').href);
 const binding=loadBinding(),read=(leaf:string)=>readChecked(TASK_ROOT+'/'+leaf).bytes;
 const seed=JSON.parse(read('fixed-seed.json').toString('utf8'));
 check(seed.batchId==='fixed-v4-'+roundId.slice(6)&&seed.projectId==='yiopvxysxrtrnvqxwgbx'&&seed.sourceId==='source-takeda-china-social'&&seed.candidateId===binding.control.candidate.id&&seed.buildSha256===binding.control.build.contentSha256,'FIXED_HELPER_SEED');
@@ -17,7 +18,7 @@ const tuple={releaseCandidateId:seed.candidateId,batchId:seed.batchId,sourceId:s
 const {canonicalProjectionJson,parseJobProjectionDeltaReceipt,hashJobPersistedProjection}=await import(pathToFileURL(V+'/src/domain/jobProjectionDeltaReceipt.ts').href);
 const same=(a:any,b:any)=>canonicalProjectionJson(a)===canonicalProjectionJson(b);
 const input=()=>JSON.parse(fs.readFileSync(0,'utf8'));
-const request=(id:string)=>{check(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id),'FIXED_REQUEST_ID');const raw=read('relay/'+id+'.request.json'),r=JSON.parse(raw.toString('utf8'));check(exact(r,['schemaVersion','requestId','kind','expiresAt','payload','requestSha256']),'FIXED_REQUEST_KEYS');const {requestSha256,...body}=r;check(r.schemaVersion===1&&r.requestId===id&&sha(JSON.stringify(body))===requestSha256&&r.payload.projectId===seed.projectId,'FIXED_REQUEST_HASH');return r;};
+const request=(id:string)=>{check(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id),'FIXED_REQUEST_ID');assertRelayRequestReady(RELAY_ROOT+'/'+id+'.request.json');const raw=read('relay/'+id+'.request.json'),r=JSON.parse(raw.toString('utf8'));check(exact(r,['schemaVersion','requestId','kind','expiresAt','payload','requestSha256']),'FIXED_REQUEST_KEYS');const {requestSha256,...body}=r;check(r.schemaVersion===1&&r.requestId===id&&sha(JSON.stringify(body))===requestSha256&&r.payload.projectId===seed.projectId,'FIXED_REQUEST_HASH');return r;};
 function projections(){
  const raw=read('reviewed-projections.json'),data=JSON.parse(raw.toString('utf8'));
  check(exact(data,['schemaVersion','kind','binding','receiptSha256','sqlSha256','projections'])&&data.schemaVersion===1&&data.kind==='REVIEWED_PACKET_PROJECTION_DATA'&&same(data.binding,tuple)&&Array.isArray(data.projections),'FIXED_PROJECTION_DOCUMENT');return {raw,data};
@@ -31,7 +32,7 @@ function publicationData(){
  const p=projections();check(sha(p.raw)===data.projectionsSha256&&p.data.receiptSha256===data.receiptSha256&&p.data.sqlSha256===data.sqlSha256,'FIXED_PUBLICATION_PROJECTIONS');
  const members=receipt.members.filter((m:any)=>m.setKind==='VISIBLE');check(p.data.projections.length===members.length&&new Set(p.data.projections.map((x:any)=>x.dedupeKey)).size===members.length,'FIXED_VISIBLE_SET');
  for(const m of members){const matches=p.data.projections.filter((x:any)=>x.dedupeKey===m.jobKey);check(matches.length===1&&hashJobPersistedProjection(matches[0])===m.jobProjectionSha256,'FIXED_VISIBLE_PROJECTION_HASH');}
- const requests=fs.readdirSync(RELAY_ROOT).filter((n:string)=>n.endsWith('.request.json')).map((n:string)=>request(n.slice(0,-'.request.json'.length))).filter((r:any)=>r.kind==='PUBLISH');
+ const names=fs.readdirSync(RELAY_ROOT);check(!names.some((n:string)=>n.includes('.request-publishing-')&&n.endsWith('.tmp')||n.endsWith('.request.json')&&!names.includes(n.replace(/\.json$/,'.ready'))),'FIXED_REQUEST_NOT_READY_HOLD');const requests=readyRequestNames(names).map((n:string)=>request(n.slice(0,-'.request.json'.length))).filter((r:any)=>r.kind==='PUBLISH');
  check(requests.length===1,'FIXED_ORIGINAL_PUBLISH_COUNT');const r=requests[0];const {PILOT_BUDGET}=awaitBudget;check(r.payload.sql===data.sql&&r.expiresAt===data.expiresAt&&Number.isFinite(Date.parse(data.expiresAt))&&Date.parse(r.payload.dispatchBefore)===Date.parse(data.expiresAt)-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs,'FIXED_ORIGINAL_SQL_WINDOW_EXACT');
  return {data,raw,r,receipt,recoveryDataSha256:sha(raw)};
 }

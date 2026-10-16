@@ -95,8 +95,8 @@
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-binding.mjs",
-      "bytes": 11516,
-      "sha256": "f093f39278989cbf7933e8dc80122b03f52a89d466365fbd889310d6a1d5d229",
+      "bytes": 11526,
+      "sha256": "d6e07ed10622c648a08456fb8bdb4372f9165a55778d7a3ee4dca68f8cbcccee",
       "classification": "SCHEMA50_SOURCE_DERIVATIVE",
       "originCommit": null,
       "derivativeBaseCommit": "ea12881e9f8c7d1133b068bbbc0e483b9f020714",
@@ -121,22 +121,42 @@
     },
     {
       "path": "ops/cloud-pilot-host/connector-host.test.mjs",
-      "sha256": "e3d7f2c32c9e93a1f5639163de0131eabd562afa5bfc9ed9a731dd27bdaa9973",
-      "bytes": 24887,
+      "sha256": "6256f4139afe685705501f9322342e05acf4662b38a1a934c8dec6d354a0e679",
+      "bytes": 24971,
       "classification": "NEW_CONNECTOR_HOST_SOURCE"
     },
     {
       "path": "ops/cloud-pilot-host/host-bindings.test.mjs",
-      "sha256": "963e8a474dc54b3961f57700953ecd6a201d3457ae8ef2b529657cf99ffee0ae",
-      "bytes": 10195,
-      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      "classification": "REQUEST_READY_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "9d0a53374ba2a0e73d8edf67e3be0e768f019bb6",
+      "derivativeBaseSha256": "963e8a474dc54b3961f57700953ecd6a201d3457ae8ef2b529657cf99ffee0ae",
+      "priorProvenance": {
+        "path": "ops/cloud-pilot-host/host-bindings.test.mjs",
+        "sha256": "963e8a474dc54b3961f57700953ecd6a201d3457ae8ef2b529657cf99ffee0ae",
+        "bytes": 10195,
+        "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      },
+      "sha256": "032fdaaef6fab1597e64391b9ce87fdb38c8204301d6fab86e6fc9218109792f",
+      "bytes": 10443
     },
     {
       "path": "ops/cloud-pilot-host/host-files.mts",
-      "sha256": "5d43f9ac110f72e38464b7db90c39d6f5dc603260a9e1ab88504c9c46126379d",
-      "bytes": 11336,
-      "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
-      "originSha256": "4a8df2db69cf0d09f6f58f1ec9e7c7ebe532c75542453e71e237e74a574367c2"
+      "classification": "REQUEST_READY_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "9d0a53374ba2a0e73d8edf67e3be0e768f019bb6",
+      "derivativeBaseSha256": "5d43f9ac110f72e38464b7db90c39d6f5dc603260a9e1ab88504c9c46126379d",
+      "priorProvenance": {
+        "path": "ops/cloud-pilot-host/host-files.mts",
+        "sha256": "5d43f9ac110f72e38464b7db90c39d6f5dc603260a9e1ab88504c9c46126379d",
+        "bytes": 11336,
+        "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
+        "originSha256": "4a8df2db69cf0d09f6f58f1ec9e7c7ebe532c75542453e71e237e74a574367c2"
+      },
+      "sha256": "ffca12aab4f11596f19fbbcf132dabe269b016f90f5c618dcb8fb57c8bff9784",
+      "bytes": 11701
     },
     {
       "path": "ops/cloud-pilot-host/host-helper-functions.js",
@@ -172,9 +192,19 @@
     },
     {
       "path": "ops/cloud-pilot-host/publication-failure-cleanup.test.mjs",
-      "sha256": "6bafe33fd7d31b79d34147c91fa89a23411d31a5e03bb20c9023bced85cee4b1",
-      "bytes": 10440,
-      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      "classification": "REQUEST_READY_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "9d0a53374ba2a0e73d8edf67e3be0e768f019bb6",
+      "derivativeBaseSha256": "6bafe33fd7d31b79d34147c91fa89a23411d31a5e03bb20c9023bced85cee4b1",
+      "priorProvenance": {
+        "path": "ops/cloud-pilot-host/publication-failure-cleanup.test.mjs",
+        "sha256": "6bafe33fd7d31b79d34147c91fa89a23411d31a5e03bb20c9023bced85cee4b1",
+        "bytes": 10440,
+        "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      },
+      "sha256": "e19fd3828ce34b44cb58c147fa069032a55c6dea0bb7bc86b1dfe1f92a111f1d",
+      "bytes": 10537
     },
     {
       "path": "ops/cloud-pilot-host/publication-tool-wait.diagnostic.test.mjs",
@@ -196,10 +226,28 @@
     },
     {
       "path": "ops/cloud-pilot-host/relay-files.mjs",
-      "sha256": "d8b2ddff74dc5f6b5cb02ff3acebc0fc44321745150abbeab7a6aede4e352c98",
-      "bytes": 5930,
-      "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
-      "originSha256": "a4adb5462b5e7e82f18dc93aedf77c92ae82244214ef65dccacb02d2fe225198"
+      "classification": "REQUEST_READY_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "9d0a53374ba2a0e73d8edf67e3be0e768f019bb6",
+      "derivativeBaseSha256": "d8b2ddff74dc5f6b5cb02ff3acebc0fc44321745150abbeab7a6aede4e352c98",
+      "priorProvenance": {
+        "path": "ops/cloud-pilot-host/relay-files.mjs",
+        "sha256": "d8b2ddff74dc5f6b5cb02ff3acebc0fc44321745150abbeab7a6aede4e352c98",
+        "bytes": 5930,
+        "classification": "CONNECTOR_HOST_BINDING_DERIVATIVE",
+        "originSha256": "a4adb5462b5e7e82f18dc93aedf77c92ae82244214ef65dccacb02d2fe225198"
+      },
+      "sha256": "d76370351b5da497f33856d64ba2a3110129898560b8d210cab1fdb20d6f18c2",
+      "bytes": 6020
+    },
+    {
+      "path": "ops/cloud-pilot-host/relay-request-ready.mjs",
+      "sha256": "875ad0b954df6cd6516eeec177e5fb5ec5e5a482dfb87165839e55f82cd0ccd2",
+      "bytes": 3738,
+      "classification": "NEW_CONNECTOR_HOST_SOURCE",
+      "originCommit": null,
+      "productionQualified": false
     },
     {
       "path": "ops/docker-compose.yml",
@@ -1406,8 +1454,8 @@
     },
     {
       "path": "src/crawler/cloudSourcePilotRelay.ts",
-      "sha256": "f8ce44c42cbd7f9596c689522d7c867e78ce7c0d74cefa02c48b6f191d632e30",
-      "bytes": 28531,
+      "sha256": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f",
+      "bytes": 29706,
       "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
       "originCommit": null,
       "productionQualified": false,
@@ -5127,9 +5175,19 @@
     },
     {
       "path": "tests/scripts/cloudSourcePilotRelay.test.ts",
-      "sha256": "9aa0452606c6d813dc831c76dc7a96f75a3f1094ff12efae2a031a5b93cd597d",
-      "bytes": 14836,
-      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      "classification": "REQUEST_READY_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "9d0a53374ba2a0e73d8edf67e3be0e768f019bb6",
+      "derivativeBaseSha256": "9aa0452606c6d813dc831c76dc7a96f75a3f1094ff12efae2a031a5b93cd597d",
+      "priorProvenance": {
+        "path": "tests/scripts/cloudSourcePilotRelay.test.ts",
+        "sha256": "9aa0452606c6d813dc831c76dc7a96f75a3f1094ff12efae2a031a5b93cd597d",
+        "bytes": 14836,
+        "classification": "EXACT_HISTORICAL_FILE_BYTES"
+      },
+      "sha256": "a5d22f1707cd1b2407f26165ca867bfcbcefb2c224ffac8fa45323cc6293753e",
+      "bytes": 14946
     },
     {
       "path": "tests/scripts/humanBaselineDiscrepancyPolicy.test.ts",
