@@ -26,11 +26,11 @@ import {createOfficialJsonSourceFetch} from '../vendor/c60-source/src/crawler/of
 import {createHttpHtmlSourceFetch} from '../vendor/c60-source/src/crawler/httpHtmlSourceFetch.ts';
 import {runSourceCrawl} from '../vendor/c60-source/src/crawler/runSourceCrawl.ts';
 import {sourcePlanConfigSha256, type SourceCrawlPlan} from '../vendor/c60-source/src/crawler/sourcePlan.ts';
-import {createPlanBoundHtmlBrowserTraversalValidation} from '../vendor/c60-source/src/crawler/traversalCertificate.ts';
+import {createPlanBoundHtmlBrowserTraversalValidation, readReusableBGradeTraversalValidation} from '../vendor/c60-source/src/crawler/traversalCertificate.ts';
 import {evaluateCompletenessAnomalyForCrawl} from '../vendor/c60-source/src/crawler/completenessAnomalyPolicy.ts';
 import {loadPilotContext} from '../vendor/c60-source/src/crawler/cloudPilotContext.ts';
 import {CLOUD_PILOT_SOURCE} from '../vendor/c60-source/src/db/cloudPilotSqlControl.ts';
-import {compileDbStartedCloudSourcePublication, executeIngestionCommands, type DbStartedCloudPublicationInput, type DbStartedCloudSourceInput} from '../vendor/c60-source/src/db/ingestionRepository.ts';
+import {compileDbStartedCloudSourcePublication, prepareDbStartedCloudPublicationReplay, executeIngestionCommands, type DbStartedCloudPublicationInput, type DbStartedCloudSourceInput} from '../vendor/c60-source/src/db/ingestionRepository.ts';
 import {unwrapJobProjectionSourceRow} from '../vendor/c60-source/src/db/jobProjectionDeltaCompiler.ts';
 import {V75_FENCE_MIGRATION_NAME, V75_FENCE_SCHEMA_SHA256} from '../vendor/c60-source/src/db/v75FenceProfile.ts';
 import {fromPrismaJobCategory} from '../vendor/c60-source/src/db/prismaMappers.ts';
@@ -47,6 +47,7 @@ const GRADE = SOURCE_ID === 'source-lilly-china-social' ? 'A' : 'B';
 const SCHEMA = GRADE === 'A' ? 'a-grade-official-total-v2' : 'b-grade-independent-traversal-v2';
 const BASELINE_AT = '2026-10-16T09:00:00.000Z';
 const CURRENT_AT = '2026-10-16T09:10:00.000Z';
+const OLD_ONE_JOB_PROOF_AT = '2026-10-15T12:00:00.000Z';
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const json = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const contains = (parent: string, child: string) => {
@@ -61,6 +62,7 @@ let evidenceRoot: string;
 let baseline: Awaited<ReturnType<typeof capture>>;
 let baselineContext: Awaited<ReturnType<typeof contextFor>>;
 let verifiedBaseline: Awaited<ReturnType<typeof loadPilotContext>>;
+let oldOneJobValidation: ReturnType<typeof readReusableBGradeTraversalValidation>;
 const candidate = {id: `synthetic-shared-ab-${GRADE.toLowerCase()}-${randomUUID()}`, goalId: 'jobfinder-portable-required-40', version: 100};
 const databaseIdentity = {migrationVersion: V75_FENCE_MIGRATION_NAME, schemaHash: V75_FENCE_SCHEMA_SHA256,
   dbSnapshotHash: digest('SYNTHETIC_SHARED_AB_EXTERNAL_SQL_CONTEXT_ONLY')};
@@ -197,22 +199,24 @@ async function contextFor(fixture: Awaited<ReturnType<typeof capture>>) {
 }
 
 function publication(fixture: Awaited<ReturnType<typeof capture>>, source = fixture.source,
-  context = baselineContext): DbStartedCloudPublicationInput {
+  context: DbStartedCloudPublicationInput['control']['context'] = baselineContext): DbStartedCloudPublicationInput {
   return {control: {projectId: 'yiopvxysxrtrnvqxwgbx', build, candidate, databaseIdentity, planned: fixture.planned, context},
     source, jobProjectionDelta: true, publicationDeadline: Date.parse(CURRENT_AT) + 20 * 60_000};
 }
 
-async function compileAndRetain(fixture: Awaited<ReturnType<typeof capture>>, source = fixture.source) {
+async function compileAndRetain(fixture: Awaited<ReturnType<typeof capture>>, source = fixture.source,
+  expected: {currentCount: number; graceCount: number; direction: 'DECREASE' | 'UNCHANGED'} =
+    {currentCount: 1, graceCount: 99, direction: 'DECREASE'}) {
   const input = publication(fixture, source), before = JSON.stringify(input);
   const packet = await compileDbStartedCloudSourcePublication(input);
   expect(JSON.stringify(input)).toBe(before);
   await writeFile(join(fixture.root, 'compiled-publication.sql'), packet.sql, {flag: 'wx', mode: 0o600});
   await writeFile(join(fixture.root, 'compiled-source-result.json'), JSON.stringify(packet.commit.sourceResult, null, 2), {flag: 'wx', mode: 0o600});
   const row = unwrapJobProjectionSourceRow(packet.commit.sourceResult as unknown as Record<string, unknown>);
-  expect(row).toMatchObject({completenessState: 'VERIFIED', atomicCommitState: 'COMMITTED', dedupeOutputCount: 1,
+  expect(row).toMatchObject({completenessState: 'VERIFIED', atomicCommitState: 'COMMITTED', dedupeOutputCount: expected.currentCount,
     completenessCertificate: {grade: GRADE, schemaVersion: SCHEMA}, baselinePreviousJobCount: 100,
     baselinePreviousSourceResultId: baseline.source.pending.id,
-    baselineChangeReason: GRADE === 'A' ? 'OFFICIAL_EVIDENCE_CONFIRMED_DECREASE' : 'INDEPENDENT_VALIDATION_CONFIRMED_DECREASE'});
+    baselineChangeReason: `${GRADE === 'A' ? 'OFFICIAL_EVIDENCE' : 'INDEPENDENT_VALIDATION'}_CONFIRMED_${expected.direction}`});
   expect(row.blockerCode ?? null).toBeNull();
   expect(packet.sql).toContain('CRAWL_LEASE_BUSY');
   expect(packet.sql).toContain('PILOT_V75_FENCE_FUNCTION_DRIFT');
@@ -220,9 +224,50 @@ async function compileAndRetain(fixture: Awaited<ReturnType<typeof capture>>, so
   expect(packet.sql).toContain('LOCK TABLE public."Job",public."CrawlBatchSourceResult",public."CrawlBatch"');
   expect(packet.sql).toContain(SCHEMA);
   expect(packet.sql).not.toContain('plan-bound-source-quality-v1');
-  expect(packet.commit.commands.filter(command => command.type === 'UPSERT_JOB' && command.missingSuccessfulCrawlCount === 0)).toHaveLength(1);
-  expect(packet.commit.commands.filter(command => command.type === 'UPSERT_JOB' && command.missingSuccessfulCrawlCount === 1)).toHaveLength(99);
+  expect(packet.commit.commands.filter(command => command.type === 'UPSERT_JOB' && command.missingSuccessfulCrawlCount === 0)).toHaveLength(expected.currentCount);
+  expect(packet.commit.commands.filter(command => command.type === 'UPSERT_JOB' && command.missingSuccessfulCrawlCount === 1)).toHaveLength(expected.graceCount);
   return packet;
+}
+
+async function assertExactPreparationReplay(fixture: Awaited<ReturnType<typeof capture>>, source: DbStartedCloudSourceInput,
+  compiled: Awaited<ReturnType<typeof compileDbStartedCloudSourcePublication>>) {
+  const input = publication(fixture, source), before = JSON.stringify(input);
+  const prepared = await prepareDbStartedCloudPublicationReplay(input);
+  expect(JSON.stringify(input)).toBe(before);
+  expect(prepared.packet.commit.sourceResult).toEqual(compiled.commit.sourceResult);
+  const preparedBytes = JSON.stringify(prepared.packet);
+  const recompiled = await prepared.recompile();
+  const recompiledBytes = JSON.stringify(recompiled);
+  expect(recompiledBytes).toBe(preparedBytes);
+  expect(recompiled.sql).toBe(prepared.packet.sql);
+  expect(JSON.stringify(input)).toBe(before);
+  await writeFile(join(fixture.root, 'review-prepared-packet.json'), preparedBytes, {flag: 'wx', mode: 0o600});
+  await writeFile(join(fixture.root, 'review-recompiled-packet.json'), recompiledBytes, {flag: 'wx', mode: 0o600});
+}
+
+function reusableBaselineValidation() {
+  const trusted = verifiedBaseline.trustedCompletenessBaseline;
+  if (!trusted || trusted.certificateGrade !== 'B') throw Error('SYNTHETIC_REUSABLE_B_BASELINE_REQUIRED');
+  return readReusableBGradeTraversalValidation({certificate: trusted.certificate,
+    certificateSha256: trusted.certificateSha256, sourceConfigSha256: sourcePlanConfigSha256(plan), now: new Date(CURRENT_AT)});
+}
+
+/** This older one-job proof predates the accepted 100-job baseline. It is a real
+ * issued B receipt read through the existing reuse verifier, not caller-supplied
+ * counts or fabricated certificate JSON. Its original expiry is not extended. */
+async function issueOlderOneJobValidation() {
+  const older = await capture(1, OLD_ONE_JOB_PROOF_AT);
+  const commit = buildAtomicRuntimeCommit({...older.source, previousJobs: [], baselineCompletedBeforeCrawl: false,
+    independentTraversalValidationTrigger: 'INITIAL_QUALIFICATION'});
+  expect(commit.sourceResult).toMatchObject({completenessState: 'VERIFIED', dedupeOutputCount: 1,
+    completenessCertificate: {grade: 'B', schemaVersion: 'b-grade-independent-traversal-v2',
+      validationPolicy: {trigger: 'INITIAL_QUALIFICATION', execution: 'CURRENT_RUN'},
+      independentValidation: {observedAt: OLD_ONE_JOB_PROOF_AT, expiresAt: '2026-10-16T12:00:00.000Z'}}});
+  await writeFile(join(older.root, 'older-issued-source-result.json'), JSON.stringify(commit.sourceResult, null, 2), {flag: 'wx', mode: 0o600});
+  vi.setSystemTime(CURRENT_AT);
+  return readReusableBGradeTraversalValidation({certificate: commit.sourceResult.completenessCertificate,
+    certificateSha256: commit.sourceResult.completenessCertificateSha256!,
+    sourceConfigSha256: sourcePlanConfigSha256(plan), now: new Date(CURRENT_AT)});
 }
 
 beforeAll(async () => {
@@ -250,6 +295,7 @@ beforeAll(async () => {
   // directly to evaluateCompletenessAnomalyForCrawl or the DB-started compiler.
   expect(verifiedBaseline.trustedCompletenessBaseline).toMatchObject({certificateGrade: GRADE,
     certifiedJobCount: 100, sourceResultId: baseline.source.pending.id});
+  if (GRADE === 'B') oldOneJobValidation = await issueOlderOneJobValidation();
   await writeFile(join(baseline.root, 'run-identity.json'), JSON.stringify({syntheticOnly: true, sqlDispatched: false,
     sourceId: SOURCE_ID, grade: GRADE, build, node: process.execPath, candidate, databaseIdentity}, null, 2), {flag: 'wx', mode: 0o600});
 }, 180_000);
@@ -312,6 +358,87 @@ describe(`shared completeness guard: genuine ${GRADE} proof compatibility`, () =
   });
 
   if (GRADE === 'B') {
+    it('rejects a caller STABLE_RUN claim that reuses an older one-job proof after the verified 100-to-1 drop', async () => {
+      const current = await capture(1);
+      const source: DbStartedCloudSourceInput = {...current.source, independentTraversalValidation: oldOneJobValidation,
+        independentTraversalValidationExecution: 'REUSED', independentTraversalValidationTrigger: 'STABLE_RUN'};
+      expect(source).not.toHaveProperty('completenessAnomalyTriggerCodes');
+      expect(Date.parse(oldOneJobValidation.observedAt)).toBeLessThan(Date.parse(BASELINE_AT));
+      expect(Date.parse(oldOneJobValidation.expiresAt)).toBeGreaterThan(Date.parse(CURRENT_AT));
+      expect(evaluateCompletenessAnomalyForCrawl(plan, source.result, verifiedBaseline.trustedCompletenessBaseline))
+        .toMatchObject({independentValidationRequired: true, triggerCodes: ['TRUSTED_COUNT_DROP'],
+          countChange: {previous: 100, current: 1, decrease: 99, decreasePercent: 99}});
+      const input = publication(current, source), before = JSON.stringify(input);
+      await expect(compileDbStartedCloudSourcePublication(input)).rejects.toThrow('PILOT_REAL_CERTIFICATE_REQUIRED');
+      expect(JSON.stringify(input)).toBe(before);
+      await expect(prepareDbStartedCloudPublicationReplay(input)).rejects.toThrow('PILOT_REAL_CERTIFICATE_REQUIRED');
+      expect(JSON.stringify(input)).toBe(before);
+    });
+
+    it('derives ANOMALY_TRIGGERED for caller STABLE_RUN while retaining a genuine new CURRENT_RUN certificate', async () => {
+      const current = await capture(1);
+      const source: DbStartedCloudSourceInput = {...current.source,
+        independentTraversalValidationExecution: 'CURRENT_RUN', independentTraversalValidationTrigger: 'STABLE_RUN'};
+      const packet = await compileAndRetain(current, source);
+      expect(unwrapJobProjectionSourceRow(packet.commit.sourceResult as unknown as Record<string, unknown>).completenessCertificate)
+        .toMatchObject({grade: 'B', validationPolicy: {trigger: 'ANOMALY_TRIGGERED', execution: 'CURRENT_RUN'},
+          independentValidation: {observedAt: CURRENT_AT}});
+      await assertExactPreparationReplay(current, source, packet);
+    });
+
+    it('preserves a genuine 100-to-100 STABLE_RUN reuse from the verified baseline certificate', async () => {
+      const current = await capture(100);
+      expect(evaluateCompletenessAnomalyForCrawl(plan, current.source.result, verifiedBaseline.trustedCompletenessBaseline))
+        .toMatchObject({independentValidationRequired: false, triggerCodes: [], countChange: {previous: 100, current: 100, decrease: 0}});
+      const source: DbStartedCloudSourceInput = {...current.source, independentTraversalValidation: reusableBaselineValidation(),
+        independentTraversalValidationExecution: 'REUSED', independentTraversalValidationTrigger: 'STABLE_RUN'};
+      const packet = await compileAndRetain(current, source,
+        {currentCount: 100, graceCount: 0, direction: 'UNCHANGED'});
+      expect(unwrapJobProjectionSourceRow(packet.commit.sourceResult as unknown as Record<string, unknown>).completenessCertificate)
+        .toMatchObject({grade: 'B', validationPolicy: {trigger: 'STABLE_RUN', execution: 'REUSED'},
+          independentValidation: {observedAt: BASELINE_AT}});
+      await assertExactPreparationReplay(current, source, packet);
+    });
+
+    it('honors a caller-only anomaly even when the verified baseline and current counts remain 100', async () => {
+      const current = await capture(100);
+      expect(evaluateCompletenessAnomalyForCrawl(plan, current.source.result, verifiedBaseline.trustedCompletenessBaseline).triggerCodes).toEqual([]);
+      await expect(compileDbStartedCloudSourcePublication(publication(current, {...current.source,
+        independentTraversalValidation: reusableBaselineValidation(), independentTraversalValidationExecution: 'REUSED',
+        independentTraversalValidationTrigger: 'STABLE_RUN', completenessAnomalyTriggerCodes: ['PAGINATION_MAX_PAGES_WITH_NEXT']})))
+        .rejects.toThrow('PILOT_REAL_CERTIFICATE_REQUIRED');
+    });
+
+    it('requires initial current-run validation when both accepted SQL rows are null despite a STABLE_RUN claim', async () => {
+      const current = await capture(1);
+      const empty: DbStartedCloudPublicationInput['control']['context'] = {...json(baselineContext), jobs: [], firstAccepted: null, latestAccepted: null};
+      expect((await loadPilotContext(empty, plan, true)).trustedCompletenessBaseline).toBeNull();
+      expect(evaluateCompletenessAnomalyForCrawl(plan, current.source.result, null).triggerCodes).toEqual([]);
+      await expect(compileDbStartedCloudSourcePublication(publication(current, {...current.source,
+        independentTraversalValidation: oldOneJobValidation, independentTraversalValidationExecution: 'REUSED',
+        independentTraversalValidationTrigger: 'STABLE_RUN'}, empty))).rejects.toThrow('PILOT_REAL_CERTIFICATE_REQUIRED');
+    });
+
+    it.each([undefined, 'INITIAL_QUALIFICATION', 'CONFIG_CHANGED', 'ANOMALY_TRIGGERED'] as const)
+      ('does not weaken the original %s trigger/default to permit reuse on otherwise stable inputs', async trigger => {
+        const current = await capture(100);
+        expect(evaluateCompletenessAnomalyForCrawl(plan, current.source.result, verifiedBaseline.trustedCompletenessBaseline).triggerCodes).toEqual([]);
+        await expect(compileDbStartedCloudSourcePublication(publication(current, {...current.source,
+          independentTraversalValidation: reusableBaselineValidation(), independentTraversalValidationExecution: 'REUSED',
+          independentTraversalValidationTrigger: trigger}))).rejects.toThrow('PILOT_REAL_CERTIFICATE_REQUIRED');
+      });
+
+    it.each(['REUSED', 'CURRENT_RUN'] as const)('does not normalize an unknown caller trigger into a valid %s certificate', async execution => {
+      const current = await capture(100);
+      // Deliberately malformed external caller input. Keep its runtime value so
+      // the original closed trigger validation must reject it instead of repair.
+      const unknown = 'UNRECOGNIZED_TRIGGER' as NonNullable<DbStartedCloudSourceInput['independentTraversalValidationTrigger']>;
+      const source: DbStartedCloudSourceInput = {...current.source, independentTraversalValidation: reusableBaselineValidation(),
+        independentTraversalValidationExecution: execution, independentTraversalValidationTrigger: unknown};
+      await expect(compileDbStartedCloudSourcePublication(publication(current, source))).rejects.toThrow();
+      expect(source.independentTraversalValidationTrigger).toBe('UNRECOGNIZED_TRIGGER');
+    });
+
     it('rejects an independently observed set that does not match the current traversal', async () => {
       const current = await capture(1);
       const invalid = {...current.source, independentTraversalValidation: takedaValidation(1, CURRENT_AT, 1)};

@@ -2816,25 +2816,36 @@
     },
     {
       "path": "src/db/ingestionRepository.ts",
-      "classification": "SHARED_COMPLETENESS_GUARD_SOURCE_DERIVATIVE",
+      "classification": "B_TRIGGER_COMPLETENESS_GUARD_SOURCE_DERIVATIVE",
       "originCommit": null,
       "productionQualified": false,
-      "derivativeBaseCommit": "9629790860e68df0a8f09fb14f7ab05e1a2fbbfa",
-      "derivativeBaseSha256": "4155b8e974cc8316ecd15f72203bb15b847169b5b40c6a353d1ad9192b9a6a6d",
-      "priorProvenanceSha256": "be63ed1f198c2fed995091f51e315be399656f95f9ba8b880b61fc99c20d72ff",
+      "derivativeBaseCommit": "f7c0118b5c7acb165c267430216af33a1ea9809b",
+      "derivativeBaseSha256": "eb86ba50cf06e37ecdede78f80b22fb4e3048df06103ea1cb288d5e24089f640",
+      "priorProvenanceSha256": "ab2cf7577293a13af2e6e4c7657b0ba0035d3a2630574811ba79f427062d36df",
       "priorProvenance": {
         "path": "src/db/ingestionRepository.ts",
-        "sha256": "4155b8e974cc8316ecd15f72203bb15b847169b5b40c6a353d1ad9192b9a6a6d",
-        "bytes": 128750,
-        "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+        "classification": "SHARED_COMPLETENESS_GUARD_SOURCE_DERIVATIVE",
         "originCommit": null,
         "productionQualified": false,
-        "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
-        "derivativeBaseSha256": "56a16ca89ae417c1613cb37f7beb53db82dbc55f181219c6db7f48b7e487223b",
-        "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+        "derivativeBaseCommit": "9629790860e68df0a8f09fb14f7ab05e1a2fbbfa",
+        "derivativeBaseSha256": "4155b8e974cc8316ecd15f72203bb15b847169b5b40c6a353d1ad9192b9a6a6d",
+        "priorProvenanceSha256": "be63ed1f198c2fed995091f51e315be399656f95f9ba8b880b61fc99c20d72ff",
+        "priorProvenance": {
+          "path": "src/db/ingestionRepository.ts",
+          "sha256": "4155b8e974cc8316ecd15f72203bb15b847169b5b40c6a353d1ad9192b9a6a6d",
+          "bytes": 128750,
+          "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+          "originCommit": null,
+          "productionQualified": false,
+          "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+          "derivativeBaseSha256": "56a16ca89ae417c1613cb37f7beb53db82dbc55f181219c6db7f48b7e487223b",
+          "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+        },
+        "sha256": "eb86ba50cf06e37ecdede78f80b22fb4e3048df06103ea1cb288d5e24089f640",
+        "bytes": 129451
       },
-      "sha256": "eb86ba50cf06e37ecdede78f80b22fb4e3048df06103ea1cb288d5e24089f640",
-      "bytes": 129451
+      "sha256": "d9581287d990df8cea0a6f0850358bf5b11c96704c9f7b9a601b8f59c42fbb3d",
+      "bytes": 130237
     },
     {
       "path": "src/db/jnjDomEvidenceAdmission.ts",

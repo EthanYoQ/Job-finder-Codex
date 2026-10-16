@@ -1,3 +1,4 @@
+import {retainedBTriggerGuardManifest,readBeforeBTriggerGuard} from './b-trigger-completeness-guard-ancestry.mjs';
 import {ucbSourceProvenance} from '../scripts/ucb-source-provenance.mjs';
 import {SHARED_COMPLETENESS_GUARD_BASE_COMMIT,SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS,SHARED_COMPLETENESS_GUARD_SOURCE_PATHS,refreshSharedCompletenessGuardSourceManifest} from '../scripts/shared-completeness-guard-source-provenance.mjs';
 import test from 'node:test';
@@ -11,8 +12,8 @@ import {LEGACY_COMPLETENESS_GUARD_BASE_COMMIT,LEGACY_COMPLETENESS_GUARD_DERIVATI
 const root=path.resolve(import.meta.dirname,'..'),prefix='tools/dot-auto-controller/vendor/';
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const git=relative=>execFileSync('git',['show',LEGACY_COMPLETENESS_GUARD_BASE_COMMIT+':'+prefix+relative],{cwd:root,maxBuffer:8*1024*1024});
-const base=JSON.parse(git('C60_SOURCE_MANIFEST.json')),current=JSON.parse(fs.readFileSync(root+'/vendor/C60_SOURCE_MANIFEST.json'));
-const readSource=relative=>fs.readFileSync(root+'/vendor/c60-source/'+relative);
+const base=JSON.parse(git('C60_SOURCE_MANIFEST.json')),current=retainedBTriggerGuardManifest;
+const readSource=readBeforeBTriggerGuard;
 const exported=JSON.parse(execFileSync(process.execPath,[root+'/scripts/package-manifest.mjs'],{encoding:'utf8',maxBuffer:8*1024*1024}));
 const records=current.files.filter(file=>file.classification===LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS);
 
@@ -38,7 +39,7 @@ test('exactly one local legacy guard derivative binds real a889c0 bytes and comp
  }
 });
 
-test('all other 876 vendor records, bytes, order and top-level metadata remain exact a889c0',()=>{
+test('all other 876 retained pre-B vendor records, bytes, order and metadata remain exact a889c0',()=>{
  const metadata=manifest=>Object.fromEntries(Object.entries(manifest).filter(([key])=>key!=='files'));
  assert.deepEqual(metadata(current),metadata(base));assert.equal(base.files.length,877);assert.equal(current.files.length,877);
  assert.deepEqual(current.files.map(file=>file.path),base.files.map(file=>file.path));
@@ -136,7 +137,7 @@ function withExporterFixture(run){
  const write=(relative,bytes)=>{const full=path.join(temporary,relative);fs.mkdirSync(path.dirname(full),{recursive:true});fs.writeFileSync(full,bytes);};
  const file=structuredClone(records[0]);
  try{
-  for(const script of ['package-manifest.mjs','legacy-completeness-guard-source-provenance.mjs','shared-completeness-guard-source-provenance.mjs','four-source-provenance.mjs','ucb-source-provenance.mjs','hengrui-source-provenance.mjs'])write('scripts/'+script,fs.readFileSync(root+'/scripts/'+script));
+  for(const script of ['package-manifest.mjs','b-trigger-completeness-guard-source-provenance.mjs','legacy-completeness-guard-source-provenance.mjs','shared-completeness-guard-source-provenance.mjs','four-source-provenance.mjs','ucb-source-provenance.mjs','hengrui-source-provenance.mjs'])write('scripts/'+script,fs.readFileSync(root+'/scripts/'+script));
   for(const name of ['READER_MAIN_SOURCE_MANIFEST.json','READER_FALLBACK_SOURCE_MANIFEST.json'])write('vendor/'+name,JSON.stringify({files:[]}));
   write('config/hengrui-port-provenance.json',JSON.stringify({originCommit:null,productionQualified:false,files:[]}));
   const setRecord=record=>write('vendor/C60_SOURCE_MANIFEST.json',JSON.stringify({originCommit:base.originCommit,files:[record]}));

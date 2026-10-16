@@ -38,6 +38,7 @@ import {
 } from "../crawler/completenessCertificate";
 import {
   requiresBGradeCertificateSourceId,
+  requiresBGradeTraversalCertificate,
   verifyBGradeTraversalCertificateReceipt,
   B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS
 } from "../crawler/traversalCertificate";
@@ -45,6 +46,7 @@ import {
   assertTrustedBaselineTransition,
   canonicalCompletenessAnomalyTriggerCodes,
   evaluateCompletenessAnomalyForCrawl,
+  selectCompletenessValidationTrigger,
   type TrustedBaselineChangeReason
 } from "../crawler/completenessAnomalyPolicy";
 import { isRetryableSourceTransportFailureCode } from "../crawler/sourceFetchFailure";
@@ -1259,8 +1261,15 @@ async function compileDbStartedCloudSourcePublicationWithIds(input:DbStartedClou
   ?canonicalCompletenessAnomalyTriggerCodes(source.completenessAnomalyTriggerCodes):[];
  const anomaly=evaluateCompletenessAnomalyForCrawl(source.plan,source.result,context.trustedCompletenessBaseline);
  const completenessAnomalyTriggerCodes=[...new Set([...suppliedAnomalyCodes,...anomaly.triggerCodes])];
+ // A caller may not label a baseline-derived refresh requirement as STABLE_RUN.
+ // Leave stronger hints, missing hints and invalid hints to the original B issuer.
+ const independentTraversalValidationTrigger=!portable&&requiresBGradeTraversalCertificate(source.plan)&&
+  source.independentTraversalValidationTrigger==='STABLE_RUN'
+  ?selectCompletenessValidationTrigger({baseline:context.trustedCompletenessBaseline,currentSourceConfigSha256:source.pending.sourceConfigHash,anomaly:{independentValidationRequired:completenessAnomalyTriggerCodes.length>0}})
+  :source.independentTraversalValidationTrigger;
  const commit=buildAtomicRuntimeCommit({...source,...context,previousJobs,
-  ...(completenessAnomalyTriggerCodes.length>0?{completenessAnomalyTriggerCodes}:{})});
+  ...(completenessAnomalyTriggerCodes.length>0?{completenessAnomalyTriggerCodes}:{}),
+  ...(independentTraversalValidationTrigger!==undefined?{independentTraversalValidationTrigger}:{})});
  const certificate=commit.sourceResult.completenessCertificate as {schemaVersion?:string;independentValidation?:{observedAt?:string;expiresAt?:string}}|null;
  if(commit.sourceResult.completenessState!=='VERIFIED'||!(portable?[SOURCE_QUALITY_RECEIPT_SCHEMA]:['a-grade-official-total-v2','b-grade-independent-traversal-v2']).includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
  // Original acquisition and B validation times are preserved. No renewed local

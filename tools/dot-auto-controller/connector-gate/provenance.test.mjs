@@ -5,6 +5,7 @@ import {execFileSync} from 'node:child_process';
 import path from 'node:path';
 import {hengruiSourceProvenance,HENGRUI_BASE_HASHES} from '../scripts/hengrui-source-provenance.mjs';
 import {ucbSourceProvenance,UCB_DERIVATIVE_CLASS} from '../scripts/ucb-source-provenance.mjs';
+import {bTriggerCompletenessGuardSourceProvenance,B_TRIGGER_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/b-trigger-completeness-guard-source-provenance.mjs';
 import {legacyCompletenessGuardSourceProvenance,LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/legacy-completeness-guard-source-provenance.mjs';
 import {sharedCompletenessGuardSourceProvenance,SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/shared-completeness-guard-source-provenance.mjs';
 const root=path.resolve(import.meta.dirname,'..');
@@ -69,6 +70,11 @@ function assertHengruiDerivative(relative,source,entry){
 }
 function assertLocalDerivative(relative,source,entry){
  if(relative==='src/db/ingestionRepository.ts'){
+  assert.equal(source.classification,B_TRIGGER_COMPLETENESS_GUARD_DERIVATIVE_CLASS);
+  assert.doesNotThrow(()=>bTriggerCompletenessGuardSourceProvenance(source));
+  assert.deepEqual(entry.provenance,bTriggerCompletenessGuardSourceProvenance(source));
+  assert.equal(entry.sha256,source.sha256);assert.equal(entry.bytes,source.bytes);
+  source=source.priorProvenance;entry={sha256:source.sha256,bytes:source.bytes,provenance:sharedCompletenessGuardSourceProvenance(source)};
   assert.equal(source.classification,SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS);
   assert.doesNotThrow(()=>sharedCompletenessGuardSourceProvenance(source));
   assert.deepEqual(entry.provenance,sharedCompletenessGuardSourceProvenance(source));
@@ -94,7 +100,7 @@ test('new connector gate files never inherit historical source origin',()=>{
   else assert.deepEqual(entry.provenance,{kind:'new-connector-publication-review-source'});
  }
 });
-test('local compiler ancestor retains exact d02f base beneath the validated shared guard layer',()=>{
+test('local compiler ancestor retains exact d02f base beneath the validated B/shared guard layers',()=>{
  const relative='src/db/ingestionRepository.ts',{source,entry}=records(relative);
  assertLocalDerivative(relative,source,entry);
 });

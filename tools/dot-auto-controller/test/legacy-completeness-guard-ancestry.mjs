@@ -1,6 +1,6 @@
+import {retainedBTriggerGuardManifest,readBeforeBTriggerGuard} from './b-trigger-completeness-guard-ancestry.mjs';
 /** Validate the single legacy derivative before any older provenance test strips it. */
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -10,19 +10,20 @@ const root=path.resolve(import.meta.dirname,'..'),prefix='tools/dot-auto-control
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const git=relative=>execFileSync('git',['show',LEGACY_COMPLETENESS_GUARD_BASE_COMMIT+':'+prefix+relative],{cwd:root,maxBuffer:8*1024*1024});
 const base=JSON.parse(git('C60_SOURCE_MANIFEST.json'));
-const current=JSON.parse(fs.readFileSync(root+'/vendor/C60_SOURCE_MANIFEST.json'));
+// B is validated and stripped before the unchanged legacy layer.
+const current=retainedBTriggerGuardManifest;
 const derivatives=current.files.filter(file=>file.classification===LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS);
 assert.deepEqual(LEGACY_COMPLETENESS_GUARD_SOURCE_PATHS,['scripts/p0-cloud-portable-source-pilot.ts']);
 assert.deepEqual(derivatives.map(file=>file.path),LEGACY_COMPLETENESS_GUARD_SOURCE_PATHS);
 for(const file of derivatives){
  assert(legacyCompletenessGuardSourceProvenance(file));
- const prior=base.files.find(entry=>entry.path===file.path),before=git('c60-source/'+file.path),now=fs.readFileSync(root+'/vendor/c60-source/'+file.path);
+ const prior=base.files.find(entry=>entry.path===file.path),before=git('c60-source/'+file.path),now=readBeforeBTriggerGuard(file.path);
  assert.deepEqual(file.priorProvenance,prior);assert(ucbSourceProvenance(prior));
  assert.equal(file.derivativeBaseSha256,sha(before));assert.equal(prior.bytes,before.length);
  assert.equal(file.sha256,sha(now));assert.equal(file.bytes,now.length);
 }
 export const retainedLegacyGuardManifest={...current,files:current.files.map(file=>file.classification===LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS?structuredClone(file.priorProvenance):file)};
-export const readBeforeLegacyGuard=relative=>LEGACY_COMPLETENESS_GUARD_SOURCE_PATHS.includes(relative)?git('c60-source/'+relative):fs.readFileSync(root+'/vendor/c60-source/'+relative);
+export const readBeforeLegacyGuard=relative=>LEGACY_COMPLETENESS_GUARD_SOURCE_PATHS.includes(relative)?git('c60-source/'+relative):readBeforeBTriggerGuard(relative);
 export function legacyGuardAncestorEntry(entry){
  const file=derivatives.find(file=>entry.path===prefix+'c60-source/'+file.path);
  if(!file)return entry;
