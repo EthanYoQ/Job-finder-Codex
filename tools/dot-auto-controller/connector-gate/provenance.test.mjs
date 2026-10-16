@@ -5,6 +5,7 @@ import {execFileSync} from 'node:child_process';
 import path from 'node:path';
 import {hengruiSourceProvenance,HENGRUI_BASE_HASHES} from '../scripts/hengrui-source-provenance.mjs';
 import {ucbSourceProvenance,UCB_DERIVATIVE_CLASS} from '../scripts/ucb-source-provenance.mjs';
+import {legacyCompletenessGuardSourceProvenance,LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/legacy-completeness-guard-source-provenance.mjs';
 import {sharedCompletenessGuardSourceProvenance,SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/shared-completeness-guard-source-provenance.mjs';
 const root=path.resolve(import.meta.dirname,'..');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'vendor/C60_SOURCE_MANIFEST.json')));
@@ -43,7 +44,12 @@ function assertDirectLocalDerivative(relative,source,entry){
 // d02f assertions on the preserved ancestor, not on today's derivative bytes.
 function assertHengruiDerivative(relative,source,entry){
  assert(source,relative);assert(entry,relative);
- // Validate the current UCB layer before applying the unchanged c53/d02f contract.
+ // Validate legacy, then UCB before applying the unchanged c53/d02f contract.
+ if(source.classification===LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS){
+  assert.doesNotThrow(()=>legacyCompletenessGuardSourceProvenance(source));assert.deepEqual(entry.provenance,legacyCompletenessGuardSourceProvenance(source));
+  assert.equal(entry.sha256,source.sha256);assert.equal(entry.bytes,source.bytes);
+  source=source.priorProvenance;entry={sha256:source.sha256,bytes:source.bytes,provenance:ucbSourceProvenance(source)};
+ }
  if(source.classification===UCB_DERIVATIVE_CLASS){
   assert.doesNotThrow(()=>ucbSourceProvenance(source));assert.deepEqual(entry.provenance,ucbSourceProvenance(source));
   assert.equal(entry.sha256,source.sha256);assert.equal(entry.bytes,source.bytes);

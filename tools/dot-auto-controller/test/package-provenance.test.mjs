@@ -1,3 +1,4 @@
+import {LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/legacy-completeness-guard-source-provenance.mjs';
 import {retainedSharedGuardManifest} from './shared-completeness-guard-ancestry.mjs';
 import {SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS,sharedCompletenessGuardSourceProvenance} from '../scripts/shared-completeness-guard-source-provenance.mjs';
 import test from 'node:test';
@@ -30,7 +31,7 @@ test('both original local automation ancestors survive the validated shared guar
  }
 });
 test('historical C60 provenance retains original exact hashes and origin metadata',()=>{
- const historical=manifest.files.filter(f=>![SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS,'FOUR_SOURCE_SEQUENCE_SOURCE_DERIVATIVE','UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE','UCB_OWNED_BRIDGE_NEW_SOURCE','HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE','HENGRUI_OWNED_BRIDGE_NEW_SOURCE','SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE','REQUEST_READY_SOURCE_DERIVATIVE','BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE','NEW_CONNECTOR_HOST_SOURCE','LOCAL_AUTOMATION_SOURCE_DERIVATIVE','SCHEMA50_SOURCE_DERIVATIVE'].includes(f.classification));assert(historical.length>0);
+ const historical=manifest.files.filter(f=>![LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS,SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS,'FOUR_SOURCE_SEQUENCE_SOURCE_DERIVATIVE','UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE','UCB_OWNED_BRIDGE_NEW_SOURCE','HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE','HENGRUI_OWNED_BRIDGE_NEW_SOURCE','SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE','REQUEST_READY_SOURCE_DERIVATIVE','BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE','NEW_CONNECTOR_HOST_SOURCE','LOCAL_AUTOMATION_SOURCE_DERIVATIVE','SCHEMA50_SOURCE_DERIVATIVE'].includes(f.classification));assert(historical.length>0);
  for(const source of historical){const entry=entryFor(source);assert.equal(entry.provenance.originCommit,manifest.originCommit,source.path);assert.equal(entry.provenance.originCommitIsProvenanceOnly,true,source.path);assert.equal(entry.provenance.originSha256,source.originSha256,source.path);assert.equal(entry.provenance.newBuildQualificationRequired,true,source.path);}
 });
 test('generated build identity is excluded from source export',()=>{assert(!exported.entries.some(f=>f.path===prefix+'build-identity.json'));});

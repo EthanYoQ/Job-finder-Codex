@@ -858,44 +858,55 @@
     },
     {
       "path": "scripts/p0-cloud-portable-source-pilot.ts",
-      "classification": "UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE",
+      "classification": "LEGACY_COMPLETENESS_GUARD_SOURCE_DERIVATIVE",
       "originCommit": null,
       "productionQualified": false,
-      "derivativeBaseCommit": "48e56500bfe6a77ed712abfd54a98154cf963032",
-      "derivativeBaseSha256": "93b7c38704df5d3270190c2f13d6c29071379c06443172e76cd52f9911713efb",
+      "derivativeBaseCommit": "a889c044d70edce569bf12e6971bcc7b64b0bcd3",
+      "derivativeBaseSha256": "f0114fea872ebf53b66686ffbb041aabc5bdda8be650a72b153dc929536ee9dc",
+      "priorProvenanceSha256": "14483cc3c6077d10bc71d3b0d0857beb07ca5c580d5fd6e360987edeedd5dc25",
       "priorProvenance": {
         "path": "scripts/p0-cloud-portable-source-pilot.ts",
-        "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
+        "classification": "UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE",
         "originCommit": null,
         "productionQualified": false,
-        "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
-        "derivativeBaseSha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
+        "derivativeBaseCommit": "48e56500bfe6a77ed712abfd54a98154cf963032",
+        "derivativeBaseSha256": "93b7c38704df5d3270190c2f13d6c29071379c06443172e76cd52f9911713efb",
         "priorProvenance": {
           "path": "scripts/p0-cloud-portable-source-pilot.ts",
-          "sha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
-          "bytes": 21498,
-          "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
+          "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
           "originCommit": null,
           "productionQualified": false,
-          "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
-          "derivativeBaseSha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+          "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
+          "derivativeBaseSha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
           "priorProvenance": {
             "path": "scripts/p0-cloud-portable-source-pilot.ts",
-            "sha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
-            "bytes": 19776,
-            "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+            "sha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
+            "bytes": 21498,
+            "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
             "originCommit": null,
             "productionQualified": false,
-            "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
-            "derivativeBaseSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
-            "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
-          }
+            "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
+            "derivativeBaseSha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+            "priorProvenance": {
+              "path": "scripts/p0-cloud-portable-source-pilot.ts",
+              "sha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+              "bytes": 19776,
+              "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+              "originCommit": null,
+              "productionQualified": false,
+              "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+              "derivativeBaseSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
+              "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+            }
+          },
+          "sha256": "93b7c38704df5d3270190c2f13d6c29071379c06443172e76cd52f9911713efb",
+          "bytes": 23218
         },
-        "sha256": "93b7c38704df5d3270190c2f13d6c29071379c06443172e76cd52f9911713efb",
-        "bytes": 23218
+        "sha256": "f0114fea872ebf53b66686ffbb041aabc5bdda8be650a72b153dc929536ee9dc",
+        "bytes": 24810
       },
-      "sha256": "f0114fea872ebf53b66686ffbb041aabc5bdda8be650a72b153dc929536ee9dc",
-      "bytes": 24810
+      "sha256": "af108f4cdb9b938658a3e794e0059d2a89cbfafa37c2f6c9d349795e41adfebf",
+      "bytes": 25103
     },
     {
       "path": "scripts/p0-cloud-source-pilot.ts",

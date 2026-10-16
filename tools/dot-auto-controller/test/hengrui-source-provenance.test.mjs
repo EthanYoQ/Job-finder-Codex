@@ -1,3 +1,4 @@
+import {retainedLegacyGuardManifest,legacyGuardAncestorEntry} from './legacy-completeness-guard-ancestry.mjs';
 import {retainedSharedGuardManifest,readBeforeSharedGuard} from './shared-completeness-guard-ancestry.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,13 +12,13 @@ const root=path.resolve(import.meta.dirname,'..');
 const sourcePrefix='tools/dot-auto-controller/vendor/c60-source/';
 const packagePrefix='tools/dot-auto-controller/';
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-const currentManifest=JSON.parse(fs.readFileSync(path.join(root,'vendor/C60_SOURCE_MANIFEST.json')));
-// First validate and strip only the three 962979 guard derivatives, then inspect Hengrui's exact 48e layer.
+const currentManifest=retainedLegacyGuardManifest;
+// Validate and strip legacy, then the three 962979 guard derivatives, then inspect Hengrui's exact 48e layer.
 const manifest={...retainedSharedGuardManifest,files:retainedSharedGuardManifest.files.filter(f=>f.classification!=='UCB_OWNED_BRIDGE_NEW_SOURCE').map(f=>['UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE','FOUR_SOURCE_SEQUENCE_SOURCE_DERIVATIVE'].includes(f.classification)?f.priorProvenance:f)};
 const ucbPaths=new Set(currentManifest.files.filter(f=>f.classification==='UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE').map(f=>f.path));
 const portManifest=JSON.parse(fs.readFileSync(path.join(root,'config/hengrui-port-provenance.json')));
 const exported=JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{encoding:'utf8',maxBuffer:8*1024*1024}));
-const entry=relative=>{const current=exported.entries.find(file=>file.path===sourcePrefix+relative);if(!ucbPaths.has(relative))return current;const ancestor=manifest.files.find(f=>f.path===relative);assert.deepEqual(current.provenance.priorProvenance,ancestor);return {...current,sha256:ancestor.sha256,bytes:ancestor.bytes,provenance:hengruiSourceProvenance(ancestor)};};
+const entry=relative=>{const current=legacyGuardAncestorEntry(exported.entries.find(file=>file.path===sourcePrefix+relative));if(!ucbPaths.has(relative))return current;const ancestor=manifest.files.find(f=>f.path===relative);assert.deepEqual(current.provenance.priorProvenance,ancestor);return {...current,sha256:ancestor.sha256,bytes:ancestor.bytes,provenance:hengruiSourceProvenance(ancestor)};};
 const source=relative=>manifest.files.find(file=>file.path===relative);
 const priorHashes={
  'scripts/p0-cloud-portable-source-pilot.ts':'8fc297cdc3487ad8a3767514d19330fbbfcf377843644518b2aff9c5be8e9db4',

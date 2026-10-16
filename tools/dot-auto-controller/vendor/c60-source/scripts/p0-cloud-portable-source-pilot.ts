@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 import { runDbStartedCloudPublication, requireDbStartedOuterDeadline } from "../src/crawler/cloudDbStartedPilot";
 import { z } from "zod";
 import { archiveSourceEvidence } from "../src/crawler/artifactArchive";
+import { evaluateCompletenessAnomalyForCrawl } from "../src/crawler/completenessAnomalyPolicy";
 import { FilePilotRelay, PILOT_BUDGET, acquireCloudPilotLease, makeArchiveBundle, restoreArchiveBundle, reviveUtcFields, sha256 } from "../src/crawler/cloudSourcePilotRelay";
 import { bindRuntimeEvidenceArtifactIds, buildAtomicRuntimeCommit, buildPendingRuntimeBatch } from "../src/crawler/runtimeAtomicEvidence";
 import { SOURCE_QUALITY_POLICY_ID, createOwnedSourceQualityFetch, getSourceQualityPolicy, issueSourceQualityAdmission } from "../src/crawler/sourceQualityAdmission";
@@ -173,7 +174,8 @@ export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;re
     bounded.throwIfAborted();
     phase="ISSUE_ADMISSION";const admission=await issueSourceQualityAdmission({plan,result,binding:{releaseCandidateId:identity.releaseCandidateId,batchId,sourceResultId:pending.id,sourceConfigSha256:pending.sourceConfigHash,adapterVersion:pending.adapterVersion},archive:{workspaceRoot:restoredRoot,evidenceSubdirectory:EVIDENCE,artifacts:restoredArtifacts}});
     if(admission.status!=="ACCEPTED")throw Error(`PILOT_ADMISSION_REJECTED:${admission.codes.join(",")}`);
-    phase="BUILD_COMMIT";const commit=buildAtomicRuntimeCommit({plan,pending,identity,batchId,result,...context,artifacts:restoredArtifacts,attemptTracker,sourceAdmissionPolicy:SOURCE_QUALITY_POLICY_ID,sourceQualityAdmission:admission});
+    phase="BUILD_COMMIT";const anomaly=evaluateCompletenessAnomalyForCrawl(plan,result,context.trustedCompletenessBaseline);
+    const commit=buildAtomicRuntimeCommit({plan,pending,identity,batchId,result,...context,artifacts:restoredArtifacts,attemptTracker,sourceAdmissionPolicy:SOURCE_QUALITY_POLICY_ID,sourceQualityAdmission:admission,...(anomaly.triggerCodes.length>0?{completenessAnomalyTriggerCodes:anomaly.triggerCodes}:{})});
     phase="COMPILE_SQL";const sql=await compilePortableAtomicSourceEvidenceSql(commit,owned.handle);
     phase="RENEW_LEASE";const publicationDeadline=await owned.renewOnce(bounded);
     const publicationSignal=AbortSignal.any([owned.handle.signal,AbortSignal.timeout(Math.max(1,publicationDeadline-Date.now())),...(input.signal?[input.signal]:[])]);
