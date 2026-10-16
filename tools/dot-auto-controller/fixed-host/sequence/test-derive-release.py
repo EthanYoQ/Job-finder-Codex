@@ -24,7 +24,7 @@ def derive(pins,target):
   profile=builder.PROFILES[name];cli=builder.render_cli(inputs,name)
   profiles[name]={'schemaVersion':1,'kind':'LIVE_DEPLOYMENT','projectId':'yiopvxysxrtrnvqxwgbx','sourceId':profile['sourceId'],'sourceConfigSha256':profile['sourceConfigSha256'],'candidate':candidate,'databaseIdentity':db,'build':pins['buildIdentity'],'expectedRow':expected,'lockSha256':pins['lockSha256'],'packageManifestSha256':pins['sourceManifestSha256'],'preflightSha256':sha(cli['fixed-'+name+'-preflight.mjs']),'recoveryHelperSha256':sha(cli['fixed-'+name+'-recovery-helper.mts']),'fixturePreloadSha256':None}
   artifacts[name]={**{key:sha(raw) for key,raw in cli.items()},'stableCliSha256':sha(builder.render_stable_cli(inputs,name))}
- deployment={'schemaVersion':1,'kind':'CLOSED_TWO_SOURCE_RELEASE','projectId':'yiopvxysxrtrnvqxwgbx','order':list(builder.ORDER),'profiles':profiles,'artifacts':artifacts}
+ deployment={'schemaVersion':1,'kind':'CLOSED_THREE_SOURCE_RELEASE','projectId':'yiopvxysxrtrnvqxwgbx','order':list(builder.ORDER),'profiles':profiles,'artifacts':artifacts}
  builder.validate_release(inputs,deployment)
  return {'kind':'TEST_ONLY_REAL_NATIVE_SYNTHETIC_DATABASE_DEPLOYMENT','deploymentBytes':json.dumps(deployment,separators=(',',':')),'expectedRow':expected,'mappedTarget':str(target),'nativeDerived':True,'productionQualified':False}
 if __name__=='__main__':

@@ -1,4 +1,4 @@
-"""Closed two-profile artifact map within the original EX install transaction."""
+"""Closed three-profile artifact map within the original EX install transaction."""
 import hashlib,json,pathlib,sys,types
 PREFIX='tools/dot-auto-controller/'
 def require(ok,code):
@@ -18,7 +18,7 @@ def prepare(stage,pins,control,domain,lifecycle_source,remote_fact):
   p=package/relative;raw=p.read_bytes();entry=entries[PREFIX+relative]
   require(len(raw)==entry['bytes'] and sha(raw)==entry['sha256'],'BOUND_MEASURED_SOURCE');return raw
  release_bytes=control['deploymentBytes'].encode('ascii');release=json.loads(release_bytes)
- require(release['kind']=='CLOSED_TWO_SOURCE_RELEASE','BOUND_CLOSED_RELEASE')
+ require(release['kind']=='CLOSED_THREE_SOURCE_RELEASE','BOUND_CLOSED_RELEASE')
  for d in release['profiles'].values():
   require(d['expectedRow']==control['expectedRow'] and d['build']==pins['buildIdentity'] and d['build']['commitSha']==control['commitSha'] and d['packageManifestSha256']==pins['sourceManifestSha256'] and d['lockSha256']==pins['lockSha256'],'BOUND_MEASURED_DEPLOYMENT')
  require(remote_fact['repository']==control['repo'] and remote_fact['commitSha']==control['commitSha'],'BOUND_OFFICIAL_COMMIT')

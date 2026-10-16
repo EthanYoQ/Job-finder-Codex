@@ -18,8 +18,8 @@ def probe(case,evidence):
  activation=case/'strict-disabled-activation-result.json'
  assert json.loads(activation.read_bytes())['passed'] is True
  assert (target/'candidate/functions-entry.enabled.js').is_file()
- assert set(binding['profiles'])=={'takeda','biogen'}
- for name in ('holder.py','cli-takeda.py','cli-biogen.py','lifecycle_lock.py'):
+ assert set(binding['profiles'])=={'takeda','biogen','hengrui'}
+ for name in ('holder.py','cli-takeda.py','cli-biogen.py','cli-hengrui.py','lifecycle_lock.py'):
   assert sha((owner/name).read_bytes())==manifest['files'][name]['sha256']
  active=case/'.installed-disabled.lifecycle-active.json';assert not active.exists()
  before={'activationResultSha256':sha(activation.read_bytes()),'ownerManifestSha256':sha((owner/'OWNER_MANIFEST.json').read_bytes()),'normalInstallActivationPassedBeforeProbe':True}
@@ -31,7 +31,7 @@ def probe(case,evidence):
   ready=json.loads(process.stdout.readline());assert ready['kind']=='LIFECYCLE_READY';assert active.exists()
   # The original holder has not received read: executable business bytes are
   # never evaluated. These calls test only independently installed wiring.
-  for profile in ('takeda','biogen'):
+  for profile in ('takeda','biogen','hengrui'):
    env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','PYTHONDONTWRITEBYTECODE':'1','JOBFINDER_FIXED_LOCAL_MODE':'LIVE','JOBFINDER_FIXED_DEPLOYMENT_SHA256':binding['profiles'][profile]['deploymentSha256']}
    run=subprocess.run(['/usr/bin/python3','-I',str(owner/('cli-'+profile+'.py')),'prepare'],capture_output=True,timeout=120,env=env)
    (case/('prepare-'+profile+'.stdout')).write_bytes(run.stdout);(case/('prepare-'+profile+'.stderr')).write_bytes(run.stderr)

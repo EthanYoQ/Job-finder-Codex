@@ -11,8 +11,8 @@ async function runLiveRound(){
  try{
   sequenceCheck(SEQUENCE_RELEASE&&typeof lifecycleScope!=='undefined'&&typeof lifecycleScope.assertOriginal==='function'&&typeof lifecycleScope.sourceStarted==='function'&&typeof lifecycleScope.sourceSettled==='function'&&typeof lifecycleScope.closeCycle==='function','SEQUENCE_ORIGINAL_LIFECYCLE_REQUIRED');
   lifecycleScope.assertOriginal();
-  // Deliberately two compile-fixed steps. Never enumerate caller/config/env.
-  for(const [name,create] of [['takeda',create_takeda],['biogen',create_biogen]]){
+  // Deliberately three compile-fixed steps. Never enumerate caller/config/env.
+  for(const [name,create] of [['takeda',create_takeda],['biogen',create_biogen],['hengrui',create_hengrui]]){
    lifecycleScope.assertOriginal();
    const deployment=SEQUENCE_RELEASE.profiles[name];
    await lifecycleScope.sourceStarted(name,ACTIVATION.deploymentSha256);

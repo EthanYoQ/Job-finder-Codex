@@ -42,6 +42,7 @@ test('Biogen body retains the exact same source sealing implementation',()=>{
  const other=fs.readFileSync(path.join(HOST,'biogen/body.template.js'),'utf8');
  assert.equal(other,body.replaceAll('source-takeda-china-social','source-biogen-china-social').replaceAll('company-takeda-china','company-biogen-china'));
 });
+test('Hengrui body retains source sealing with its actual source and company identities',()=>{const h=fs.readFileSync(path.join(HOST,'hengrui/body.template.js'),'utf8');assert.equal(h,body.replaceAll('source-takeda-china-social','source-hengrui-social').replaceAll('company-takeda-china','company-hengrui'));});
 // Optional already-existing fixture: tests reuse data in memory only. This is
 // source-body composition against synthetic ports, not a measured build/install.
 const fixturePath=process.env.SOURCE_SEAL_FIXTURE;

@@ -95,8 +95,8 @@
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-binding.mjs",
-      "sha256": "1a64cfe74a4414fc64e68f0facd2a0e50bd0a05ddedf210c523a7ed847da8a5d",
-      "bytes": 12074,
+      "sha256": "c188e578ca1cdca7bfecb197789711365ff67125b50eda93f214370103f271a6",
+      "bytes": 12116,
       "classification": "SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE",
       "originCommit": null,
       "sourceStatus": "LOCAL_UNREGISTERED",
@@ -115,8 +115,8 @@
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-launch.py",
-      "sha256": "57e4fa8c13ae966bd3f417a8c8c27ada183593c8c17de4c1da2a8a34cdb0c0a2",
-      "bytes": 4478,
+      "sha256": "b043f68d7e6ed8694ff44c7da544382eec9ce2e782b641240fbd8e0c9478ceb7",
+      "bytes": 4510,
       "classification": "SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE",
       "originCommit": null,
       "sourceStatus": "LOCAL_UNREGISTERED",
@@ -838,24 +838,34 @@
     },
     {
       "path": "scripts/p0-cloud-portable-source-pilot.ts",
-      "sha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
-      "bytes": 21498,
-      "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
+      "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
       "originCommit": null,
       "productionQualified": false,
-      "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
-      "derivativeBaseSha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+      "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
+      "derivativeBaseSha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
       "priorProvenance": {
         "path": "scripts/p0-cloud-portable-source-pilot.ts",
-        "sha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
-        "bytes": 19776,
-        "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+        "sha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
+        "bytes": 21498,
+        "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
         "originCommit": null,
         "productionQualified": false,
-        "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
-        "derivativeBaseSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
-        "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
-      }
+        "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
+        "derivativeBaseSha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+        "priorProvenance": {
+          "path": "scripts/p0-cloud-portable-source-pilot.ts",
+          "sha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+          "bytes": 19776,
+          "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+          "originCommit": null,
+          "productionQualified": false,
+          "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+          "derivativeBaseSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
+          "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+        }
+      },
+      "sha256": "93b7c38704df5d3270190c2f13d6c29071379c06443172e76cd52f9911713efb",
+      "bytes": 23218
     },
     {
       "path": "scripts/p0-cloud-source-pilot.ts",
@@ -1450,21 +1460,31 @@
     },
     {
       "path": "src/crawler/cloudDbStartedPilot.ts",
-      "sha256": "8440d0b5e08203aecca5e9c4e9aead822ea7b242e1cec11f7eae4cdd70a2ebc1",
-      "bytes": 9729,
-      "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
+      "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
       "originCommit": null,
       "productionQualified": false,
-      "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
-      "derivativeBaseSha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
+      "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
+      "derivativeBaseSha256": "8440d0b5e08203aecca5e9c4e9aead822ea7b242e1cec11f7eae4cdd70a2ebc1",
       "priorProvenance": {
         "path": "src/crawler/cloudDbStartedPilot.ts",
-        "sha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
-        "bytes": 8254,
-        "classification": "CONNECTOR_PUBLICATION_REVIEW_DERIVATIVE",
-        "originSha256": "42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3",
-        "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f"
-      }
+        "sha256": "8440d0b5e08203aecca5e9c4e9aead822ea7b242e1cec11f7eae4cdd70a2ebc1",
+        "bytes": 9729,
+        "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
+        "originCommit": null,
+        "productionQualified": false,
+        "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
+        "derivativeBaseSha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
+        "priorProvenance": {
+          "path": "src/crawler/cloudDbStartedPilot.ts",
+          "sha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
+          "bytes": 8254,
+          "classification": "CONNECTOR_PUBLICATION_REVIEW_DERIVATIVE",
+          "originSha256": "42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3",
+          "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f"
+        }
+      },
+      "sha256": "6dcfa1c504bb1d8bcd7ece80e1fa43010c42b877bcd9f11bc44df2ee73b7281b",
+      "bytes": 11173
     },
     {
       "path": "src/crawler/cloudPilotContext.ts",
@@ -1474,24 +1494,34 @@
     },
     {
       "path": "src/crawler/cloudSourcePilotRelay.ts",
-      "sha256": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f",
-      "bytes": 29706,
-      "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
+      "classification": "HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE",
       "originCommit": null,
       "productionQualified": false,
-      "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
-      "derivativeBaseSha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
+      "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
+      "derivativeBaseSha256": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f",
       "priorProvenance": {
         "path": "src/crawler/cloudSourcePilotRelay.ts",
-        "sha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
-        "bytes": 21229,
-        "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+        "sha256": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f",
+        "bytes": 29706,
+        "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
         "originCommit": null,
         "productionQualified": false,
-        "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
-        "derivativeBaseSha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6",
-        "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
-      }
+        "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
+        "derivativeBaseSha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
+        "priorProvenance": {
+          "path": "src/crawler/cloudSourcePilotRelay.ts",
+          "sha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
+          "bytes": 21229,
+          "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+          "originCommit": null,
+          "productionQualified": false,
+          "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+          "derivativeBaseSha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6",
+          "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+        }
+      },
+      "sha256": "821e7b687e304f78273d191027a51ad5e020e361d592bec01ad14d12e896c4ce",
+      "bytes": 37479
     },
     {
       "path": "src/crawler/companyRecruitmentProfiles/README.md",
@@ -5406,6 +5436,14 @@
       "sha256": "47d615bf0194b8469c6557e75f9a92e70a4b779ac1699392c2a45289ecf995cd",
       "bytes": 41,
       "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/hengruiFixedJobProjectionSidecar.ts",
+      "classification": "HENGRUI_OWNED_BRIDGE_NEW_SOURCE",
+      "originCommit": null,
+      "productionQualified": false,
+      "sha256": "64f6df7fd8a8eb7cf6f2d2ec55d074ca5b063b4c1f237ff3a76d9a506fb7bb25",
+      "bytes": 4809
     }
   ],
   "originCommitIsProvenanceOnly": true,

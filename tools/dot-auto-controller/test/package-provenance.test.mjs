@@ -24,12 +24,19 @@ test('local automation source exports explicit null origin and only exact-histor
  }
 });
 test('historical C60 provenance retains original exact hashes and origin metadata',()=>{
- const historical=manifest.files.filter(f=>!['SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE','REQUEST_READY_SOURCE_DERIVATIVE','BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE','NEW_CONNECTOR_HOST_SOURCE','LOCAL_AUTOMATION_SOURCE_DERIVATIVE','SCHEMA50_SOURCE_DERIVATIVE'].includes(f.classification));assert(historical.length>0);
+ const historical=manifest.files.filter(f=>!['HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE','HENGRUI_OWNED_BRIDGE_NEW_SOURCE','SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE','REQUEST_READY_SOURCE_DERIVATIVE','BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE','NEW_CONNECTOR_HOST_SOURCE','LOCAL_AUTOMATION_SOURCE_DERIVATIVE','SCHEMA50_SOURCE_DERIVATIVE'].includes(f.classification));assert(historical.length>0);
  for(const source of historical){const entry=entryFor(source);assert.equal(entry.provenance.originCommit,manifest.originCommit,source.path);assert.equal(entry.provenance.originCommitIsProvenanceOnly,true,source.path);assert.equal(entry.provenance.originSha256,source.originSha256,source.path);assert.equal(entry.provenance.newBuildQualificationRequired,true,source.path);}
 });
 test('generated build identity is excluded from source export',()=>{assert(!exported.entries.some(f=>f.path===prefix+'build-identity.json'));});
 
-test('Biogen fixed-host derivatives bind exact 0f7d bytes without claiming historical origin',()=>{const files=manifest.files.filter(f=>f.classification==='BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE');assert.equal(files.length,3);for(const source of files){const entry=entryFor(source);assert.equal(entry.provenance.originCommit,null);assert.equal(entry.provenance.derivativeBaseCommit,'0f7d297619d1f357a2da92682de9b62d7409733c');assert.equal(source.derivativeBaseSha256,source.priorProvenance.sha256);assert.equal(entry.provenance.newBuildQualificationRequired,true);}});
+test('Biogen fixed-host ancestry retains exact 0f7d bytes beneath later local Hengrui derivatives',()=>{
+ const files=manifest.files.filter(f=>f.classification==='BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE'||f.priorProvenance?.classification==='BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE');assert.equal(files.length,3);
+ for(const source of files){const entry=entryFor(source),biogen=source.classification==='BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE'?source:source.priorProvenance;
+  assert.equal(biogen.originCommit,null);assert.equal(biogen.derivativeBaseCommit,'0f7d297619d1f357a2da92682de9b62d7409733c');assert.equal(biogen.derivativeBaseSha256,biogen.priorProvenance.sha256);
+  assert.equal(entry.provenance.originCommit,null);assert.equal(entry.provenance.newBuildQualificationRequired,true);
+  if(source!==biogen){assert.equal(source.classification,'HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE');assert.deepEqual(entry.provenance.priorProvenance,biogen);}
+ }
+});
 
 test('request ready derivatives never claim historical source origin',()=>{const files=manifest.files.filter(f=>f.classification==='REQUEST_READY_SOURCE_DERIVATIVE');assert.equal(files.length,5);for(const source of files){const entry=entryFor(source);assert.equal(entry.provenance.originCommit,null);assert.equal(entry.provenance.kind,'request-ready-source-derivative');assert.equal(entry.provenance.derivativeBaseCommit,'9d0a53374ba2a0e73d8edf67e3be0e768f019bb6');assert.equal(source.derivativeBaseSha256,source.priorProvenance.sha256);assert.equal(entry.provenance.newBuildQualificationRequired,true);}});
 

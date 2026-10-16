@@ -68,15 +68,15 @@ async function runPinnedRound(){
   const assertOriginal=()=>lifecycleCheck(session!==null&&!ended&&!finished&&lifecycleRunning,'LIFECYCLE_ORIGINAL_SCOPE');
   const lifecycleScope=Object.freeze({assertOriginal,
    async sourceStarted(profile,releaseSha256){
-    assertOriginal();lifecycleCheck(!recordPending&&sourcePending===null&&profile===['takeda','biogen'][sourceIndex]&&/^[a-f0-9]{64}$/.test(releaseSha256)&&(!releaseDigest||releaseDigest===releaseSha256),'SEQUENCE_START_ORDER');
+    assertOriginal();lifecycleCheck(!recordPending&&sourcePending===null&&profile===['takeda','biogen','hengrui'][sourceIndex]&&/^[a-f0-9]{64}$/.test(releaseSha256)&&(!releaseDigest||releaseDigest===releaseSha256),'SEQUENCE_START_ORDER');
     releaseDigest=releaseSha256;sourcePending=profile;recordPending=true;
     try{await exchange('source-start','LIFECYCLE_SOURCE_STARTED',false,{profile,releaseSha256});assertOriginal();}finally{recordPending=false;}
    },
    async sourceSettled(profile,releaseSha256,fact){
-    assertOriginal();lifecycleCheck(!recordPending&&sourcePending===profile&&profile===['takeda','biogen'][sourceIndex]&&releaseSha256===releaseDigest&&fact&&['VERIFIED','NOT_DUE','KNOWN_NOT_DISPATCHED'].includes(fact.kind),'SEQUENCE_SETTLE_ORDER');recordPending=true;
+    assertOriginal();lifecycleCheck(!recordPending&&sourcePending===profile&&profile===['takeda','biogen','hengrui'][sourceIndex]&&releaseSha256===releaseDigest&&fact&&['VERIFIED','NOT_DUE','KNOWN_NOT_DISPATCHED'].includes(fact.kind),'SEQUENCE_SETTLE_ORDER');recordPending=true;
     try{await exchange('source-settle','LIFECYCLE_SOURCE_SETTLED',false,{profile,releaseSha256,fact});assertOriginal();sourceIndex++;sourcePending=null;}finally{recordPending=false;}
    },
-   closeCycle(result){assertOriginal();lifecycleCheck(sourceIndex===2&&sourcePending===null&&!recordPending&&result&&typeof result==='object','SEQUENCE_ALL_ORIGINAL_SOURCES_CLOSED');completedResults.add(result);}
+   closeCycle(result){assertOriginal();lifecycleCheck(sourceIndex===3&&sourcePending===null&&!recordPending&&result&&typeof result==='object','SEQUENCE_ALL_ORIGINAL_SOURCES_CLOSED');completedResults.add(result);}
   });
   const entry=new Function('tools','notify','lifecycleScope','Date',bytes)(lifecycleTools,lifecycleNotify,lifecycleScope,Date);
   lifecycleCheck(entry&&Object.keys(entry).join(',')==='runLiveRound'&&typeof entry.runLiveRound==='function','LIFECYCLE_ENTRY_API');

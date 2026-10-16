@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Closed Takeda -> Biogen compilation, no execution or activation.
+"""Closed Takeda -> Biogen -> Hengrui compilation, no execution or activation.
 
 The original source-specific factories remain independent. Only fixed path
 bindings and the private completion bridge are composed here. External values
@@ -11,10 +11,11 @@ HERE=Path(__file__).resolve().parent
 HOST=HERE.parent
 PACKAGE=HOST.parent
 LIVE_ROOT='/workspace/scratch/5e9614251709/job-finder-fixed-live-controller-v1'
-ORDER=('takeda','biogen')
+ORDER=('takeda','biogen','hengrui')
 PROFILES={
  'takeda':{'sourceId':'source-takeda-china-social','companyId':'company-takeda-china','sourceConfigSha256':'048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f','builder':'fixed-host/scripts/build-functions-entry.py','body':'fixed-host/functions/body.template.js','templates':'fixed-host/templates/','renderer':'fixed-host/render-fixed-live-source.py'},
- 'biogen':{'sourceId':'source-biogen-china-social','companyId':'company-biogen-china','sourceConfigSha256':'47107a3a1f9dbd3411a1f9244866be7c4bc52422b94a1c92204dc66ac4340348','builder':'fixed-host/biogen/build-functions-entry.py','body':'fixed-host/biogen/body.template.js','templates':'fixed-host/biogen/','renderer':'fixed-host/biogen/render-biogen-source.py'}}
+ 'biogen':{'sourceId':'source-biogen-china-social','companyId':'company-biogen-china','sourceConfigSha256':'47107a3a1f9dbd3411a1f9244866be7c4bc52422b94a1c92204dc66ac4340348','builder':'fixed-host/biogen/build-functions-entry.py','body':'fixed-host/biogen/body.template.js','templates':'fixed-host/biogen/','renderer':'fixed-host/biogen/render-biogen-source.py'},
+ 'hengrui':{'sourceId':'source-hengrui-social','companyId':'company-hengrui','sourceConfigSha256':'93dcadb4a572da022694b3ab3040fad541fe674107e3dc66fd2323709e374b4e','builder':'fixed-host/hengrui/build-functions-entry.py','body':'fixed-host/hengrui/body.template.js','templates':'fixed-host/hengrui/','renderer':'fixed-host/hengrui/render-hengrui-source.py'}}
 OWN_INPUTS=('fixed-host/sequence/build-functions-entry.py','fixed-host/sequence/coordinator.template.js','fixed-host/sequence/lifecycle-loader.template.js','fixed-host/sequence/holder.py.in','fixed-host/sequence/cli-entry.py.in','fixed-host/sequence/local-activation.py.in','fixed-host/sequence/activation-renderer.py','fixed-host/sequence/bound-artifacts.py.in','fixed-host/sequence/render-install.py','fixed-host/install/activation-renderer.py','fixed-host/install/install-holder.py.in','fixed-host/install/staging.py.in','fixed-host/install/reader-helper.mjs','fixed-host/install/facts.mjs','fixed-host/install/install.functions.template.js','fixed-host/install/post-retirement.sql','fixed-host/install/retired-candidate.json','config/reader-pins.json','config/reader-api-pins.json')
 def require(ok,code):
  if not ok:raise RuntimeError(code)
@@ -63,7 +64,7 @@ def render_cli(inputs,profile):
    text=text.replace("BASE/'active-round.json'","STATE/'active-round.json'")
    text=text.replace('directories(BASE/name)','directories(STATE/name)').replace('os.open(BASE/name,','os.open(STATE/name,')
    text=replace_once(text,'private=p in (BASE,DEPLOYMENTS,ROUNDS,',"private=p in (BASE,BASE/'sources',STATE,DEPLOYMENTS,ROUNDS,")
-   text=replace_once(text,"'JOBFINDER_FIXED_DEPLOYMENT_SHA256':selector()}","'JOBFINDER_FIXED_DEPLOYMENT_SHA256':selector(),'JOBFINDER_FIXED_SEQUENCE_LAYOUT':'TAKEDA_BIOGEN_V1'}")
+   text=replace_once(text,"'JOBFINDER_FIXED_DEPLOYMENT_SHA256':selector()}","'JOBFINDER_FIXED_DEPLOYMENT_SHA256':selector(),'JOBFINDER_FIXED_SEQUENCE_LAYOUT':'TAKEDA_BIOGEN_HENGRUI_V1'}")
    text=replace_once(text,'derived=preflight();fd=root_lock()',"derived=preflight()\n    for p in (BASE/'sources',STATE):\n        if not p.exists():p.mkdir(mode=0o700)\n        directories(p/'scope-check')\n    fd=root_lock()")
    # A close receipt must survive the directory entry, too. Recheck the same
    # named bytes and all ancestor identities; uncertain persistence stays HOLD.
@@ -91,14 +92,14 @@ def profile_inputs(inputs,profile):
  body=replace_once(body,"BASE+'/candidate/fixed-preimport-launch.py'","BASE+'/candidate/fixed-"+profile+"-preimport-launch.py'")
  body=replace_once(body,"+'.lifecycle-owner/cli-entry.py'","+'.lifecycle-owner/cli-"+profile+".py'")
  body=body.replace("BASE+'/rounds/'","BASE+'/sources/"+profile+"/rounds/'")
- body=replace_once(body,"const prefix='JOBFINDER_CONNECTOR_HOST_SHA256='","const prefix='JOBFINDER_FIXED_SEQUENCE_LAYOUT=TAKEDA_BIOGEN_V1 JOBFINDER_CONNECTOR_HOST_SHA256='")
+ body=replace_once(body,"const prefix='JOBFINDER_CONNECTOR_HOST_SHA256='","const prefix='JOBFINDER_FIXED_SEQUENCE_LAYOUT=TAKEDA_BIOGEN_HENGRUI_V1 JOBFINDER_CONNECTOR_HOST_SHA256='")
  source[p['body']]=body.encode()
  # These remain private, compile-fixed transport bytes. No cfg layout selector.
  helper=source['fixed-host/functions/host-helper.js'].decode()
- helper=replace_once(helper,'"JOBFINDER_CONNECTOR_HOST_SHA256="','"JOBFINDER_FIXED_SEQUENCE_LAYOUT=TAKEDA_BIOGEN_V1 JOBFINDER_CONNECTOR_HOST_SHA256="')
+ helper=replace_once(helper,'"JOBFINDER_CONNECTOR_HOST_SHA256="','"JOBFINDER_FIXED_SEQUENCE_LAYOUT=TAKEDA_BIOGEN_HENGRUI_V1 JOBFINDER_CONNECTOR_HOST_SHA256="')
  transport=source['fixed-host/functions/read-response-transport.js'].decode()
  transport=replace_once(transport,"base+'/rounds/'","base+'/sources/"+profile+"/rounds/'")
- transport=replace_once(transport,"env={**os.environ,'JOBFINDER_CONNECTOR_HOST_SHA256'","env={**os.environ,'JOBFINDER_FIXED_SEQUENCE_LAYOUT':'TAKEDA_BIOGEN_V1','JOBFINDER_CONNECTOR_HOST_SHA256'")
+ transport=replace_once(transport,"env={**os.environ,'JOBFINDER_CONNECTOR_HOST_SHA256'","env={**os.environ,'JOBFINDER_FIXED_SEQUENCE_LAYOUT':'TAKEDA_BIOGEN_HENGRUI_V1','JOBFINDER_CONNECTOR_HOST_SHA256'")
  helper=replace_once(helper,sha(inputs['fixed-host/functions/read-response-transport.js']),sha(transport.encode()))
  source['fixed-host/functions/host-helper.js']=helper.encode()
  source['fixed-host/functions/read-response-transport.js']=transport.encode()
@@ -109,7 +110,7 @@ def render_stable_cli(inputs,profile):
  return inputs['fixed-host/sequence/cli-entry.py.in'].replace(b'__SEQUENCE_PROFILE__',repr(profile).encode())
 def validate_release(inputs,r):
  require(type(r) is dict and set(r)=={'schemaVersion','kind','projectId','order','profiles','artifacts'},'SEQUENCE_RELEASE_KEYS')
- require(r['schemaVersion']==1 and r['kind']=='CLOSED_TWO_SOURCE_RELEASE' and r['projectId']=='yiopvxysxrtrnvqxwgbx' and r['order']==list(ORDER) and set(r['profiles'])==set(ORDER),'SEQUENCE_RELEASE_SCOPE')
+ require(r['schemaVersion']==1 and r['kind']=='CLOSED_THREE_SOURCE_RELEASE' and r['projectId']=='yiopvxysxrtrnvqxwgbx' and r['order']==list(ORDER) and set(r['profiles'])==set(ORDER),'SEQUENCE_RELEASE_SCOPE')
  common=('candidate','databaseIdentity','build','expectedRow','lockSha256','packageManifestSha256','kind','fixturePreloadSha256')
  artifacts={}
  for name in ORDER:
@@ -154,5 +155,5 @@ def main():
   if sys.argv[1]=='write-default-source':
    with (HERE/name).open('xb') as f:f.write(value)
   else:require((HERE/name).read_bytes()==value,'SEQUENCE_GENERATED_BYTES')
- print(encoded({'kind':'CLOSED_TWO_SOURCE_DISABLED_BUILD','entrySha256':sha(raw),'bytes':len(raw),'order':ORDER,'activation':False,'productionQualified':False}))
+ print(encoded({'kind':'CLOSED_THREE_SOURCE_DISABLED_BUILD','entrySha256':sha(raw),'bytes':len(raw),'order':ORDER,'activation':False,'productionQualified':False}))
 if __name__=='__main__':main()
