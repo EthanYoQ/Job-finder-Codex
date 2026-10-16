@@ -94,7 +94,15 @@ export async function runFull49Case(db:NativeFull49Db,caseId:Case){
   else success(await a.query(retireBody));
   if(caseId==='deferred_commit_failure')success(await a.query('UPDATE public."Job" SET "officialTitle"=\'synthetic tamper after compiler before commit\''));
   let bSql=publishFirst||caseId==='lock_timeout'?retireBody:fixture.packet.sql;
-  if(caseId==='post_retire_trigger_atomicity')bSql=`UPDATE public."Job" SET "officialTitle"='synthetic atomic late packet'; INSERT INTO public."CrawlBatchSourceResult" SELECT (jsonb_populate_record(NULL::public."CrawlBatchSourceResult",to_jsonb(s)||jsonb_build_object('id','full49-late-clone'))).* FROM public."CrawlBatchSourceResult" s WHERE id='${oldId.replaceAll("'","''")}';`;
+  if(caseId==='post_retire_trigger_atomicity'){
+   // A terminal baseline parent is rejected by the unchanged parent-insert guard
+   // before the fence. Create a RUNNING synthetic parent in this SAME transaction;
+   // do not disable or reorder any trigger. Both parent and Job must roll back.
+   bSql=`UPDATE public."Job" SET "officialTitle"='synthetic atomic late packet';
+    INSERT INTO public."CrawlBatch" SELECT (jsonb_populate_record(NULL::public."CrawlBatch",to_jsonb(batch)||jsonb_build_object('id','${newBatch}','status','RUNNING','finishedAt',NULL,'aggregateJobSetSha256',NULL))).*
+      FROM public."CrawlBatch" batch JOIN public."CrawlBatchSourceResult" s ON s."batchId"=batch.id WHERE s.id='${oldId.replaceAll("'","''")}';
+    INSERT INTO public."CrawlBatchSourceResult" SELECT (jsonb_populate_record(NULL::public."CrawlBatchSourceResult",to_jsonb(s)||jsonb_build_object('id','full49-late-clone','batchId','${newBatch}'))).* FROM public."CrawlBatchSourceResult" s WHERE id='${oldId.replaceAll("'","''")}';`;
+  }
   const pending=b.query(bSql); // retain/drain this original operation; never replay it
   const deadline=Date.now()+850;
   while(Date.now()<deadline){

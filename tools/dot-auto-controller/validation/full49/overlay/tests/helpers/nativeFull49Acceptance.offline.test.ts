@@ -34,4 +34,5 @@ const negatives:Array<[string,(e:any)=>void]>=[
 ];
 for(const [name,mutate] of negatives){const e=sample('publish_commit');mutate(e);assert.throws(()=>classifyFull49(e),name);passed++;}
 const wrongGuard=sample('retire_commit');wrongGuard.BOperation=fail('V75_FENCE_CANDIDATE_RETIRED');assert.throws(()=>classifyFull49(wrongGuard));passed++;
+const parentGuard=sample('post_retire_trigger_atomicity');parentGuard.BOperation=fail('source result parent batch is terminal');assert.throws(()=>classifyFull49(parentGuard));passed++;
 console.log(JSON.stringify({scope:'OFFLINE_CLASSIFIER_UNIT_ONLY',passed,databaseExecutions:0,nativeConcurrencyPassed:false}));
