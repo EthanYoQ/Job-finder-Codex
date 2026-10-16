@@ -3,7 +3,7 @@
   "inputs": {
     "connector-gate/biogen-functions-bundle.js": "d4dc9e76242fdc37ff24d838d97965274d06ff582f4c582487e70b1b7b30d2fe",
     "connector-gate/dispatch-observer.functions.js": "5b1c87bdfc1d70a886bc3c0cab106270b44068b26fa7f852e98bd5a491c96f71",
-    "fixed-host/biogen/body.template.js": "4974d042ee6fd2885ff25cc8d2746b361f024df73edcfaf1e347d90944befc16",
+    "fixed-host/biogen/body.template.js": "043bd8cf8142e7a9c7c623b0a9a534ea960d131b8ac7783d110c0e4826fd5291",
     "fixed-host/biogen/build-functions-entry.py": "c86dff2aace23779f9dfb50386d05254181736fd485249e1e1a11c6fdfa6d050",
     "fixed-host/biogen/build-shared-cores.py": "c433ee8a88d8080613c38690bc340b271332a3d1721dafb931c15e7738a58459",
     "fixed-host/biogen/fixed-preflight.mjs.in": "c5e69093c0b700d5e33a9dabe2a14a08d09f36082b500af2f64585067860ee2b",
@@ -23,7 +23,7 @@
     "fixed-host/lifecycle/lifecycle_lock.py": "71e642491992e7c6180f8424fea6b1c5b457326b1954d87af1cf2c0c6b41f3ae",
     "fixed-host/scripts/build-lifecycle-artifacts.py": "d0c77fbc8fa445d78d93c51666c67d18713897fbd89e37ed4d7033b7c482236b",
     "public-verification/biogen/functions-bundle.js": "82228323138f7f601070bd743951c7834059fb2891aae33559d36a49a4f5a34c",
-    "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": "d6e07ed10622c648a08456fb8bdb4372f9165a55778d7a3ee4dca68f8cbcccee",
+    "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": "1a64cfe74a4414fc64e68f0facd2a0e50bd0a05ddedf210c523a7ed847da8a5d",
     "vendor/c60-source/ops/cloud-pilot-host/host-files.mts": "ffca12aab4f11596f19fbbcf132dabe269b016f90f5c618dcb8fb57c8bff9784",
     "vendor/c60-source/ops/cloud-pilot-host/relay-files.mjs": "d76370351b5da497f33856d64ba2a3110129898560b8d210cab1fdb20d6f18c2",
     "vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs": "875ad0b954df6cd6516eeec177e5fb5ec5e5a482dfb87165839e55f82cd0ccd2",

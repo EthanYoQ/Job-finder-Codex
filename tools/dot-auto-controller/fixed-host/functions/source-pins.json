@@ -3,7 +3,7 @@
   "inputs": {
     "connector-gate/dispatch-observer.functions.js": "5b1c87bdfc1d70a886bc3c0cab106270b44068b26fa7f852e98bd5a491c96f71",
     "connector-gate/functions-bundle.js": "fbd6bdf1c13b2a6a86ef4b88c8d92e25c01cb81d517cc3298cea8befd62f87be",
-    "fixed-host/functions/body.template.js": "f93893d968f28fd2921cb70ee607377363fea9fc6fbc2ae0d68612ee10516414",
+    "fixed-host/functions/body.template.js": "ac8d63360f0c9cda30ab85c865c31c664e1f073e90b11d8d72d53dcfb84188af",
     "fixed-host/functions/bootstrap-query.sql.template": "bb7002d086d553abc783ad4e192b79500f4365ecfffc15828d2905ecfe265dbd",
     "fixed-host/functions/host-helper.js": "8d6d7bfe19462a4798e051c2fc250e0fdd790010c6eae9950e480d93e8bbf530",
     "fixed-host/functions/lifecycle-activation.template.js": "08c0e03be3db29e448a54fb9223c0f12323de40dd93bf072b4310a838dc250e8",
@@ -23,7 +23,7 @@
     "fixed-host/templates/fixed-preimport-launch.py.in": "1a50263d0d3a29fcb0dc9843ec83c2d4db55fb987844f4df99c24d1f85d5f9d7",
     "fixed-host/templates/fixed-recovery-helper.mts.in": "2c253a75e1f8d7e54f965e24125098e6856a8ce45227b21807d8644c50d0bb85",
     "public-verification/functions-bundle.js": "8f96dfa3e5cc320a7e1841492eb228b04ca39af2c27686e93264fa69086361d3",
-    "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": "d6e07ed10622c648a08456fb8bdb4372f9165a55778d7a3ee4dca68f8cbcccee",
+    "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": "1a64cfe74a4414fc64e68f0facd2a0e50bd0a05ddedf210c523a7ed847da8a5d",
     "vendor/c60-source/ops/cloud-pilot-host/host-files.mts": "ffca12aab4f11596f19fbbcf132dabe269b016f90f5c618dcb8fb57c8bff9784",
     "vendor/c60-source/ops/cloud-pilot-host/relay-files.mjs": "d76370351b5da497f33856d64ba2a3110129898560b8d210cab1fdb20d6f18c2",
     "vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs": "875ad0b954df6cd6516eeec177e5fb5ec5e5a482dfb87165839e55f82cd0ccd2",

@@ -1,0 +1,190 @@
+#!/usr/bin/python3
+"""Fixed one-round lock owner. No daemon, scheduler, network, DB or arbitrary cmd.
+Rendered outside the replaceable target with a fixed reviewed binding. A null
+binding cannot open paths. Only its original private functions session sends
+finish; public loader API has no status/receipt/authorization arguments.
+"""
+import hashlib,json,os,pathlib,stat,sys,types,termios,uuid,re
+BINDING=__FIXED_LIFECYCLE_BINDING__
+
+def require(ok,code):
+    if not ok:raise RuntimeError(code)
+def exact_file(path,digest=None,limit=8*1024*1024):
+    for parent in path.parents:
+        st=parent.lstat()
+        require(stat.S_ISDIR(st.st_mode) and not st.st_mode&0o022 and st.st_uid in (0,os.getuid()),'LIFECYCLE_PARENT')
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        st=os.fstat(fd);sig=lambda s:(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+        require(stat.S_ISREG(st.st_mode) and st.st_uid==os.getuid() and st.st_nlink==1 and not st.st_mode&0o022 and st.st_size<=limit,'LIFECYCLE_FILE')
+        with os.fdopen(os.dup(fd),'rb') as f:data=f.read(limit+1)
+        require(len(data)==st.st_size and sig(st)==sig(os.fstat(fd))==sig(path.lstat()),'LIFECYCLE_FILE_CHANGED')
+        if digest is not None:require(hashlib.sha256(data).hexdigest()==digest,'LIFECYCLE_FILE_PIN')
+        return data
+    finally:os.close(fd)
+
+def load_domain():
+    require(type(BINDING) is dict,'LIFECYCLE_UNQUALIFIED')
+    path=pathlib.Path(BINDING['modulePath'])
+    raw=exact_file(path,BINDING['moduleSha256'])
+    module=types.ModuleType('fixed_lifecycle_runtime');module.__file__=str(path)
+    sys.modules[module.__name__]=module
+    exec(compile(raw,str(path),'exec'),module.__dict__)
+    domain=module.Domain.from_json(json.dumps(BINDING['domain']))
+    return module,domain
+
+def canonical(value):return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+def complete_never_activated_disabled(domain,lease):
+    """Only the fully verified initial disabled install can skip a round.
+    ENOENT alone is never evidence; any prior activation/unknown is HOLD.
+    """
+    lease.check()
+    require(not os.path.lexists(domain.parent/domain.active_name),'LIFECYCLE_PRIOR_ROUND_UNKNOWN')
+    owner=domain.parent/('.'+domain.target_name+'.lifecycle-owner')
+    require(not os.path.lexists(owner/'ACTIVATION_STARTED'),'LIFECYCLE_ACTIVATION_HISTORY')
+    for name in ('install-incomplete','install-attempt'):
+        require(not os.path.lexists(domain.target/name),'LIFECYCLE_INSTALL_INCOMPLETE')
+    require(set(os.listdir(domain.target))=={'runtime-checkout','connector-host-runtime','candidate','deployments','install.lock'},'LIFECYCLE_INITIAL_ROOT_CLOSED_SET')
+    for name in ('runtime-checkout','connector-host-runtime','candidate','deployments'):
+        st=(domain.target/name).lstat();require(stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode) and st.st_uid==os.getuid() and not st.st_mode&0o022,'LIFECYCLE_INITIAL_COMPONENT')
+    st=(domain.target/'install.lock').lstat();require(stat.S_ISREG(st.st_mode) and st.st_uid==os.getuid() and st.st_nlink==1 and stat.S_IMODE(st.st_mode)==0o600 and st.st_size==0,'LIFECYCLE_INITIAL_INSTALL_LOCK')
+    manifest_raw=exact_file(owner/'OWNER_MANIFEST.json');manifest=json.loads(manifest_raw)
+    complete=json.loads(exact_file(owner/'COMPLETE'))
+    require(set(manifest)=={'schemaVersion','nonce','domain','commitSha','activationEnabled','targetIdentity','targetFiles','files'} and manifest['schemaVersion']==1 and manifest['activationEnabled'] is False,'LIFECYCLE_INITIAL_MANIFEST')
+    require(manifest['domain']==json.loads(domain.to_json()) and complete.get('kind')=='FIXED_CONTROLLER_INSTALLED_DISABLED' and complete.get('nonce')==manifest['nonce'] and complete.get('commitSha')==manifest['commitSha'] and complete.get('activationEnabled') is False and complete.get('ownerManifestSha256')==hashlib.sha256(canonical(manifest)).hexdigest(),'LIFECYCLE_COMPLETE_BINDING')
+    require(exact_file(owner/'BOOTSTRAP_ACTIVE')==manifest['nonce'].encode(),'LIFECYCLE_BOOTSTRAP_BINDING')
+    st=domain.target.lstat();require(stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode) and st.st_uid==os.getuid() and stat.S_IMODE(st.st_mode)==0o700 and [st.st_dev,st.st_ino]==manifest['targetIdentity'],'LIFECYCLE_TARGET_IDENTITY')
+    require(type(manifest['files']) is dict and set(os.listdir(owner))==set(manifest['files'])|{'BOOTSTRAP_ACTIVE','OWNER_MANIFEST.json','COMPLETE'},'LIFECYCLE_OWNER_CLOSED_SET')
+    for name,pin in manifest['files'].items():
+        require(re.fullmatch('[a-zA-Z0-9_.-]+',name) and set(pin)=={'sha256','bytes'},'LIFECYCLE_OWNER_FILE_PIN')
+        raw=exact_file(owner/name,pin['sha256']);require(len(raw)==pin['bytes'],'LIFECYCLE_OWNER_FILE_BYTES')
+    target_files=manifest['targetFiles'];require(type(target_files) is dict and 'candidate/functions-entry.js' in target_files,'LIFECYCLE_TARGET_FILES')
+    for name,pin in target_files.items():
+        parts=pathlib.PurePosixPath(name).parts
+        require(len(parts)==2 and parts[0] in ('candidate','deployments') and parts[1] not in ('','.','..') and set(pin)=={'sha256','bytes'},'LIFECYCLE_TARGET_FILE_PIN')
+        raw=exact_file(domain.target/name,pin['sha256']);require(len(raw)==pin['bytes'],'LIFECYCLE_TARGET_FILE_BYTES')
+    for directory in ('candidate','deployments'):
+        require(set(os.listdir(domain.target/directory))=={pathlib.PurePosixPath(n).name for n in target_files if n.startswith(directory+'/')},'LIFECYCLE_TARGET_CLOSED_SET')
+    disabled=exact_file(domain.target/'candidate/functions-entry.js');first,tail=disabled.split(b'\n',1)
+    prefix=b'const ACTIVATION=Object.freeze('
+    require(first.startswith(prefix) and first.endswith(b');'),'LIFECYCLE_DISABLED_PREFIX')
+    value=json.loads(first[len(prefix):-2]);digest=value.get('deploymentSha256')
+    require(set(value)=={'enabled','mode','deploymentSha256'} and value['enabled'] is False and value['mode']=='LIVE' and isinstance(digest,str) and re.fullmatch('[a-f0-9]{64}',digest) and digest!='0'*64,'LIFECYCLE_DISABLED_IDENTITY')
+    require(hashlib.sha256(exact_file(domain.target/'deployments'/(digest+'.json'))).hexdigest()==digest,'LIFECYCLE_DISABLED_DEPLOYMENT')
+    enabled=first.replace(b'"enabled":false',b'"enabled":true',1)+b'\n'+tail
+    require(len(enabled)==BINDING['entryBytes'] and hashlib.sha256(enabled).hexdigest()==BINDING['entrySha256'],'LIFECYCLE_DISABLED_ENABLED_PAIR')
+    # Reuse the original source/runtime/derived-identity preflight. This is a
+    # disabled integrity check, not a round, DB read or producer launch.
+    release=json.loads(exact_file(domain.target/'deployments'/(digest+'.json')))
+    require(release['kind']=='CLOSED_TWO_SOURCE_RELEASE' and release['order']==['takeda','biogen'] and set(release['profiles'])=={'takeda','biogen'},'SEQUENCE_DISABLED_RELEASE')
+    prior_mode=os.environ.get('JOBFINDER_FIXED_LOCAL_MODE');prior_selector=os.environ.get('JOBFINDER_FIXED_DEPLOYMENT_SHA256')
+    try:
+        for profile in ('takeda','biogen'):
+            deployment=release['profiles'][profile]
+            profile_sha=hashlib.sha256(json.dumps(deployment,ensure_ascii=True,separators=(',',':')).encode()).hexdigest()
+            require(hashlib.sha256(exact_file(domain.target/'deployments'/(profile_sha+'.json'))).hexdigest()==profile_sha,'SEQUENCE_DISABLED_PROFILE')
+            cli_path=domain.target/'candidate'/('fixed-'+profile+'-preimport-launch.py')
+            cli_raw=exact_file(cli_path,target_files['candidate/'+cli_path.name]['sha256'])
+            namespace={'__name__':'fixed_disabled_integrity','__file__':str(cli_path),'LIFECYCLE_LEASE':lease}
+            os.environ['JOBFINDER_FIXED_LOCAL_MODE']='LIVE';os.environ['JOBFINDER_FIXED_DEPLOYMENT_SHA256']=profile_sha
+            exec(compile(cli_raw,str(cli_path),'exec'),namespace);derived=namespace['preflight']()
+            require(derived['expectedRow']==deployment['expectedRow'] and derived['control']['build']==deployment['build'],'LIFECYCLE_DISABLED_ORIGINAL_PREFLIGHT')
+    finally:
+        for key,value in (('JOBFINDER_FIXED_LOCAL_MODE',prior_mode),('JOBFINDER_FIXED_DEPLOYMENT_SHA256',prior_selector)):
+            if value is None:os.environ.pop(key,None)
+            else:os.environ[key]=value
+    lease.check();return hashlib.sha256(disabled).hexdigest()
+
+
+def emit(value):print(json.dumps(value,separators=(',',':')),flush=True)
+
+def main():
+    require(len(sys.argv)==1,'LIFECYCLE_NO_ARGUMENTS')
+    # PTY sessions remain writable. Disable echo before producing protocol bytes.
+    if sys.stdin.isatty():
+        attrs=termios.tcgetattr(0);attrs[3]&=~termios.ECHO;termios.tcsetattr(0,termios.TCSANOW,attrs)
+    module,domain=load_domain()
+    with domain.acquire('SH') as lease:
+        try:(domain.target/'candidate/functions-entry.enabled.js').lstat()
+        except FileNotFoundError:
+            disabled_sha=complete_never_activated_disabled(domain,lease)
+            holder_id=uuid.uuid4().hex
+            emit({'kind':'LIFECYCLE_DISABLED_READY','serial':0,'holderId':holder_id,'entrySha256':BINDING['entrySha256'],'entryBytes':BINDING['entryBytes'],'disabledSha256':disabled_sha})
+            raw=sys.stdin.buffer.readline(32769)
+            require(len(raw)<=32768 and raw.endswith(b'\n'),'LIFECYCLE_DISABLED_ACK')
+            command=json.loads(raw);require(command=={'op':'ack-disabled','serial':1},'LIFECYCLE_DISABLED_ACK');lease.check()
+            emit({'kind':'LIFECYCLE_DISABLED_FINISHED','serial':1,'holderId':holder_id});return 0
+        journal=module.OwnedRoundJournal(lease)
+        try:
+            # No candidate content has been opened before SH + durable ACTIVE.
+            target=domain.target
+            for name in ('install-incomplete','install-attempt'):
+                require(not os.path.lexists(target/name),'LIFECYCLE_INSTALL_INCOMPLETE')
+            entry=target/'candidate/functions-entry.enabled.js'
+            raw=exact_file(entry,BINDING['entrySha256'])
+            require(len(raw)==BINDING['entryBytes'],'LIFECYCLE_ENTRY_BYTES')
+            raw.decode('ascii')
+            serial=0;offset=0;source_index=0;source_pending=None;cycle_records=[];release_digest=None
+            emit({'kind':'LIFECYCLE_READY','serial':serial,'holderId':journal.round_id,
+                  'entrySha256':BINDING['entrySha256'],'entryBytes':len(raw)})
+            while True:
+                line=sys.stdin.buffer.readline(32769)
+                if not line:return 78  # EOF is abandonment, never completion.
+                require(len(line)<=32768 and line.endswith(b'\n'),'LIFECYCLE_COMMAND_SIZE')
+                command=json.loads(line);lease.check()
+                require(type(command) is dict and set(command)==({'op','serial','record'} if command.get('op') in ('source-start','source-settle') else {'op','serial'}),'LIFECYCLE_COMMAND')
+                serial+=1
+                require(command['serial']==serial,'LIFECYCLE_SEQUENCE')
+                if command['op']=='read':
+                    require(offset<len(raw),'LIFECYCLE_READ_COMPLETE')
+                    text=raw[offset:offset+8192].decode('ascii');before=offset;offset+=len(text)
+                    emit({'kind':'LIFECYCLE_CHUNK','serial':serial,'holderId':journal.round_id,
+                          'offset':before,'next':offset,'text':text})
+                elif command['op']=='ping':
+                    emit({'kind':'LIFECYCLE_ALIVE','serial':serial,'holderId':journal.round_id})
+                elif command['op'] in ('source-start','source-settle'):
+                    require(offset==len(raw),'LIFECYCLE_NOT_LOADED')
+                    record=command['record'];phase=command['op']
+                    require(type(record) is dict and set(record)==({'profile','releaseSha256'} if phase=='source-start' else {'profile','releaseSha256','fact'}),'SEQUENCE_RECORD_KEYS')
+                    require(source_index<2 and record['profile']==('takeda','biogen')[source_index] and re.fullmatch('[a-f0-9]{64}',record['releaseSha256']) and (release_digest is None or release_digest==record['releaseSha256']),'SEQUENCE_RECORD_ORDER')
+                    if phase=='source-start':require(source_pending is None,'SEQUENCE_SOURCE_PENDING')
+                    else:
+                        require(source_pending==record['profile'],'SEQUENCE_SOURCE_NOT_STARTED')
+                        fact=record['fact'];require(type(fact) is dict and fact.get('kind') in ('VERIFIED','NOT_DUE','KNOWN_NOT_DISPATCHED') and fact.get('sourceId')=={'takeda':'source-takeda-china-social','biogen':'source-biogen-china-social'}[source_pending] and re.fullmatch('round-[a-f0-9]{32}',fact.get('roundId','')),'SEQUENCE_SETTLED_FACT')
+                    # Diagnostic ledger only. It cannot restore the live close
+                    # authority held by the original functions closure.
+                    leaf='.'+domain.target_name+'.lifecycle-cycle-'+journal.round_id+'-'+str(serial)+'.json'
+                    evidence=canonical({'schemaVersion':1,'cycleId':journal.round_id,'entrySha256':BINDING['entrySha256'],'phase':phase,'record':record})+b'\n'
+                    out=os.open(leaf,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600,dir_fd=lease.parent_fd)
+                    try:
+                        with os.fdopen(os.dup(out),'wb') as stream:stream.write(evidence);stream.flush();os.fsync(stream.fileno())
+                        ident=(os.fstat(out).st_dev,os.fstat(out).st_ino)
+                    finally:os.close(out)
+                    os.fsync(lease.parent_fd);lease.check()
+                    named=(domain.parent/leaf).lstat()
+                    require((named.st_dev,named.st_ino)==ident and exact_file(domain.parent/leaf)==evidence,'SEQUENCE_RECORD_PERSISTENCE')
+                    cycle_records.append((leaf,evidence,ident));release_digest=record['releaseSha256']
+                    if phase=='source-start':source_pending=record['profile']
+                    else:source_pending=None;source_index+=1
+                    emit({'kind':'LIFECYCLE_SOURCE_STARTED' if phase=='source-start' else 'LIFECYCLE_SOURCE_SETTLED','serial':serial,'holderId':journal.round_id,'recordSha256':hashlib.sha256(evidence).hexdigest()})
+                elif command['op']=='finish':
+                    require(offset==len(raw) and source_index==2 and source_pending is None and len(cycle_records)==4,'SEQUENCE_NOT_ALL_CLOSED')
+                    for leaf,evidence,ident in cycle_records:
+                        st=(domain.parent/leaf).lstat();require((st.st_dev,st.st_ino)==ident and exact_file(domain.parent/leaf)==evidence,'SEQUENCE_RECORD_CHANGED')
+                    # No caller-supplied boolean/result can request qualification.
+                    # This endpoint belongs to the original private owned session.
+                    journal.finish_from_owned_holder()
+                    emit({'kind':'LIFECYCLE_FINISHED','serial':serial,'holderId':journal.round_id})
+                    return 0
+                elif command['op']=='abandon':
+                    emit({'kind':'LIFECYCLE_UNKNOWN','serial':serial,'holderId':journal.round_id})
+                    return 78
+                else:raise RuntimeError('LIFECYCLE_OPERATION')
+        finally:journal.abandon()  # Preserves ACTIVE unless already completed.
+
+if __name__=='__main__':
+    try:sys.exit(main())
+    except BaseException as error:
+        if isinstance(error,SystemExit):raise
+        emit({'kind':'LIFECYCLE_HOLD','reason':str(error),'productionQualified':False})
+        sys.exit(78)

@@ -95,23 +95,43 @@
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-binding.mjs",
-      "bytes": 11526,
-      "sha256": "d6e07ed10622c648a08456fb8bdb4372f9165a55778d7a3ee4dca68f8cbcccee",
-      "classification": "SCHEMA50_SOURCE_DERIVATIVE",
+      "sha256": "1a64cfe74a4414fc64e68f0facd2a0e50bd0a05ddedf210c523a7ed847da8a5d",
+      "bytes": 12074,
+      "classification": "SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE",
       "originCommit": null,
-      "derivativeBaseCommit": "ea12881e9f8c7d1133b068bbbc0e483b9f020714",
-      "productionQualified": false,
-      "derivativeBaseSha256": "a44f915693bc5114756ddf184d6e86a44bf5e37ed2331e6ea125f6eb7bc3ba5e"
+      "sourceStatus": "LOCAL_UNREGISTERED",
+      "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
+      "derivativeBaseSha256": "d6e07ed10622c648a08456fb8bdb4372f9165a55778d7a3ee4dca68f8cbcccee",
+      "priorProvenance": {
+        "path": "ops/cloud-pilot-host/connector-host-binding.mjs",
+        "bytes": 11526,
+        "sha256": "d6e07ed10622c648a08456fb8bdb4372f9165a55778d7a3ee4dca68f8cbcccee",
+        "classification": "SCHEMA50_SOURCE_DERIVATIVE",
+        "originCommit": null,
+        "derivativeBaseCommit": "ea12881e9f8c7d1133b068bbbc0e483b9f020714",
+        "productionQualified": false,
+        "derivativeBaseSha256": "a44f915693bc5114756ddf184d6e86a44bf5e37ed2331e6ea125f6eb7bc3ba5e"
+      }
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-launch.py",
-      "sha256": "0b37f8441bc84c0a0f787763b14ab4e733e8c367455754711c3aec2c2c8ef3cb",
-      "bytes": 4157,
-      "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+      "sha256": "57e4fa8c13ae966bd3f417a8c8c27ada183593c8c17de4c1da2a8a34cdb0c0a2",
+      "bytes": 4478,
+      "classification": "SEQUENCE_FIXED_HOST_SOURCE_DERIVATIVE",
       "originCommit": null,
-      "productionQualified": false,
-      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
-      "derivativeBaseSha256": "b410a05e947f390ab8d5f898aa37ebdc650cc8591d01364011b57fee29492ad1"
+      "sourceStatus": "LOCAL_UNREGISTERED",
+      "derivativeBaseCommit": "c53de6e43569febc515c445ca74292eac355f569",
+      "derivativeBaseSha256": "0b37f8441bc84c0a0f787763b14ab4e733e8c367455754711c3aec2c2c8ef3cb",
+      "priorProvenance": {
+        "path": "ops/cloud-pilot-host/connector-host-launch.py",
+        "sha256": "0b37f8441bc84c0a0f787763b14ab4e733e8c367455754711c3aec2c2c8ef3cb",
+        "bytes": 4157,
+        "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+        "originCommit": null,
+        "productionQualified": false,
+        "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+        "derivativeBaseSha256": "b410a05e947f390ab8d5f898aa37ebdc650cc8591d01364011b57fee29492ad1"
+      }
     },
     {
       "path": "ops/cloud-pilot-host/connector-host-no-network.cjs",

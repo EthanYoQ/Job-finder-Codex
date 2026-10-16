@@ -64,6 +64,11 @@ if len(rows) != 36 or sum(r['route'] == 'PORTABLE' for r in rows) != 20 or sourc
     fail('HOST_SOURCE_ENV')
 # No inherited NODE_OPTIONS/NODE_PATH/preload or alternate source/loader escapes.
 env = {'PATH': str(RUNTIME) + ':/usr/bin:/bin', 'LANG': 'C.UTF-8', 'TZ': 'UTC', 'TSX_DISABLE_CACHE': '1', 'NODE_DISABLE_COMPILE_CACHE': '1', 'JOBFINDER_CONNECTOR_HOST_SHA256': selector, 'JOBFINDER_CLOUD_SOURCE_ID': source}
+sequence_layout = os.environ.get('JOBFINDER_FIXED_SEQUENCE_LAYOUT')
+if sequence_layout is not None:
+    if sequence_layout != 'TAKEDA_BIOGEN_V1' or source not in ('source-takeda-china-social','source-biogen-china-social'):
+        fail('HOST_SEQUENCE_LAYOUT')
+    env['JOBFINDER_FIXED_SEQUENCE_LAYOUT'] = sequence_layout
 round_id = os.environ.get('JOBFINDER_CONNECTOR_ROUND_ID')
 if round_id is not None:
     if not re.fullmatch(r'round-[a-f0-9]{32}', round_id): fail('HOST_ROUND_SELECTOR')

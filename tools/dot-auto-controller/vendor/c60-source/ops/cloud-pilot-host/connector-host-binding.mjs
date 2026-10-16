@@ -8,10 +8,15 @@ import {verifyRuntimeBeforeImport} from '../../../../transport/runtime-integrity
 export const HOST_ROOT=path.resolve(import.meta.dirname);
 export const PRODUCER_ROOT=path.resolve(HOST_ROOT,'../..');
 export const REPOSITORY_ROOT=path.resolve(PRODUCER_ROOT,'../../../..');
-export const BINDING_ROOT=path.join(path.dirname(REPOSITORY_ROOT),'connector-host-bindings');
+const releaseRoot=path.dirname(REPOSITORY_ROOT);
+const sequenceLayout=process.env.JOBFINDER_FIXED_SEQUENCE_LAYOUT;
+const closedStateNames=Object.freeze({'source-takeda-china-social':'takeda','source-biogen-china-social':'biogen'});
+if(sequenceLayout!==undefined&&(sequenceLayout!=='TAKEDA_BIOGEN_V1'||!Object.hasOwn(closedStateNames,process.env.JOBFINDER_CLOUD_SOURCE_ID)))throw Error('HOST_SEQUENCE_LAYOUT');
+export const STATE_ROOT=sequenceLayout===undefined?releaseRoot:path.join(releaseRoot,'sources',closedStateNames[process.env.JOBFINDER_CLOUD_SOURCE_ID]);
+export const BINDING_ROOT=path.join(STATE_ROOT,'connector-host-bindings');
 const roundId=process.env.JOBFINDER_CONNECTOR_ROUND_ID;
 if(roundId!==undefined&&!/^round-[a-f0-9]{32}$/.test(roundId))throw Error('HOST_ROUND_SELECTOR');
-export const TASK_ROOT=roundId===undefined?path.join(path.dirname(REPOSITORY_ROOT),'connector-host-task'):path.join(path.dirname(REPOSITORY_ROOT),'rounds',roundId,'connector-host-task');
+export const TASK_ROOT=roundId===undefined?path.join(STATE_ROOT,'connector-host-task'):path.join(STATE_ROOT,'rounds',roundId,'connector-host-task');
 export const RELAY_ROOT=path.join(TASK_ROOT,'relay');
 export const SELECTOR='JOBFINDER_CONNECTOR_HOST_SHA256';
 export const MODE='TAKEDA_PORTABLE_CONNECTOR_V1';
@@ -30,7 +35,7 @@ const ident=s=>[s.dev,s.ino,s.uid,s.gid,s.mode,s.nlink,s.size,s.mtimeNs,s.ctimeN
 function directories(file){
  if(process.platform!=='linux'||typeof process.getuid!=='function'||process.getuid()<=0||!fs.constants.O_NOFOLLOW)fail('HOST_PLATFORM');
  const uid=process.getuid(),out=[];let p=path.dirname(file);
- while(true){const s=fs.lstatSync(p,{bigint:true}),privateDir=[BINDING_ROOT,TASK_ROOT,RELAY_ROOT,...(roundId?[path.join(path.dirname(REPOSITORY_ROOT),'rounds'),path.dirname(TASK_ROOT)]:[])].includes(p);
+ while(true){const s=fs.lstatSync(p,{bigint:true}),privateDir=[BINDING_ROOT,TASK_ROOT,RELAY_ROOT,...(sequenceLayout?[STATE_ROOT,path.dirname(STATE_ROOT)]:[]),...(roundId?[path.join(STATE_ROOT,'rounds'),path.dirname(TASK_ROOT)]:[])].includes(p);
   if(!s.isDirectory()||s.isSymbolicLink()||(s.mode&0o022n)!==0n||(Number(s.uid)!==uid&&(privateDir||Number(s.uid)!==0))||privateDir&&(Number(s.uid)!==uid||(s.mode&0o7777n)!==0o700n))fail('HOST_DIRECTORY');
   out.push([p,[s.dev,s.ino,s.uid,s.gid,s.mode].map(String).join(':')]);const parent=path.dirname(p);if(parent===p)break;p=parent;
  }return out;
