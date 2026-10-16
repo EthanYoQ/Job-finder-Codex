@@ -6,8 +6,10 @@ from pathlib import Path
 import importlib.util,json,os,subprocess,sys
 HERE=Path(__file__).resolve().parent;HOST=HERE.parent;ROOT=HOST.parents[2]
 PINS=json.loads(Path(os.environ['INSTALL_TEST_PINS']).read_text())
-def exercise(case):
- case=Path(case).resolve();assert case.parent==ROOT/'evidence/install/lifecycle-cases' and case.name.startswith('case-');owner=case/'.installed-disabled.lifecycle-owner';target=case/'installed-disabled'
+def exercise(case,evidence=None):
+ evidence=Path(evidence or os.environ.get('INSTALL_TEST_EVIDENCE',str(ROOT.parent/(ROOT.name+'-test-evidence')/'install'))).resolve()
+ assert not evidence.is_relative_to(ROOT) and not evidence.is_relative_to(Path(PINS['sourceRoot']).resolve()),'TEST_EVIDENCE_INPUT_OVERLAP'
+ case=Path(case).resolve();assert case.parent==evidence/'lifecycle-cases' and case.name.startswith('case-');owner=case/'.installed-disabled.lifecycle-owner';target=case/'installed-disabled'
  tracer=case/'test-activation-trace.py'
  tracer.write_text('''import sys,pathlib
 TARGET='''+repr(str(target))+'''

@@ -5,9 +5,17 @@ from pathlib import Path
 import base64,contextlib,hashlib,importlib.util,json,os,pty,select,shutil,signal,subprocess,sys,tempfile,time,types,unittest
 sys.dont_write_bytecode=True
 HERE=Path(__file__).resolve().parent;HOST=HERE.parent;ROOT=HOST.parents[2]
-EVIDENCE=ROOT/'evidence/install';CASES=EVIDENCE/'lifecycle-cases';CASES.mkdir(parents=True,exist_ok=True,mode=0o700)
 PINS_PATH=Path(os.environ['INSTALL_TEST_PINS']).resolve()
 PINS=json.loads(PINS_PATH.read_text())
+EVIDENCE=Path(os.environ.get('INSTALL_TEST_EVIDENCE',str(ROOT.parent/(ROOT.name+'-test-evidence')/'install'))).absolute()
+TMP_EVIDENCE_ROOT=Path('/tmp')/('dot-fixed-install-test-'+str(os.getuid()))
+assert EVIDENCE==EVIDENCE.resolve() and (EVIDENCE.is_relative_to(ROOT.parent) or EVIDENCE.is_relative_to(TMP_EVIDENCE_ROOT)) and 'job-finder-fixed-live-controller-v1' not in EVIDENCE.parts,'TEST_EVIDENCE_SCOPE'
+if EVIDENCE.is_relative_to(TMP_EVIDENCE_ROOT):
+ TMP_EVIDENCE_ROOT.mkdir(mode=0o700,exist_ok=True)
+ st=TMP_EVIDENCE_ROOT.lstat();assert __import__('stat').S_ISDIR(st.st_mode) and st.st_uid==os.getuid() and st.st_mode&0o777==0o700,'TEST_PRIVATE_TMP_ROOT'
+for origin in (ROOT,Path(PINS['sourceRoot']).resolve(),Path(PINS['builtRoot']).resolve()):
+ assert not EVIDENCE.is_relative_to(origin) and not origin.is_relative_to(EVIDENCE),'TEST_EVIDENCE_INPUT_OVERLAP'
+CASES=EVIDENCE/'lifecycle-cases';CASES.mkdir(parents=True,exist_ok=True,mode=0o700)
 NODE=PINS['nodePath'];sha=lambda x:hashlib.sha256(x).hexdigest()
 spec=importlib.util.spec_from_file_location('lifecycle_render',HOST/'scripts/build-lifecycle-artifacts.py');build=importlib.util.module_from_spec(spec);spec.loader.exec_module(build)
 FACTTURE=subprocess.check_output([NODE,'--input-type=module','-e',"import {expected,r,row} from "+json.dumps((HERE/'facts-fixture.mjs').as_uri())+";console.log(JSON.stringify({expected,r,row}));"],env={'PATH':'/usr/bin:/bin'})
@@ -54,7 +62,9 @@ class Process:
     if not b:raise RuntimeError('HOLDER_EXIT:'+self.stderr.decode())
     self.buffer+=b
    if time.monotonic()>=until:raise RuntimeError('HOLDER_TIMEOUT:'+self.stderr.decode())
-  line,self.buffer=self.buffer.split(b'\n',1);return json.loads(line.rstrip(b'\r'))
+  line,self.buffer=self.buffer.split(b'\n',1);value=json.loads(line.rstrip(b'\r'))
+  with (self.f['case']/'test-protocol.jsonl').open('a') as log:log.write(json.dumps({'response':value,'stderr':self.stderr.decode(errors='replace')})+'\n')
+  return value
  def send(self,op,payload=None):
   self.serial+=1;raw=json.dumps({'op':op,'serial':self.serial,'payload':payload},separators=(',',':')).encode()+b'\n'
   if self.master is not None:
@@ -73,6 +83,8 @@ class Process:
  def close(self):
   if self.p.poll() is None:self.p.kill()
   self.p.wait(timeout=10)
+  if self.p.stderr:self.stderr+=self.p.stderr.read()
+  with (self.f['case']/'test-process.stderr.log').open('ab') as log:log.write(self.stderr)
   if self.master is not None:os.close(self.master)
   for x in (self.p.stdin,self.p.stdout,self.p.stderr):
    if x:x.close()
@@ -113,6 +125,24 @@ class BootstrapTests(unittest.TestCase):
  def test_preexisting_target_lock_owner_and_stage_rejected(self):
   for name in ('installed-disabled','.installed-disabled.lifecycle.lock','.installed-disabled.install-stage'):
    q=self.f['case']/name;q.write_bytes(b'UNKNOWN');p=self.start();self.assertEqual(p.read()['reason'],'INSTALL_EXISTING_OR_UNKNOWN');self.assertFalse(self.f['owner'].exists());q.unlink()
+ def test_source_contains_stage_rejected_before_any_copy(self):
+  self.f['source']=self.f['source'].replace(repr(PINS['sourceRoot']),repr(str(self.f['case'])))
+  p=self.start();self.assertEqual(p.read()['kind'],'INSTALL_READY');p.send('stage');r=p.read();self.assertEqual(r,{'kind':'INSTALL_HOLD','reason':'INSTALL_COPY_DOMAIN_OVERLAP'})
+  self.assertFalse((self.f['case']/'.installed-disabled.install-stage').exists());self.assertFalse(self.f['target'].exists())
+  m,d=domain_for(self.f)
+  for mode in ('SH','EX'):
+   with self.assertRaisesRegex(m.Hold,'ACTIVE_OR_UNKNOWN_MUTATION'):d.acquire(mode)
+  self.replay_holds()
+ def test_copy_domain_alias_and_reverse_overlap_rejected(self):
+  ns={'INSTALL_PINS':PINS,'INSTALL_SCOPE':self.f['binding']['scope']};exec(compile((HERE/'staging.py.in').read_text(),'<test-original-staging>','exec'),ns)
+  source=self.f['case']/'source';source.mkdir();alias=self.f['case']/'source-alias';alias.symlink_to(source,target_is_directory=True)
+  cap=types.SimpleNamespace(stage=self.f['case']/'.stage',target=self.f['case']/'target')
+  ns['SOURCE']=alias
+  with self.assertRaisesRegex(ns['Hold'],'INSTALL_COPY_SOURCE_LINK'):ns['require_disjoint_copy_domains'](cap)
+  ns['SOURCE']=source;cap.stage=self.f['case']
+  with self.assertRaisesRegex(ns['Hold'],'INSTALL_COPY_DOMAIN_OVERLAP'):ns['require_disjoint_copy_domains'](cap)
+  cap.stage=alias/'stage'
+  with self.assertRaisesRegex(ns['Hold'],'INSTALL_COPY_DESTINATION_LINK'):ns['require_disjoint_copy_domains'](cap)
  def test_PTY_noncanonical_input_over_16KiB_is_not_truncated(self):
   p=self.start(use_pty=True);self.assertEqual(p.read()['kind'],'INSTALL_READY');n=p.send('publish',{'padding':'x'*20000});self.assertGreater(n,16384);r=p.read();self.assertEqual(r,{'kind':'INSTALL_HOLD','reason':'INSTALL_PUBLISH_ORDER'})
 if __name__=='__main__':unittest.main()

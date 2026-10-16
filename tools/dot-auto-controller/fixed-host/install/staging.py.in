@@ -152,8 +152,20 @@ def verify_stage(stage,run_original=True,incomplete=False,*,lifecycle_lease=None
   require(p.returncode==0,'ORIGINAL_VERIFIER_FAILED:'+p.stderr.decode()[-1800:])
  return {'sourceFiles':SOURCE_COUNT,'build':BUILD,'originalVerifiersExecuted':run_original,'activation':False,'productionQualified':False}
 
+def require_disjoint_copy_domains(cap):
+ # Check real namespaces before any source walk, mkdir or copy. A staging
+ # descendant of SOURCE recursively copies itself; an ancestor risks replacing
+ # an input. Fixed bindings never authorize either direction or a symlink alias.
+ for destination in (cap.stage,cap.target):
+  require(destination.is_absolute() and destination==destination.resolve(strict=False),'INSTALL_COPY_DESTINATION_LINK')
+  for origin in (SOURCE,BUILT,EVIDENCE):
+   actual=origin.resolve(strict=True)
+   require(origin.is_absolute() and origin==actual,'INSTALL_COPY_SOURCE_LINK')
+   require(not destination.is_relative_to(actual) and not actual.is_relative_to(destination),'INSTALL_COPY_DOMAIN_OVERLAP')
+
 def _stage_under_lifecycle(cap):
  authority(cap);require(getattr(cap,'lifecycle_lease',None) is not None,'LIFECYCLE_LEASE_REQUIRED');cap.lifecycle_lease.check();require(not os.path.lexists(cap.stage) and not os.path.lexists(cap.target),'CASE_ALREADY_USED')
+ require_disjoint_copy_domains(cap)
  for p in (SOURCE,BUILT,EVIDENCE,NODE.parent):directories(p)
  verify_sources(SOURCE);require(git(SOURCE,'rev-parse','HEAD').strip().decode()==HEAD,'SOURCE_HEAD')
  deps=manifest(EVIDENCE/'dependencies-manifest.json',DEP_PIN);dist=manifest(EVIDENCE/'dist-manifest.json',DIST_PIN);verify_tree(BUILT/'node_modules',deps);verify_tree(BUILT/'dist',dist);require(sha(exact_bytes(NODE))==NODE_PIN,'NODE_PIN')
@@ -197,7 +209,7 @@ def _rename_noreplace(pfd,old,new):
   err=ctypes.get_errno();raise Hold('RENAME_NOREPLACE:'+str(err))
 
 def _publish_under_lifecycle(cap):
- authority(cap);require(cap.stage.is_dir() and not cap.stage.is_symlink(),'STAGE_ABSENT');verify_stage(cap.stage,lifecycle_lease=cap.lifecycle_lease)
+ authority(cap);require_disjoint_copy_domains(cap);require(cap.stage.is_dir() and not cap.stage.is_symlink(),'STAGE_ABSENT');verify_stage(cap.stage,lifecycle_lease=cap.lifecycle_lease)
  pfd=os.open(cap.case,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW);sfd=os.open(STAGE_NAME,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=pfd);lfd=os.open('install.lock',os.O_RDWR|os.O_NOFOLLOW,dir_fd=sfd);renamed=False
  def ident(s):return (s.st_dev,s.st_ino)
  caseid=ident(os.fstat(pfd));stageid=ident(os.fstat(sfd));lockid=ident(os.fstat(lfd))

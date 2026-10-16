@@ -11,7 +11,7 @@ if os.environ.get('INSTALL_TEST_READER_FIXTURE'):
  READER=json.loads(Path(os.environ['INSTALL_TEST_READER_FIXTURE']).read_text())
 else:
  readercase=t.EVIDENCE/'reader-cases'/('case-bound-'+__import__('uuid').uuid4().hex)
- READER=json.loads(subprocess.check_output([t.NODE,str(HERE/'test-reader-fixture.mjs'),str(readercase)],text=True,env={'PATH':'/usr/bin:/bin'}))
+ READER=json.loads(subprocess.check_output([t.NODE,str(HERE/'test-reader-fixture.mjs'),str(readercase)],text=True,env={'PATH':'/usr/bin:/bin','INSTALL_TEST_EVIDENCE':str(t.EVIDENCE)}))
  (readercase/'fixture.json').write_text(json.dumps(READER))
 LIVE='/workspace/scratch/5e9614251709/job-finder-fixed-live-controller-v1';PARENT='/workspace/scratch/5e9614251709';TARGET='job-finder-fixed-live-controller-v1'
 def mapped(raw,f):
@@ -84,7 +84,9 @@ class FullTests(unittest.TestCase):
   pass
  def start(self,**kw):p=t.Process(self.f,**kw);self.ps.append(p);return p
  def staged_reader(self,p):
-  ready=p.read();self.assertEqual(ready['kind'],'INSTALL_READY',ready);p.send('stage');r=p.read();self.assertEqual(r['result']['kind'],'INSTALL_STAGED',r);p.send('reader');r=p.read();self.assertEqual(r['result']['kind'],'INSTALL_READER_VERIFIED',r);return t.facts(self.f,r['result']['identity'],ready['nonce'])
+  ready=p.read();self.assertEqual(ready.get('kind'),'INSTALL_READY',(ready,p.stderr.decode()));p.send('stage');r=p.read()
+  self.assertEqual(r.get('kind'),'INSTALL_RESULT',(r,p.stderr.decode()));self.assertEqual(r.get('result',{}).get('kind'),'INSTALL_STAGED',(r,p.stderr.decode()));p.send('reader');r=p.read()
+  self.assertEqual(r.get('kind'),'INSTALL_RESULT',(r,p.stderr.decode()));self.assertEqual(r.get('result',{}).get('kind'),'INSTALL_READER_VERIFIED',(r,p.stderr.decode()));return t.facts(self.f,r['result']['identity'],ready['nonce'])
  def assert_unknown(self):
   m,d=t.domain_for(self.f)
   for mode in ('SH','EX'):
@@ -102,7 +104,7 @@ class FullTests(unittest.TestCase):
   with m.exclusive_transaction(d) as lease:lease.finish_mutation_from_owned_transaction()
   (t.EVIDENCE/'bound-success-case.json').write_text(json.dumps({'case':str(self.f['case']),'owner':str(self.f['owner']),'target':str(self.f['target']),'result':r,'disabled':out,'syntheticFacts':True},indent=2)+'\n')
   spec=importlib.util.spec_from_file_location('actual_stable_exercise',HERE/'test-exercise-bound.py');exercise=importlib.util.module_from_spec(spec);spec.loader.exec_module(exercise)
-  detailed=exercise.exercise(self.f['case']);self.assertTrue(detailed['passed'])
+  detailed=exercise.exercise(self.f['case'],evidence=t.EVIDENCE);self.assertTrue(detailed['passed'])
   (self.f['case']/'strict-disabled-activation-result.json').write_text(json.dumps(detailed,indent=2)+'\n')
  def test_facts_expire_after_initial_validation_before_rename(self):
   p=self.start(trace=('staging','cap.verify_final_facts()',61));payload=self.staged_reader(p);p.send('publish',payload);p.paused();r=p.read();self.assertEqual(r['kind'],'INSTALL_HOLD',r);self.assertIn('INSTALL_NODE_HELPER',r['reason']);self.assertFalse(self.f['target'].exists());self.assert_unknown()

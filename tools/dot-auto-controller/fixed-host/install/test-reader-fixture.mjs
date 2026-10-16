@@ -13,7 +13,14 @@ import {READER_IDENTITY_FILES, READER_IDENTITY_PROJECT} from '../../reader-ident
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const REPOSITORY_ROOT = resolve(PACKAGE_ROOT, '../..');
-const CASES_ROOT = join(REPOSITORY_ROOT, 'evidence/install/reader-cases');
+const EVIDENCE_ROOT = resolve(process.env.INSTALL_TEST_EVIDENCE || join(dirname(REPOSITORY_ROOT), REPOSITORY_ROOT.split('/').at(-1)+'-test-evidence', 'install'));
+const TMP_EVIDENCE_ROOT = '/tmp/dot-fixed-install-test-'+process.getuid();
+assert((EVIDENCE_ROOT.startsWith(dirname(REPOSITORY_ROOT)+'/') || EVIDENCE_ROOT.startsWith(TMP_EVIDENCE_ROOT+'/')) && !EVIDENCE_ROOT.startsWith(REPOSITORY_ROOT+'/') && EVIDENCE_ROOT !== REPOSITORY_ROOT, 'TEST_READER_EVIDENCE_OUTSIDE_SOURCE');
+if (EVIDENCE_ROOT.startsWith(TMP_EVIDENCE_ROOT+'/')) {
+  const st = await lstat(TMP_EVIDENCE_ROOT);
+  assert(st.isDirectory() && !st.isSymbolicLink() && st.uid===process.getuid() && (st.mode&0o777)===0o700, 'TEST_PRIVATE_TMP_ROOT');
+}
+const CASES_ROOT = join(EVIDENCE_ROOT, 'reader-cases');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 
 async function requireSafeAncestors(path) {
@@ -24,7 +31,7 @@ async function requireSafeAncestors(path) {
   }
 }
 
-/** Prepare under this candidate's evidence tree only. Use the same Node binary
+/** Prepare under an external TEST_ONLY evidence tree only. Use the same Node binary
  * here and in the later helper subprocess: runtime pins are deliberately exact.
  * Existing case roots are refused; no source, fixture, or manifest is replaced.
  */
