@@ -11,7 +11,7 @@ const activationCanonical=x=>x===null||typeof x!=='object'?JSON.stringify(x):Arr
 function activationBindingValid(b){
  if(!b||b.schemaVersion!==1)return false;
  const {bindingSha256,...rest}=b,d=b.deployment,row=d?.expectedRow;
- return activationDigest(activationCanonical(rest)).sha256===bindingSha256&&d?.kind==='LIVE_DEPLOYMENT'&&d.fixturePreloadSha256===null&&d.projectId==='yiopvxysxrtrnvqxwgbx'&&d.sourceId==='source-takeda-china-social'&&row&&Object.keys(row).sort().join(',')===activationRowKeys.slice().sort().join(',')&&row.commitSha===d.build.commitSha&&row.commitSha===b.remoteCommit.commitSha&&b.remoteCommit.kind==='OFFICIAL_GITHUB_COMMIT_READ'&&b.enabledEntryBytes===b.disabledEntryBytes-1&&['sourceManifestSha256','canonicalDefaultSha256','builderSha256','deploymentSha256','cliSha256','disabledEntrySha256','enabledEntrySha256','bindingSha256'].every(k=>/^[a-f0-9]{64}$/.test(b[k]));
+ return activationDigest(activationCanonical(rest)).sha256===bindingSha256&&d?.kind==='LIVE_DEPLOYMENT'&&d.fixturePreloadSha256===null&&d.projectId==='yiopvxysxrtrnvqxwgbx'&&d.sourceId==='source-biogen-china-social'&&row&&Object.keys(row).sort().join(',')===activationRowKeys.slice().sort().join(',')&&row.commitSha===d.build.commitSha&&row.commitSha===b.remoteCommit.commitSha&&b.remoteCommit.kind==='OFFICIAL_GITHUB_COMMIT_READ'&&b.enabledEntryBytes===b.disabledEntryBytes-1&&['sourceManifestSha256','canonicalDefaultSha256','builderSha256','deploymentSha256','cliSha256','disabledEntrySha256','enabledEntrySha256','bindingSha256'].every(k=>/^[a-f0-9]{64}$/.test(b[k]));
 }
 let activationAttempted=false;
 async function activateFixedDeployment(){

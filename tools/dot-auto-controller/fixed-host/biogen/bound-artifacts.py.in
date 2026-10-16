@@ -39,6 +39,8 @@ def prepare(stage,pins,control,domain,lifecycle_source,remote_fact):
  for directory in ('functions','lifecycle'):
   for p in (package/'fixed-host'/directory).iterdir():
    if p.is_file():sources['fixed-host/'+directory+'/'+p.name]=source('fixed-host/'+directory+'/'+p.name)
+ # Fixed source-specific activation predicate; original shared generator/EX semantics.
+ sources['fixed-host/functions/lifecycle-activation.template.js']=source('fixed-host/biogen/lifecycle-activation.template.js')
  query=source('fixed-host/functions/bootstrap-query.sql.template').decode().replace('__JOBFINDER_CANDIDATE_ID__',d['candidate']['id'])
  owner=generator.render_fixed_owner_bundle(sources,domain,binding['enabledEntrySha256'],binding['enabledEntryBytes'],binding['cliSha256'],sha(helper),binding,query)
  require(owner['lifecycle_lock.py']==lifecycle_source.encode(),'BOUND_FIXED_LOCK_SOURCE')

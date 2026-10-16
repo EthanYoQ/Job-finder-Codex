@@ -46,7 +46,7 @@ OWN_INPUTS = (
     'fixed-host/lifecycle/holder.py.in',
     'fixed-host/lifecycle/exclusive-holder.py.in',
     'fixed-host/lifecycle/cli-entry.py',
-    'fixed-host/functions/lifecycle-activation.template.js',
+    'fixed-host/biogen/lifecycle-activation.template.js',
     'fixed-host/scripts/build-lifecycle-artifacts.py',
 )
 DEPLOYMENT_KEYS = {'schemaVersion','kind','projectId','sourceId',
@@ -297,7 +297,7 @@ def main():
     lifecycle_builder=load_pinned_module('fixed_lifecycle_builder',FIXED_HOST/'scripts/build-lifecycle-artifacts.py',sources)
     loader=lifecycle_builder.render_loader(sources['fixed-host/functions/lifecycle-loader.template.js'].decode(),sources['fixed-host/functions/sha256.js'].decode())
     rows=next(line for line in sources['fixed-host/functions/host-helper.js'].decode().splitlines() if line.startswith('function rows('))
-    activation=lifecycle_builder.render_activation(sources['fixed-host/functions/lifecycle-activation.template.js'].decode(),sources['fixed-host/functions/sha256.js'].decode(),rows)
+    activation=lifecycle_builder.render_activation(sources['fixed-host/biogen/lifecycle-activation.template.js'].decode(),sources['fixed-host/functions/sha256.js'].decode(),rows)
     if op == 'write-default-source':
         write_exclusive(HERE/'functions-entry.js', result)
         write_exclusive(HERE/'functions-loader.js', loader)

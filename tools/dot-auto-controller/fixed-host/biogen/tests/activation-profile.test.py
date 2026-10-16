@@ -13,3 +13,9 @@ assert "source('fixed-host/install/templates/local-activation.py.in')" not in b
 old_hash=hashlib.sha256((HOST/'scripts/build-functions-entry.py').read_bytes()).hexdigest();new_hash=hashlib.sha256((P/'build-functions-entry.py').read_bytes()).hexdigest()
 assert old_hash!=new_hash,'Regression requires distinct actual builder identities'
 print({'passed':True,'cases':6,'oldBuilderSha256':old_hash,'profileBuilderSha256':new_hash,'newExecutionAuthority':False})
+
+original_activation=(HOST/'functions/lifecycle-activation.template.js').read_text();profile_activation=(P/'lifecycle-activation.template.js').read_text()
+assert original_activation.count('source-takeda-china-social')==1
+assert profile_activation.replace('source-biogen-china-social','source-takeda-china-social')==original_activation
+assert "source('fixed-host/biogen/lifecycle-activation.template.js')" in b
+print({'activationTemplateCases':3,'passed':True})
