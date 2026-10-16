@@ -60,7 +60,7 @@ export async function runNativeTakedaCycle({controlPlane,startupToken}:any){
  const publicationDeadline=Math.min(evidenceExpiry,outerDeadline-2*PILOT_BUDGET.controlMs);
  const p=await transport.prepare('PUBLISH',{source:captured.source,control:{...control,planned:captured.planned,context:publicationBefore.publicationContext},publicationDeadline,jobProjectionDelta:true},{...binding(publicationDeadline),dispatchBefore:publicationDeadline-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs});
  write(runDir+'/relay/'+p.request.requestId+'.request.json',p.request);fs.writeFileSync(runDir+'/relay/'+p.request.requestId+'.request.json.sql',p.request.payload.sql,{flag:'wx',mode:0o600});
- const packet=await reviewTakedaPacket(runDir,p.request.requestId,out+'/packet-review.json');
+ const packet=await reviewTakedaPacket(runDir,p.request.requestId,out+'/packet-review.json',{outerDeadline,publicationDeadline});
  const readerProof=await replayTakedaReaders({run:runDir,outputDirectory:out,before:publicationBefore,packet});assert.deepEqual(readerProof.main,readerProof.fallback,'COMPLETE_DUAL_READER_ALL_FIELDS');
  const api=await projectTakedaApi(beforePublic,out,batchId);
  journal.put(batchId,'30-native-ready',{request:p.request,packetReview:packet.review,readerProof:readerProof.result,apiProof:api.result,expectedApi:api.expected,packet:JSON.parse(JSON.stringify(p.packet)),deadline:publicationDeadline});
