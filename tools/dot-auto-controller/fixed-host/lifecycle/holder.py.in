@@ -4,7 +4,7 @@ Rendered outside the replaceable target with a fixed reviewed binding. A null
 binding cannot open paths. Only its original private functions session sends
 finish; public loader API has no status/receipt/authorization arguments.
 """
-import hashlib,json,os,pathlib,stat,sys,types,termios
+import hashlib,json,os,pathlib,stat,sys,types,termios,uuid,re
 BINDING=__FIXED_LIFECYCLE_BINDING__
 
 def require(ok,code):
@@ -33,6 +33,64 @@ def load_domain():
     domain=module.Domain.from_json(json.dumps(BINDING['domain']))
     return module,domain
 
+def canonical(value):return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()
+def complete_never_activated_disabled(domain,lease):
+    """Only the fully verified initial disabled install can skip a round.
+    ENOENT alone is never evidence; any prior activation/unknown is HOLD.
+    """
+    lease.check()
+    require(not os.path.lexists(domain.parent/domain.active_name),'LIFECYCLE_PRIOR_ROUND_UNKNOWN')
+    owner=domain.parent/('.'+domain.target_name+'.lifecycle-owner')
+    require(not os.path.lexists(owner/'ACTIVATION_STARTED'),'LIFECYCLE_ACTIVATION_HISTORY')
+    for name in ('install-incomplete','install-attempt'):
+        require(not os.path.lexists(domain.target/name),'LIFECYCLE_INSTALL_INCOMPLETE')
+    require(set(os.listdir(domain.target))=={'runtime-checkout','connector-host-runtime','candidate','deployments','install.lock'},'LIFECYCLE_INITIAL_ROOT_CLOSED_SET')
+    for name in ('runtime-checkout','connector-host-runtime','candidate','deployments'):
+        st=(domain.target/name).lstat();require(stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode) and st.st_uid==os.getuid() and not st.st_mode&0o022,'LIFECYCLE_INITIAL_COMPONENT')
+    st=(domain.target/'install.lock').lstat();require(stat.S_ISREG(st.st_mode) and st.st_uid==os.getuid() and st.st_nlink==1 and stat.S_IMODE(st.st_mode)==0o600 and st.st_size==0,'LIFECYCLE_INITIAL_INSTALL_LOCK')
+    manifest_raw=exact_file(owner/'OWNER_MANIFEST.json');manifest=json.loads(manifest_raw)
+    complete=json.loads(exact_file(owner/'COMPLETE'))
+    require(set(manifest)=={'schemaVersion','nonce','domain','commitSha','activationEnabled','targetIdentity','targetFiles','files'} and manifest['schemaVersion']==1 and manifest['activationEnabled'] is False,'LIFECYCLE_INITIAL_MANIFEST')
+    require(manifest['domain']==json.loads(domain.to_json()) and complete.get('kind')=='FIXED_CONTROLLER_INSTALLED_DISABLED' and complete.get('nonce')==manifest['nonce'] and complete.get('commitSha')==manifest['commitSha'] and complete.get('activationEnabled') is False and complete.get('ownerManifestSha256')==hashlib.sha256(canonical(manifest)).hexdigest(),'LIFECYCLE_COMPLETE_BINDING')
+    require(exact_file(owner/'BOOTSTRAP_ACTIVE')==manifest['nonce'].encode(),'LIFECYCLE_BOOTSTRAP_BINDING')
+    st=domain.target.lstat();require(stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode) and st.st_uid==os.getuid() and stat.S_IMODE(st.st_mode)==0o700 and [st.st_dev,st.st_ino]==manifest['targetIdentity'],'LIFECYCLE_TARGET_IDENTITY')
+    require(type(manifest['files']) is dict and set(os.listdir(owner))==set(manifest['files'])|{'BOOTSTRAP_ACTIVE','OWNER_MANIFEST.json','COMPLETE'},'LIFECYCLE_OWNER_CLOSED_SET')
+    for name,pin in manifest['files'].items():
+        require(re.fullmatch('[a-zA-Z0-9_.-]+',name) and set(pin)=={'sha256','bytes'},'LIFECYCLE_OWNER_FILE_PIN')
+        raw=exact_file(owner/name,pin['sha256']);require(len(raw)==pin['bytes'],'LIFECYCLE_OWNER_FILE_BYTES')
+    target_files=manifest['targetFiles'];require(type(target_files) is dict and 'candidate/functions-entry.js' in target_files,'LIFECYCLE_TARGET_FILES')
+    for name,pin in target_files.items():
+        parts=pathlib.PurePosixPath(name).parts
+        require(len(parts)==2 and parts[0] in ('candidate','deployments') and parts[1] not in ('','.','..') and set(pin)=={'sha256','bytes'},'LIFECYCLE_TARGET_FILE_PIN')
+        raw=exact_file(domain.target/name,pin['sha256']);require(len(raw)==pin['bytes'],'LIFECYCLE_TARGET_FILE_BYTES')
+    for directory in ('candidate','deployments'):
+        require(set(os.listdir(domain.target/directory))=={pathlib.PurePosixPath(n).name for n in target_files if n.startswith(directory+'/')},'LIFECYCLE_TARGET_CLOSED_SET')
+    disabled=exact_file(domain.target/'candidate/functions-entry.js');first,tail=disabled.split(b'\n',1)
+    prefix=b'const ACTIVATION=Object.freeze('
+    require(first.startswith(prefix) and first.endswith(b');'),'LIFECYCLE_DISABLED_PREFIX')
+    value=json.loads(first[len(prefix):-2]);digest=value.get('deploymentSha256')
+    require(set(value)=={'enabled','mode','deploymentSha256'} and value['enabled'] is False and value['mode']=='LIVE' and isinstance(digest,str) and re.fullmatch('[a-f0-9]{64}',digest) and digest!='0'*64,'LIFECYCLE_DISABLED_IDENTITY')
+    require(hashlib.sha256(exact_file(domain.target/'deployments'/(digest+'.json'))).hexdigest()==digest,'LIFECYCLE_DISABLED_DEPLOYMENT')
+    enabled=first.replace(b'"enabled":false',b'"enabled":true',1)+b'\n'+tail
+    require(len(enabled)==BINDING['entryBytes'] and hashlib.sha256(enabled).hexdigest()==BINDING['entrySha256'],'LIFECYCLE_DISABLED_ENABLED_PAIR')
+    # Reuse the original source/runtime/derived-identity preflight. This is a
+    # disabled integrity check, not a round, DB read or producer launch.
+    deployment=json.loads(exact_file(domain.target/'deployments'/(digest+'.json')))
+    cli_path=domain.target/'candidate/fixed-preimport-launch.py'
+    cli_raw=exact_file(cli_path,target_files['candidate/fixed-preimport-launch.py']['sha256'])
+    namespace={'__name__':'fixed_disabled_integrity','__file__':str(cli_path),'LIFECYCLE_LEASE':lease}
+    prior_mode=os.environ.get('JOBFINDER_FIXED_LOCAL_MODE');prior_selector=os.environ.get('JOBFINDER_FIXED_DEPLOYMENT_SHA256')
+    try:
+        os.environ['JOBFINDER_FIXED_LOCAL_MODE']='LIVE';os.environ['JOBFINDER_FIXED_DEPLOYMENT_SHA256']=digest
+        exec(compile(cli_raw,str(cli_path),'exec'),namespace);derived=namespace['preflight']()
+        require(derived['expectedRow']==deployment['expectedRow'] and derived['control']['build']==deployment['build'],'LIFECYCLE_DISABLED_ORIGINAL_PREFLIGHT')
+    finally:
+        for key,value in (('JOBFINDER_FIXED_LOCAL_MODE',prior_mode),('JOBFINDER_FIXED_DEPLOYMENT_SHA256',prior_selector)):
+            if value is None:os.environ.pop(key,None)
+            else:os.environ[key]=value
+    lease.check();return hashlib.sha256(disabled).hexdigest()
+
+
 def emit(value):print(json.dumps(value,separators=(',',':')),flush=True)
 
 def main():
@@ -42,6 +100,15 @@ def main():
         attrs=termios.tcgetattr(0);attrs[3]&=~termios.ECHO;termios.tcsetattr(0,termios.TCSANOW,attrs)
     module,domain=load_domain()
     with domain.acquire('SH') as lease:
+        try:(domain.target/'candidate/functions-entry.enabled.js').lstat()
+        except FileNotFoundError:
+            disabled_sha=complete_never_activated_disabled(domain,lease)
+            holder_id=uuid.uuid4().hex
+            emit({'kind':'LIFECYCLE_DISABLED_READY','serial':0,'holderId':holder_id,'entrySha256':BINDING['entrySha256'],'entryBytes':BINDING['entryBytes'],'disabledSha256':disabled_sha})
+            raw=sys.stdin.buffer.readline(32769)
+            require(len(raw)<=32768 and raw.endswith(b'\n'),'LIFECYCLE_DISABLED_ACK')
+            command=json.loads(raw);require(command=={'op':'ack-disabled','serial':1},'LIFECYCLE_DISABLED_ACK');lease.check()
+            emit({'kind':'LIFECYCLE_DISABLED_FINISHED','serial':1,'holderId':holder_id});return 0
         journal=module.OwnedRoundJournal(lease)
         try:
             # No candidate content has been opened before SH + durable ACTIVE.

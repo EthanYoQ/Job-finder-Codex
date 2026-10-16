@@ -1,0 +1,21 @@
+{
+  "adapterBundleHash": "235e54bc98a468cb73b58273c785df229658974bafe053e6fb28595bf376d855",
+  "commitSha": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+  "createdAt": "2026-10-11T10:08:08.337",
+  "dbSnapshotHash": "497022f2a1458e9c2d4ce045bbdf7cfd3486c4e80125b3513a542b4c90ef0d04",
+  "finalizedAt": null,
+  "goalId": "jobfinder-portable-required-40",
+  "id": "dot-cloud-native-d02f4f5-20261011",
+  "migrationVersion": "20261006172300_job_projection_delta_contract",
+  "minimumStableCompanyCount": 41,
+  "oracleVersion": "staged-official-source-v1",
+  "releaseQaEvidenceSha256": null,
+  "rosterHash": "ac44a7c7077e23ffa5367dc4bb8a11b254feebc8a190ae7c27481c7269a5a659",
+  "runtimeTreeHash": "ff62c1961775cf079a86a96157ad3c44ab5b66b6c1829bca670582b85091ca62",
+  "schemaHash": "91ac87fa179ae06c7441141601fd106c5cb636ab739351d5722bed5de151dc3a",
+  "sourceConfigHash": "dce68ae12803ac1278fe2c4bac5457e63c41f58164ceeb2841322e2ee87a1ef3",
+  "sourcePlanHash": "331cc04ae9fb82aeb8001df41c720d0a308dc1402f63b612dcc924276438e1fc",
+  "sourceTreeHash": "f23a3b69c170579e58e5b3aaba09a2a4f16dcb66014f4fcd945a4ae0349b30af",
+  "status": "INVALIDATED",
+  "version": 75
+}

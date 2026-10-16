@@ -24,7 +24,7 @@ async function runPinnedRound(){
  let session=null,holderId=null,serial=0,buffer='',ended=false,finished=false;
  // Each response is bound to this actual original session and strict sequence.
  const absorb=r=>{
-  lifecycleCheck(r&&typeof r.output==='string','LIFECYCLE_TOOL_SHAPE');
+  lifecycleCheck(r&&r.isError!==true&&typeof r.output==='string','LIFECYCLE_TOOL_SHAPE');
   if(r.session_id!==undefined)lifecycleCheck(r.session_id===session,'LIFECYCLE_FOREIGN_SESSION');
   buffer+=r.output.replaceAll('\r\n','\n');
   lifecycleCheck(buffer.length<=1024*1024,'LIFECYCLE_OUTPUT_LIMIT');
@@ -57,6 +57,13 @@ async function runPinnedRound(){
   lifecycleCheck(Number.isSafeInteger(first.session_id)&&first.exit_code===undefined,'LIFECYCLE_ORIGINAL_SESSION');session=first.session_id;
   let ready=absorb(first);
   while(ready===null&&!ended)ready=absorb(await lifecycleTools.write_stdin({session_id:session,chars:'',yield_time_ms:1000,max_output_tokens:20000}));
+  if(ready?.kind==='LIFECYCLE_DISABLED_READY'){
+   lifecycleCheck(!ended&&ready.serial===0&&/^[a-f0-9]{32}$/.test(ready.holderId)&&ready.entrySha256===b.entrySha256&&ready.entryBytes===b.entryBytes&&/^[a-f0-9]{64}$/.test(ready.disabledSha256),'LIFECYCLE_DISABLED_BINDING');
+   holderId=ready.holderId;
+   await exchange('ack-disabled','LIFECYCLE_DISABLED_FINISHED',true);
+   while(!ended){const r=await lifecycleTools.write_stdin({session_id:session,chars:'',yield_time_ms:1000,max_output_tokens:20000});absorb(r);if(ended)lifecycleCheck(r.exit_code===0,'LIFECYCLE_DISABLED_EXIT');}
+   finished=true;return {status:'DISABLED',reason:'COMPLETE_NEVER_ACTIVATED_INSTALL',realToolCalls:0,lifecycle:{state:'DISABLED_INSTALL_VERIFIED',holderId,productionAuthority:false}};
+  }
   lifecycleCheck(!ended&&ready?.kind==='LIFECYCLE_READY'&&ready.serial===0&&/^[a-f0-9]{32}$/.test(ready.holderId)&&ready.entrySha256===b.entrySha256&&ready.entryBytes===b.entryBytes,'LIFECYCLE_READY_BINDING');
   holderId=ready.holderId;
   let offset=0,parts=[];

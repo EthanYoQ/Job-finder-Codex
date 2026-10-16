@@ -1,0 +1,191 @@
+#!/usr/bin/python3
+"""Fixed private installation owner; no command-line paths or authority booleans.
+Functions embeds these reviewed bytes. EX+MUTATION spans staging and both trees.
+"""
+import contextlib,datetime,hashlib,io,json,os,pathlib,re,stat,subprocess,sys,termios,time,types,uuid
+BINDING=__FIXED_INSTALL_HOLDER_BINDING__
+LIFECYCLE_SOURCE=__FIXED_INSTALL_LIFECYCLE_SOURCE__
+STAGING_SOURCE=__FIXED_INSTALL_STAGING_SOURCE__
+READER_SOURCE=__FIXED_INSTALL_READER_SOURCE__
+FACTS_SOURCE=__FIXED_INSTALL_FACTS_SOURCE__
+BOUND_ARTIFACTS_SOURCE=__FIXED_INSTALL_BOUND_ARTIFACTS_SOURCE__
+
+def require(ok,code):
+ if not ok:raise RuntimeError(code)
+def sha(raw):return hashlib.sha256(raw).hexdigest()
+def canonical(v):return json.dumps(v,sort_keys=True,separators=(',',':'),ensure_ascii=False)
+def identity(st):return st.st_dev,st.st_ino
+def module(name,raw,namespace=None):
+ m=types.ModuleType(name);m.__file__='<fixed-embedded-'+name+'>';sys.modules[name]=m
+ if namespace:m.__dict__.update(namespace)
+ exec(compile(raw,m.__file__,'exec'),m.__dict__);return m
+def emit(v):print(json.dumps(v,separators=(',',':')),flush=True)
+def sync_dir(p):
+ fd=os.open(p,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+ try:os.fsync(fd)
+ finally:os.close(fd)
+def put(path,raw,mode=0o600):
+ fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,mode)
+ try:
+  with os.fdopen(os.dup(fd),'wb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
+ finally:os.close(fd)
+def checked(path):
+ fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+ try:
+  st=os.fstat(fd);require(stat.S_ISREG(st.st_mode) and st.st_uid==os.getuid() and st.st_nlink==1 and not st.st_mode&0o022,'INSTALL_FILE')
+  with os.fdopen(os.dup(fd),'rb') as f:raw=f.read()
+  sig=lambda s:(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+  require(len(raw)==st.st_size and sig(st)==sig(os.fstat(fd))==sig(path.lstat()),'INSTALL_FILE_CHANGED');return raw
+ finally:os.close(fd)
+def millis(value):
+ require(type(value) is str and value.endswith('Z'),'INSTALL_CLOCK_FORMAT')
+ try:return datetime.datetime.fromisoformat(value[:-1]+'+00:00').timestamp()*1000
+ except ValueError:raise RuntimeError('INSTALL_CLOCK_FORMAT')
+
+def scope():
+ require(type(BINDING) is dict and set(BINDING)=={'schemaVersion','scope','measuredPins','controlBinding'} and BINDING['schemaVersion']==1,'INSTALL_BINDING')
+ s=BINDING['scope'];require(type(s) is dict and set(s)=={'kind','parent','target'},'INSTALL_SCOPE')
+ if s['kind']=='FIXED_PRODUCTION':
+  require(s=={'kind':'FIXED_PRODUCTION','parent':'/workspace/scratch/5e9614251709','target':'job-finder-fixed-live-controller-v1'},'INSTALL_FIXED_DOMAIN')
+ else:
+  require(s['kind']=='TEST_ONLY' and s['target']=='installed-disabled','INSTALL_TEST_SCOPE')
+  p=pathlib.Path(s['parent']);require(p.is_absolute() and p.name.startswith('case-') and p.parent.name=='lifecycle-cases' and 'job-finder-fixed-live-controller-v1' not in p.parts,'INSTALL_TEST_SCOPE')
+ p=pathlib.Path(s['parent'])
+ for d in (p,*p.parents):
+  st=d.lstat();require(stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode) and st.st_uid in (0,os.getuid()) and not st.st_mode&0o022,'INSTALL_PARENT')
+ require(p.stat().st_uid==os.getuid(),'INSTALL_PARENT_OWNER')
+ c=BINDING['controlBinding'];require(type(c) is dict and set(c)=={'repo','projectId','commitSha','treeSha','retiredCandidate','expectedRow','readerExpected','deploymentBytes'},'INSTALL_CONTROL_BINDING')
+ require(c['repo']=='EthanYoQ/Job-finder-Codex' and c['projectId']=='yiopvxysxrtrnvqxwgbx' and re.fullmatch('[a-f0-9]{40}',c['commitSha']) and re.fullmatch('[a-f0-9]{40}',c['treeSha']),'INSTALL_CONTROL_IDENTITY')
+ require(BINDING['measuredPins']['commitSha']==c['commitSha'] and BINDING['measuredPins']['buildIdentity']['commitSha']==c['commitSha'],'INSTALL_MEASURED_COMMIT')
+ return s,p,c
+
+class Install:
+ def __init__(self,s,parent,control):
+  self.s,self.parent,self.control=s,parent,control;self.nonce=str(uuid.uuid4());self.owner=parent/('.'+s['target']+'.lifecycle-owner');self.target=parent/s['target'];self.stage=parent/('.'+s['target']+'.install-stage')
+  self.lifecycle=module('embedded_install_lifecycle',LIFECYCLE_SOURCE)
+  expected=({'kind':'FIXED_PRODUCTION_SOURCE','parent':str(parent),'target':s['target']} if s['kind']=='FIXED_PRODUCTION' else {'kind':'TEST_ONLY','casesRoot':str(parent.parent)})
+  require(self.lifecycle.SCOPE==expected,'INSTALL_LIFECYCLE_SCOPE')
+  self.cm=None;self.lease=None;self.reader=None;self.staged=False;self.published=False;self.complete=None;self.bound=None
+ def begin(self):
+  # Any owner/lock/target/stage pre-existence is UNKNOWN, never a retry shortcut.
+  for p in (self.owner,self.target,self.stage,self.parent/('.'+self.s['target']+'.lifecycle.lock'),self.parent/('.'+self.s['target']+'.lifecycle-mutation-active.json'),self.parent/('.'+self.s['target']+'.lifecycle-active.json')):
+   require(not os.path.lexists(p),'INSTALL_EXISTING_OR_UNKNOWN')
+  self.owner.mkdir(mode=0o700);self.owner_id=identity(self.owner.stat());sync_dir(self.parent)
+  put(self.owner/'BOOTSTRAP_ACTIVE',self.nonce.encode());sync_dir(self.owner)
+  self.domain=self.lifecycle.provision_for_installer(self.parent,self.s['target'])
+  # Between provision and acquisition, absent candidate/owner manifest blocks
+  # readers; existing owner prevents all other bootstrap installers.
+  self.cm=self.lifecycle.exclusive_transaction(self.domain);self.lease=self.cm.__enter__()
+  self.staging=module('embedded_install_staging',STAGING_SOURCE,{'INSTALL_PINS':BINDING['measuredPins'],'INSTALL_SCOPE':self.s})
+  self.cap=self.staging.owned_capability(self.lease)
+ def continuity(self):
+  self.lease.check();require(identity(self.owner.lstat())==self.owner_id and stat.S_IMODE(self.owner.stat().st_mode)==0o700,'INSTALL_OWNER_CHANGED')
+  require(checked(self.owner/'BOOTSTRAP_ACTIVE')==self.nonce.encode(),'INSTALL_BOOTSTRAP_CHANGED')
+ def stage_files(self):
+  require(not self.staged and not self.published,'INSTALL_STAGE_ORDER');self.continuity()
+  result=self.staging._stage_under_lifecycle(self.cap)
+  require(self.staging.git(self.cap.stage/'runtime-checkout','rev-parse','HEAD^{tree}').strip().decode()==self.control['treeSha'],'INSTALL_LOCAL_TREE')
+  self.staged=True;return {'kind':'INSTALL_STAGED','nonce':self.nonce,'sourceFiles':result['sourceFiles']}
+ def node(self,code,payload,timeout=60):
+  pins=BINDING['measuredPins'];node=pathlib.Path(pins['nodePath']);require(sha(checked(node))==pins['nodeSha256'],'INSTALL_NODE_PIN')
+  p=subprocess.run([str(node),'--input-type=module','-e',code],input=json.dumps(payload).encode(),stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=self.staging.ENV,timeout=timeout,pass_fds=(self.lease.prepare_exec(),))
+  require(p.returncode==0,'INSTALL_NODE_HELPER:'+p.stderr.decode()[-1500:]);return json.loads(p.stdout)
+ def read_reader(self):
+  require(self.staged and self.reader is None and not self.published,'INSTALL_READER_ORDER');self.continuity()
+  self.reader=self.node(READER_SOURCE,{'packageRoot':str(self.cap.stage/'runtime-checkout'/self.staging.PREFIX),'expected':self.control['readerExpected']})
+  require(self.reader.get('schemaVersion')==1 and self.reader.get('projectId')==self.control['projectId'] and self.reader.get('readers')==self.control['readerExpected']['readers'],'INSTALL_ORIGINAL_READER_RESULT')
+  require(0<=time.time()*1000-millis(self.reader['checkedAt'])<45000,'INSTALL_READER_AGE')
+  return {'kind':'INSTALL_READER_VERIFIED','nonce':self.nonce,'identity':self.reader}
+ def validate_facts(self,payload):
+  require(type(payload) is dict and set(payload)=={'schemaVersion','nonce','facts','readerIdentity'} and payload['schemaVersion']==1 and payload['nonce']==self.nonce,'INSTALL_PAYLOAD_BINDING')
+  require(self.reader is not None and payload['readerIdentity']==self.reader,'INSTALL_ORIGINAL_READER_REQUIRED')
+  require(type(payload['facts']) is dict and set(payload['facts'])=={'githubCommit','githubTree','retirement','candidate'},'INSTALL_FACT_SET')
+  for packet in payload['facts'].values():
+   require(type(packet) is dict and set(packet)=={'rawBytes','rawSha256','startedAt','finishedAt'} and type(packet['rawBytes']) is str and len(packet['rawBytes'].encode())<=2*1024*1024 and sha(packet['rawBytes'].encode())==packet['rawSha256'],'INSTALL_RAW_PIN')
+  source=re.sub(r'^export \{[^\n]+\};\n?$', '', FACTS_SOURCE,flags=re.M)
+  code="import fs from 'node:fs';const x=JSON.parse(fs.readFileSync(0,'utf8'));"+source+"\nconst now=Date.now(),f=x.payload.facts,c=x.control;const raw={};let until=Infinity;for(const [k,p] of Object.entries(f)){fresh(p.startedAt,now);fresh(p.finishedAt,now);requireFact(Date.parse(p.startedAt)<=Date.parse(p.finishedAt),'INSTALL_CALL_CLOCK');raw[k]=JSON.parse(p.rawBytes);until=Math.min(until,Date.parse(p.startedAt)+60000,Date.parse(p.finishedAt)+60000);}githubFacts(raw.githubCommit,raw.githubTree,c);until=Math.min(until,Date.parse(retirementFact(raw.retirement,c.retiredCandidate,now))+60000,Date.parse(candidateFact(raw.candidate,c.expectedRow,now))+60000);fresh(x.payload.readerIdentity.checkedAt,now,45000);until=Math.min(until,Date.parse(x.payload.readerIdentity.checkedAt)+45000);console.log(JSON.stringify({expiresAt:until}));"
+  result=self.node(code,{'payload':payload,'control':self.control})
+  require(time.time()*1000<result['expiresAt'],'INSTALL_FINAL_DEADLINE');return result['expiresAt']
+ def prepare_bound(self,payload):
+  c=payload['facts']['githubCommit']
+  remote={'kind':'OFFICIAL_GITHUB_COMMIT_READ','repository':self.control['repo'],'commitSha':self.control['commitSha'],'observedAt':c['finishedAt'],'responseSha256':c['rawSha256']}
+  renderer=module('install_bound_artifact_renderer',BOUND_ARTIFACTS_SOURCE)
+  self.bound=renderer.prepare(self.cap.stage,BINDING['measuredPins'],self.control,json.loads(self.domain.to_json()),LIFECYCLE_SOURCE,remote)
+  require(type(self.bound) is dict and set(self.bound)=={'targetFiles','ownerFiles','qualifyHelperName'},'INSTALL_BOUND_OUTPUT')
+  target_files=self.bound['targetFiles'];require(type(target_files) is dict and target_files,'INSTALL_BOUND_FILES')
+  for name,raw in target_files.items():
+   path=pathlib.PurePosixPath(name)
+   require(type(raw) is bytes and len(path.parts)==2 and path.parts[0] in ('candidate','deployments') and all(x not in ('','.','..') for x in path.parts) and not path.is_absolute() and path.name!='functions-entry.enabled.js','INSTALL_BOUND_PATH')
+   out=self.cap.stage/name
+   if os.path.lexists(out):
+    if name=='deployments/'+BINDING['measuredPins']['sourceManifestSha256']+'.source-manifest.json':
+     require(checked(out)==raw,'INSTALL_BOUND_SOURCE_MANIFEST');continue
+    require(name=='candidate/functions-entry.js' and checked(out)==checked(self.cap.stage/'runtime-checkout'/self.staging.PREFIX/'fixed-host/functions-entry.js'),'INSTALL_BOUND_REPLACE')
+    temporary=out.with_name('.bound-disabled-entry');put(temporary,raw,0o400);os.replace(temporary,out)
+   else:put(out,raw,0o400)
+  self.staging.BOUND_ARTIFACTS=target_files
+  self.staging.sync_all(self.cap.stage)
+  self.staging.verify_stage(self.cap.stage,lifecycle_lease=self.lease)
+ def owner_bundle(self):
+  require(self.bound is not None,'INSTALL_BOUND_REQUIRED');out=self.bound['ownerFiles']
+  require(type(out) is dict and out and all(type(name) is str and re.fullmatch('[a-zA-Z0-9_.-]+',name) and type(raw) is bytes for name,raw in out.items()),'INSTALL_OWNER_OUTPUT')
+  require(not set(out)&{'BOOTSTRAP_ACTIVE','OWNER_MANIFEST.json','COMPLETE'},'INSTALL_OWNER_RESERVED')
+  require(out.get('lifecycle_lock.py')==LIFECYCLE_SOURCE.encode(),'INSTALL_OWNER_LOCK_CODE_CHANGED')
+  for name,raw in sorted(out.items()):put(self.owner/name,raw)
+  manifest={'schemaVersion':1,'nonce':self.nonce,'domain':json.loads(self.domain.to_json()),'commitSha':self.control['commitSha'],'activationEnabled':False,'targetIdentity':list(identity(self.target.lstat())),'targetFiles':{name:{'sha256':sha(raw),'bytes':len(raw)} for name,raw in sorted(self.bound['targetFiles'].items())},'files':{name:{'sha256':sha(raw),'bytes':len(raw)} for name,raw in sorted(out.items())}}
+  put(self.owner/'OWNER_MANIFEST.json',canonical(manifest).encode());sync_dir(self.owner);sync_dir(self.parent)
+  require(set(p.name for p in self.owner.iterdir())==set(out)|{'BOOTSTRAP_ACTIVE','OWNER_MANIFEST.json'},'INSTALL_OWNER_CLOSED_SET')
+  for name,raw in out.items():require(checked(self.owner/name)==raw,'INSTALL_OWNER_VERIFY')
+  require(json.loads(checked(self.owner/'OWNER_MANIFEST.json'))==manifest,'INSTALL_OWNER_MANIFEST_VERIFY')
+  name=self.bound['qualifyHelperName'];require(name in out,'INSTALL_ORIGINAL_QUALIFY_HELPER')
+  helper=module('install_final_qualify',out[name],{'LIFECYCLE_LEASE':self.lease})
+  argv=sys.argv;saved_stdin=sys.stdin;output=io.StringIO()
+  try:
+   sys.argv=[str(self.owner/name),'qualify','0'];sys.stdin=io.TextIOWrapper(io.BytesIO(b''))
+   with contextlib.redirect_stdout(output):helper.main()
+  finally:sys.argv=argv;sys.stdin=saved_stdin
+  result=json.loads(output.getvalue());require(result.get('kind')=='FIXED_ACTIVATION_QUALIFIED','INSTALL_ORIGINAL_QUALIFY_RESULT')
+  require(not os.path.lexists(self.target/'candidate/functions-entry.enabled.js'),'INSTALL_ENABLED_FORBIDDEN')
+  return manifest
+ def publish(self,payload):
+  require(self.staged and not self.published,'INSTALL_PUBLISH_ORDER');self.continuity();self.validate_facts(payload);self.prepare_bound(payload)
+  # This internal closure runs after original verification/fsync immediately
+  # before renameat2; incoming booleans cannot bypass a fact or age check.
+  self.cap.verify_final_facts=lambda:self.validate_facts(payload)
+  self.staging._publish_under_lifecycle(self.cap);self.published=True;self.continuity()
+  manifest=self.owner_bundle();self.staging.verify_stage(self.target,lifecycle_lease=self.lease);self.continuity()
+  self.complete={'kind':'FIXED_CONTROLLER_INSTALLED_DISABLED','nonce':self.nonce,'commitSha':self.control['commitSha'],'activationEnabled':False,'ownerManifestSha256':sha(canonical(manifest).encode())}
+  put(self.owner/'COMPLETE',canonical(self.complete).encode());sync_dir(self.owner);sync_dir(self.parent)
+  require(json.loads(checked(self.owner/'COMPLETE'))==self.complete,'INSTALL_COMPLETE_VERIFY');return self.complete
+ def finish(self):
+  require(self.complete is not None and self.published,'INSTALL_COMPLETE_REQUIRED');self.continuity()
+  require(json.loads(checked(self.owner/'COMPLETE'))==self.complete,'INSTALL_COMPLETE_VERIFY')
+  self.lease.finish_mutation_from_owned_transaction()
+ def close(self):
+  if self.cm:self.cm.__exit__(None,None,None)
+
+def main():
+ require(len(sys.argv)==1,'INSTALL_NO_ARGUMENTS')
+ if sys.stdin.isatty():
+  attrs=termios.tcgetattr(0);attrs[3]&=~(termios.ECHO|termios.ICANON);attrs[6][termios.VMIN]=1;attrs[6][termios.VTIME]=0;termios.tcsetattr(0,termios.TCSANOW,attrs)
+ s,parent,control=scope();owned=Install(s,parent,control)
+ try:
+  owned.begin();serial=0;emit({'kind':'INSTALL_READY','serial':0,'nonce':owned.nonce})
+  while True:
+   raw=sys.stdin.buffer.readline(10*1024*1024+1)
+   if not raw:return 78
+   require(len(raw)<=10*1024*1024 and raw.endswith(b'\n'),'INSTALL_INPUT_BOUND');command=json.loads(raw)
+   require(type(command) is dict and set(command)=={'op','serial','payload'},'INSTALL_COMMAND');serial+=1;require(command['serial']==serial,'INSTALL_SERIAL');owned.continuity();op=command['op'];payload=command['payload']
+   if op=='abandon':require(payload is None,'INSTALL_NULL_PAYLOAD');emit({'kind':'INSTALL_UNKNOWN','serial':serial});return 78
+   if op=='finish':require(payload is None,'INSTALL_NULL_PAYLOAD');owned.finish();emit({'kind':'INSTALL_FINISHED','serial':serial});return 0
+   if op=='stage':require(payload is None,'INSTALL_NULL_PAYLOAD');result=owned.stage_files()
+   elif op=='reader':require(payload is None,'INSTALL_NULL_PAYLOAD');result=owned.read_reader()
+   elif op=='publish':result=owned.publish(payload)
+   else:raise RuntimeError('INSTALL_OPERATION')
+   emit({'kind':'INSTALL_RESULT','serial':serial,'result':result})
+ finally:owned.close()
+if __name__=='__main__':
+ try:sys.exit(main())
+ except BaseException as error:
+  if isinstance(error,SystemExit):raise
+  emit({'kind':'INSTALL_HOLD','reason':str(error)});sys.exit(78)

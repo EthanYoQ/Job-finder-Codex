@@ -1,0 +1,52 @@
+"""Actual original renderers for the install transaction, no publishing I/O.
+Inputs belong to the private EX holder. No caller path, Boolean permission or
+saved PASS may supply a production qualification.
+"""
+import hashlib,json,pathlib,sys,types
+PREFIX='tools/dot-auto-controller/'
+def require(ok,code):
+ if not ok:raise RuntimeError(code)
+def sha(raw):return hashlib.sha256(raw).hexdigest()
+def load(path,raw,name,values=None):
+ module=types.ModuleType(name);module.__file__=str(path);sys.modules[name]=module
+ if values:module.__dict__.update(values)
+ exec(compile(raw,str(path),'exec'),module.__dict__);return module
+def prepare(stage,pins,control,domain,lifecycle_source,remote_fact):
+ stage=pathlib.Path(stage);package=stage/'runtime-checkout'/PREFIX
+ raw_manifest=pathlib.Path(pins['sourceManifestPath']).read_bytes()
+ require(sha(raw_manifest)==pins['sourceManifestSha256'],'BOUND_SOURCE_MANIFEST')
+ manifest=json.loads(raw_manifest);entries={e['path']:e for e in manifest['entries']}
+ require(len(entries)==manifest['files']==pins['sourceFiles'],'BOUND_SOURCE_CLOSED_SET')
+ def source(relative):
+  p=package/relative;raw=p.read_bytes();entry=entries[PREFIX+relative]
+  require(len(raw)==entry['bytes'] and sha(raw)==entry['sha256'],'BOUND_MEASURED_SOURCE');return raw
+ require(type(control['deploymentBytes']) is str,'BOUND_DEPLOYMENT_BYTES')
+ deployment_bytes=control['deploymentBytes'].encode('ascii');d=json.loads(deployment_bytes)
+ require(d['expectedRow']==control['expectedRow'] and d['build']==pins['buildIdentity'] and d['build']['commitSha']==control['commitSha'] and d['packageManifestSha256']==pins['sourceManifestSha256'] and d['lockSha256']==pins['lockSha256'],'BOUND_MEASURED_DEPLOYMENT')
+ require(remote_fact['repository']==control['repo'] and remote_fact['commitSha']==control['commitSha'],'BOUND_OFFICIAL_COMMIT')
+ activation_pins={'sourceManifestSha256':pins['sourceManifestSha256'],'builderSha256':sha(source('fixed-host/scripts/build-functions-entry.py')),'canonicalDefaultSha256':sha(source('fixed-host/functions-entry.js'))}
+ original=load(package/'fixed-host/install/activation-renderer.py',source('fixed-host/install/activation-renderer.py'),'install_original_activation_renderer',{'ACTIVATION_PINS':activation_pins})
+ result=original.render(package,deployment_bytes,remote_fact)
+ binding=result['binding'];require(binding is not None and binding['deployment']==d,'BOUND_ORIGINAL_RENDER_BINDING')
+ builder,inputs,*_=original.source_inputs(package)
+ renderer=builder.load_pinned_module('install_original_cli_renderer',package/'fixed-host/render-fixed-live-source.py',inputs)
+ cli=renderer.render_bytes({name:inputs['fixed-host/templates/'+name+'.in'] for name in renderer.TEMPLATES})
+ require(sha(cli['fixed-preimport-launch.py'])==binding['cliSha256'],'BOUND_CLI_PIN')
+ helper=source('fixed-host/install/templates/local-activation.py.in').decode().replace('__BINDING_PY__',repr(binding)).encode()
+ require(b'__BINDING_PY__' not in helper,'BOUND_HELPER_TOKEN')
+ generator=load(package/'fixed-host/scripts/build-lifecycle-artifacts.py',source('fixed-host/scripts/build-lifecycle-artifacts.py'),'install_original_owner_renderer')
+ sources={}
+ for directory in ('functions','lifecycle'):
+  for p in (package/'fixed-host'/directory).iterdir():
+   if p.is_file():sources['fixed-host/'+directory+'/'+p.name]=source('fixed-host/'+directory+'/'+p.name)
+ query=source('fixed-host/functions/bootstrap-query.sql.template').decode().replace('__JOBFINDER_CANDIDATE_ID__',d['candidate']['id'])
+ owner=generator.render_fixed_owner_bundle(sources,domain,binding['enabledEntrySha256'],binding['enabledEntryBytes'],binding['cliSha256'],sha(helper),binding,query)
+ require(owner['lifecycle_lock.py']==lifecycle_source.encode(),'BOUND_FIXED_LOCK_SOURCE')
+ owner['local-activation.py']=helper
+ target={'candidate/'+name:raw for name,raw in cli.items()}
+ target['candidate/functions-entry.js']=result['disabled']
+ target['deployments/'+binding['deploymentSha256']+'.json']=deployment_bytes
+ target['deployments/'+pins['sourceManifestSha256']+'.manifest.json']=raw_manifest
+ target['deployments/'+pins['sourceManifestSha256']+'.source-manifest.json']=raw_manifest
+ require('candidate/functions-entry.enabled.js' not in target and result['disabled']!=result['enabled'],'BOUND_DISABLED_ONLY')
+ return {'targetFiles':target,'ownerFiles':owner,'qualifyHelperName':'local-activation.py'}

@@ -1,0 +1,25 @@
+// Each existing scheduled wake calls this fixed, no-argument entry once.
+// There is no activation, rewrite, configuration setter or caller-owned port.
+let loadingOrRunning=false;
+async function runPinnedRound(){
+ requireFixed(arguments.length===0,'LOADER_NO_ARGUMENTS');
+ if(!bindingValid())return {status:'DISABLED',reason:'DEPLOYMENT_UNQUALIFIED',realToolCalls:0};
+ requireFixed(!loadingOrRunning,'LOADER_ROUND_IN_FLIGHT');
+ loadingOrRunning=true;
+ try{
+  let offset=0,parts=[];
+  while(offset<BINDING.enabledEntryBytes){
+   const r=await localActivation('read',offset);
+   requireFixed(r.kind==='FIXED_ENABLED_CHUNK'&&r.sha256===BINDING.enabledEntrySha256&&r.totalBytes===BINDING.enabledEntryBytes&&r.offset===offset&&typeof r.text==='string'&&r.text.length>0&&r.text.length<=CHUNK_BYTES&&/^[\x00-\x7f]*$/.test(r.text)&&r.next===offset+r.text.length&&r.next<=BINDING.enabledEntryBytes,'LOADER_CHUNK_BINDING');
+   parts.push(r.text);offset=r.next;
+  }
+  const bytes=parts.join('');
+  requireFixed(bytes.length===BINDING.enabledEntryBytes&&digest(bytes)===BINDING.enabledEntrySha256,'LOADER_ENTRY_HASH');
+  requireFixed(bytes.startsWith(ENABLED_PREFIX)&&bytes.split('const ACTIVATION=').length===2,'LOADER_ACTIVATION_PREFIX');
+  // Eval only the complete bytes just hashed. Captured tools remain private.
+  const entry=new Function('tools','notify',bytes)(capturedTools,observationNotify);
+  requireFixed(entry&&Object.keys(entry).join(',')==='runLiveRound'&&typeof entry.runLiveRound==='function','LOADER_ENTRY_API');
+  return await entry.runLiveRound();
+ }finally{loadingOrRunning=false;}
+}
+return Object.freeze({runPinnedRound});

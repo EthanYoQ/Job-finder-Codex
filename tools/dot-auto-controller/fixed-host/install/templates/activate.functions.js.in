@@ -1,0 +1,27 @@
+// One deployment action. No round, launch permit or publication permit is made.
+let activationAttempted=false;
+let originalRegistrationPromise=null;
+async function activateFixedDeployment(){
+ requireFixed(arguments.length===0,'ACTIVATION_NO_ARGUMENTS');
+ if(!bindingValid())return {status:'DISABLED',reason:'DEPLOYMENT_UNQUALIFIED',officialReadCalls:0,artifactWrites:0};
+ requireFixed(!activationAttempted,'ACTIVATION_ALREADY_ATTEMPTED');
+ activationAttempted=true;
+ const qualified=await localActivation('qualify',null);
+ verifyQualification(qualified);
+ // This is the captured official function's original Promise, not an async wrapper.
+ originalRegistrationPromise=capturedTools.mcp__codex_apps__supabase_execute_sql({project_id:PROJECT,query:REGISTRATION_SQL});
+ requireFixed(originalRegistrationPromise instanceof Promise,'ACTIVATION_ORIGINAL_PROMISE');
+ const raw=await originalRegistrationPromise;
+ const observed=registrationRows(raw);
+ requireFixed(observed.length===1&&observed[0]&&same16(observed[0].candidate),'ACTIVATION_REGISTRATION_16');
+ const checkedAt=observed[0].checkedAt;
+ fresh(checkedAt);
+ const rawBytes=JSON.stringify(raw),rawSha256=digest(rawBytes);
+ requireFixed(typeof rawBytes==='string','ACTIVATION_RAW_BYTES');
+ // The fixed helper repeats full preimport/derive and deterministic render after
+ // the await. This input only restricts it; JSON is not an activation permit.
+ const result=await localActivation('commit',{schemaVersion:1,rawBytes,rawSha256,checkedAt});
+ requireFixed(result.kind==='FIXED_DEPLOYMENT_ACTIVATED'&&result.disabledSha256===BINDING.disabledEntrySha256&&result.enabledSha256===BINDING.enabledEntrySha256&&result.enabledBytes===BINDING.enabledEntryBytes&&result.rawSha256===rawSha256&&result.checkedAt===checkedAt&&result.onlyActivationBooleanChanged===true,'ACTIVATION_WRITE_RECEIPT');
+ return Object.freeze({...result,officialReadCalls:1,artifactWrites:1,originalPromiseRetained:originalRegistrationPromise instanceof Promise,producerCalls:0,publicationCalls:0});
+}
+return Object.freeze({activateFixedDeployment});

@@ -1,0 +1,219 @@
+"""Canonical original source/native/stage/rename checks with fixed owned paths.
+Derived from the independently tested schema50 installer; measurement bytes are
+injected only by the fixed private holder. No standalone installation entry.
+"""
+from pathlib import Path
+import contextlib,ctypes,errno,fcntl,hashlib,json,os,shutil,stat,subprocess,sys,tempfile,weakref
+# Fixed bindings are inserted by the owned installer before executing this
+# exact canonical staging source. No offline/public callback is authority.
+_pins=INSTALL_PINS
+BOUND_ARTIFACTS=None
+PARENT=Path(INSTALL_SCOPE['parent'])
+TARGET_NAME=INSTALL_SCOPE['target']
+STAGE_NAME='.'+TARGET_NAME+'.install-stage'
+SOURCE=Path(_pins['sourceRoot'])
+BUILT=Path(_pins['builtRoot'])
+EVIDENCE=Path(_pins['evidenceRoot'])
+MANIFEST=Path(_pins['sourceManifestPath'])
+NODE=Path(_pins['nodePath'])
+PREFIX='tools/dot-auto-controller'
+HEAD=_pins['commitSha']
+if not isinstance(HEAD,str) or len(HEAD)!=40 or any(c not in '0123456789abcdef' for c in HEAD):raise RuntimeError('REAL_COMMIT_REQUIRED')
+SOURCE_PIN=_pins['sourceManifestSha256']
+SOURCE_COUNT=_pins['sourceFiles']
+NODE_PIN=_pins['nodeSha256']
+DEP_PIN=_pins['dependencyManifestSha256']
+DIST_PIN=_pins['distManifestSha256']
+BUILD=_pins['buildIdentity']
+if BUILD['commitSha']!=HEAD:raise RuntimeError('BUILD_COMMIT_MISMATCH')
+LOCK_PIN=_pins['lockSha256']
+ENV={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null','GIT_CONFIG_SYSTEM':'/dev/null','GIT_OPTIONAL_LOCKS':'0','GIT_NO_REPLACE_OBJECTS':'1','GIT_TERMINAL_PROMPT':'0'}
+_CAPS=weakref.WeakKeyDictionary()
+class Hold(RuntimeError):pass
+class PublishUnknown(Hold):pass
+class _OfflineCapability:pass
+def require(ok,code):
+ if not ok:raise Hold(code)
+def sha(b):return hashlib.sha256(b).hexdigest()
+def exact_bytes(p):
+ p=Path(p);s=p.lstat();require(stat.S_ISREG(s.st_mode) and s.st_nlink==1 and not s.st_mode&0o022,'UNSAFE_FILE')
+ fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW)
+ try:
+  before=os.fstat(fd);data=b''
+  with os.fdopen(os.dup(fd),'rb') as stream:data=stream.read()
+  after=os.fstat(fd);at=p.lstat();sig=lambda v:(v.st_dev,v.st_ino,v.st_size,v.st_mtime_ns,v.st_ctime_ns)
+  require(sig(s)==sig(before)==sig(after)==sig(at) and len(data)==s.st_size,'FILE_CHANGED');return data
+ finally:os.close(fd)
+def directories(root):
+ root=Path(root);require(root.is_absolute() and root==root.resolve(),'DIRECTORY_LINK')
+ for p in (root,*root.parents):
+  s=p.lstat();require(stat.S_ISDIR(s.st_mode) and s.st_uid in (0,os.getuid()) and not s.st_mode&0o022,'UNSAFE_DIRECTORY')
+def tree_entries(root):
+ directories(root);out={}
+ for parent,dirs,files in os.walk(root,followlinks=False):
+  directories(Path(parent))
+  for name in list(dirs):
+   p=Path(parent)/name;require(not p.is_symlink(),'DIRECTORY_SYMLINK')
+  for name in files:
+   p=Path(parent)/name;n=p.relative_to(root).as_posix();s=p.lstat()
+   if p.is_symlink():
+    require(s.st_nlink==1 and s.st_uid==os.getuid(),'LINK_METADATA');target=p.resolve(strict=True);require(target.is_relative_to(root) and target.is_file(),'LINK_ESCAPE');out[n]={'path':n,'kind':'symlink','target':os.readlink(p)}
+   else:
+    b=exact_bytes(p);out[n]={'path':n,'kind':'file','bytes':len(b),'sha256':sha(b)}
+ return out
+def manifest(path,pin):
+ raw=exact_bytes(path);require(sha(raw)==pin,'MANIFEST_PIN');j=json.loads(raw);es=j['entries'];require(len(es)==len({e['path'] for e in es}),'MANIFEST_DUPLICATE')
+ for e in es:
+  p=Path(e['path']);require(not p.is_absolute() and '..' not in p.parts,'MANIFEST_PATH')
+ return es
+def verify_tree(root,entries):require(tree_entries(root)=={e['path']:e for e in entries},'TREE_BYTES_MISMATCH')
+def verify_sources(root):
+ es=manifest(MANIFEST,SOURCE_PIN)
+ for e in es:
+  p=root/e['path'];b=exact_bytes(p);blob=b'blob '+str(len(b)).encode()+b'\0'+b
+  require(len(b)==e['bytes'] and sha(b)==e['sha256'] and hashlib.sha1(blob).hexdigest()==e['gitBlobSha1'] and sha(blob)==e['gitBlobSha256'] and ('100755' if p.stat().st_mode&0o111 else '100644')==e['mode'],'SOURCE_MISMATCH:'+e['path'])
+ # Any other source file is rejected; dependencies, dist and exact package alias
+ # are the same explicit exclusions admitted by the original source verifier.
+ found=set()
+ for parent,ds,fs in os.walk(root/PREFIX,followlinks=False):
+  directories(Path(parent))
+  rel=Path(parent).relative_to(root/PREFIX).as_posix()
+  for d in list(ds):
+   q=Path(parent)/d
+   if d=='node_modules' or (rel=='vendor/c60-source' and d=='dist'):ds.remove(d)
+   else:require(not q.is_symlink(),'SOURCE_DIRECTORY_LINK')
+  for f in fs:found.add((Path(parent)/f).relative_to(root).as_posix())
+ require(found=={e['path'] for e in es},'SOURCE_CLOSED_SET')
+ return len(es)
+def git(repo,*args):
+ p=subprocess.run(['/usr/bin/git','-c','core.fsmonitor=false',*args],cwd=repo,env=ENV,capture_output=True,timeout=15);require(p.returncode==0,'GIT_FAILED');return p.stdout
+
+def owned_capability(lease):
+ require(lease.mode=='EX' and lease.domain.parent==PARENT and lease.domain.target_name==TARGET_NAME,'OWNED_INSTALL_DOMAIN')
+ cap=_OfflineCapability();cap.case=PARENT;cap.stage=PARENT/STAGE_NAME;cap.target=PARENT/TARGET_NAME;cap.lifecycle_lease=lease
+ _CAPS[cap]=(PARENT.stat().st_dev,PARENT.stat().st_ino)
+ return cap
+
+def authority(cap):
+ require(cap in _CAPS,'OWNED_INSTALL_CAPABILITY');directories(cap.case)
+ require(cap.case==PARENT and cap.stage==PARENT/STAGE_NAME and cap.target==PARENT/TARGET_NAME,'FIXED_INSTALL_SCOPE')
+ require((cap.case.stat().st_dev,cap.case.stat().st_ino)==_CAPS[cap],'CASE_CHANGED')
+ cap.lifecycle_lease.check()
+
+def checkpoint(cap,label):
+ authority(cap)
+ # Internal holder-owned continuation, never caller-selected qualification.
+ if label=='before-rename':cap.verify_final_facts()
+
+def copy_regular(src,dst):
+ b=exact_bytes(src);dst.parent.mkdir(parents=True,exist_ok=True);fd=os.open(dst,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,stat.S_IMODE(src.stat().st_mode))
+ try:
+  with os.fdopen(os.dup(fd),'wb') as stream:stream.write(b);stream.flush()
+ finally:os.close(fd)
+ require(exact_bytes(dst)==b,'COPY_CHANGED')
+
+def verify_stage(stage,run_original=True,incomplete=False,*,lifecycle_lease=None):
+ require(lifecycle_lease is not None,'LIFECYCLE_LEASE_REQUIRED');lifecycle_lease.check();require(stage.parent==lifecycle_lease.domain.parent,'LIFECYCLE_STAGE_SCOPE')
+ require(stage.name in (STAGE_NAME,TARGET_NAME),'STAGE_NAME');directories(stage)
+ require(set(p.name for p in stage.iterdir())==({'runtime-checkout','connector-host-runtime','candidate','deployments','install.lock'}|({'install-incomplete'} if incomplete else set())),'STAGE_CLOSED_ROOT')
+ if incomplete:require(exact_bytes(stage/'install-incomplete')==b'INCOMPLETE: NEVER AUTHORIZE EXECUTION\n','INCOMPLETE_MARKER')
+ root=stage/'runtime-checkout';package=root/PREFIX;vendor=package/'vendor/c60-source'
+ for d in (root,package,vendor,vendor/'node_modules',vendor/'dist',stage/'candidate',stage/'deployments',stage/'connector-host-runtime'):directories(d)
+ require(verify_sources(root)==SOURCE_COUNT,'SOURCE_COUNT');require(git(root,'rev-parse','HEAD').strip().decode()==HEAD,'REAL_HEAD');require(git(root,'status','--porcelain')==b'','GIT_DIRTY')
+ verify_tree(vendor/'node_modules',manifest(EVIDENCE/'dependencies-manifest.json',DEP_PIN));verify_tree(vendor/'dist',manifest(EVIDENCE/'dist-manifest.json',DIST_PIN))
+ alias=package/'node_modules';require(alias.is_symlink() and os.readlink(alias)=='vendor/c60-source/node_modules' and alias.resolve()==vendor/'node_modules','ALIAS')
+ require(set(p.name for p in (stage/'connector-host-runtime').iterdir())=={'node'},'NODE_RUNTIME_CLOSED_SET')
+ node=stage/'connector-host-runtime/node';require(sha(exact_bytes(node))==NODE_PIN and node.stat().st_mode&0o111,'NODE_PIN')
+ if BOUND_ARTIFACTS is None:
+  require(set(p.name for p in (stage/'candidate').iterdir())=={'functions-entry.js'},'CANDIDATE_NOT_DEFAULT')
+  default=exact_bytes(package/'fixed-host/functions-entry.js');require(exact_bytes(stage/'candidate/functions-entry.js')==default and default.startswith(b'const ACTIVATION=Object.freeze({"enabled":false,"mode":"LIVE","deploymentSha256":"'+b'0'*64+b'"});\n'),'NOT_DISABLED')
+  require(set(p.name for p in (stage/'deployments').iterdir())=={SOURCE_PIN+'.source-manifest.json'},'DEPLOYMENT_NOT_UNBOUND')
+ else:
+  expected=dict(BOUND_ARTIFACTS)
+  manifest_name='deployments/'+SOURCE_PIN+'.source-manifest.json'
+  require(manifest_name not in expected or expected[manifest_name]==exact_bytes(MANIFEST),'BOUND_SOURCE_MANIFEST')
+  expected[manifest_name]=exact_bytes(MANIFEST)
+  for dirname in ('candidate','deployments'):
+   entries={k[len(dirname)+1:]:{'path':k[len(dirname)+1:],'kind':'file','bytes':len(v),'sha256':sha(v)} for k,v in expected.items() if k.startswith(dirname+'/')}
+   require(tree_entries(stage/dirname)==entries,'BOUND_ARTIFACT_CLOSED_SET')
+  entry=exact_bytes(stage/'candidate/functions-entry.js')
+  require(entry.startswith(b'const ACTIVATION=Object.freeze({"enabled":false,') and not (stage/'candidate/functions-entry.enabled.js').exists(),'BOUND_DISABLED_REQUIRED')
+ require(exact_bytes(stage/'deployments'/(SOURCE_PIN+'.source-manifest.json'))==exact_bytes(MANIFEST),'STAGED_MANIFEST')
+ lock=stage/'install.lock';s=lock.lstat();require(stat.S_ISREG(s.st_mode) and s.st_nlink==1 and s.st_uid==os.getuid() and stat.S_IMODE(s.st_mode)==0o600 and s.st_size==0,'INSTALL_LOCK')
+ if run_original:
+  verifier=package/'transport/runtime-integrity.mjs';require(sha(exact_bytes(verifier))==_pins['runtimeVerifierSha256'],'RUNTIME_VERIFIER_PIN')
+  sourceverifier=package/'connector-gate/package-preimport-pin.mjs';require(sha(exact_bytes(sourceverifier))==_pins['sourceVerifierSha256'],'SOURCE_VERIFIER_PIN')
+  code="import {verifyRuntimeBeforeImport} from "+json.dumps(verifier.as_uri())+";import {verifyPackageSourcePreimport} from "+json.dumps(sourceverifier.as_uri())+";verifyPackageSourcePreimport("+json.dumps({'packageRoot':str(package),'manifestPath':str(stage/'deployments'/(SOURCE_PIN+'.source-manifest.json')),'expectedManifestSha256':SOURCE_PIN})+");verifyRuntimeBeforeImport("+json.dumps(str(vendor))+","+json.dumps(BUILD)+","+json.dumps(LOCK_PIN)+");console.log('PINNED_ORIGINAL_VERIFIERS_PASS');"
+  code+="import fs from 'node:fs';let calls=0;const deny=()=>{calls++;throw Error('REAL_TOOL_FORBIDDEN');};const tools=new Proxy({}, {get:()=>deny});const api=new Function('tools','notify',fs.readFileSync("+json.dumps(str(stage/'candidate/functions-entry.js'))+",'utf8'))(tools,()=>{});const r=await api.runLiveRound();if(r.status!=='DISABLED'||r.realToolCalls!==0||calls!==0)throw Error('DEFAULT_NOT_DISABLED');"
+  p=subprocess.run([str(node),'--input-type=module','-e',code],env=ENV,capture_output=True,timeout=120,pass_fds=(lifecycle_lease.prepare_exec(),));
+  if p.returncode!=0:
+   diagnostic=stage.parent/'native-verifier.stderr.log';fd=os.open(diagnostic,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+   with os.fdopen(fd,'wb') as stream:stream.write(p.stderr)
+  require(p.returncode==0,'ORIGINAL_VERIFIER_FAILED:'+p.stderr.decode()[-1800:])
+ return {'sourceFiles':SOURCE_COUNT,'build':BUILD,'originalVerifiersExecuted':run_original,'activation':False,'productionQualified':False}
+
+def _stage_under_lifecycle(cap):
+ authority(cap);require(getattr(cap,'lifecycle_lease',None) is not None,'LIFECYCLE_LEASE_REQUIRED');cap.lifecycle_lease.check();require(not os.path.lexists(cap.stage) and not os.path.lexists(cap.target),'CASE_ALREADY_USED')
+ for p in (SOURCE,BUILT,EVIDENCE,NODE.parent):directories(p)
+ verify_sources(SOURCE);require(git(SOURCE,'rev-parse','HEAD').strip().decode()==HEAD,'SOURCE_HEAD')
+ deps=manifest(EVIDENCE/'dependencies-manifest.json',DEP_PIN);dist=manifest(EVIDENCE/'dist-manifest.json',DIST_PIN);verify_tree(BUILT/'node_modules',deps);verify_tree(BUILT/'dist',dist);require(sha(exact_bytes(NODE))==NODE_PIN,'NODE_PIN')
+ require(shutil.disk_usage(cap.case).free>1500*1024*1024,'DISK_SPACE')
+ cap.stage.mkdir(mode=0o700);(cap.stage/'install-incomplete').write_bytes(b'INCOMPLETE: NEVER AUTHORIZE EXECUTION\n')
+ # No hardlinks: staging must not mutate any previously reviewed baseline.
+ shutil.copytree(SOURCE,cap.stage/'runtime-checkout',symlinks=True)
+ # Local metadata only: original verifier excludes these two runtime domains.
+ exclude=cap.stage/'runtime-checkout/.git/info/exclude'
+ require(not exclude.exists() or exact_bytes(exclude) in (b'',b'**/node_modules\n**/dist/\n'),'UNEXPECTED_GIT_EXCLUDE')
+ exclude.write_bytes(b'**/node_modules\n**/dist/\n')
+ v=cap.stage/'runtime-checkout'/PREFIX/'vendor/c60-source'
+ shutil.copytree(BUILT/'node_modules',v/'node_modules',symlinks=True);shutil.copytree(BUILT/'dist',v/'dist',symlinks=True)
+ package=cap.stage/'runtime-checkout'/PREFIX
+ (package/'node_modules').symlink_to('vendor/c60-source/node_modules',target_is_directory=True)
+ for n in ('connector-host-runtime','candidate','deployments'):(cap.stage/n).mkdir(mode=0o700)
+ copy_regular(NODE,cap.stage/'connector-host-runtime/node');copy_regular(package/'fixed-host/functions-entry.js',cap.stage/'candidate/functions-entry.js');copy_regular(MANIFEST,cap.stage/'deployments'/(SOURCE_PIN+'.source-manifest.json'));(cap.stage/'deployments'/(SOURCE_PIN+'.source-manifest.json')).chmod(0o400)
+ fd=os.open(cap.stage/'install.lock',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600);os.close(fd)
+ # The absent fixed target is never consulted as production authority.
+ result=verify_stage(cap.stage,incomplete=True,lifecycle_lease=cap.lifecycle_lease);checkpoint(cap,'stage-verified');sync_all(cap.stage);(cap.stage/'install-incomplete').unlink()
+ fd=os.open(cap.stage,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+ try:os.fsync(fd)
+ finally:os.close(fd)
+ return result
+
+def sync_all(root):
+ for parent,ds,fs in os.walk(root,topdown=False,followlinks=False):
+  for n in fs:
+   p=Path(parent)/n
+   if p.is_symlink():continue
+   fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW)
+   try:os.fsync(fd)
+   finally:os.close(fd)
+  fd=os.open(parent,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+  try:os.fsync(fd)
+  finally:os.close(fd)
+
+def _rename_noreplace(pfd,old,new):
+ libc=ctypes.CDLL(None,use_errno=True);fn=getattr(libc,'renameat2',None);require(fn is not None,'RENAME_NOREPLACE_UNAVAILABLE');fn.argtypes=[ctypes.c_int,ctypes.c_char_p,ctypes.c_int,ctypes.c_char_p,ctypes.c_uint];fn.restype=ctypes.c_int
+ if fn(pfd,old.encode(),pfd,new.encode(),1)!=0:
+  err=ctypes.get_errno();raise Hold('RENAME_NOREPLACE:'+str(err))
+
+def _publish_under_lifecycle(cap):
+ authority(cap);require(cap.stage.is_dir() and not cap.stage.is_symlink(),'STAGE_ABSENT');verify_stage(cap.stage,lifecycle_lease=cap.lifecycle_lease)
+ pfd=os.open(cap.case,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW);sfd=os.open(STAGE_NAME,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=pfd);lfd=os.open('install.lock',os.O_RDWR|os.O_NOFOLLOW,dir_fd=sfd);renamed=False
+ def ident(s):return (s.st_dev,s.st_ino)
+ caseid=ident(os.fstat(pfd));stageid=ident(os.fstat(sfd));lockid=ident(os.fstat(lfd))
+ def continuity():
+  authority(cap);require(ident(cap.case.lstat())==caseid==_CAPS[cap],'CASE_INODE_CHANGED')
+  st=os.stat(STAGE_NAME,dir_fd=pfd,follow_symlinks=False);require(stat.S_ISDIR(st.st_mode) and ident(st)==stageid and st.st_uid==os.getuid() and not st.st_mode&0o022,'STAGE_INODE_CHANGED')
+  at=os.stat('install.lock',dir_fd=sfd,follow_symlinks=False);lf=os.fstat(lfd);require(ident(at)==ident(lf)==lockid and stat.S_ISREG(at.st_mode) and at.st_nlink==1 and stat.S_IMODE(at.st_mode)==0o600 and at.st_size==0,'LOCK_INODE_CHANGED')
+ try:
+  
+  try:fcntl.flock(lfd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+  except BlockingIOError as e:raise Hold('INSTALL_LOCK_BUSY') from e
+  continuity();checkpoint(cap,'locked');continuity();verify_stage(cap.stage,False,lifecycle_lease=cap.lifecycle_lease);sync_all(cap.stage);os.fsync(pfd);checkpoint(cap,'before-rename');continuity()
+  _rename_noreplace(pfd,STAGE_NAME,TARGET_NAME);renamed=True;checkpoint(cap,'after-rename');os.fsync(pfd)
+  require(ident(cap.target.lstat())==stageid,'PUBLISHED_STAGE_INODE_CHANGED');s=(cap.target/'install.lock').lstat();require((s.st_dev,s.st_ino)==lockid,'LOCK_CHANGED');verify_stage(cap.target,lifecycle_lease=cap.lifecycle_lease);checkpoint(cap,'published-verified')
+  return {'status':'ATOMIC_DISABLED_INSTALL_VERIFIED','root':str(cap.target),'productionInstalled':False,'activation':False}
+ except Exception as e:
+  if renamed:raise PublishUnknown('POST_RENAME_UNKNOWN_PRESERVE_BOTH_PATHS:'+str(e)) from e
+  raise
+ finally:os.close(lfd);os.close(sfd);os.close(pfd)
