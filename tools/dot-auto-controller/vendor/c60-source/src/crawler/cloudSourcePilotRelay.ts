@@ -42,6 +42,12 @@ type HengruiGate=Awaited<ReturnType<typeof import("../../../../connector-gate/he
 export type OwnedHengruiPublication=Readonly<{packet:HengruiGate["packet"]}>;
 const ownedHengruiPublications=new WeakMap<object,{relay:FilePilotRelay;gate:HengruiGate;launchChallenge:string}>();
 const ownedHengruiOutcomes=new WeakMap<object,{relay:FilePilotRelay;packet:HengruiGate["packet"];publishAttempted:boolean;publishRequestSha256?:string;readAttempted:boolean;outerDeadline:number}>();
+/** Fixed, default-unselected Ucb candidate path. No callback can approve SQL. */
+export type UcbOwnedPipeSelection={mode:"UCB_OWNED_PIPE_CANDIDATE_V1";launchChallenge:string};
+type UcbGate=Awaited<ReturnType<typeof import("../../../../connector-gate/ucb-publication-review.mts").prepareUcbConnectorPublicationReview>>;
+export type OwnedUcbPublication=Readonly<{packet:UcbGate["packet"]}>;
+const ownedUcbPublications=new WeakMap<object,{relay:FilePilotRelay;gate:UcbGate;launchChallenge:string}>();
+const ownedUcbOutcomes=new WeakMap<object,{relay:FilePilotRelay;packet:UcbGate["packet"];publishAttempted:boolean;publishRequestSha256?:string;readAttempted:boolean;outerDeadline:number}>();
 export class FilePilotRelay {
   constructor(readonly directory:string){}
   async request<T>(kind:PilotRequestKind,payload:unknown,deadline:number,parse:(v:unknown)=>T,signal?:AbortSignal):Promise<T>{
@@ -250,6 +256,74 @@ export class FilePilotRelay {
    * here from module-owned packet data; no external boolean/result is accepted. */
   async readAndVerifyOwnedHengruiOutcome(handle:OwnedHengruiPublication,deadline:number,signal?:AbortSignal){
     const binding=ownedHengruiOutcomes.get(handle);
+    if(!binding||binding.relay!==this||!binding.publishAttempted||!binding.publishRequestSha256||binding.readAttempted)throw Error("RELAY_OWNED_OUTCOME_REQUIRED");
+    binding.readAttempted=true; // no concurrent/duplicate read or completion event
+    if(!Number.isSafeInteger(deadline)||deadline>binding.outerDeadline-PILOT_BUDGET.controlMs||deadline>Date.now()+PILOT_BUDGET.controlMs)throw Error("PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION");
+    const packet=binding.packet,sourceResult=packet.commit.sourceResult;
+    const literal=(value:string)=>`E'${value.replaceAll('\\','\\\\').replaceAll("'","''")}'`;
+    const sql=`SELECT
+ (SELECT to_jsonb(s) FROM public."CrawlBatchSourceResult" s WHERE id=${literal(sourceResult.id)}) AS row,
+ (SELECT to_jsonb(b) FROM public."CrawlBatch" b WHERE id=${literal(sourceResult.batchId)}) AS batch,
+ (SELECT "holderId" FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS "holderId"`;
+    const dispatchBefore=deadline-PILOT_BUDGET.controlCompletionMs;
+    if(Date.now()>=dispatchBefore)throw Error("PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION");
+    let prepared:Awaited<ReturnType<FilePilotRelay["createRequest"]>>,rows:Record<string,unknown>[];
+    try{
+      prepared=await this.createRequest("READ_OUTCOME",{projectId:"yiopvxysxrtrnvqxwgbx",sql,dispatchBefore:new Date(dispatchBefore).toISOString()},deadline,signal);
+      await publishRelayRequest(prepared.base+".request.json",prepared.serializedRequest,{deadline:prepared.deadline,dispatchBefore:(prepared.request.payload as {dispatchBefore?:string}|null)?.dispatchBefore===undefined?undefined:Date.parse((prepared.request.payload as {dispatchBefore:string}).dispatchBefore),signal});
+      rows=await this.waitResponse(prepared,value=>{const result=sqlResult.parse(value);if(result.status==="FAILED")throw new PilotSqlFailure(result.outcome,result.code);return result.rows;},signal);
+      if(Date.now()>=deadline)throw Error("RELAY_DEADLINE");
+    }catch(cause){throw new Error("PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION",{cause});}
+    if(rows.length!==1)throw Error("PILOT_OUTCOME_ROW_COUNT");
+    const persisted=rows[0]!.row===null?null:reviveUtcFields(z.record(z.unknown()).parse(rows[0]!.row),['startedAt','finishedAt']);
+    const {inspectPersistedAtomicCommitOutcome}=await import("../db/ingestionRepository");
+    const outcome=await inspectPersistedAtomicCommitOutcome(packet.commit,{crawlBatchSourceResult:{findUnique:async()=>persisted,findMany:async()=>{throw Error("PILOT_OUTCOME_FIND_MANY_FORBIDDEN");}}});
+    if(outcome.state==='COMMITTED_EXACT'){
+      const batch=z.record(z.unknown()).parse(rows[0]!.batch);
+      if(batch.id!==sourceResult.batchId||batch.releaseCandidateId!==sourceResult.releaseCandidateId||batch.status!=='SUCCESS'||batch.atomicCommittedCount!==1||batch.completenessVerifiedCount!==1||rows[0]!.holderId===packet.holderId)throw Error('PILOT_DB_STARTED_TERMINAL_NOT_EXACT');
+      if(!process.send||!process.connected||!prepared.responseSha256)throw Error("RELAY_OWNED_CHILD_IPC_REQUIRED");
+      const event={type:"PRODUCER_OUTCOME_VERIFIED_V1",tuple:{releaseCandidateId:sourceResult.releaseCandidateId,batchId:sourceResult.batchId,sourceId:sourceResult.sourceId,sourceResultId:sourceResult.id},readRequestSha256:prepared.request.requestSha256,responseSha256:prepared.responseSha256};
+      await new Promise<void>((resolve,reject)=>process.send!(event,error=>error?reject(error):resolve()));
+    }
+    return outcome;
+  }
+  async prepareOwnedUcbPublish(input:import("../../../../connector-gate/ucb-publication-review.mts").UcbReviewInput,selection:UcbOwnedPipeSelection):Promise<OwnedUcbPublication>{
+    const fixed=z.object({mode:z.literal("UCB_OWNED_PIPE_CANDIDATE_V1"),launchChallenge:SHA}).strict().parse(selection);
+    if(!process.send||!process.connected)throw Error("RELAY_OWNED_CHILD_IPC_REQUIRED");
+    const {prepareUcbConnectorPublicationReview}=await import("../../../../connector-gate/ucb-publication-review.mts");
+    const gate=await prepareUcbConnectorPublicationReview(input),handle=Object.freeze({packet:gate.packet});
+    // Source-fixed data export only after the original full Ucb review.
+    // The sidecar is never permission to publish and owns no DB/tool calls.
+    if(process.env.JOBFINDER_FIXED_PROJECTION_MODE!==undefined){
+      const {writeReviewedJobProjectionSidecar}=await import("./ucbFixedJobProjectionSidecar");
+      await writeReviewedJobProjectionSidecar(gate.packet,this.directory);
+    }
+    ownedUcbPublications.set(handle,{relay:this,gate,launchChallenge:fixed.launchChallenge});
+    ownedUcbOutcomes.set(handle,{relay:this,packet:gate.packet,publishAttempted:false,readAttempted:false,outerDeadline:input.outerDeadline});return handle;
+  }
+  async publishOwnedUcb(handle:OwnedUcbPublication,signal?:AbortSignal){
+    const owned=ownedUcbPublications.get(handle);
+    if(!owned||owned.relay!==this)throw Error("RELAY_SAME_PROCESS_REVIEW_REQUIRED");
+    ownedUcbPublications.delete(handle); // claim before any await; no retry after ambiguity
+    const outcomeBinding=ownedUcbOutcomes.get(handle)!;outcomeBinding.publishAttempted=true;
+    const {sql,expiresAt}=owned.gate.packet,deadline=Date.parse(expiresAt);
+    const dispatchBefore=deadline-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs;
+    if(dispatchBefore<=Date.now())throw Error("RELAY_DISPATCH_BUDGET");
+    const prepared=await this.createRequest("PUBLISH",{projectId:"yiopvxysxrtrnvqxwgbx",sql,dispatchBefore:new Date(dispatchBefore).toISOString()},deadline,signal);
+    outcomeBinding.publishRequestSha256=prepared.request.requestSha256;
+    const token=await owned.gate.review(prepared.request);
+    signal?.throwIfAborted();if(Date.now()>=dispatchBefore)throw Error("RELAY_DISPATCH_BUDGET");
+    await publishRelayRequest(prepared.base+".request.json",prepared.serializedRequest,{deadline:prepared.deadline,dispatchBefore:(prepared.request.payload as {dispatchBefore?:string}|null)?.dispatchBefore===undefined?undefined:Date.parse((prepared.request.payload as {dispatchBefore:string}).dispatchBefore),signal});
+    const {emitConsumedUcbProducerReview}=await import("../../../../connector-gate/ucb-producer-adapter.mts");
+    await emitConsumedUcbProducerReview(token,prepared.request as import("../../../../connector-gate/ucb-publication-review.mts").ConnectorPublishRequest,owned.launchChallenge);
+    return this.waitResponse(prepared,value=>{
+      const result=sqlResult.parse(value);if(result.status==="FAILED")throw new PilotSqlFailure(result.outcome,result.code);return result.rows;
+    },signal);
+  }
+  /** One original tuple read. The original inspector/batch/holder gates are run
+   * here from module-owned packet data; no external boolean/result is accepted. */
+  async readAndVerifyOwnedUcbOutcome(handle:OwnedUcbPublication,deadline:number,signal?:AbortSignal){
+    const binding=ownedUcbOutcomes.get(handle);
     if(!binding||binding.relay!==this||!binding.publishAttempted||!binding.publishRequestSha256||binding.readAttempted)throw Error("RELAY_OWNED_OUTCOME_REQUIRED");
     binding.readAttempted=true; // no concurrent/duplicate read or completion event
     if(!Number.isSafeInteger(deadline)||deadline>binding.outerDeadline-PILOT_BUDGET.controlMs||deadline>Date.now()+PILOT_BUDGET.controlMs)throw Error("PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION");

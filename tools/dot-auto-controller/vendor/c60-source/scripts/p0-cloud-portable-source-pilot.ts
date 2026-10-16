@@ -47,10 +47,11 @@ export function portablePreLockReadyDeadline(acquisition:{startedAt:string;finis
 function assertProjection(actual:Record<string,unknown>,expected:object){
   for(const [key,value] of Object.entries(expected))if(JSON.stringify(actual[key])!==JSON.stringify(value))throw Error(`PILOT_BOOTSTRAP_MISMATCH:${key}`);
 }
-export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;reviewedSha256:string;workspaceRoot:string;relayDirectory:string;signal?:AbortSignal;dbStartedControlPath?:string;overallDeadline?:number;ownedTakedaPipe?:import("../src/crawler/cloudSourcePilotRelay").TakedaOwnedPipeSelection;ownedBiogenPipe?:import("../src/crawler/cloudSourcePilotRelay").BiogenOwnedPipeSelection;ownedHengruiPipe?:import("../src/crawler/cloudSourcePilotRelay").HengruiOwnedPipeSelection}){
-  if([input.ownedTakedaPipe,input.ownedBiogenPipe,input.ownedHengruiPipe].filter(Boolean).length>1)throw Error("PILOT_OWNED_PIPE_SELECTION_CONFLICT");
+export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;reviewedSha256:string;workspaceRoot:string;relayDirectory:string;signal?:AbortSignal;dbStartedControlPath?:string;overallDeadline?:number;ownedTakedaPipe?:import("../src/crawler/cloudSourcePilotRelay").TakedaOwnedPipeSelection;ownedBiogenPipe?:import("../src/crawler/cloudSourcePilotRelay").BiogenOwnedPipeSelection;ownedHengruiPipe?:import("../src/crawler/cloudSourcePilotRelay").HengruiOwnedPipeSelection;ownedUcbPipe?:import("../src/crawler/cloudSourcePilotRelay").UcbOwnedPipeSelection}){
+  if([input.ownedTakedaPipe,input.ownedBiogenPipe,input.ownedHengruiPipe,input.ownedUcbPipe].filter(Boolean).length>1)throw Error("PILOT_OWNED_PIPE_SELECTION_CONFLICT");
   if(input.ownedBiogenPipe&&(!input.dbStartedControlPath||PILOT_SOURCE!=="source-biogen-china-social"||!process.send||!process.connected))throw Error("PILOT_OWNED_BIOGEN_PIPE_SCOPE");
   if(input.ownedHengruiPipe&&(!input.dbStartedControlPath||PILOT_SOURCE!=="source-hengrui-social"||!process.send||!process.connected))throw Error("PILOT_OWNED_HENGRUI_PIPE_SCOPE");
+  if(input.ownedUcbPipe&&(!input.dbStartedControlPath||PILOT_SOURCE!=="source-ucb-china-social"||!process.send||!process.connected))throw Error("PILOT_OWNED_UCB_PIPE_SCOPE");
   if(input.ownedTakedaPipe&&(!input.dbStartedControlPath||PILOT_SOURCE!=="source-takeda-china-social"||!process.send||!process.connected))throw Error("PILOT_OWNED_TAKEDA_PIPE_SCOPE");
   if(input.dbStartedControlPath)requireDbStartedOuterDeadline(input.overallDeadline);
   const bytes=await readFile(input.bootstrapPath);if(sha256(bytes)!==input.reviewedSha256)throw Error("PILOT_REVIEWED_BOOTSTRAP_HASH_REQUIRED");
@@ -92,6 +93,12 @@ export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;re
       const due=evaluateHengruiSourceDue(pre.latestAccepted,captureStartedAt.getTime());
       if(!due.due)return {state:"SKIPPED_NOT_DUE" as const,batchId,sourceId:PILOT_SOURCE,observedAt:due.observedAt,nextDueAt:due.nextDueAt,captureStarted:false as const};
     }
+    if(input.ownedUcbPipe){
+      // Fixed automation path only; the original publication check still rechecks its fresh context.
+      const {evaluateUcbSourceDue}=await import("../../../connector-gate/ucb-due-policy.mts");
+      const due=evaluateUcbSourceDue(pre.latestAccepted,captureStartedAt.getTime());
+      if(!due.due)return {state:"SKIPPED_NOT_DUE" as const,batchId,sourceId:PILOT_SOURCE,observedAt:due.observedAt,nextDueAt:due.nextDueAt,captureStarted:false as const};
+    }
     const sourceFetch=createOwnedSourceQualityFetch();
     const captureSignal=input.signal??new AbortController().signal;
     phase="ACQUIRE_SOURCE";const currentAttemptTracker=attemptTracker=createSourceFetchAttemptTracker();
@@ -126,6 +133,7 @@ export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;re
         ...(input.ownedTakedaPipe?{ownedTakedaPipe:{selection:input.ownedTakedaPipe,producerRoot:resolve(import.meta.dirname,".."),archive:{originalRoot:workspaceRoot,restoredRoot,bundlePath,bundleSha256,bundleByteCount,evidenceSubdirectory:EVIDENCE}}}:{}),
         ...(input.ownedBiogenPipe?{ownedBiogenPipe:{selection:input.ownedBiogenPipe,producerRoot:resolve(import.meta.dirname,".."),archive:{originalRoot:workspaceRoot,restoredRoot,bundlePath,bundleSha256,bundleByteCount,evidenceSubdirectory:EVIDENCE}}}:{}),
         ...(input.ownedHengruiPipe?{ownedHengruiPipe:{selection:input.ownedHengruiPipe,producerRoot:resolve(import.meta.dirname,".."),archive:{originalRoot:workspaceRoot,restoredRoot,bundlePath,bundleSha256,bundleByteCount,evidenceSubdirectory:EVIDENCE}}}:{}),
+        ...(input.ownedUcbPipe?{ownedUcbPipe:{selection:input.ownedUcbPipe,producerRoot:resolve(import.meta.dirname,".."),archive:{originalRoot:workspaceRoot,restoredRoot,bundlePath,bundleSha256,bundleByteCount,evidenceSubdirectory:EVIDENCE}}}:{}),
         ...(input.signal?{signal:input.signal}:{})});
       const report={...outcome,batchId,sourceResultId:pending.id,sourceId:PILOT_SOURCE,bundlePath,bundleSha256,bundleByteCount,archiveRetention:"PENDING",recoveryVerification:"PENDING",certificateGrade:SOURCE_QUALITY_POLICY_ID};
       await writeFile(join(workspaceRoot,`${batchId}.outcome.json`),JSON.stringify(report),{flag:"wx",mode:0o600});return report;
@@ -189,6 +197,9 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
       const hengruiMode=process.env.JOBFINDER_HENGRUI_OWNED_PIPE_MODE,hengruiChallenge=process.env.JOBFINDER_HENGRUI_LAUNCH_CHALLENGE;
       if(hengruiMode!==undefined&&hengruiMode!=="HENGRUI_OWNED_PIPE_CANDIDATE_V1"||hengruiMode===undefined&&hengruiChallenge!==undefined||[mode,biogenMode,hengruiMode].filter(value=>value!==undefined).length>1)throw Error("PILOT_OWNED_PIPE_SELECTION_INVALID");
       const ownedHengruiPipe=hengruiMode?{mode:"HENGRUI_OWNED_PIPE_CANDIDATE_V1" as const,launchChallenge:z.string().regex(/^[a-f0-9]{64}$/).parse(hengruiChallenge)}:undefined;
-      const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,signal:controller.signal,...(ownedTakedaPipe?{ownedTakedaPipe}:{}),...(ownedBiogenPipe?{ownedBiogenPipe}:{}),...(ownedHengruiPipe?{ownedHengruiPipe}:{}),...(extra[1]?{dbStartedControlPath:extra[1],overallDeadline:Number(process.env.P0_PILOT_OUTER_DEADLINE_MS)}:{})});console.log(JSON.stringify(report));if(report.state!=="COMMITTED_EXACT"&&!((ownedTakedaPipe||ownedBiogenPipe||ownedHengruiPipe)&&report.state==="SKIPPED_NOT_DUE"))process.exitCode=1;}
+      const ucbMode=process.env.JOBFINDER_UCB_OWNED_PIPE_MODE,ucbChallenge=process.env.JOBFINDER_UCB_LAUNCH_CHALLENGE;
+      if(ucbMode!==undefined&&ucbMode!=="UCB_OWNED_PIPE_CANDIDATE_V1"||ucbMode===undefined&&ucbChallenge!==undefined||[mode,biogenMode,hengruiMode,ucbMode].filter(value=>value!==undefined).length>1)throw Error("PILOT_OWNED_PIPE_SELECTION_INVALID");
+      const ownedUcbPipe=ucbMode?{mode:"UCB_OWNED_PIPE_CANDIDATE_V1" as const,launchChallenge:z.string().regex(/^[a-f0-9]{64}$/).parse(ucbChallenge)}:undefined;
+      const report=await runCloudPortableSourcePilot({bootstrapPath,reviewedSha256,workspaceRoot,relayDirectory,signal:controller.signal,...(ownedTakedaPipe?{ownedTakedaPipe}:{}),...(ownedBiogenPipe?{ownedBiogenPipe}:{}),...(ownedHengruiPipe?{ownedHengruiPipe}:{}),...(ownedUcbPipe?{ownedUcbPipe}:{}),...(extra[1]?{dbStartedControlPath:extra[1],overallDeadline:Number(process.env.P0_PILOT_OUTER_DEADLINE_MS)}:{})});console.log(JSON.stringify(report));if(report.state!=="COMMITTED_EXACT"&&!((ownedTakedaPipe||ownedBiogenPipe||ownedHengruiPipe||ownedUcbPipe)&&report.state==="SKIPPED_NOT_DUE"))process.exitCode=1;}
     catch{console.error("CLOUD_SOURCE_PILOT_STOPPED_REVIEW_RELAY_AND_PERSISTED_OUTCOME");process.exitCode=1;}}
 }

@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","include":["ucb-*.mts","ucb-*.test.ts","../test/ucb-*.ts","../test/fixtures/ucb-phenom-synthetic.mts","../vendor/c60-source/src/crawler/cloudDbStartedPilot.ts","../vendor/c60-source/scripts/p0-cloud-portable-source-pilot.ts"]}
