@@ -1,3 +1,5 @@
+// These assertions inspect the fully validated retained 36a03b8 view.
+import {integrationSharedManifest,readIntegrationShared,integrationSharedExport,integrationAncestorEntry} from '../test/viatris-shared-integration-layers.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -9,8 +11,8 @@ import {bTriggerCompletenessGuardSourceProvenance,B_TRIGGER_COMPLETENESS_GUARD_D
 import {legacyCompletenessGuardSourceProvenance,LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/legacy-completeness-guard-source-provenance.mjs';
 import {sharedCompletenessGuardSourceProvenance,SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/shared-completeness-guard-source-provenance.mjs';
 const root=path.resolve(import.meta.dirname,'..');
-const manifest=JSON.parse(fs.readFileSync(path.join(root,'vendor/C60_SOURCE_MANIFEST.json')));
-const exported=JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{encoding:'utf8',maxBuffer:4*1024*1024}));
+const manifest=integrationSharedManifest;
+const exported=integrationSharedExport(JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{encoding:'utf8',maxBuffer:4*1024*1024})));
 const baseCommit='d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f';
 const ancestorOriginCommit='3a2400768e8b087b8600dd05e1a32ac006bd7102';
 // These hashes name the exact d02f inputs, not the current local derivatives.
@@ -97,6 +99,7 @@ test('new connector gate files never inherit historical source origin',()=>{
    if(entry.path.endsWith('/hengrui-synthetic-fixture.mts')){assert.equal(sourceBasis,'ORIGINAL_HENGRUI_CANDIDATE_DERIVATIVE');assert.deepEqual(portInput,{candidate:'hengrui-auto-adapter-candidate-20261016T0315Z',path:'connector-gate/hengrui-synthetic-fixture.mts',sha256:'70be97883ad332a1c8fae76cc1f4c46f906efd0fa8d6b504274e755558391037',bytes:9058});}
    else {assert.equal(sourceBasis,undefined);assert.equal(portInput,undefined);}
   }else if(/\/connector-gate\/(?:ucb[-.]|UCB_OWNED_BRIDGE\.md$)/.test(entry.path)){assert.deepEqual(entry.provenance,{kind:'new-ucb-owned-bridge-source',originCommit:null,sourceStatus:'LOCAL_UNREGISTERED',productionQualified:false,newBuildQualificationRequired:true});}
+  else if(/\/connector-gate\/(?:viatris[-.]|VIATRIS_OWNED_BRIDGE\.md$)/.test(entry.path))assert.deepEqual(entry.provenance,{kind:'new-viatris-owned-bridge-source',originCommit:null,sourceStatus:'LOCAL_UNREGISTERED',productionQualified:false,newBuildQualificationRequired:true});
   else assert.deepEqual(entry.provenance,{kind:'new-connector-publication-review-source'});
  }
 });

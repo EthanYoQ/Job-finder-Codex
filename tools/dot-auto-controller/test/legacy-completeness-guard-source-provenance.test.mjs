@@ -1,3 +1,5 @@
+// These assertions inspect the fully validated retained 36a03b8 view.
+import {integrationSharedManifest,readIntegrationShared,integrationSharedExport,integrationAncestorEntry} from './viatris-shared-integration-layers.mjs';
 import {retainedBTriggerGuardManifest,readBeforeBTriggerGuard} from './b-trigger-completeness-guard-ancestry.mjs';
 import {ucbSourceProvenance} from '../scripts/ucb-source-provenance.mjs';
 import {SHARED_COMPLETENESS_GUARD_BASE_COMMIT,SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS,SHARED_COMPLETENESS_GUARD_SOURCE_PATHS,refreshSharedCompletenessGuardSourceManifest} from '../scripts/shared-completeness-guard-source-provenance.mjs';
@@ -14,7 +16,7 @@ const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const git=relative=>execFileSync('git',['show',LEGACY_COMPLETENESS_GUARD_BASE_COMMIT+':'+prefix+relative],{cwd:root,maxBuffer:8*1024*1024});
 const base=JSON.parse(git('C60_SOURCE_MANIFEST.json')),current=retainedBTriggerGuardManifest;
 const readSource=readBeforeBTriggerGuard;
-const exported=JSON.parse(execFileSync(process.execPath,[root+'/scripts/package-manifest.mjs'],{encoding:'utf8',maxBuffer:8*1024*1024}));
+const exported=integrationSharedExport(JSON.parse(execFileSync(process.execPath,[root+'/scripts/package-manifest.mjs'],{encoding:'utf8',maxBuffer:8*1024*1024})));
 const records=current.files.filter(file=>file.classification===LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS);
 
 test('exactly one local legacy guard derivative binds real a889c0 bytes and complete prior records',()=>{
@@ -137,7 +139,7 @@ function withExporterFixture(run){
  const write=(relative,bytes)=>{const full=path.join(temporary,relative);fs.mkdirSync(path.dirname(full),{recursive:true});fs.writeFileSync(full,bytes);};
  const file=structuredClone(records[0]);
  try{
-  for(const script of ['package-manifest.mjs','b-trigger-completeness-guard-source-provenance.mjs','legacy-completeness-guard-source-provenance.mjs','shared-completeness-guard-source-provenance.mjs','four-source-provenance.mjs','ucb-source-provenance.mjs','hengrui-source-provenance.mjs'])write('scripts/'+script,fs.readFileSync(root+'/scripts/'+script));
+  for(const script of ['package-manifest.mjs','b-trigger-completeness-guard-source-provenance.mjs','legacy-completeness-guard-source-provenance.mjs','shared-completeness-guard-source-provenance.mjs','four-source-provenance.mjs','ucb-source-provenance.mjs','hengrui-source-provenance.mjs'])write('scripts/'+script,execFileSync('git',['show','36a03b847f66e8d68d68e2cff1f00fd6b4b83b51:tools/dot-auto-controller/scripts/'+script],{cwd:root}));
   for(const name of ['READER_MAIN_SOURCE_MANIFEST.json','READER_FALLBACK_SOURCE_MANIFEST.json'])write('vendor/'+name,JSON.stringify({files:[]}));
   write('config/hengrui-port-provenance.json',JSON.stringify({originCommit:null,productionQualified:false,files:[]}));
   const setRecord=record=>write('vendor/C60_SOURCE_MANIFEST.json',JSON.stringify({originCommit:base.originCommit,files:[record]}));
@@ -147,7 +149,7 @@ function withExporterFixture(run){
  }finally{fs.rmSync(temporary,{recursive:true,force:true});}
 }
 
-test('real package exporter rejects relabelling, stale bytes and forged ancestry',()=>withExporterFixture(({file,setRecord,setBytes,exportFixture})=>{
+test('retained 36a03b8 legacy exporter rejects relabelling, stale bytes and forged ancestry',()=>withExporterFixture(({file,setRecord,setBytes,exportFixture})=>{
  assert.doesNotThrow(exportFixture);
  const relabelled={...file,classification:'EXACT_HISTORICAL_FILE_BYTES'};setRecord(relabelled);assert.throws(exportFixture,/LEGACY_COMPLETENESS_GUARD_CLASS_REQUIRED/);
  setRecord(file);setBytes(Buffer.from('tampered current bytes'));assert.throws(exportFixture,/LEGACY_COMPLETENESS_GUARD_CURRENT_BYTES_MISMATCH/);

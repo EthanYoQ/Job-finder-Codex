@@ -1,3 +1,4 @@
+import {integrationAncestorEntry} from './viatris-shared-integration-layers.mjs';
 import {retainedBTriggerGuardManifest,readBeforeBTriggerGuard} from './b-trigger-completeness-guard-ancestry.mjs';
 /** Validate the single legacy derivative before any older provenance test strips it. */
 import assert from 'node:assert/strict';
@@ -25,6 +26,7 @@ for(const file of derivatives){
 export const retainedLegacyGuardManifest={...current,files:current.files.map(file=>file.classification===LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS?structuredClone(file.priorProvenance):file)};
 export const readBeforeLegacyGuard=relative=>LEGACY_COMPLETENESS_GUARD_SOURCE_PATHS.includes(relative)?git('c60-source/'+relative):readBeforeBTriggerGuard(relative);
 export function legacyGuardAncestorEntry(entry){
+ entry=integrationAncestorEntry(entry);
  const file=derivatives.find(file=>entry.path===prefix+'c60-source/'+file.path);
  if(!file)return entry;
  assert.equal(entry.sha256,file.sha256);assert.equal(entry.bytes,file.bytes);

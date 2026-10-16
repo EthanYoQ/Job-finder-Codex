@@ -1,3 +1,5 @@
+// These assertions inspect the fully validated retained 36a03b8 view.
+import {integrationSharedManifest,readIntegrationShared,integrationSharedExport,integrationAncestorEntry} from './viatris-shared-integration-layers.mjs';
 /** Validate the B-trigger derivative before older tests inspect its exact shared ancestor. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -10,20 +12,21 @@ const root=path.resolve(import.meta.dirname,'..'),prefix='tools/dot-auto-control
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const git=relative=>execFileSync('git',['show',B_TRIGGER_COMPLETENESS_GUARD_BASE_COMMIT+':'+prefix+relative],{cwd:root,maxBuffer:8*1024*1024});
 const base=JSON.parse(git('C60_SOURCE_MANIFEST.json'));
-const current=JSON.parse(fs.readFileSync(root+'/vendor/C60_SOURCE_MANIFEST.json'));
+const current=integrationSharedManifest;
 const derivatives=current.files.filter(file=>file.classification===B_TRIGGER_COMPLETENESS_GUARD_DERIVATIVE_CLASS);
 assert.deepEqual(B_TRIGGER_COMPLETENESS_GUARD_SOURCE_PATHS,['src/db/ingestionRepository.ts']);
 assert.deepEqual(derivatives.map(file=>file.path),B_TRIGGER_COMPLETENESS_GUARD_SOURCE_PATHS);
 for(const file of derivatives){
  assert(bTriggerCompletenessGuardSourceProvenance(file));
- const prior=base.files.find(entry=>entry.path===file.path),before=git('c60-source/'+file.path),now=fs.readFileSync(root+'/vendor/c60-source/'+file.path);
+ const prior=base.files.find(entry=>entry.path===file.path),before=git('c60-source/'+file.path),now=readIntegrationShared(file.path);
  assert.deepEqual(file.priorProvenance,prior);assert(sharedCompletenessGuardSourceProvenance(prior));
  assert.equal(file.derivativeBaseSha256,sha(before));assert.equal(prior.bytes,before.length);
  assert.equal(file.sha256,sha(now));assert.equal(file.bytes,now.length);
 }
 export const retainedBTriggerGuardManifest={...current,files:current.files.map(file=>file.classification===B_TRIGGER_COMPLETENESS_GUARD_DERIVATIVE_CLASS?structuredClone(file.priorProvenance):file)};
-export const readBeforeBTriggerGuard=relative=>B_TRIGGER_COMPLETENESS_GUARD_SOURCE_PATHS.includes(relative)?git('c60-source/'+relative):fs.readFileSync(root+'/vendor/c60-source/'+relative);
+export const readBeforeBTriggerGuard=relative=>B_TRIGGER_COMPLETENESS_GUARD_SOURCE_PATHS.includes(relative)?git('c60-source/'+relative):readIntegrationShared(relative);
 export function bTriggerGuardAncestorEntry(entry){
+ entry=integrationAncestorEntry(entry);
  const file=derivatives.find(file=>entry.path===prefix+'c60-source/'+file.path);
  if(!file)return entry;
  assert.equal(entry.sha256,file.sha256);assert.equal(entry.bytes,file.bytes);

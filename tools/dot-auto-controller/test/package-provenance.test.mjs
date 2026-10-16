@@ -1,3 +1,5 @@
+// These assertions inspect the fully validated retained 36a03b8 view.
+import {integrationSharedManifest,readIntegrationShared,integrationSharedExport,integrationAncestorEntry} from './viatris-shared-integration-layers.mjs';
 import {bTriggerGuardAncestorEntry} from './b-trigger-completeness-guard-ancestry.mjs';
 import {B_TRIGGER_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/b-trigger-completeness-guard-source-provenance.mjs';
 import {LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS} from '../scripts/legacy-completeness-guard-source-provenance.mjs';
@@ -9,8 +11,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 const root=path.resolve(import.meta.dirname,'..');
-const manifest=JSON.parse(fs.readFileSync(path.join(root,'vendor/C60_SOURCE_MANIFEST.json'),'utf8'));
-const exported=JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{cwd:root,encoding:'utf8',maxBuffer:4*1024*1024}));
+const manifest=integrationSharedManifest;
+const exported=integrationSharedExport(JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{cwd:root,encoding:'utf8',maxBuffer:4*1024*1024})));
 const prefix='tools/dot-auto-controller/vendor/c60-source/';
 const newHostPaths=['ops/cloud-pilot-host/CONNECTOR_BINDING.md','ops/cloud-pilot-host/connector-host-binding.mjs','ops/cloud-pilot-host/connector-host-launch.py','ops/cloud-pilot-host/connector-host.test.mjs'];
 const entryFor=source=>{const entry=exported.entries.find(f=>f.path===prefix+source.path);assert(entry,source.path);assert.equal(entry.sha256,source.sha256,source.path);assert.equal(entry.bytes,source.bytes,source.path);return entry;};

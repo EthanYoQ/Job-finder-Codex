@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","include":["viatris-*.mts","viatris-*.test.ts","../test/viatris-*.ts","../test/fixtures/viatris-tupu-synthetic.mts","../vendor/c60-source/src/crawler/cloudDbStartedPilot.ts","../vendor/c60-source/scripts/p0-cloud-portable-source-pilot.ts"]}

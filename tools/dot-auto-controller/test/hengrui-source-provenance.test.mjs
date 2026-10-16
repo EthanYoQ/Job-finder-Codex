@@ -1,3 +1,5 @@
+// These assertions inspect the fully validated retained 36a03b8 view.
+import {integrationSharedManifest,readIntegrationShared,integrationSharedExport,integrationAncestorEntry} from './viatris-shared-integration-layers.mjs';
 import {retainedLegacyGuardManifest,legacyGuardAncestorEntry} from './legacy-completeness-guard-ancestry.mjs';
 import {retainedSharedGuardManifest,readBeforeSharedGuard} from './shared-completeness-guard-ancestry.mjs';
 import test from 'node:test';
@@ -17,7 +19,7 @@ const currentManifest=retainedLegacyGuardManifest;
 const manifest={...retainedSharedGuardManifest,files:retainedSharedGuardManifest.files.filter(f=>f.classification!=='UCB_OWNED_BRIDGE_NEW_SOURCE').map(f=>['UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE','FOUR_SOURCE_SEQUENCE_SOURCE_DERIVATIVE'].includes(f.classification)?f.priorProvenance:f)};
 const ucbPaths=new Set(currentManifest.files.filter(f=>f.classification==='UCB_OWNED_BRIDGE_SOURCE_DERIVATIVE').map(f=>f.path));
 const portManifest=JSON.parse(fs.readFileSync(path.join(root,'config/hengrui-port-provenance.json')));
-const exported=JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{encoding:'utf8',maxBuffer:8*1024*1024}));
+const exported=integrationSharedExport(JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{encoding:'utf8',maxBuffer:8*1024*1024})));
 const entry=relative=>{const current=legacyGuardAncestorEntry(exported.entries.find(file=>file.path===sourcePrefix+relative));if(!ucbPaths.has(relative))return current;const ancestor=manifest.files.find(f=>f.path===relative);assert.deepEqual(current.provenance.priorProvenance,ancestor);return {...current,sha256:ancestor.sha256,bytes:ancestor.bytes,provenance:hengruiSourceProvenance(ancestor)};};
 const source=relative=>manifest.files.find(file=>file.path===relative);
 const priorHashes={

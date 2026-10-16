@@ -1,3 +1,5 @@
+// These assertions inspect the fully validated retained 36a03b8 view.
+import {integrationSharedManifest,readIntegrationShared,integrationSharedExport,integrationAncestorEntry} from './viatris-shared-integration-layers.mjs';
 import {sharedCompletenessGuardSourceProvenance} from '../scripts/shared-completeness-guard-source-provenance.mjs';
 import {LEGACY_COMPLETENESS_GUARD_BASE_COMMIT,LEGACY_COMPLETENESS_GUARD_DERIVATIVE_CLASS,LEGACY_COMPLETENESS_GUARD_SOURCE_PATHS,legacyCompletenessGuardSourceProvenance,refreshLegacyCompletenessGuardSourceManifest} from '../scripts/legacy-completeness-guard-source-provenance.mjs';
 import {SHARED_COMPLETENESS_GUARD_BASE_COMMIT,SHARED_COMPLETENESS_GUARD_DERIVATIVE_CLASS,SHARED_COMPLETENESS_GUARD_SOURCE_PATHS,refreshSharedCompletenessGuardSourceManifest} from '../scripts/shared-completeness-guard-source-provenance.mjs';
@@ -12,9 +14,9 @@ import {B_TRIGGER_COMPLETENESS_GUARD_BASE_COMMIT,B_TRIGGER_COMPLETENESS_GUARD_DE
 const root=path.resolve(import.meta.dirname,'..'),prefix='tools/dot-auto-controller/vendor/';
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const git=relative=>execFileSync('git',['show',B_TRIGGER_COMPLETENESS_GUARD_BASE_COMMIT+':'+prefix+relative],{cwd:root,maxBuffer:8*1024*1024});
-const base=JSON.parse(git('C60_SOURCE_MANIFEST.json')),current=JSON.parse(fs.readFileSync(root+'/vendor/C60_SOURCE_MANIFEST.json'));
-const readSource=relative=>fs.readFileSync(root+'/vendor/c60-source/'+relative);
-const exported=JSON.parse(execFileSync(process.execPath,[root+'/scripts/package-manifest.mjs'],{encoding:'utf8',maxBuffer:8*1024*1024}));
+const base=JSON.parse(git('C60_SOURCE_MANIFEST.json')),current=integrationSharedManifest;
+const readSource=relative=>readIntegrationShared(relative);
+const exported=integrationSharedExport(JSON.parse(execFileSync(process.execPath,[root+'/scripts/package-manifest.mjs'],{encoding:'utf8',maxBuffer:8*1024*1024})));
 const records=current.files.filter(file=>file.classification===B_TRIGGER_COMPLETENESS_GUARD_DERIVATIVE_CLASS);
 
 test('exactly one local B-trigger guard derivative binds real f7c011 bytes and complete prior records',()=>{
@@ -149,7 +151,7 @@ function withExporterFixture(run){
  const write=(relative,bytes)=>{const full=path.join(temporary,relative);fs.mkdirSync(path.dirname(full),{recursive:true});fs.writeFileSync(full,bytes);};
  const file=structuredClone(records[0]);
  try{
-  for(const script of ['package-manifest.mjs','b-trigger-completeness-guard-source-provenance.mjs','legacy-completeness-guard-source-provenance.mjs','shared-completeness-guard-source-provenance.mjs','four-source-provenance.mjs','ucb-source-provenance.mjs','hengrui-source-provenance.mjs'])write('scripts/'+script,fs.readFileSync(root+'/scripts/'+script));
+  for(const script of ['viatris-shared-integration-provenance.mjs','viatris-source-provenance.mjs','package-manifest.mjs','b-trigger-completeness-guard-source-provenance.mjs','legacy-completeness-guard-source-provenance.mjs','shared-completeness-guard-source-provenance.mjs','four-source-provenance.mjs','ucb-source-provenance.mjs','hengrui-source-provenance.mjs'])write('scripts/'+script,fs.readFileSync(root+'/scripts/'+script));
   for(const name of ['READER_MAIN_SOURCE_MANIFEST.json','READER_FALLBACK_SOURCE_MANIFEST.json'])write('vendor/'+name,JSON.stringify({files:[]}));
   write('config/hengrui-port-provenance.json',JSON.stringify({originCommit:null,productionQualified:false,files:[]}));
   const setRecord=record=>write('vendor/C60_SOURCE_MANIFEST.json',JSON.stringify({originCommit:base.originCommit,files:[record]}));
