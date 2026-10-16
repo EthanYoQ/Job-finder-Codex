@@ -770,14 +770,24 @@
     },
     {
       "path": "scripts/p0-cloud-portable-source-pilot.ts",
-      "sha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
-      "bytes": 19776,
-      "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+      "sha256": "0d1cb9a6181cbfd230202d05cb78191845e7629d75f8a5b876ae38e1d2a0dfef",
+      "bytes": 21498,
+      "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
       "originCommit": null,
       "productionQualified": false,
-      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
-      "derivativeBaseSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
-      "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+      "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
+      "derivativeBaseSha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+      "priorProvenance": {
+        "path": "scripts/p0-cloud-portable-source-pilot.ts",
+        "sha256": "0e7d9c92aaff46b9f18f6baa2c890e54e4d0d62e944ed0ed58089a02b1c1516f",
+        "bytes": 19776,
+        "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+        "originCommit": null,
+        "productionQualified": false,
+        "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+        "derivativeBaseSha256": "a62a002c67716551ed23af7263b08a3d2d6486efcf31d9b4889b7042731fe98f",
+        "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+      }
     },
     {
       "path": "scripts/p0-cloud-source-pilot.ts",
@@ -1359,11 +1369,21 @@
     },
     {
       "path": "src/crawler/cloudDbStartedPilot.ts",
-      "sha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
-      "bytes": 8254,
-      "classification": "CONNECTOR_PUBLICATION_REVIEW_DERIVATIVE",
-      "originSha256": "42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3",
-      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f"
+      "sha256": "8440d0b5e08203aecca5e9c4e9aead822ea7b242e1cec11f7eae4cdd70a2ebc1",
+      "bytes": 9729,
+      "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
+      "originCommit": null,
+      "productionQualified": false,
+      "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
+      "derivativeBaseSha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
+      "priorProvenance": {
+        "path": "src/crawler/cloudDbStartedPilot.ts",
+        "sha256": "2b17aa0bb62411e848f5bb3ededd164d41bf9c06bd0a2775e593adaac5d65a54",
+        "bytes": 8254,
+        "classification": "CONNECTOR_PUBLICATION_REVIEW_DERIVATIVE",
+        "originSha256": "42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3",
+        "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f"
+      }
     },
     {
       "path": "src/crawler/cloudPilotContext.ts",
@@ -1373,14 +1393,24 @@
     },
     {
       "path": "src/crawler/cloudSourcePilotRelay.ts",
-      "sha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
-      "bytes": 21229,
-      "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+      "sha256": "f661fc6ab18b623181f108d06accf28226d0de9071c1fca2381db4a07469b261",
+      "bytes": 28133,
+      "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
       "originCommit": null,
       "productionQualified": false,
-      "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
-      "derivativeBaseSha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6",
-      "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+      "derivativeBaseCommit": "0f7d297619d1f357a2da92682de9b62d7409733c",
+      "derivativeBaseSha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
+      "priorProvenance": {
+        "path": "src/crawler/cloudSourcePilotRelay.ts",
+        "sha256": "3734b87ba666825e3708d3924be8f3f1c5de1099dc511427fe34a723af40af6c",
+        "bytes": 21229,
+        "classification": "LOCAL_AUTOMATION_SOURCE_DERIVATIVE",
+        "originCommit": null,
+        "productionQualified": false,
+        "derivativeBaseCommit": "d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f",
+        "derivativeBaseSha256": "06a0a626947365e241ae9d7de02e11f21496da21f4d3d8d497a6b6739f7823e6",
+        "ancestorOriginCommit": "3a2400768e8b087b8600dd05e1a32ac006bd7102"
+      }
     },
     {
       "path": "src/crawler/companyRecruitmentProfiles/README.md",

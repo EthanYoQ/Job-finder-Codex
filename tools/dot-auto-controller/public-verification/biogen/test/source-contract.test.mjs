@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
+import {workdaySha256,biogenWorkdayId} from '../workday-id.mjs';import {officialJobUrl,validateJob} from '../contract.mjs';import {mergeRenderedList} from '../cua-port.mjs';import {createPublicVerifier} from '../machine.mjs';import {fixture} from '../../../fixed-host/biogen/synthetic-ui-port.mjs';import {expected,job} from './synthetic.mjs';
+// All inputs here are authored synthetic fixtures; no current website claim.
+for(const title of ['ASCII','中文职位','💊-科学家','Percent%20raw'])test('exact UTF8 SHA256 '+title,()=>{const p='/job/Shanghai-China/'+title+'_REQ123-1';const hash=createHash('sha256').update(p,'utf8').digest('hex');assert.equal(workdaySha256(p).sha256,hash);assert.equal(biogenWorkdayId(p),'workday:sha256:'+hash);});
+const j=job(1000),p=j.officialUrl.slice('https://biibhr.wd3.myworkdayjobs.com/external'.length);
+for(const url of [j.officialUrl+'?x=1',j.officialUrl+'#x',j.officialUrl.replace('biibhr','other'),j.officialUrl.replace('/external','/internal'),j.officialUrl.replace('Shanghai','Beijing'),j.officialUrl.replace('REQ1000','REQ1001')])test('reject differing exact URL '+url,()=>assert.equal(officialJobUrl(url,j.sourceJobId),false));
+const collection=()=>({anchorJobs:[{...j,sourceJobId:p}],visibleTitles:[{sourceJobId:p,renderedOriginalTitle:j.officialTitle}]});
+test('raw externalPath collection hashes and validates exact fields',()=>assert.deepEqual(mergeRenderedList(collection()),[{...j,renderedOriginalTitle:j.officialTitle}]));
+test('duplicate anchors fail',()=>{const c=collection();c.anchorJobs.push(c.anchorJobs[0]);c.visibleTitles.push(c.visibleTitles[0]);assert.throws(()=>mergeRenderedList(c));});
+test('different title membership fails',()=>{const c=collection();c.visibleTitles[0].sourceJobId=p.replace('REQ1000','REQ9999');assert.throws(()=>mergeRenderedList(c));});
+test('REQ-only id fails',()=>assert.throws(()=>validateJob({...j,sourceJobId:'REQ1000'})));
+for(const options of [{},{stale:true},{stale:true,stillStale:true},{consent:true}])test('actual source-specific CUA selectors through synthetic browser '+JSON.stringify(options),async()=>{const e=expected(),f=fixture(e,options);const result=await createPublicVerifier({expected:e,port:f.port}).run();assert.equal(result.status,options.stillStale?'HOLD':'PASS_LIST_AND_SOURCE_TIME_ONLY');});

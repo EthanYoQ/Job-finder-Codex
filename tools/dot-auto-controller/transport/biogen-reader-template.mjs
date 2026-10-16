@@ -1,0 +1,16 @@
+/** Fixed reviewed Biogen reader. A multi-statement simple query cannot use pg
+ * positional parameters. Only the factory-owned, strict identifier literal is
+ * substituted after verifying every byte of the reviewed template. */
+import {createHash} from 'node:crypto';
+export const HISTORICAL_READER_CANDIDATE='dot-cloud-c51-recovered-3a240076-20261008';
+export const READER_TEMPLATE_SHA256='e016ae53a76339a1fb7e84e0f13807533b016535920be072d746a263d5705add';
+export function assertReaderCandidate(candidateId){
+  if(typeof candidateId!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(candidateId))throw Error('COMPILER_READER_CANDIDATE_CONFIG');
+}
+export function compileReviewedReaderSql(template,candidateId){
+  assertReaderCandidate(candidateId);
+  if(typeof template!=='string'||createHash('sha256').update(template).digest('hex')!==READER_TEMPLATE_SHA256)throw Error('COMPILER_READER_QUERY_DRIFT');
+  const literal="E'"+HISTORICAL_READER_CANDIDATE+"'";
+  if(template.split(literal).length!==2)throw Error('COMPILER_READER_LITERAL_COUNT');
+  return template.replace(literal,"E'"+candidateId+"'");
+}

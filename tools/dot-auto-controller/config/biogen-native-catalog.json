@@ -1,0 +1,332 @@
+{
+  "schemaVersion": 1,
+  "status": "PRIVACY_SANITIZED_REVIEW_ONLY_REQUIRES_NEW_RUNTIME_QUALIFICATION",
+  "sources": {
+    "takeda": {
+      "enabled": false,
+      "configured": false,
+      "sourceId": "source-takeda-china-social",
+      "sourceConfigSha256": "048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f",
+      "route": "PORTABLE",
+      "projectId": "yiopvxysxrtrnvqxwgbx",
+      "runtimeBasis": "c60-source-privacy-sanitized-derivative",
+      "requiredCandidateVersion": null,
+      "candidate": null,
+      "build": null,
+      "databaseIdentity": null,
+      "registration": null,
+      "pins": [],
+      "budgets": {
+        "wrapperMs": 1800000,
+        "sourceMs": 1200000,
+        "httpMs": 45000,
+        "heapMiB": 384
+      },
+      "newBuildAndCandidateRequired": true
+    },
+    "gsk": {
+      "enabled": false,
+      "configured": false,
+      "sourceId": "source-gsk-china-social",
+      "sourceConfigSha256": "aa9bf82308c3b818a8c33b80561712b932389186c160ae83583a8c869eb54d74",
+      "route": "TRUE_A",
+      "projectId": "yiopvxysxrtrnvqxwgbx",
+      "runtimeBasis": "NOT_INCLUDED_SOURCE_SPECIFIC_C72_REQUIRED",
+      "requiredCandidateVersion": 72,
+      "candidate": null,
+      "build": null,
+      "databaseIdentity": null,
+      "registration": null,
+      "pins": [],
+      "budgets": {
+        "wrapperMs": 1800000,
+        "sourceMs": 1200000,
+        "httpMs": 45000,
+        "heapMiB": 384
+      }
+    },
+    "biogen": {
+      "enabled": false,
+      "configured": false,
+      "sourceId": "source-biogen-china-social",
+      "sourceConfigSha256": "47107a3a1f9dbd3411a1f9244866be7c4bc52422b94a1c92204dc66ac4340348",
+      "route": "PORTABLE",
+      "projectId": "yiopvxysxrtrnvqxwgbx",
+      "runtimeBasis": "c60-source-privacy-sanitized-derivative",
+      "requiredCandidateVersion": null,
+      "candidate": null,
+      "build": null,
+      "databaseIdentity": null,
+      "registration": null,
+      "pins": [],
+      "budgets": {
+        "wrapperMs": 1800000,
+        "sourceMs": 1200000,
+        "httpMs": 45000,
+        "heapMiB": 384
+      },
+      "newBuildAndCandidateRequired": true
+    }
+  },
+  "routingCatalogue": [
+    {
+      "sourceId": "source-abbvie-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "4bc13113d0ea829b7df6935081d009ac389f24c97340390f09bbb7ad5234e5a9",
+      "c60Use": "PROHIBITED_MISSING_KNOWN_SOURCE_FIX",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-amgen-china-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "1854166be2d563e3e9cc075df017d3f04e1f65e3b06186bb64c95a3c8676f6a6",
+      "c60Use": "PROHIBITED_MISSING_KNOWN_SOURCE_FIX",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-astellas-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "d3a6153703eeb204c9626e2b45e75d0d9dfcc65865c49066be6ec7a34dec88bc",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-astrazeneca-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "ed85e5a1e4798e4393003cccd6899db986a90c9ff180e95425a63e622cd8ccc5",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-bayer-healthcare-social",
+      "route": "TRUE_B",
+      "sourceConfigSha256": "df4b8294c45f3bcad0675d64b4211522f3265bae68a38c0825c3d99773f139e9",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-biogen-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "47107a3a1f9dbd3411a1f9244866be7c4bc52422b94a1c92204dc66ac4340348",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-bms-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "e0d783cbc8fc887e1697db6d86cb0abb8058ca6793cd32752055271c022ca137",
+      "c60Use": "PROHIBITED_MISSING_KNOWN_SOURCE_FIX",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-boehringer-ingelheim-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "86abb89ac25980acc5e9e3c82741a3415138f53f321f1050c4ae849efd4132de",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-cr-pharma-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "0c5e8c2089b14b18b5db88b63d0c809f9e216bace615fdf1c34f34e9fe83da89",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-csl-china-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "eb4583bc629171783b293f162837776c6f68e63b7e81cc40540b83aed6e06694",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-cspc-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "5fbeee6e6b8d95f05d2b8771908f206ba8f45eea32a6208f21490a058332d409",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-cttq-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "ffdac7a24fcdc6aeabfc9abebfbc49fac8a3cb110a218c61fae6dc0f4e75dbb7",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-daiichi-sankyo-china-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "4cfbb43973c55db406d1e10ab9aed53bc72b8ccfbb7ed9a66745fd3cbf459e03",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-fosun-pharma-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "0227ec8d384900a48b2973f128908f7e9435d4bc991efd9a5b14ea5a3d1042b2",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-gilead-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "bdb31408948240f810347b6ba217407b0b50c9327c9600b4115a2a7a0869e40c",
+      "c60Use": "PROHIBITED_MISSING_KNOWN_SOURCE_FIX",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-grifols-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "614ac95db03986792bf1a42a856a403e747165f1b3a94d8588d49f2016c522c7",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-gsk-china-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "aa9bf82308c3b818a8c33b80561712b932389186c160ae83583a8c869eb54d74",
+      "c60Use": "PROHIBITED_MISSING_KNOWN_SOURCE_FIX",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-hansoh-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "94d0982064af5a70386e017dec29cec1115c08480df2934e8d4cf0ddf644d740",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-hengrui-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "93dcadb4a572da022694b3ab3040fad541fe674107e3dc66fd2323709e374b4e",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-johnson-innovative-medicine-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "80d9610e77965de2e15efba070735e77227c70efedb543d110bb259f75782cf3",
+      "c60Use": "PROHIBITED_MISSING_KNOWN_SOURCE_FIX",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-kelun-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "9fe0cb0d7c308567f6010aa6181f36c595b97df739ecd528cab97070f47572cb",
+      "c60Use": "PROHIBITED_MISSING_KNOWN_SOURCE_FIX",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-lilly-china-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "34ac4d47a1b69389e567b53df64062f10ed50a1d34cb0b4876d3c9af85e68c97",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-merck-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-msd-china-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "7772b32344c3485af4cb54e3ad17a7a78335800282682450da213c7544f6fc30",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-novartis-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "1dcb83b63182c3b496a1137678baae55201276b4e041b60b6cbe1fab30990a91",
+      "c60Use": "PROHIBITED_MISSING_KNOWN_SOURCE_FIX",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-novo-nordisk-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "40305820c3aa3f36e74f06873c0ddd1a52266cb74d277b3a36137c81fc5c604e",
+      "c60Use": "PROHIBITED_MISSING_KNOWN_SOURCE_FIX",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-organon-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2",
+      "c60Use": "PROHIBITED_MISSING_KNOWN_SOURCE_FIX",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-pfizer-china-social",
+      "route": "TRUE_B",
+      "sourceConfigSha256": "84aaab8bad3579630eec1b12d3f09236755b3a25d0b7751ca8584a9a53a83413",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-qilu-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "0ca38d0cd6550e9567cc3e7ca6772d3b91497f5a59530f5359f823a6c62d5773",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-roche-china-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "d0e8002bbc03e3da46bbb02c30b533b5b968f38ac5db2c357c009de2eb4066ed",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-sanofi-china-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "106fb80ad4e6c953d41a2dd67156f42e1bc4416766c98912a60ad59722df97c3",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-servier-china-social",
+      "route": "TRUE_B",
+      "sourceConfigSha256": "3c87c89d3bdc74275a0b66a9a27a9eaf76f99da8ee7aa3af835eb87e2b028e17",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-shanghai-pharma-social",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "bc8041ef07df70a7c07a6a14487ee84e230a2b0d6efe1e095aded1a3f7dc7df9",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-takeda-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-ucb-china-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "0423b01f438925ad3e34e29aeda58fe6353fbd264d4472a09bcb1fba281bd146",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    },
+    {
+      "sourceId": "source-viatris-social",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9",
+      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "executionAuthorizedByAudit": false
+    }
+  ],
+  "privacySanitization": {
+    "disabledSourceFamilies": [
+      "51job-coapi",
+      "BI_SEMANTIC_REPLAY"
+    ],
+    "scopeExpansion": false
+  }
+}

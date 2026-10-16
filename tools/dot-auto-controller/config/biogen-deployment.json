@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "activated": false,
+  "reason": "INACTIVE_BIOGEN_HOST_REVIEW_CANDIDATE_REQUIRES_INDEPENDENT_QUALIFICATION",
+  "authorityDirectory": null,
+  "authorityIdentitySha256": null,
+  "deployedReaderIdentity": null,
+  "pg": null,
+  "originalPublisherStateFile": null
+}
