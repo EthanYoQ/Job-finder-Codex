@@ -5,9 +5,9 @@ Accounting/config are fixed source bytes embedded by the source renderer.
 from pathlib import Path
 import errno, json, os, shutil, stat, time, types
 CHUNK = 64 * 1024
-SCAN_INTERVAL = 0.5
+SCAN_INTERVAL = 5.0
 SCAN_DEADLINE = 10.0
-MAX_PENDING = 1024 * 1024
+MAX_PENDING = 32 * 1024 * 1024
 META = 64 * 1024
 
 class Hold(RuntimeError): pass
@@ -74,8 +74,9 @@ class Guard:
         require(not self.failed, 'BUDGET_FAILURE_LATCHED')
         try:
             require(type(growth) is int and growth >= 0, 'BUDGET_RESERVATION')
-            now = time.monotonic()
-            if full or now - self.last_full >= SCAN_INTERVAL or self.pending + growth >= MAX_PENDING:
+            refreshed = False
+            def refresh():
+                nonlocal refreshed
                 observed = self.read_full()
                 self.latest = self.ledger.register(observed)
                 for path in self.extra:
@@ -84,15 +85,33 @@ class Guard:
                 self.extra_phase = sum(self.extra_high.values())
                 self.pending = 0
                 self.last_full = time.monotonic()
-            sample = self.ledger.sample(self.a.free(self.a.WORKSPACE), self.a.free('/tmp'), time.monotonic())
-            # Delayed allocation and registered-root growth are never credited
-            # away: reserve writes since the last completed complete scan.
-            projected = dict(sample)
-            reserve = self.pending + growth
-            projected['charged'] += reserve
-            projected['phase'] += reserve + self.extra_phase
-            projected['workspaceFree'] -= reserve
-            self.a.check_limits(projected)
+                refreshed = True
+            def actual():
+                sample = self.ledger.sample(self.a.free(self.a.WORKSPACE), self.a.free('/tmp'), time.monotonic())
+                sample = dict(sample)
+                sample['phase'] += self.extra_phase
+                # An actual free/cap breach is terminal, never a reason to wait
+                # for cleanup. Only unspent conservative reservations may be
+                # reconciled, and only by a completed full registered scan.
+                self.a.check_limits(sample)
+                return sample
+            def projected():
+                sample = actual()
+                reserve = self.pending + growth
+                sample['charged'] += reserve
+                sample['phase'] += reserve
+                sample['workspaceFree'] -= reserve
+                return sample
+            actual()
+            if full or time.monotonic() - self.last_full >= SCAN_INTERVAL or self.pending + growth >= MAX_PENDING:
+                refresh()
+            value = projected()
+            try:
+                self.a.check_limits(value)
+            except self.a.Hold:
+                if not self.pending or refreshed: raise
+                refresh()
+                self.a.check_limits(projected())
             self.pending += growth
         except BaseException:
             self.failed = True
