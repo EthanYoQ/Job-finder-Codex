@@ -1,0 +1,87 @@
+name: Full49 native retirement acceptance
+on:
+  pull_request:
+    branches: [human-verified-code]
+    paths: ["tools/dot-auto-controller/validation/full49/**", ".github/workflows/full49-native.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-full49:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CONTROLLER: tools/dot-auto-controller
+      INPUTS: tools/dot-auto-controller/validation/full49
+      PG_SOCKET: /workspace/scratch/5e9614251709/pg-isolated-20261014T1256Z/private/socket
+      JOBFINDER_CLOUD_SOURCE_ID: source-hansoh-social
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.23.3
+      - name: Install locked dependencies and reviewed test overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$INPUTS/INPUT_MANIFEST.json"
+          cp -a "$CONTROLLER" "$RUNNER_TEMP/full49-controller"
+          python "$INPUTS/materialize-ci-inputs.py" "$RUNNER_TEMP/full49-controller"
+          cd "$RUNNER_TEMP/full49-controller/vendor/c60-source"
+          npm ci --ignore-scripts
+          DATABASE_URL='postgresql://agent@localhost/jf_synthetic_generation_only' ./node_modules/.bin/prisma generate
+          cd "$GITHUB_WORKSPACE"
+          test ! -e "$RUNNER_TEMP/full49-controller/node_modules"
+          ln -s vendor/c60-source/node_modules "$RUNNER_TEMP/full49-controller/node_modules"
+          (cd "$INPUTS" && python test_offline.py && python test_native_structure.py && python test_acceptance_structure.py)
+          (cd "$RUNNER_TEMP/full49-controller/vendor/c60-source" && ./node_modules/.bin/tsc -p tsconfig.native-full49.json && node --import tsx tests/helpers/nativeFull49Acceptance.offline.test.ts)
+      - name: Start disposable native PG17 with no TCP or external network
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo mkdir -p "$PG_SOCKET"
+          sudo chmod 0777 "$PG_SOCKET"
+          mkdir "$RUNNER_TEMP/full49-evidence"
+          docker pull postgres:17
+          image="$(docker image inspect postgres:17 --format '{{index .RepoDigests 0}}')"
+          test -n "$image"
+          printf '%s\n' "$image" > "$RUNNER_TEMP/full49-evidence/postgres-image-digest.txt"
+          docker run -d --name jf-full49-native --network none \
+            -e POSTGRES_USER=agent -e POSTGRES_DB=postgres \
+            -e POSTGRES_PASSWORD=synthetic-ci-only-not-a-secret \
+            -e 'POSTGRES_INITDB_ARGS=--auth-local=trust --auth-host=reject' \
+            -v "$PG_SOCKET:/var/run/postgresql" "$image" \
+            -p 55439 -c listen_addresses='' -c unix_socket_directories=/var/run/postgresql
+          ready=false
+          for n in $(seq 1 60); do
+            if docker exec jf-full49-native pg_isready -U agent -p 55439; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+      - name: Run all seven complete-schema cases and verify matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          inputs="$GITHUB_WORKSPACE/$INPUTS"
+          evidence="$RUNNER_TEMP/full49-evidence"
+          cd "$RUNNER_TEMP/full49-controller/vendor/c60-source"
+          for case_id in publish_commit publish_rollback retire_commit retire_rollback deferred_commit_failure lock_timeout post_retire_trigger_atomicity; do
+            docker exec jf-full49-native createdb -U agent -p 55439 "jf_retirement_test_${case_id}"
+            node --import tsx tests/helpers/nativeFull49Acceptance.cli.ts \
+              --run-authorized-local-full49-acceptance "$PG_SOCKET" "jf_retirement_test_${case_id}" \
+              "$inputs" "$evidence/$case_id" "$case_id"
+          done
+          node --import tsx tests/helpers/nativeFull49Summarize.cli.ts "$inputs" "$evidence"
+      - name: Preserve synthetic evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: full49-native-synthetic-evidence
+          path: ${{ runner.temp }}/full49-evidence
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove only this job's disposable PG container
+        if: always()
+        run: docker rm -f jf-full49-native || true
