@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Owns the actual original native worker and original diagnostic wrapper. */
-import {observeOwnedChild,acceptOwnedChild,acceptNoMutationFailure} from './src/supervisor-child.mjs';
+import {observeOwnedChild,acceptOwnedChild,acceptNoMutationFailure,parseOwnedChildResult} from './src/supervisor-child.mjs';
 import {withinDeadline} from './src/deadline.mjs';
 import {createCompletionControlPlane} from './src/completion-control-plane.mjs';
 import {requirePreparedCompletion} from './src/closure.mjs';
@@ -14,7 +14,7 @@ function closeRun(journal,batchId,sourceId,record){assertDeploymentBinding();ret
 export async function runTakedaSupervisor(){
  const catalog=loadCatalog(),route=catalog.sources.takeda,deployment=loadDeployment();
  if(process.argv.includes('--check')){const pins=route.configured?verifyPins(route):{checked:0,qualification:'NOT_CONFIGURED'};return {status:'INACTIVE_SOURCE_CANDIDATE',...pins,sourceId:route.sourceId,route:route.route,candidate:route.candidate,activation:deployment.activated,implemented:'Takeda native capture, original compiler, packet replay, deployed reader/API gates, one-shot transport, original-process supervisor',remaining:['Secure restricted connection and network verification','Verified persistent authority including cleanup recovery','Current deployed-reader identity attestation','Live startup reconciliation of all prior UNKNOWN/locks/writers','Real end-to-end integration exercise','Remaining source-specific adapters'],routing:catalog.routingCatalogue.map(s=>({sourceId:s.sourceId,route:s.route,status:s.sourceId===route.sourceId?'IMPLEMENTED_INACTIVE_UNVERIFIED_LIVE':'BLOCKED_SOURCE_ADAPTER_NOT_CONNECTED'}))};}
- if(process.argv[2]==='--reconcile'){if(process.argv.length!==4||!/^auto-takeda-[a-f0-9-]{36}$/.test(process.argv[3]))throw Error('ORIGINAL_BATCH_REQUIRED');const observed=await observeOwnedChild({command:route.node,args:['--max-old-space-size=384',ROOT+'/native/takeda-bootstrap.mjs','--reconcile',process.argv[3]],deadline:Date.now()+120000,env:{...process.env,...deploymentBindingEnv(),JOBFINDER_CLOUD_SOURCE_ID:route.sourceId}});let result;try{result=JSON.parse(observed.stdout);}catch{return {status:'HELD_UNREADABLE_RECOVERY_RESULT',batchId:process.argv[3],originalExit:observed.terminal,retryAuthorized:false};}return {...result,recoveryProcess:observed.terminal};}
+ if(process.argv[2]==='--reconcile'){if(process.argv.length!==4||!/^auto-takeda-[a-f0-9-]{36}$/.test(process.argv[3]))throw Error('ORIGINAL_BATCH_REQUIRED');const observed=await observeOwnedChild({command:route.node,args:['--max-old-space-size=384',ROOT+'/native/takeda-bootstrap.mjs','--reconcile',process.argv[3]],deadline:Date.now()+120000,env:{...process.env,...deploymentBindingEnv(),JOBFINDER_CLOUD_SOURCE_ID:route.sourceId}});let result;try{result=parseOwnedChildResult(observed);}catch{return {status:'HELD_UNREADABLE_RECOVERY_RESULT',batchId:process.argv[3],originalExit:observed.terminal,retryAuthorized:false};}return {...result,recoveryProcess:observed.terminal};}
  if(process.argv.slice(2).join(' ')!=='--run')throw Error('USAGE: run-takeda.mjs --check | --run');
  const authority=requireAuthority(deployment,route);if(route.enabled!==true)throw Error('SOURCE_DISABLED');verifyPins(route);
  // Startup verification cannot invent a fresh authority after cleanup.
@@ -28,10 +28,10 @@ export async function runTakedaSupervisor(){
  const args=[wrapper,runDir+'/diagnostics',String(Math.max(1,run.outerDeadline-Date.now())),'--',route.node,'--max-old-space-size=384',ROOT+'/native/takeda-bootstrap.mjs'];
  const launch={command:route.node,args,batchId,sourceId:route.sourceId,originalDeadline:run.outerDeadline,deploymentBindingSha256:deploymentBindingSha256()};journal.put(batchId,'20-original-launch',launch);
  const originalObservation=await observeOwnedChild({command:route.node,args,deadline:run.outerDeadline,env:{...process.env,...deploymentBindingEnv(),JOBFINDER_CLOUD_SOURCE_ID:route.sourceId,JOBFINDER_AUTO_BATCH_ID:batchId,JOBFINDER_AUTO_PROOF_NONCE:proofNonce,TSX_DISABLE_CACHE:'1',NODE_DISABLE_COMPILE_CACHE:'1'}});
- const {terminal,stdout,stderr}=originalObservation;
+ const {terminal,output}=originalObservation;
  const lifecycle=fs.existsSync(runDir+'/diagnostics/process.jsonl')?fs.readFileSync(runDir+'/diagnostics/process.jsonl','utf8').trim().split('\n').map(s=>JSON.parse(s)):[];
  const started=lifecycle.find(x=>x.event==='CHILD_STARTED'),exited=lifecycle.find(x=>x.event==='CHILD_EXIT');
- const receipt={schemaVersion:1,batchId,launchSha256:sha(canonical(launch)),actualOriginalWrapper:terminal,stdoutSha256:sha(stdout),stderrSha256:sha(stderr),childChain:lifecycle};journal.put(batchId,'60-original-terminal',receipt);
+ const receipt={schemaVersion:1,batchId,launchSha256:sha(canonical(launch)),actualOriginalWrapper:terminal,stdoutSha256:output.stdout.sha256,stderrSha256:output.stderr.sha256,outputCapture:output,childChain:lifecycle};journal.put(batchId,'60-original-terminal',receipt);
  if(lifecycle.some(x=>['SIGNAL_RECEIVED','DEADLINE_REACHED','FORCE_KILL_ATTEMPT'].includes(x.event)))return {status:'HELD_ORIGINAL_EXEC',batchId,retryAuthorized:false};
  if(terminal.exitCode===1&&!terminal.signal&&started&&exited&&exited.childPid===started.childPid&&exited.exitCode===1&&exited.wrapperExitCode===1&&exited.deadlineReached===false&&!lifecycle.some(x=>['SIGNAL_RECEIVED','DEADLINE_REACHED','FORCE_KILL_ATTEMPT'].includes(x.event))){
   try{const proof=acceptNoMutationFailure(originalObservation.token,{command:route.node,args,deadline:run.outerDeadline},{batchId,sourceId:route.sourceId,nonce:proofNonce,childPid:started.childPid});
@@ -49,7 +49,7 @@ export async function runTakedaSupervisor(){
  // A separate verified process performs fresh native DB/current web checks and
  // then the still-owning supervisor resolves only after its live terminal proof.
  const completed=await observeOwnedChild({command:route.node,args:['--max-old-space-size=384',ROOT+'/native/takeda-bootstrap.mjs','--verify-completion',batchId],deadline:run.outerDeadline,env:{...process.env,...deploymentBindingEnv(),JOBFINDER_CLOUD_SOURCE_ID:route.sourceId}});
- let result;try{result=JSON.parse(completed.stdout);}catch{return {status:'HELD_COMPLETION_RECONCILIATION',batchId,retryAuthorized:false};}
+ let result;try{result=parseOwnedChildResult(completed);}catch{return {status:'HELD_COMPLETION_RECONCILIATION',batchId,retryAuthorized:false};}
  if(completed.terminal.exitCode!==0||result.status!=='DB_AND_CURRENT_PUBLIC_RECONCILED')return {...result,status:result.status??'HELD_COMPLETION_RECONCILIATION',retryAuthorized:false};
  acceptOwnedChild(originalObservation.token,{command:route.node,args,deadline:run.outerDeadline});
  requirePreparedCompletion(journal,batchId,route);
