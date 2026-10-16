@@ -23,6 +23,6 @@
     "fixed-host/lifecycle/lifecycle_lock.py": "71e642491992e7c6180f8424fea6b1c5b457326b1954d87af1cf2c0c6b41f3ae",
     "fixed-host/scripts/build-lifecycle-artifacts.py": "d0c77fbc8fa445d78d93c51666c67d18713897fbd89e37ed4d7033b7c482236b",
     "public-verification/biogen/functions-bundle.js": "82228323138f7f601070bd743951c7834059fb2891aae33559d36a49a4f5a34c",
-    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "f661fc6ab18b623181f108d06accf28226d0de9071c1fca2381db4a07469b261"
+    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "f8ce44c42cbd7f9596c689522d7c867e78ce7c0d74cefa02c48b6f191d632e30"
   }
 }

@@ -23,6 +23,6 @@
     "fixed-host/templates/fixed-preimport-launch.py.in": "14c665ae66055f4f5f50b69d9d7badd34e989fac8d864ddbe4b31ed097ee064a",
     "fixed-host/templates/fixed-recovery-helper.mts.in": "e371efd86e1a0274c9aed0a58090c81a149c48747bebe84e2ad049f7bb350238",
     "public-verification/functions-bundle.js": "8f96dfa3e5cc320a7e1841492eb228b04ca39af2c27686e93264fa69086361d3",
-    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "f661fc6ab18b623181f108d06accf28226d0de9071c1fca2381db4a07469b261"
+    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "f8ce44c42cbd7f9596c689522d7c867e78ce7c0d74cefa02c48b6f191d632e30"
   }
 }

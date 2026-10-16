@@ -19,17 +19,20 @@ import {fromPrismaJobCategory} from '../vendor/c60-source/src/db/prismaMappers.t
 export const digest=(x:string|Buffer)=>createHash('sha256').update(x).digest('hex');
 export const ROOT=resolve('vendor/c60-source'),BASE='d02f4f5ea35a4c4c1564b52fbd5a80fcb5b84b9f',NOW='2026-10-11T10:00:00.000Z',dirs:string[]=[];
 let build:ReturnType<typeof createBuildIdentity>;
-export function initialize(){build=createBuildIdentity(ROOT,BASE);return build;}
-const candidate={id:'synthetic-offline-gate',goalId:'jobfinder-portable-required-40',version:100};
+const defaultCandidate={id:'synthetic-offline-gate',goalId:'jobfinder-portable-required-40',version:100};
+let candidate={...defaultCandidate};
+const defaultDatabaseIdentity={migrationVersion:'20261014141000_v75_retired_candidate_fence',schemaHash:'6709fcde7b1953fd1d817d61d3239023fb29ec0ae4fc481efc69ffddbfa13af7',dbSnapshotHash:'e'.repeat(64)};
+let fixtureDatabaseIdentity={...defaultDatabaseIdentity};
+export function initialize(identity?:{commitSha:string;candidate:typeof defaultCandidate;databaseIdentity:typeof defaultDatabaseIdentity}){candidate={...(identity?.candidate??defaultCandidate)};fixtureDatabaseIdentity={...(identity?.databaseIdentity??defaultDatabaseIdentity)};build=createBuildIdentity(ROOT,identity?.commitSha??BASE);return build;}
 let setClock=(at:string)=>{if(Math.abs(Date.now()-Date.parse(at))>1000)throw Error('TEST_ONLY_REAL_CLOCK_REQUIRED');};
 let installFetch=(fn:Function)=>{globalThis.fetch=fn as typeof fetch;};
 let phase=(label:string)=>{};
 export function configureSyntheticFixtureRuntime(hooks:{setClock:(at:string)=>void;installFetch:(fn:Function)=>void;phase?:(label:string)=>void}){setClock=hooks.setClock;installFetch=hooks.installFetch;phase=hooks.phase??(()=>{});}
-export async function fixture({at=NOW,ids=['10001','10002'],prior=null as any,incomplete=false,changedTitle=false,pageSize=1,paddingBytes=0,syntheticBatchId='',syntheticOuterDeadline=0}={}){
+export async function fixture({at=NOW,ids=['10001','10002'],prior=null as any,incomplete=false,changedTitle=false,pageSize=1,paddingBytes=0,syntheticBatchId='',syntheticOuterDeadline=0,syntheticArtifactParent=tmpdir()}={}){
  setClock(at);
  const expected=deriveCurrentStagedScheduleExpectation(build),plan=structuredClone(expected.plans.find(p=>p.source.id==='source-biogen-china-social')!);
  const identity={releaseCandidateId:candidate.id,commitSha:expected.commitSha,rosterSha256:expected.rosterSha256,sourcePlanSha256:expected.sourcePlanSha256,sourceConfigSha256:expected.sourceConfigSha256,adapterBundleSha256:expected.adapterBundleSha256,batchKind:'SCHEDULED' as const,ownerId:'dot-cloud-biogen-china-social-pilot',expectedPlannedSourceIds:[plan.source.id],expectedPlannedSourceCount:1,expectedPlannedSourceSetSha256:hashCanonicalStringSet([plan.source.id])};
- const databaseIdentity={migrationVersion:'20261014141000_v75_retired_candidate_fence',schemaHash:'6709fcde7b1953fd1d817d61d3239023fb29ec0ae4fc481efc69ffddbfa13af7',dbSnapshotHash:'e'.repeat(64)};
+ const databaseIdentity={...fixtureDatabaseIdentity};
  const registration={...candidate,commitSha:build.commitSha,...databaseIdentity,rosterHash:expected.rosterSha256,sourcePlanHash:expected.sourcePlanSha256,sourceConfigHash:expected.sourceConfigSha256,adapterBundleHash:expected.adapterBundleSha256,sourceTreeHash:build.sourceTreeSha256,runtimeTreeHash:build.runtimeTreeSha256,oracleVersion:STAGED_SCHEDULE_ORACLE_VERSION,minimumStableCompanyCount:41,status:'BUILDING'};
  let calls=0;
  const body=JSON.parse(readFileSync(resolve('test/fixtures/biogen-synthetic.json'),'utf8'));if(incomplete)body.total++;
@@ -41,12 +44,12 @@ export async function fixture({at=NOW,ids=['10001','10002'],prior=null as any,in
  if(result.status!=='SUCCESS')throw Error('SYNTHETIC_CAPTURE_REJECTED:'+JSON.stringify(result));
  const batchId=syntheticBatchId||'synthetic-'+randomUUID(),planned=buildPendingRuntimeBatch(batchId,[plan],identity,captureStartedAt),pending=planned.sources[0]!;
  const tuple={releaseCandidateId:candidate.id,batchId,sourceId:plan.source.id,sourceResultId:pending.id};
- const originalRoot=await mkdtemp(join(tmpdir(),'biogen-gate-original-'));dirs.push(originalRoot);const evidenceSubdirectory='offline-evidence';
+ const originalRoot=await mkdtemp(join(syntheticArtifactParent,'biogen-gate-original-'));dirs.push(originalRoot);const evidenceSubdirectory='offline-evidence';
  phase('SYNTHETIC_ARCHIVE_START');
  const stored=await archiveSourceEvidence({workspaceRoot:originalRoot,...tuple,evidenceSubdirectory,captureTool:result.fetchEvidence!.captureTool,artifacts:bindRuntimeEvidenceArtifactIds({...tuple,artifacts:result.fetchEvidence!.artifacts})});
  const bundle=await makeArchiveBundle({workspaceRoot:originalRoot,...tuple,evidenceSubdirectory,artifacts:stored.artifacts});
  const bytes=JSON.stringify(bundle,null,2),bundlePath=join(originalRoot,'bundle.json');await writeFile(bundlePath,bytes,{flag:'wx',mode:0o600});
- const restoredRoot=await mkdtemp(join(tmpdir(),'biogen-gate-restored-'));dirs.push(restoredRoot);const artifacts=await restoreArchiveBundle(bundle,restoredRoot);
+ const restoredRoot=await mkdtemp(join(syntheticArtifactParent,'biogen-gate-restored-'));dirs.push(restoredRoot);const artifacts=await restoreArchiveBundle(bundle,restoredRoot);
  phase('SYNTHETIC_RESTORE_DONE_ADMISSION_START');
  const admission=await issueSourceQualityAdmission({plan,result,binding:{releaseCandidateId:candidate.id,batchId,sourceResultId:pending.id,sourceConfigSha256:pending.sourceConfigHash,adapterVersion:pending.adapterVersion},archive:{workspaceRoot:restoredRoot,evidenceSubdirectory,artifacts}});
  phase('SYNTHETIC_ADMISSION_DONE');

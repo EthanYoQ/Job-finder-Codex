@@ -143,6 +143,12 @@ export class FilePilotRelay {
     if(!process.send||!process.connected)throw Error("RELAY_OWNED_CHILD_IPC_REQUIRED");
     const {prepareBiogenConnectorPublicationReview}=await import("../../../../connector-gate/biogen-publication-review.mts");
     const gate=await prepareBiogenConnectorPublicationReview(input),handle=Object.freeze({packet:gate.packet});
+    // Source-fixed data export only after the original full Biogen review.
+    // The sidecar is never permission to publish and owns no DB/tool calls.
+    if(process.env.JOBFINDER_FIXED_PROJECTION_MODE!==undefined){
+      const {writeReviewedJobProjectionSidecar}=await import("./biogenFixedJobProjectionSidecar");
+      await writeReviewedJobProjectionSidecar(gate.packet,this.directory);
+    }
     ownedBiogenPublications.set(handle,{relay:this,gate,launchChallenge:fixed.launchChallenge});
     ownedBiogenOutcomes.set(handle,{relay:this,packet:gate.packet,publishAttempted:false,readAttempted:false,outerDeadline:input.outerDeadline});return handle;
   }

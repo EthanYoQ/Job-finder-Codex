@@ -1344,6 +1344,19 @@
       "classification": "EXACT_HISTORICAL_FILE_BYTES"
     },
     {
+      "path": "src/crawler/biogenFixedJobProjectionSidecar.ts",
+      "sha256": "becd4ff143dda5245854053e0f6e381ce393afcaa78e0ce88d65a83570df3224",
+      "bytes": 4814,
+      "classification": "NEW_CONNECTOR_HOST_SOURCE",
+      "originCommit": null,
+      "productionQualified": false,
+      "copiedFrom": {
+        "path": "src/crawler/fixedJobProjectionSidecar.ts",
+        "commitSha": "0f7d297619d1f357a2da92682de9b62d7409733c",
+        "sha256": "51b6913a549c6f5860dd528de1a72976ab99c8cb74133580a4e4fd13b698504c"
+      }
+    },
+    {
       "path": "src/crawler/biogenListGeographyGuard.ts",
       "sha256": "dda9b23a06f84449b6329dfea4cfdcb107c0c18de9aa25d6d3b9d08f51ce1f35",
       "bytes": 10369,
@@ -1393,8 +1406,8 @@
     },
     {
       "path": "src/crawler/cloudSourcePilotRelay.ts",
-      "sha256": "f661fc6ab18b623181f108d06accf28226d0de9071c1fca2381db4a07469b261",
-      "bytes": 28133,
+      "sha256": "f8ce44c42cbd7f9596c689522d7c867e78ce7c0d74cefa02c48b6f191d632e30",
+      "bytes": 28531,
       "classification": "BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE",
       "originCommit": null,
       "productionQualified": false,
