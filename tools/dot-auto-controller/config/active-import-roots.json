@@ -7,7 +7,14 @@
     "native/takeda-reconcile.mts",
     "native/takeda-reader-gate.mts",
     "native/takeda-api-gate.mts",
-    "native/run-with-ipc-diagnostics.mjs"
+    "native/run-with-ipc-diagnostics.mjs",
+    "run-hengrui.mjs",
+    "native/hengrui-bootstrap.mjs",
+    "native/hengrui-worker.mts",
+    "native/hengrui-reconcile.mts",
+    "native/hengrui-reader-gate.mts",
+    "native/hengrui-api-gate.mts",
+    "connector-gate/hengrui-run-with-owned-publication-pipe.mjs"
   ],
   "dynamicSourceRoots": {
     "native/takeda-bootstrap.mjs": [
@@ -41,6 +48,33 @@
       "vendor/c60-source"
     ],
     "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": [
+      "vendor/c60-source"
+    ],
+    "native/hengrui-bootstrap.mjs": [
+      "vendor/c60-source"
+    ],
+    "native/hengrui-worker.mts": [
+      "vendor/c60-source"
+    ],
+    "native/hengrui-reconcile.mts": [
+      "vendor/c60-source"
+    ],
+    "native/hengrui-reader-gate.mts": [
+      "vendor",
+      "vendor/reader-main",
+      "vendor/reader-fallback"
+    ],
+    "native/hengrui-api-gate.mts": [
+      "vendor/reader-main",
+      "vendor/reader-fallback"
+    ],
+    "native/hengrui-packet-gate.mts": [
+      "vendor/c60-source"
+    ],
+    "src/hengrui-completion-control-plane.mjs": [
+      "vendor/c60-source"
+    ],
+    "transport/hengrui-existing-compiler.mjs": [
       "vendor/c60-source"
     ]
   },
@@ -86,6 +120,38 @@
     ],
     "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": [
       "import(pathToFileURL(path.join(PRODUCER_ROOT,p)).href)"
+    ],
+    "native/hengrui-bootstrap.mjs": [
+      "import(pathToFileURL(route.producer+'/node_modules/pg/lib/index.js').href)"
+    ],
+    "native/hengrui-worker.mts": [
+      "import(pathToFileURL(route.producer+'/node_modules/pg/lib/index.js').href)"
+    ],
+    "native/hengrui-reconcile.mts": [
+      "import(pathToFileURL(route.producer+'/node_modules/pg/lib/index.js').href)"
+    ],
+    "native/hengrui-reader-gate.mts": [
+      "import(pathToFileURL(path.join(BASE,'c60-source/src/domain/jobProjectionDeltaReceipt.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/domain/portablePublicSnapshot.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/data/companyRegistry.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/crawler/sourcePlan.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/domain/jobProjectionDeltaReceipt.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/db/prismaMappers.ts')).href)"
+    ],
+    "native/hengrui-api-gate.mts": [
+      "import(pathToFileURL(path.join(root,apiPath)).href)",
+      "import(pathToFileURL(path.join(root,handlerPath)).href)",
+      "import(pathToFileURL(path.join(root,'src/data/companyRegistry.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/release/launchManifest.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/release/portableCoveragePolicy.ts')).href)"
+    ],
+    "native/hengrui-packet-gate.mts": [],
+    "src/hengrui-completion-control-plane.mjs": [
+      "import(pathToFileURL(route.producer+'/node_modules/pg/lib/index.js').href)"
+    ],
+    "transport/hengrui-existing-compiler.mjs": [
+      "import(pathToFileURL(join(root,'node_modules/tsx/dist/esm/api/index.mjs')).href)",
+      "import(pathToFileURL(join(root,name)).href)"
     ]
   }
 }

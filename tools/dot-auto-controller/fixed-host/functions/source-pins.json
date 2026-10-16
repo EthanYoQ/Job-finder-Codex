@@ -27,6 +27,6 @@
     "vendor/c60-source/ops/cloud-pilot-host/host-files.mts": "ffca12aab4f11596f19fbbcf132dabe269b016f90f5c618dcb8fb57c8bff9784",
     "vendor/c60-source/ops/cloud-pilot-host/relay-files.mjs": "d76370351b5da497f33856d64ba2a3110129898560b8d210cab1fdb20d6f18c2",
     "vendor/c60-source/ops/cloud-pilot-host/relay-request-ready.mjs": "875ad0b954df6cd6516eeec177e5fb5ec5e5a482dfb87165839e55f82cd0ccd2",
-    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "f9d94fec7d2f5b12229802d32445045a6701715aaba9910172dc8090863abe6f"
+    "vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts": "821e7b687e304f78273d191027a51ad5e020e361d592bec01ad14d12e896c4ce"
   }
 }

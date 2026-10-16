@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import path from 'node:path';
+import {hengruiSourceProvenance,HENGRUI_BASE_HASHES} from '../scripts/hengrui-source-provenance.mjs';
 const root=path.resolve(import.meta.dirname,'..');
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'vendor/C60_SOURCE_MANIFEST.json')));
 const exported=JSON.parse(execFileSync(process.execPath,[path.join(root,'scripts/package-manifest.mjs')],{encoding:'utf8',maxBuffer:4*1024*1024}));
@@ -18,7 +19,7 @@ const records=relative=>({
  source:manifest.files.find(f=>f.path===relative),
  entry:exported.entries.find(f=>f.path==='tools/dot-auto-controller/vendor/c60-source/'+relative),
 });
-function assertLocalDerivative(relative,source,entry){
+function assertDirectLocalDerivative(relative,source,entry){
  assert(source,relative);assert(entry,relative);
  assert.equal(source.classification,'LOCAL_AUTOMATION_SOURCE_DERIVATIVE');
  assert.equal(source.originCommit,null);
@@ -36,10 +37,39 @@ function assertLocalDerivative(relative,source,entry){
  });
  assert.equal(entry.sha256,source.sha256);assert.equal(entry.bytes,source.bytes);
 }
+// The three worker files now have an exact c53 parent. Keep the historical
+// d02f assertions on the preserved ancestor, not on today's derivative bytes.
+function assertHengruiDerivative(relative,source,entry){
+ assert(source,relative);assert(entry,relative);
+ assert.equal(source.classification,'HENGRUI_OWNED_BRIDGE_SOURCE_DERIVATIVE');
+ assert.equal(source.derivativeBaseCommit,'c53de6e43569febc515c445ca74292eac355f569');
+ assert.equal(source.derivativeBaseSha256,HENGRUI_BASE_HASHES[relative]);
+ assert.doesNotThrow(()=>hengruiSourceProvenance(source));
+ assert.deepEqual(entry.provenance,hengruiSourceProvenance(source));
+ assert.equal(entry.sha256,source.sha256);assert.equal(entry.bytes,source.bytes);
+ const c53=source.priorProvenance;
+ assert.equal(c53.classification,'BIOGEN_FIXED_HOST_SOURCE_DERIVATIVE');
+ assert.equal(c53.derivativeBaseCommit,'0f7d297619d1f357a2da92682de9b62d7409733c');
+ assert.equal(c53.derivativeBaseSha256,c53.priorProvenance.sha256);
+ return c53.priorProvenance;
+}
+function assertLocalDerivative(relative,source,entry){
+ if(relative==='src/db/ingestionRepository.ts')return assertDirectLocalDerivative(relative,source,entry);
+ const ancestor=assertHengruiDerivative(relative,source,entry);
+ const oldEntry={sha256:ancestor.sha256,bytes:ancestor.bytes,provenance:{kind:'local-automation-source-derivative',originCommit:null,path:relative,sourceStatus:'LOCAL_UNREGISTERED',derivativeBaseCommit:baseCommit,derivativeBaseSha256:localBaseHashes[relative],ancestorOriginCommit,newBuildQualificationRequired:true}};
+ assertDirectLocalDerivative(relative,ancestor,oldEntry);
+}
 test('new connector gate files never inherit historical source origin',()=>{
  const entries=exported.entries.filter(f=>f.path.startsWith('tools/dot-auto-controller/connector-gate/'));
  assert(entries.length>0);
- for(const entry of entries)assert.deepEqual(entry.provenance,{kind:'new-connector-publication-review-source'});
+ for(const entry of entries){
+  if(entry.path.includes('/connector-gate/hengrui')){
+   const {sourceBasis,portInput,...base}=entry.provenance;
+   assert.deepEqual(base,{kind:'new-hengrui-owned-bridge-source',originCommit:null,sourceStatus:'LOCAL_UNREGISTERED',productionQualified:false,newBuildQualificationRequired:true});
+   if(entry.path.endsWith('/hengrui-synthetic-fixture.mts')){assert.equal(sourceBasis,'ORIGINAL_HENGRUI_CANDIDATE_DERIVATIVE');assert.deepEqual(portInput,{candidate:'hengrui-auto-adapter-candidate-20261016T0315Z',path:'connector-gate/hengrui-synthetic-fixture.mts',sha256:'70be97883ad332a1c8fae76cc1f4c46f906efd0fa8d6b504274e755558391037',bytes:9058});}
+   else {assert.equal(sourceBasis,undefined);assert.equal(portInput,undefined);}
+  }else assert.deepEqual(entry.provenance,{kind:'new-connector-publication-review-source'});
+ }
 });
 test('local compiler derivative retains exact d02f base without inheriting source qualification',()=>{
  const relative='src/db/ingestionRepository.ts',{source,entry}=records(relative);
@@ -50,18 +80,12 @@ test('integrated original worker derivatives preserve exact base hashes',()=>{
  for(const relative of ['src/crawler/cloudSourcePilotRelay.ts','scripts/p0-cloud-portable-source-pilot.ts']){
   const {source,entry}=records(relative);assertLocalDerivative(relative,source,entry);
  }
- // This worker was not reclassified by the local automation changes.
  const relative='src/crawler/cloudDbStartedPilot.ts',{source,entry}=records(relative);
- const hash='42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3';
- assert(source,relative);assert(entry,relative);
- assert.equal(source.classification,'CONNECTOR_PUBLICATION_REVIEW_DERIVATIVE');
- assert.equal(source.originSha256,hash);assert.equal(source.derivativeBaseCommit,baseCommit);
- assert.deepEqual(entry.provenance,{
-  kind:'connector-publication-review-derivative',originCommit:ancestorOriginCommit,
-  originCommitIsProvenanceOnly:true,path:relative,originSha256:hash,
-  derivativeBaseCommit:baseCommit,newBuildQualificationRequired:true,
- });
- assert.equal(entry.sha256,source.sha256);assert.equal(entry.bytes,source.bytes);
+ const ancestor=assertHengruiDerivative(relative,source,entry);
+ assert.equal(ancestor.classification,'CONNECTOR_PUBLICATION_REVIEW_DERIVATIVE');
+ assert.equal(ancestor.originSha256,'42d9f7df49559f1f969aba6296c7d6c9bab226d73fb9186ed6f86f87d54cb6b3');
+ assert.equal(ancestor.derivativeBaseCommit,baseCommit);
+ assert.equal(manifest.originCommit,ancestorOriginCommit);
 });
 
 test('local derivative contract rejects inherited origin or qualification',()=>{

@@ -1,0 +1,14 @@
+{
+  "main": {
+    "src/data/companyRegistry.ts": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
+    "src/release/launchManifest.ts": "2bf4014fbddeebd3b600556f1d64eb1d5b08ebce2782eb85fdbefae1b7cc46d8",
+    "src/release/portableCoveragePolicy.ts": "2ce257bddb3e09fdbcc7abd9f7d8838ac04a61dff8959c0022c436d25283d9ae",
+    "src/db/portablePublicSnapshotRepository.ts": "c877eb38a20554ea965a6772b5291b17c1435d6d2f72a90b2c4d7e651eac138b"
+  },
+  "fallback": {
+    "src/data/companyRegistry.ts": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
+    "src/release/launchManifest.ts": "2bf4014fbddeebd3b600556f1d64eb1d5b08ebce2782eb85fdbefae1b7cc46d8",
+    "src/release/portableCoveragePolicy.ts": "2ce257bddb3e09fdbcc7abd9f7d8838ac04a61dff8959c0022c436d25283d9ae",
+    "src/db/portablePublicSnapshotRepository.ts": "c877eb38a20554ea965a6772b5291b17c1435d6d2f72a90b2c4d7e651eac138b"
+  }
+}

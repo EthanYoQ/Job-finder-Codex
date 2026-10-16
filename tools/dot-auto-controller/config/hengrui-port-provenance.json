@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "originalCandidate": "hengrui-auto-adapter-candidate-20261016T0315Z",
+  "classification": "LOCAL_HENGRUI_ADAPTER_PORT_INPUTS_NOT_PRODUCTION_QUALIFICATION",
+  "originCommit": null,
+  "productionQualified": false,
+  "files": [
+    {
+      "path": "config/hengrui-api-dependency-pins.json",
+      "sha256": "3b90a026d2b2899fd25286a3b46c9824a15df38d25d6a48860f722685643e3a6",
+      "bytes": 917
+    },
+    {
+      "path": "config/hengrui-deployment.json",
+      "sha256": "40750123b3a867554d00e7e6d828e4b71508c08b3f10f94573e9c797525a3913",
+      "bytes": 287
+    },
+    {
+      "path": "config/hengrui-native-catalog.json",
+      "sha256": "637aea94b6f2cf903f2868cbf4a3c4dfa5c6c955f8c64b46011534fe0565c3e1",
+      "bytes": 12965
+    },
+    {
+      "path": "connector-gate/hengrui-synthetic-fixture.mts",
+      "sha256": "70be97883ad332a1c8fae76cc1f4c46f906efd0fa8d6b504274e755558391037",
+      "bytes": 9058
+    },
+    {
+      "path": "native/hengrui-api-gate.mts",
+      "sha256": "094535d1d9149a02925e364040f603a8e8147f0638d57e9869e23c956095d851",
+      "bytes": 11075
+    },
+    {
+      "path": "native/hengrui-bootstrap.mjs",
+      "sha256": "24106e8a1319e82ebc7bf22102714c29f91b030bc03d45b881e27542c4d6b80c",
+      "bytes": 4342
+    },
+    {
+      "path": "native/hengrui-compiler.mts",
+      "sha256": "4a2b525b1a61d2ef09cc91572a009576dd4765ff78d71c781bf61e04e0e7c23f",
+      "bytes": 2673
+    },
+    {
+      "path": "native/hengrui-current-public.mjs",
+      "sha256": "98e36a6cc101ec46ffeae2725567285374f22110b3bdc9b9145e7921aab08f49",
+      "bytes": 3713
+    },
+    {
+      "path": "native/hengrui-deadline-gate.mts",
+      "sha256": "4c3284fb6fb4fc2cd6fb41aa0aa0dc2618c323d1361276270ea569cdbcebd6bb",
+      "bytes": 1700
+    },
+    {
+      "path": "native/hengrui-native-capture.mts",
+      "sha256": "a4fd5aa02dda4fe7e77e09554411cb80c771a2975dbc7450aef4d4ed15889356",
+      "bytes": 11042
+    },
+    {
+      "path": "native/hengrui-original-run.mjs",
+      "sha256": "752d0c4b52d59daccf47a2bb67f5e3a9a5e9eae79eedeeccbff4129d114456b9",
+      "bytes": 2341
+    },
+    {
+      "path": "native/hengrui-packet-gate.mts",
+      "sha256": "423137f5ae241b1405a1d2363f701acdd05a4b39ffc4a5d3f1a150006b4f7318",
+      "bytes": 37019
+    },
+    {
+      "path": "native/hengrui-raw-review.mts",
+      "sha256": "9f350d73754c41be54336543963c368d1a1a3c5775d35ed1e04c71291d7fe3d9",
+      "bytes": 19962
+    },
+    {
+      "path": "native/hengrui-reader-gate.mts",
+      "sha256": "05401a14384fc23402595df2f2e958233e6c35a4a48f4d28180daccacb019e48",
+      "bytes": 10802
+    },
+    {
+      "path": "native/hengrui-reconcile.mts",
+      "sha256": "0780694fbe26d714141c17ff187c9357db01b4ec13220650e58db958dc2befa0",
+      "bytes": 5870
+    },
+    {
+      "path": "native/hengrui-review-pipeline.mts",
+      "sha256": "9ba6b4bc775dce49381ebd293af82c74cd2608e0cbcde8c692b5b7e5d23388a9",
+      "bytes": 4319
+    },
+    {
+      "path": "native/hengrui-worker.mts",
+      "sha256": "ffa3c266144046fff71ede96c6076ac9da56aeb293471217b87555aebdfda108",
+      "bytes": 12206
+    },
+    {
+      "path": "run-hengrui.mjs",
+      "sha256": "0978b329c03959d2886a5a4cc01fa2ddd7d6b223ab8ed519cf7d089560e5fe41",
+      "bytes": 9839
+    },
+    {
+      "path": "src/hengrui-authority.mjs",
+      "sha256": "446737bf768ff2d9f1f5a239e87def2ab7b8c0238c5542a615ccb73a7e4f964f",
+      "bytes": 1449
+    },
+    {
+      "path": "src/hengrui-catalog.mjs",
+      "sha256": "3f2baeddc6395459b02a508516fae7d8b51ffe0f148b17285f3b579e418e3f83",
+      "bytes": 775
+    },
+    {
+      "path": "src/hengrui-completion-control-plane.mjs",
+      "sha256": "e9ac8ca431394401c7d1c6174789141b682406d6909d3c3d1dc55ef6299a3ee5",
+      "bytes": 1238
+    },
+    {
+      "path": "src/hengrui-deployment.mjs",
+      "sha256": "f243e7ea7acd5ca59ae5b57c9175add044f6bbb26c6a5af9f4cf115796f8b251",
+      "bytes": 11604
+    },
+    {
+      "path": "test/fixtures/hengrui-moka-synthetic.mts",
+      "sha256": "46c33d6a575c90b1102cd70e05c6cd7c48b87baf10b868c07ad7c63e32739539",
+      "bytes": 5603
+    },
+    {
+      "path": "test/hengrui-bootstrap-cwd.test.mjs",
+      "sha256": "b60ca7fa725a15897a165bfecc36f502c3485193964182c0588eec61f1425d42",
+      "bytes": 3465
+    },
+    {
+      "path": "test/hengrui-capture.test.ts",
+      "sha256": "93106fa9fc5638d2b7991a5c45e335624e1278bd3d171f187cc30c2db86718c9",
+      "bytes": 12609
+    },
+    {
+      "path": "test/hengrui-current-public.test.mjs",
+      "sha256": "6ae453343c67ea11f25611b415deecc3e33ff82c022bd2f0092c966a2423909e",
+      "bytes": 7232
+    },
+    {
+      "path": "test/hengrui-external-deployment.test.mjs",
+      "sha256": "9af779b3365c64a9d393f10c7cfd89f4aa65d6541f2bcd5d68c5c45cc968b871",
+      "bytes": 17458
+    },
+    {
+      "path": "test/hengrui-host.test.mjs",
+      "sha256": "741715a02aadb1b0eaf6d2fafa0a6bd8e2af83de45827aae1537b47674c7180a",
+      "bytes": 3030
+    },
+    {
+      "path": "test/hengrui-packet.test.ts",
+      "sha256": "bd8e7bc5992ffa03636c98343ac23792f9fc49aa984c3487720b3b6657a236da",
+      "bytes": 15953
+    },
+    {
+      "path": "test/hengrui-reader-template.test.mjs",
+      "sha256": "5440c0fcaffa546d9700619b7d49737d7bedac757f036fc0891d5eb926e9a141",
+      "bytes": 1031
+    },
+    {
+      "path": "test/hengrui.vitest.config.mts",
+      "sha256": "58d46aba9cf49fd212080bf2c61b89e09ff036c77d883550a27cf39a21820fd7",
+      "bytes": 301
+    },
+    {
+      "path": "transport/hengrui-existing-compiler.mjs",
+      "sha256": "a1055c76315fba2c55965897d10ed6ae774a1165cab089e23e219bb5a9b0bd4e",
+      "bytes": 8449
+    },
+    {
+      "path": "transport/hengrui-reader-template.mjs",
+      "sha256": "4e7d356273f9668a9cd2684f52a9f8f2592a43f30f369c439a9f4288cbd6e5cb",
+      "bytes": 1110
+    },
+    {
+      "path": "transport/queries/hengrui-c60-reader-before.sql",
+      "sha256": "5d5794bf4ed4b153be999eaf46a0da6213a79391d45bfeaa954d82e36fd4fc09",
+      "bytes": 6635
+    }
+  ]
+}
