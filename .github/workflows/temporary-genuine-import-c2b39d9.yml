@@ -1,0 +1,82 @@
+name: Temporary genuine source import c2b39d9
+
+on:
+  create:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-genuine-source-import-c2b39d9
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PAYLOAD_COMMIT: "e7e12b2d585799f72a10244e73ecedb838729acf"
+
+jobs:
+  verify-data:
+    if: >-
+      github.event.ref_type == 'branch' &&
+      github.ref == 'refs/heads/tmp/genuine-import-c2b39d9-20261016' &&
+      github.repository == 'EthanYoQ/Job-finder-Codex' &&
+      github.repository_id == '1392742590' &&
+      github.actor_id == '257484394' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout: import-data
+          sparse-checkout-cone-mode: true
+      - name: Verify reviewed importer and sealed specification
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s  %s\n' 'b69a2fdeb4df2c3609115581b81a46de1400475e6939ef78e5a5887394045856' import-data/import_genuine.py | sha256sum --check --strict
+          printf '%s  %s\n' 'e55328f635db11c4ed0576ded3116eccd89f4686fdbdf90813e3b1f8be4aaed9' import-data/spec.json | sha256sum --check --strict
+      - name: Verify data and repository preconditions without writing the repository
+        shell: bash
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -I import-data/import_genuine.py prepare --input import-data --output "$RUNNER_TEMP/verified-import"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verified-genuine-import-${{ github.run_id }}-${{ github.sha }}
+          path: ${{ runner.temp }}/verified-import/
+          if-no-files-found: error
+          retention-days: 1
+
+  import-new-ref:
+    needs: verify-data
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: verified-genuine-import-${{ github.run_id }}-${{ github.sha }}
+          path: ${{ runner.temp }}/verified-import
+      - name: Verify reviewed artifacts again before introducing the write token
+        shell: bash
+        working-directory: ${{ runner.temp }}/verified-import
+        run: |
+          set -euo pipefail
+          printf '%s  %s\n' 'b69a2fdeb4df2c3609115581b81a46de1400475e6939ef78e5a5887394045856' import_genuine.py | sha256sum --check --strict
+          printf '%s  %s\n' 'e55328f635db11c4ed0576ded3116eccd89f4686fdbdf90813e3b1f8be4aaed9' spec.json | sha256sum --check --strict
+          printf '%s  %s\n' '402ad9d3c273fcaa9e3acf2ff224845d51afb92620231bfea360c91c137e289f' source.bundle | sha256sum --check --strict
+      - name: Verify genuine objects again and create exactly one new ref
+        shell: bash
+        env:
+          GH_WRITE_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -I "$RUNNER_TEMP/verified-import/import_genuine.py" import --input "$RUNNER_TEMP/verified-import"
