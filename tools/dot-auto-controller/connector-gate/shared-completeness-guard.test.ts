@@ -8,6 +8,8 @@ import {FilePilotRelay,sha256} from '../vendor/c60-source/src/crawler/cloudSourc
 import {runCloudPortableSourcePilot} from '../vendor/c60-source/scripts/p0-cloud-portable-source-pilot.ts';
 import { mkdirSync, readFileSync } from 'node:fs';
 const selectedSource=process.env.JOBFINDER_CLOUD_SOURCE_ID;
+// Biogen's original 20 x 3 page bound cannot admit a 100-job baseline.
+const baselineCount=selectedSource==='source-biogen-china-social'?60:100;
 const kit=selectedSource==='source-ucb-china-social'?await import('./ucb-synthetic-fixture.mts'):selectedSource==='source-biogen-china-social'?await import('./biogen-synthetic-fixture.mts'):selectedSource==='source-hengrui-social'?await import('./hengrui-synthetic-fixture.mts'):selectedSource==='source-takeda-china-social'?await import('./shared-completeness-takeda-fixture.mts'):undefined;
 if(!kit)throw Error('SHARED_GUARD_CANONICAL_TEST_SOURCE_REQUIRED');
 const {fixture,priorFrom,initialize,configureSyntheticFixtureRuntime,request}=kit;
@@ -50,11 +52,11 @@ async function accepted(count:number){
  if(!priors.has(count)){const first=await captured(count);const packet=await compileDbStartedCloudSourcePublication(first.input.publication);priors.set(count,await priorFrom(first,packet));}
  return structuredClone(priors.get(count));
 }
-it('automatically blocks authentic 100-to-1 with omitted caller trigger before any delta/SQL packet',async()=>{
- const f=await captured(1,await accepted(100)),source=f.input.publication.source;
+it(`automatically blocks authentic ${baselineCount}-to-1 with omitted caller trigger before any delta/SQL packet`,async()=>{
+ const f=await captured(1,await accepted(baselineCount)),source=f.input.publication.source;
  expect(Object.hasOwn(source,'completenessAnomalyTriggerCodes')).toBe(false);
  const context=await loadPilotContext(f.input.publication.control.context,source.plan,false);
- expect(context.trustedCompletenessBaseline?.certifiedJobCount).toBe(100);
+ expect(context.trustedCompletenessBaseline?.certifiedJobCount).toBe(baselineCount);
  const anomaly=evaluateCompletenessAnomalyForCrawl(source.plan,source.result,context.trustedCompletenessBaseline);
  expect(anomaly.triggerCodes).toContain('TRUSTED_COUNT_DROP');
  await expect(compileDbStartedCloudSourcePublication(f.input.publication)).rejects.toThrow('PILOT_REAL_CERTIFICATE_REQUIRED');
@@ -68,14 +70,14 @@ it('automatically blocks authentic 100-to-1 with omitted caller trigger before a
  expect(commit.sourceResult.baselineChangeReason??null).toBeNull();
 });
 it('real owned publication gate produces no token or request for the same count drop',async()=>{
- const f=await captured(1,await accepted(100));
+ const f=await captured(1,await accepted(baselineCount));
  await expect(prepareReview(f.input)).rejects.toThrow('PILOT_REAL_CERTIFICATE_REQUIRED');
 });
-it.each([[100,60],[40,20],[50,30],[20,0]].filter(([,current])=>selectedSource!=='source-takeda-china-social'||current!==0))('original absolute and percent boundary rejects %i-to-%i',async(previous,current)=>{
+it.each([[baselineCount,baselineCount*0.6],[40,20],[50,30],[20,0]].filter(([,current])=>selectedSource!=='source-takeda-china-social'||current!==0))('original absolute and percent boundary rejects %i-to-%i',async(previous,current)=>{
  const f=await captured(current,await accepted(previous));
  await expect(compileDbStartedCloudSourcePublication(f.input.publication)).rejects.toThrow('PILOT_REAL_CERTIFICATE_REQUIRED');
 });
-it.each([[100,61],[40,21],[19,0],[100,100],[100,110]].filter(([,current])=>selectedSource!=='source-takeda-china-social'||current!==0))('original non-trigger case preserves %i-to-%i',async(previous,current)=>{
+it.each([[baselineCount,baselineCount*0.6+1],[40,21],[19,0],[baselineCount,baselineCount],[baselineCount-10,baselineCount]].filter(([,current])=>selectedSource!=='source-takeda-china-social'||current!==0))('original non-trigger case preserves %i-to-%i',async(previous,current)=>{
  const f=await captured(current,await accepted(previous));const packet=await compileDbStartedCloudSourcePublication(f.input.publication);
  expect(packet.commit.sourceResult.dedupeOutputCount).toBe(current);
  expect(packet.commit.sourceResult.completenessState).toBe('VERIFIED');
@@ -87,13 +89,14 @@ it.each(selectedSource==='source-takeda-china-social'?[1]:[0,1])('genuine null/n
  expect(packet.commit.sourceResult.baselineChangeReason).toBe('PLAN_BOUND_REPLAY_CONFIRMED_INITIAL');
 });
 it.each(['latest-absent','first-absent','half-null','source','config','row-source','row-config','receipt-hash','receipt-count','receipt-time','capture-before-baseline'])('rejects bad trusted context: %s',async(mode)=>{
- const f=await captured(1,await accepted(100));const ctx=f.input.publication.control.context;
+ const f=await captured(baselineCount,await accepted(baselineCount));const ctx=f.input.publication.control.context;
  if(mode==='latest-absent')delete ctx.latestAccepted;
  if(mode==='first-absent')delete ctx.firstAccepted;
  if(mode==='half-null')ctx.latestAccepted=null;
- if(mode==='source')ctx.sourceId='source-takeda-china-social';
+ const wrongSource=selectedSource==='source-takeda-china-social'?'source-hengrui-social':'source-takeda-china-social';
+ if(mode==='source')ctx.sourceId=wrongSource;
  if(mode==='config')ctx.sourceConfigSha256='0'.repeat(64);
- if(mode==='row-source')ctx.latestAccepted.sourceId='source-takeda-china-social';
+ if(mode==='row-source')ctx.latestAccepted.sourceId=wrongSource;
  if(mode==='row-config')ctx.latestAccepted.sourceConfigHash='0'.repeat(64);
  if(mode==='receipt-hash')ctx.latestAccepted.completenessCertificateSha256='0'.repeat(64);
  if(mode==='receipt-count')ctx.latestAccepted.dedupeOutputCount=1;
@@ -102,15 +105,15 @@ it.each(['latest-absent','first-absent','half-null','source','config','row-sourc
  await expect(compileDbStartedCloudSourcePublication(f.input.publication)).rejects.toThrow();
 });
 it.each([{codes:[] as string[]},{codes:['UNKNOWN_TRIGGER']}])('preserves original rejection of caller trigger $codes before union',async({codes})=>{
- const f=await captured(1,await accepted(100));f.input.publication.source.completenessAnomalyTriggerCodes=codes;
+ const f=await captured(1,await accepted(baselineCount));f.input.publication.source.completenessAnomalyTriggerCodes=codes;
  await expect(compileDbStartedCloudSourcePublication(f.input.publication)).rejects.toThrow('completeness anomaly trigger codes are empty or invalid');
 });
 it('retains a valid caller trigger on a normal count',async()=>{
- const f=await captured(100,await accepted(100));f.input.publication.source.completenessAnomalyTriggerCodes=['LAST_PAGE_WITH_NEXT_SIGNAL'];
+ const f=await captured(baselineCount,await accepted(baselineCount));f.input.publication.source.completenessAnomalyTriggerCodes=['LAST_PAGE_WITH_NEXT_SIGNAL'];
  await expect(compileDbStartedCloudSourcePublication(f.input.publication)).rejects.toThrow('PILOT_REAL_CERTIFICATE_REQUIRED');
 });
 it('normal full replay and gate consumption preserve original CAS, ownership and one-shot capability',async()=>{
- const f=await captured(100,await accepted(100));const prepared=await prepareDbStartedCloudPublicationReplay(f.input.publication);
+ const f=await captured(baselineCount,await accepted(baselineCount));const prepared=await prepareDbStartedCloudPublicationReplay(f.input.publication);
  expect(await prepared.recompile()).toEqual(prepared.packet);
  for(const text of ['CRAWL_LEASE_BUSY','PILOT_CONTEXT_CHANGED','PILOT_V75_FENCE_FUNCTION_DRIFT','LOCK TABLE',"(current_context-'checkedAt') IS DISTINCT FROM (expected_context_data-'checkedAt')"]){expect(prepared.packet.sql).toContain(text);}
  const gate=await prepareReview(f.input),r=request(gate.packet),token=await gate.review(r);
@@ -118,19 +121,19 @@ it('normal full replay and gate consumption preserve original CAS, ownership and
  await expect(consumeReview(token,r)).rejects.toThrow('REVIEW_SAME_PROCESS_CAPABILITY_REQUIRED');
 });
 it('full recompile rejects trusted context mutation instead of refreshing baseline',async()=>{
- const f=await captured(100,await accepted(100)),prepared=await prepareDbStartedCloudPublicationReplay(f.input.publication);
+ const f=await captured(baselineCount,await accepted(baselineCount)),prepared=await prepareDbStartedCloudPublicationReplay(f.input.publication);
  f.input.publication.control.context.latestAccepted.dedupeOutputCount=101;
  await expect(prepared.recompile()).rejects.toThrow('PILOT_REVIEW_INPUT_CHANGED');
 });
 it('consumption rechecks input and burns the changed-context capability',async()=>{
- const f=await captured(100,await accepted(100)),gate=await prepareReview(f.input),r=request(gate.packet),token=await gate.review(r);
+ const f=await captured(baselineCount,await accepted(baselineCount)),gate=await prepareReview(f.input),r=request(gate.packet),token=await gate.review(r);
  f.input.publication.control.context.latestAccepted.dedupeOutputCount=101;
  await expect(consumeReview(token,r)).rejects.toThrow('REVIEW_INPUT_CHANGED');
  await expect(consumeReview(token,r)).rejects.toThrow('REVIEW_SAME_PROCESS_CAPABILITY_REQUIRED');
 });
 
 it('actual portable CLI captures, archives, reloads fresh context and refuses before PUBLISH',async()=>{
- const f=await captured(1,await accepted(100)),workspaceRoot=await mkdtemp(join(evidence!,'actual-cli-'));
+ const f=await captured(1,await accepted(baselineCount)),workspaceRoot=await mkdtemp(join(evidence!,'actual-cli-'));
  const {context,planned:ignored,...control}=f.input.publication.control;
  const bootstrapPath=join(workspaceRoot,'bootstrap.json'),controlPath=join(workspaceRoot,'control.json');
  const bytes=JSON.stringify({schemaVersion:1,checkedAt:new Date().toISOString(),candidateRows:[context.candidateRow],batchId:'shared-cli-'+selectedSource});
