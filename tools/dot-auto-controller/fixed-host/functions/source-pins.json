@@ -14,7 +14,7 @@
     "fixed-host/lifecycle/cli-entry.py": "8165d74e56451f52db9054d5207c760c1aa1dc3592c090de5fa810085da26658",
     "fixed-host/lifecycle/exclusive-holder.py.in": "f760b15d47aab5e0256f7b4d3b6eb41df35553499b7ccbaa99064bcdaa306a90",
     "fixed-host/lifecycle/holder.py.in": "b54491500ff6fff526c4120475a3c36fa023d142494c516da5626070e8c474ca",
-    "fixed-host/lifecycle/lifecycle_lock.py": "71e642491992e7c6180f8424fea6b1c5b457326b1954d87af1cf2c0c6b41f3ae",
+    "fixed-host/lifecycle/lifecycle_lock.py": "023ef3ad7150bdb9be0ca06eaaea357c834320d322eca195120a0fbbe86dcbe7",
     "fixed-host/render-fixed-live-source.py": "094605bc2c978ada596e2aa6dc63691389ce531ccf07142bc05dcb446f13322c",
     "fixed-host/scripts/build-functions-entry.py": "2429c49f3ce722618abaf9f215c93db27bb754892d416edf27a188803532064c",
     "fixed-host/scripts/build-lifecycle-artifacts.py": "d0c77fbc8fa445d78d93c51666c67d18713897fbd89e37ed4d7033b7c482236b",

@@ -114,7 +114,7 @@ def main():
             require(len(raw)<=32768 and raw.endswith(b'\n'),'LIFECYCLE_DISABLED_ACK')
             command=json.loads(raw);require(command=={'op':'ack-disabled','serial':1},'LIFECYCLE_DISABLED_ACK');lease.check()
             emit({'kind':'LIFECYCLE_DISABLED_FINISHED','serial':1,'holderId':holder_id});return 0
-        journal=module.OwnedRoundJournal(lease)
+        journal=module.OwnedSequenceRoundJournal(lease)
         try:
             # No candidate content has been opened before SH + durable ACTIVE.
             target=domain.target
@@ -125,13 +125,17 @@ def main():
             require(len(raw)==BINDING['entryBytes'],'LIFECYCLE_ENTRY_BYTES')
             raw.decode('ascii')
             serial=0;offset=0;source_index=0;source_pending=None;cycle_records=[];release_digest=None
+            def check_owned_cycle():
+                journal.check_active()
+                for leaf,evidence,ident in cycle_records:
+                    st=(domain.parent/leaf).lstat();require((st.st_dev,st.st_ino)==ident and exact_file(domain.parent/leaf)==evidence,'SEQUENCE_RECORD_CHANGED')
             emit({'kind':'LIFECYCLE_READY','serial':serial,'holderId':journal.round_id,
                   'entrySha256':BINDING['entrySha256'],'entryBytes':len(raw)})
             while True:
                 line=sys.stdin.buffer.readline(32769)
                 if not line:return 78  # EOF is abandonment, never completion.
                 require(len(line)<=32768 and line.endswith(b'\n'),'LIFECYCLE_COMMAND_SIZE')
-                command=json.loads(line);lease.check()
+                command=json.loads(line);lease.check();check_owned_cycle()
                 require(type(command) is dict and set(command)==({'op','serial','record'} if command.get('op') in ('source-start','source-settle') else {'op','serial'}),'LIFECYCLE_COMMAND')
                 serial+=1
                 require(command['serial']==serial,'LIFECYCLE_SEQUENCE')
@@ -163,14 +167,13 @@ def main():
                     os.fsync(lease.parent_fd);lease.check()
                     named=(domain.parent/leaf).lstat()
                     require((named.st_dev,named.st_ino)==ident and exact_file(domain.parent/leaf)==evidence,'SEQUENCE_RECORD_PERSISTENCE')
-                    cycle_records.append((leaf,evidence,ident));release_digest=record['releaseSha256']
+                    cycle_records.append((leaf,evidence,ident));check_owned_cycle();release_digest=record['releaseSha256']
                     if phase=='source-start':source_pending=record['profile']
                     else:source_pending=None;source_index+=1
                     emit({'kind':'LIFECYCLE_SOURCE_STARTED' if phase=='source-start' else 'LIFECYCLE_SOURCE_SETTLED','serial':serial,'holderId':journal.round_id,'recordSha256':hashlib.sha256(evidence).hexdigest()})
                 elif command['op']=='finish':
                     require(offset==len(raw) and source_index==2 and source_pending is None and len(cycle_records)==4,'SEQUENCE_NOT_ALL_CLOSED')
-                    for leaf,evidence,ident in cycle_records:
-                        st=(domain.parent/leaf).lstat();require((st.st_dev,st.st_ino)==ident and exact_file(domain.parent/leaf)==evidence,'SEQUENCE_RECORD_CHANGED')
+                    check_owned_cycle()
                     # No caller-supplied boolean/result can request qualification.
                     # This endpoint belongs to the original private owned session.
                     journal.finish_from_owned_holder()

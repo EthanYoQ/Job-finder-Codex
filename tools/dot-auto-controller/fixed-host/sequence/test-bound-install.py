@@ -101,4 +101,6 @@ class FullTests(unittest.TestCase):
   spec=importlib.util.spec_from_file_location('actual_stable_exercise',PROFILE/'test-exercise-bound.py');exercise=importlib.util.module_from_spec(spec);spec.loader.exec_module(exercise)
   detailed=exercise.exercise(self.f['case'],evidence=t.EVIDENCE);self.assertTrue(detailed['passed'])
   (self.f['case']/'strict-disabled-activation-result.json').write_text(json.dumps(detailed,indent=2)+'\n')
+  spec=importlib.util.spec_from_file_location('final_installed_prepare_probe',PROFILE/'test-installed-prepare.py');probe=importlib.util.module_from_spec(spec);spec.loader.exec_module(probe)
+  final_probe=probe.probe(self.f['case'],t.EVIDENCE);self.assertTrue(final_probe['passed']);self.assertTrue(final_probe['globalActiveRetained']);self.assertFalse(final_probe['cycleCompleted'])
 if __name__=='__main__':unittest.main()

@@ -292,8 +292,91 @@ def require_mutation_idle(lease: Lease) -> None:
         os.stat(lease.domain.active_name, dir_fd=lease.parent_fd,
                 follow_symlinks=False)
     except FileNotFoundError:
+        require_sequence_history(lease)
         return
     raise Hold("ACTIVE_OR_UNKNOWN_ROUND")
+
+
+def _sequence_file(lease: Lease, name: str, maximum: int = 32768) -> bytes:
+    """Read diagnostics only. These bytes can deny a new cycle, never close one."""
+    lease.check()
+    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                 dir_fd=lease.parent_fd)
+    try:
+        before = os.fstat(fd)
+        signature = lambda s: (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
+        require(stat.S_ISREG(before.st_mode) and before.st_uid == os.getuid()
+                and stat.S_IMODE(before.st_mode) == 0o600 and before.st_nlink == 1
+                and 0 < before.st_size <= maximum, "SEQUENCE_HISTORY_FILE")
+        data = os.pread(fd, maximum + 1, 0)
+        require(len(data) == before.st_size and signature(before) == signature(os.fstat(fd))
+                == signature(os.stat(name, dir_fd=lease.parent_fd, follow_symlinks=False)),
+                "SEQUENCE_HISTORY_CHANGED")
+        lease.check()
+        return data
+    finally:
+        os.close(fd)
+
+
+def require_sequence_history(lease: Lease, strict: bool = False) -> None:
+    """Existing sequence lineage is negative fencing, not recovered authority.
+
+    No completion, close capability, source receipt, or cleared pointer is ever
+    created here. A partial/missing/contradictory past lineage permanently holds
+    until separately reviewed; absence of ACTIVE alone never forgives it.
+    """
+    lease.check()
+    prefix = "." + lease.domain.target_name + ".lifecycle-"
+    names = set(os.listdir(lease.parent_fd))
+    begins = {n for n in names if n.startswith(prefix + "sequence-begin-")}
+    records = {n for n in names if n.startswith(prefix + "cycle-")}
+    completes = {n for n in names if n.startswith(prefix + "round-complete-")}
+    if not begins and not records and not strict:
+        return  # Original single-source histories are unchanged.
+    groups = {}
+    for name in begins:
+        cycle = name[len(prefix + "sequence-begin-"):]
+        require(re.fullmatch(r"[a-f0-9]{32}", cycle) is not None, "SEQUENCE_HISTORY_NAME")
+        expected = json.dumps({"schemaVersion": 1, "state": "ACTIVE", "kind": "ROUND",
+                               "roundId": cycle}, sort_keys=True).encode() + b"\n"
+        require(_sequence_file(lease, name) == expected, "SEQUENCE_HISTORY_BEGIN")
+        groups[cycle] = []
+    for name in records:
+        match = re.fullmatch(re.escape(prefix) + r"cycle-([a-f0-9]{32})-([1-9][0-9]*)[.]json", name)
+        require(match is not None and match[1] in groups, "SEQUENCE_HISTORY_ORPHAN_RECORD")
+        value = json.loads(_sequence_file(lease, name))
+        require(type(value) is dict and set(value) == {"schemaVersion", "cycleId", "entrySha256", "phase", "record"}
+                and value["schemaVersion"] == 1 and value["cycleId"] == match[1]
+                and re.fullmatch(r"[a-f0-9]{64}", value["entrySha256"]) is not None,
+                "SEQUENCE_HISTORY_RECORD")
+        groups[match[1]].append((int(match[2]), value))
+    require(completes == {prefix + "round-complete-" + cycle for cycle in groups},
+            "SEQUENCE_HISTORY_COMPLETION_SET")
+    for cycle, values in groups.items():
+        values.sort(key=lambda item: item[0])
+        require(len(values) == 4 and [x[0] for x in values] == list(range(values[0][0], values[0][0] + 4)),
+                "SEQUENCE_HISTORY_PARTIAL_CYCLE")
+        entry = values[0][1]["entrySha256"]
+        release = None
+        for (_, value), (phase, profile) in zip(values, (("source-start", "takeda"), ("source-settle", "takeda"),
+                                                        ("source-start", "biogen"), ("source-settle", "biogen"))):
+            record = value["record"]
+            require(value["phase"] == phase and value["entrySha256"] == entry and type(record) is dict
+                    and set(record) == ({"profile", "releaseSha256"} if phase == "source-start" else {"profile", "releaseSha256", "fact"})
+                    and record["profile"] == profile and re.fullmatch(r"[a-f0-9]{64}", record["releaseSha256"]) is not None,
+                    "SEQUENCE_HISTORY_ORDER")
+            if release is None:
+                release = record["releaseSha256"]
+            require(record["releaseSha256"] == release, "SEQUENCE_HISTORY_RELEASE")
+            if phase == "source-settle":
+                fact = record["fact"]
+                require(type(fact) is dict and fact.get("kind") in ("VERIFIED", "NOT_DUE", "KNOWN_NOT_DISPATCHED")
+                        and fact.get("sourceId") == "source-" + profile + "-china-social"
+                        and re.fullmatch(r"round-[a-f0-9]{32}", fact.get("roundId", "")) is not None,
+                        "SEQUENCE_HISTORY_SOURCE")
+        require(_sequence_file(lease, prefix + "round-complete-" + cycle)
+                == b"ORIGINAL OWNED HOLDER TERMINAL; NO DB OR PUBLICATION AUTHORITY\n", "SEQUENCE_HISTORY_COMPLETION")
+    lease.check()
 
 
 @contextmanager
@@ -335,7 +418,12 @@ class OwnedRoundJournal:
     """
     MODE="SH"
     KIND="ROUND"
+    LINK_COUNT=1
     def journal_name(self): return self.lease.domain.active_name
+    def _create_active(self):
+        return os.open(self.journal_name(), os.O_RDWR | os.O_CREAT
+                       | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                       0o600, dir_fd=self.lease.parent_fd)
 
     def __init__(self, lease: Lease):
         require(lease.mode == self.MODE, "JOURNAL_LOCK_MODE")
@@ -346,9 +434,7 @@ class OwnedRoundJournal:
         self.raw = json.dumps({"schemaVersion": 1, "state": "ACTIVE", "kind":self.KIND,
                                "roundId": self.round_id},
                               sort_keys=True).encode() + b"\n"
-        self.fd = os.open(self.journal_name(), os.O_RDWR | os.O_CREAT
-                          | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
-                          0o600, dir_fd=lease.parent_fd)
+        self.fd = self._create_active()
         self.file_identity = identity(os.fstat(self.fd))
         try:
             with os.fdopen(os.dup(self.fd), "wb") as stream:
@@ -363,7 +449,7 @@ class OwnedRoundJournal:
             # Preserve even partial ACTIVE. Uncertain begin cannot enable writes.
             raise
 
-    def finish_from_owned_holder(self) -> None:
+    def check_active(self) -> None:
         require(not self.closed, "JOURNAL_CLOSED")
         self.lease.check()
         require(self.lease.mode == self.MODE, "JOURNAL_LOCK_MODE")
@@ -372,11 +458,15 @@ class OwnedRoundJournal:
                      follow_symlinks=False)
         current = os.fstat(self.fd)
         require(identity(at) == identity(current) == self.file_identity
-                and stat.S_ISREG(at.st_mode) and at.st_nlink == 1
+                and stat.S_ISREG(at.st_mode) and at.st_nlink == self.LINK_COUNT
                 and at.st_uid == os.getuid() and stat.S_IMODE(at.st_mode) == 0o600
                 and at.st_size == len(self.raw), "JOURNAL_CHANGED")
         require(os.pread(self.fd, len(self.raw) + 1, 0) == self.raw,
                 "JOURNAL_BYTES_CHANGED")
+
+    def finish_from_owned_holder(self) -> None:
+        self.check_active()
+        domain = self.lease.domain
         # Append-only fixture completion precedes unlink; any uncertain interval
         # leaves ACTIVE and holds mutation. This does not authorize production.
         name = "." + domain.target_name + ".lifecycle-"+self.KIND.lower()+"-complete-" + self.round_id
@@ -388,10 +478,7 @@ class OwnedRoundJournal:
         finally:
             os.close(fd)
         os.fsync(self.lease.parent_fd)
-        self.lease.check()
-        require(identity(os.stat(self.journal_name(), dir_fd=self.lease.parent_fd,
-                                 follow_symlinks=False)) == self.file_identity,
-                "JOURNAL_CHANGED")
+        self.check_active()
         os.unlink(self.journal_name(), dir_fd=self.lease.parent_fd)
         os.fsync(self.lease.parent_fd)
         os.close(self.fd)
@@ -408,6 +495,61 @@ class OwnedMutationJournal(OwnedRoundJournal):
     MODE="EX"
     KIND="MUTATION"
     def journal_name(self): return self.lease.domain.mutation_name
+
+
+class OwnedSequenceRoundJournal(OwnedRoundJournal):
+    """The same SH/ACTIVE round, with a durable begin hardlink before activation.
+
+    A short byte-range lock on the existing pinned lock inode serializes begin
+    creation only. It neither replaces SH/EX nor authorizes source work. Duplicate
+    callers reject before creating a begin; crashes preserve the original bytes.
+    """
+    LINK_COUNT=2
+
+    def check_active(self) -> None:
+        super().check_active()
+        begin = os.stat(self.begin_name, dir_fd=self.lease.parent_fd, follow_symlinks=False)
+        require(identity(begin) == self.file_identity and stat.S_ISREG(begin.st_mode)
+                and begin.st_uid == os.getuid() and stat.S_IMODE(begin.st_mode) == 0o600
+                and begin.st_nlink == 2 and begin.st_size == len(self.raw), "SEQUENCE_BEGIN_CHANGED")
+
+    def _create_active(self):
+        lease = self.lease
+        try:
+            fcntl.lockf(lease.fd, fcntl.LOCK_EX | fcntl.LOCK_NB, 1, 0, os.SEEK_SET)
+        except BlockingIOError as error:
+            raise Hold("SEQUENCE_BEGIN_BUSY") from error
+        fd = None
+        try:
+            lease.check()
+            require(not os.path.lexists(lease.domain.parent / self.journal_name()), "ACTIVE_OR_UNKNOWN_ROUND")
+            require_sequence_history(lease, strict=True)
+            self.begin_name = "." + lease.domain.target_name + ".lifecycle-sequence-begin-" + self.round_id
+            fd = os.open(self.begin_name, os.O_RDWR | os.O_CREAT | os.O_EXCL
+                         | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=lease.parent_fd)
+            with os.fdopen(os.dup(fd), "wb") as stream:
+                stream.write(self.raw)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.fsync(lease.parent_fd)
+            lease.check()
+            # Atomic no-overwrite link: ACTIVE can never exist without its
+            # already durable begin. The original owned finish alone unlinks it.
+            os.link(self.begin_name, self.journal_name(), src_dir_fd=lease.parent_fd,
+                    dst_dir_fd=lease.parent_fd, follow_symlinks=False)
+            os.fsync(lease.parent_fd)
+            require(identity(os.fstat(fd)) == identity(os.stat(self.begin_name, dir_fd=lease.parent_fd, follow_symlinks=False))
+                    == identity(os.stat(self.journal_name(), dir_fd=lease.parent_fd, follow_symlinks=False)), "SEQUENCE_BEGIN_CHANGED")
+            lease.check()
+            # dup() shares the offset. The original base initializer writes the
+            # same bytes once more; never append a second ACTIVE document.
+            os.lseek(fd, 0, os.SEEK_SET)
+            result, fd = fd, None
+            return result
+        finally:
+            if fd is not None:
+                os.close(fd)
+            fcntl.lockf(lease.fd, fcntl.LOCK_UN, 1, 0, os.SEEK_SET)
 
 
 def check_complete_disabled(lease: Lease) -> dict:

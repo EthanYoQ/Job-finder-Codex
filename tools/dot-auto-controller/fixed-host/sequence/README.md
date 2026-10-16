@@ -14,6 +14,9 @@ scheduled-tick result, recovery authority, or a 36-source implementation.
   binding files, allocation/execution locks and active-round pointers
 - Separate pinned candidate CLI/preflight/recovery files and stable CLI entries
 - One original lifecycle SH and durable ACTIVE throughout the complete sequence
+- Sequence-only durable BEGIN/ACTIVE same-inode pair; ordinary journals retain
+  their original single-link rule. A short byte-range lock on the original lock
+  inode serializes begin creation without replacing SH/EX
 
 `build-functions-entry.py` deterministically compiles the original source bodies,
 pipe/observer cores, SQL extraction and source-specific UI ports. Its source
@@ -38,7 +41,13 @@ reported source status remains HOLD for that safely closed failure.
 
 The original holder records source start and settlement durably and completes
 only after both private close capabilities have been consumed by the same
-coordinator. Records are diagnostics, never recoverable permissions. Every
+coordinator. A durable BEGIN precedes ACTIVE creation, and complete historical lineage is
+checked before a new cycle or EX mutation. Lost ACTIVE, partial records or
+missing completion never restore authority. Each command and source barrier
+rechecks the original ACTIVE/BEGIN pair and previous records. The original
+owned finish retains BEGIN and removes only its paired ACTIVE.
+
+Records are diagnostics, never recoverable permissions. Every
 started source remains protected by the single global ACTIVE until that point.
 
 UNKNOWN, possible dispatch, pending original work, integrity exceptions, lost
@@ -58,6 +67,12 @@ Tests under `tests/` clearly distinguish source-only/unit/synthetic composition.
 harness with synthetic official facts; it requires external measured pins and a
 fresh owned case. Do not run it without the original free-space gate. Runtime,
 measurement manifests and test evidence belong outside this source tree.
+
+The last step of that TEST_ONLY installation is a prepare-only wiring probe of
+both installed stable CLIs under the original holder. It performs no child
+launch or SQL call and deliberately retains unlaunched state and global HOLD.
+The pre-probe installation/activation receipt is saved separately; this case
+cannot be reused as a fresh cycle or called a completed two-source execution.
 
 Production publication, official Supabase execution, the Aliyun reader/UI and a
 real future scheduling tick still require their own authorized verification.
