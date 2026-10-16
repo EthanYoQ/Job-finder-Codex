@@ -34,7 +34,10 @@ function syntheticBiogenFetch(){
   const body=JSON.parse(init.body),offset=Number(body.offset),limit=Number(body.limit);
   if(!Number.isSafeInteger(offset)||offset<0||!Number.isSafeInteger(limit)||limit<=0)throw Error('SYNTHETIC_BIOGEN_PAGINATION');
   const data={...base,total:rows.length,jobPostings:rows.slice(offset,offset+limit)};
-  for(const facet of data.facets[0].values)for(const value of facet.values)value.count=value.descriptor==='China'?rows.length:value.descriptor==='Shanghai, China'?Math.max(0,rows.length-1):Math.min(1,rows.length);
+  for(const facet of data.facets[0].values){
+   for(const value of facet.values)value.count=value.descriptor==='China'?rows.length:value.descriptor==='Shanghai, China'?Math.max(0,rows.length-1):Math.min(1,rows.length);
+   if(facet.facetParameter==='locations')facet.values=facet.values.filter((value:any)=>value.count>0);
+  }
   return {status:200,url:String(url),headers:new Headers({'content-type':'application/json'}),text:async()=>JSON.stringify(data)};
  };
 }
