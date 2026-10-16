@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "entrypoints": [
+    "run-takeda.mjs",
+    "native/takeda-bootstrap.mjs",
+    "native/takeda-worker.mts",
+    "native/takeda-reconcile.mts",
+    "native/takeda-reader-gate.mts",
+    "native/takeda-api-gate.mts",
+    "native/run-with-ipc-diagnostics.mjs"
+  ],
+  "dynamicSourceRoots": {
+    "native/takeda-bootstrap.mjs": [
+      "vendor/c60-source"
+    ],
+    "native/takeda-worker.mts": [
+      "vendor/c60-source"
+    ],
+    "native/takeda-reconcile.mts": [
+      "vendor/c60-source"
+    ],
+    "native/takeda-reader-gate.mts": [
+      "vendor",
+      "vendor/reader-main",
+      "vendor/reader-fallback"
+    ],
+    "native/takeda-api-gate.mts": [
+      "vendor/reader-main",
+      "vendor/reader-fallback"
+    ],
+    "native/takeda-packet-gate.mts": [
+      "vendor/c60-source"
+    ],
+    "src/native-bindings.mjs": [
+      "vendor/c60-source"
+    ],
+    "src/completion-control-plane.mjs": [
+      "vendor/c60-source"
+    ],
+    "transport/existing-compiler.mjs": [
+      "vendor/c60-source"
+    ],
+    "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": [
+      "vendor/c60-source"
+    ]
+  },
+  "sourceBoundary": "All executable source imports must resolve inside this package. Only Node builtins and dependencies declared by the frozen producer package/lock are external dependencies.",
+  "quarantinedNotEntrypoints": [
+    "vendor/c60-source/ops/cloud-pilot-host except explicitly reached connector-host-binding.mjs",
+    "vendor/c60-source/scripts except explicitly reached modules",
+    "transport/independent-owned-admission-review.mjs",
+    "transport/independent-portable-compiler-review.mjs"
+  ],
+  "dynamicExpressions": {
+    "native/takeda-bootstrap.mjs": [
+      "import(pathToFileURL(route.producer+'/node_modules/pg/lib/index.js').href)"
+    ],
+    "native/takeda-worker.mts": [
+      "import(pathToFileURL(route.producer+'/node_modules/pg/lib/index.js').href)"
+    ],
+    "native/takeda-reconcile.mts": [
+      "import(pathToFileURL(route.producer+'/node_modules/pg/lib/index.js').href)"
+    ],
+    "native/takeda-reader-gate.mts": [
+      "import(pathToFileURL(path.join(BASE,'c60-source/src/domain/jobProjectionDeltaReceipt.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/domain/portablePublicSnapshot.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/data/companyRegistry.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/crawler/sourcePlan.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/domain/jobProjectionDeltaReceipt.ts')).href)",
+      "import(pathToFileURL(path.join(root,'src/db/prismaMappers.ts')).href)"
+    ],
+    "native/takeda-api-gate.mts": [
+      "import(pathToFileURL(path.join(root,apiPath)).href)",
+      "import(pathToFileURL(path.join(root,handlerPath)).href)"
+    ],
+    "native/takeda-packet-gate.mts": [],
+    "src/native-bindings.mjs": [
+      "import(pathToFileURL(route.producer+'/'+relative).href)"
+    ],
+    "src/completion-control-plane.mjs": [
+      "import(pathToFileURL(route.producer+'/node_modules/pg/lib/index.js').href)"
+    ],
+    "transport/existing-compiler.mjs": [
+      "import(pathToFileURL(join(root,'node_modules/tsx/dist/esm/api/index.mjs')).href)",
+      "import(pathToFileURL(join(root,name)).href)"
+    ],
+    "vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs": [
+      "import(pathToFileURL(path.join(PRODUCER_ROOT,p)).href)"
+    ]
+  }
+}

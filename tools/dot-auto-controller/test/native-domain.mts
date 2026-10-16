@@ -1,0 +1,13 @@
+/** Actual frozen native lifecycle; synthetic records only, no DB or source HTTP. */
+import assert from 'node:assert/strict';
+import {applyCrawlObservation} from '../vendor/c60-source/src/crawler/lifecycle.ts';
+import {fixture} from './fixtures.mjs';import {verifyPublicationEvidence,dueFromObservation} from '../src/gates.mjs';
+const seen='2025-12-20T00:00:00.000Z',old={dedupeKey:'source:job',record:{sourceId:'source',sourceJobId:'job'},lifecycleStatus:'ACTIVE',missingSuccessfulCrawlCount:1,firstSeenAt:seen,lastSeenAt:seen};
+for(const state of ['CRAWL_FAILED','INCOMPLETE','BLOCKED','SKIPPED','UNAUDITED','NON_ATOMIC']){const failed=applyCrawlObservation([old] as any,[],{observation:{disposition:state,atomicCommitEligible:false} as any,observedAt:'2026-01-02T12:00:00.000Z',baselineCompletedBeforeCrawl:true});assert.equal(failed[0].lastSeenAt,seen);assert.equal(failed[0].missingSuccessfulCrawlCount,1);}
+const completed=applyCrawlObservation([old] as any,[],{observation:{disposition:'TRUSTED_COMPLETE',atomicCommitEligible:true},observedAt:'2026-01-02T12:00:00.000Z',baselineCompletedBeforeCrawl:true});assert.equal(completed[0].lifecycleStatus,'SUSPECTED_OFFLINE');assert.equal(completed[0].missingSuccessfulCrawlCount,2);assert.equal(completed[0].lastSeenAt,seen);
+const f=fixture(),run={startedAt:f.now,batchId:'synthetic-native-lifecycle'};const p=await f.ports.captureAndPrepareNative({route:f.route,run,onOriginalExec:()=>{}});const grace=p.proof.readerReplay.main.jobs[1];
+p.proof.readerReplay.main.jobs=p.proof.readerReplay.main.jobs.filter(j=>j.id!==grace.id);p.proof.readerReplay.fallback=structuredClone(p.proof.readerReplay.main);
+assert.throws(()=>verifyPublicationEvidence(f.route,run,p.proof,f.now),/GRACE_DROPPED_WITHOUT_NATIVE/);
+p.proof.nativeLifecycleRemovals=[{id:grace.id,lifecycleStatus:completed[0].lifecycleStatus,missingSuccessCount:completed[0].missingSuccessfulCrawlCount,lastSeenAt:grace.lastSeenAt,sourceResultId:run.batchId+'--'+f.route.sourceId}];verifyPublicationEvidence(f.route,run,p.proof,f.now);
+const dbObservation={id:'synthetic-observation-id',sourceId:f.route.sourceId,sourceResultId:'synthetic-result',batchId:'synthetic-batch',crawledAt:new Date(f.now-13*3600000).toISOString()};assert.equal(dueFromObservation(f.route,{lastAcceptedObservation:{...dbObservation,observationId:dbObservation.id,basis:'CrawlObservation.crawledAt'}},f.now).due,true);
+console.log(JSON.stringify({status:'NATIVE_LIFECYCLE_AND_DB_OBSERVATION_SHAPE_PASS',failedObservationsKeepLastGood:6,secondVerifiedMiss:'SUSPECTED_OFFLINE',originalTimePreserved:true,network:false,database:false}));

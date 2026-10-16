@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {createExistingCompiler,HISTORICAL_C60_BUILD} from './existing-compiler.mjs';
+const runtimeRoot=process.env.REVIEW_RUNTIME_ROOT;
+if(!runtimeRoot)throw Error('Set REVIEW_RUNTIME_ROOT to the approved producer checkout for this read-only integration test.');
+const sourceId='source-takeda-china-social',sourceConfigSha256='048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f';
+const existingCompiler=await createExistingCompiler({runtimeRoot,expectedBuild:HISTORICAL_C60_BUILD,expectedSourceId:sourceId,expectedSourceConfigSha256:sourceConfigSha256});
+const control={projectId:'yiopvxysxrtrnvqxwgbx',build:HISTORICAL_C60_BUILD,candidate:{id:'dot-cloud-c51-recovered-3a240076-20261008',goalId:'jobfinder-portable-required-40',version:60}};
+const now=Date.now(),binding={projectId:control.projectId,sourceId,sourceConfigSha256,candidateId:control.candidate.id,batchId:'review-only-batch',sourceResultId:'review-only-batch--'+sourceId,overallDeadline:now+500000,expiresAt:now+400000,dispatchBefore:now+235000};
+const context=await existingCompiler('READ_CONTEXT',{control,sourceAdmissionPolicy:'PLAN_BOUND_SOURCE_QUALITY_V1'},binding);
+assert.ok(context.sql.includes(control.candidate.id));assert.ok(context.sql.includes(sourceId));
+await assert.rejects(existingCompiler('READ_CONTEXT',{control:{...control,build:{...HISTORICAL_C60_BUILD,contentSha256:'0'.repeat(64)}}},binding),/COMPILER_RUNTIME_BUILD_DRIFT/);
+const reader=await existingCompiler('READ_READER_CONTEXT',null,binding);
+assert.ok(reader.sql.startsWith('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;'));
+assert.ok(reader.sql.endsWith('ROLLBACK;\n'));
+const outcome=await existingCompiler('READ_OUTCOME',null,binding);
+assert.deepEqual(outcome.values,[binding.sourceResultId,binding.batchId]);assert.ok(outcome.sql.includes('WHERE id=$1'));
+console.log('PASS: portable factory with profiled Node, reviewed source/runtime/lock pins, actual context compiler, rejected build drift, hash-pinned reader SQL and parameterized outcome. No database or network access.');

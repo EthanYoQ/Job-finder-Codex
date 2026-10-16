@@ -1,0 +1,42 @@
+{
+  "kind": "SANITIZED_OBSERVED_AX_GRAMMAR",
+  "scope": "Sanitized grammar extracted in a memory-only step from this task’s newly authorized bounded public UI sample; that extraction step made no new browser calls. The preceding sample did make the specifically authorized ordinary public UI calls.",
+  "redactions": "Tab metadata and focus line omitted; all AX indices renumbered; irrelevant public rows omitted",
+  "samples": {
+    "consent": "200 AXWebArea Job-search | 中国医药官方职位聚合, URL: job.orz.md/\n\t201 container 使用前确认\n\t\t202 container\n\t\t\t203 button 关闭确认弹窗\n\t\t\t\t204 image\n\t\t\t205 image\n\t\t\t206 heading 使用前确认, Value: 2\n\t\t\t\t207 text 使用前确认\n\t\t208 text 先完成同意，前台才会请求职位搜索结果。\n\t\t209 container\n\t\t\t210 checkbox (settable, integer) Description: 我已阅读并同意 隐私政策 和 服务条款, Value: 0\n\t\t\t211 image\n\t\t\t212 text 我已阅读并同意 \n\t\t\t213 link Description: 隐私政策, Value: job.orz.md/privacy\n\t\t\t214 text  和 \n\t\t\t215 link Description: 服务条款, Value: job.orz.md/terms\n\t\t216 button (disabled) 进入 Job-search\n\t\t\t217 text 进入 Job-search\n\t\t\t218 image",
+    "jobsLoading": "0 AXWebArea Job-search | 中国医药官方职位聚合, URL: job.orz.md/\n\t\t\t\t1 button 官方招聘目录\n\t\t\t2 heading 官方发布的 药企职位, Value: 1\n\t\t\t\t\t3 search text field (settable) 职位关键词\n\t\t\t\t4 container 公司职位列表\n\t\t\t\t\t\t5 text 正在加载官方职位…",
+    "jobsReady": "0 AXWebArea Job-search | 中国医药官方职位聚合, URL: job.orz.md/\n\t\t\t\t1 button 官方招聘目录\n\t\t\t2 heading 官方发布的 药企职位, Value: 1\n\t\t\t\t\t3 search text field (settable) 职位关键词\n\t\t\t\t4 container 公司职位列表\n\t\t\t\t\t5 button (collapsed) E5 武田中国 116 个职位, Secondary Actions: Expand",
+    "jobsExpanded": "0 AXWebArea Job-search | 中国医药官方职位聚合, URL: job.orz.md/\n\t\t\t\t1 button 官方招聘目录\n\t\t\t2 heading 官方发布的 药企职位, Value: 1\n\t\t\t\t\t3 search text field (settable) 职位关键词\n\t\t\t\t4 container 公司职位列表\n\t\t\t\t\t5 container row-company-takeda-china\n\t\t\t\t\t\t6 button (expanded) E5 武田中国 116 个职位, Secondary Actions: Collapse\n\t\t\t\t\t\t7 container jobs-company-takeda-china\n\t\t\t\t\t\t\t8 button 查看全部 116 个职位",
+    "directoryLoading": "0 AXWebArea Job-search | 中国医药官方职位聚合, URL: job.orz.md/\n\t\t\t\t1 button 官方招聘目录\n\t\t\t2 heading 官方招聘 目录, Value: 1\n\t\t\t\t3 search text field (settable) 搜索已覆盖公司\n\t\t\t4 container 公司目录\n\t\t\t\t5 text 正在加载公司目录…",
+    "directoryFilteredLoading": "0 AXWebArea Job-search | 中国医药官方职位聚合, URL: job.orz.md/\n\t\t\t\t1 button 官方招聘目录\n\t\t\t2 heading 官方招聘 目录, Value: 1\n\t\t\t\t3 search text field (settable) Description: 搜索已覆盖公司, Value: 武田\n\t\t\t4 container 公司目录\n\t\t\t\t5 text 正在加载公司目录…",
+    "directoryReady": "0 AXWebArea Job-search | 中国医药官方职位聚合, URL: job.orz.md/\n\t\t\t\t1 button 官方招聘目录\n\t\t\t2 heading 官方招聘 目录, Value: 1\n\t\t\t\t3 search text field (settable) Description: 搜索已覆盖公司, Value: 武田\n\t\t\t4 container 公司目录\n\t\t\t\t5 container row-company-takeda-china"
+  },
+  "provenance": {
+    "task": "build_public_verification_flow",
+    "browser": "dot cloud cdp",
+    "firstCreateResultContextUtc": "2026-10-11T16:20:23Z",
+    "lastPublicObservationResultContextUtc": "2026-10-11T16:22:11Z",
+    "timestampBasis": "Execution-context reminders immediately after tool results, second precision; not fabricated browser observation timestamps",
+    "interactiveToolInvocations": 9,
+    "explicitBrowserApiCalls": 15,
+    "breakdown": {
+      "createBrowserTab": 1,
+      "getAXState": 8,
+      "url": 1,
+      "indexClick": 3,
+      "directoryRoleClick": 1,
+      "searchRoleFill": 1
+    },
+    "ordinaryReloads": 0,
+    "viewAllClicks": 0,
+    "databaseCalls": 0,
+    "officialSourceRecrawls": 0,
+    "detailOrApplicationVisits": 0,
+    "laterMemoryOnlyToolInvocations": 7,
+    "laterMemoryOnlyDescription": "Sanitization, initial decoder replay, unsupported-grammar diagnosis, corrected decoder replay, strict-flag decoder replay, consent-surface baseline extraction, final strict-surface decoder replay; zero additional browser calls"
+  },
+  "additionalObservedGrammar": [
+    "definition list"
+  ],
+  "consentBaseline": "Complete observed visible consent surface, with AX indices reassigned starting at 200; text/order/hierarchy retained, no tab/focus metadata."
+}

@@ -1,0 +1,131 @@
+import type {MsdAjingaConfig} from "../msdAjingaSourceFetch";
+import type { ATSKind } from "../../domain/company";
+import type { RECENT_JOB_WINDOW_DAYS } from "../../domain/jobRecencyPolicy";
+import type { HtmlTableConfig, OfficialJsonConfig } from "../adapters/types";
+import type { HotjobLegacyFetchConfig } from "../hotjobLegacySourceFetch";
+import type { HotjobWecruitFetchConfig } from "../hotjobWecruitSourceFetch";
+import type { GrifolsChinaFetchConfig } from "../grifolsChinaSourceFetch";
+import type { JnjCareersChinaFetchConfig } from "../jnjCareersChinaSourceFetch";
+import type { LivzonCeccFetchConfig } from "../livzonCeccSourceFetch";
+import type { MsdDualOfficialFetchConfig } from "../msdDualOfficialSourceFetch";
+import type { OfficialJsonFetchConfig } from "../officialJsonSourceFetch";
+import type { SinopharmIguopinFetchConfig } from "../sinopharmIguopinSourceFetch";
+import type { WorkdayFetchConfig } from "../workdaySourceFetch";
+import type { XinhuaOfficialAnnouncementFetchConfig } from "../xinhuaOfficialAnnouncementSourceFetch";
+
+import type { QiluDualPartitionConfig } from "../qiluDualPartitionConfig";
+
+export interface MokaFetchConfig {
+  requisitionStatusPolicy?: "GSK_NATIVE_OPEN_REQUISITIONS_V1";
+  scopeExclusionProof?: "HENGRUI_EXPLICIT_US_WALTHAM_OR_HONG_KONG_ONLY_V1" | "BAYER_MEDICAL_OPEN_REQUISITIONS_V1" | "SERVIER_OPEN_PORTAL_UNKNOWN_GEOGRAPHY_V1";
+  expectedOrgId: string;
+  expectedSiteId: string;
+  expectedMode: "social";
+  campaignUrl: string;
+  allowedEntryRedirect?: {
+    origin: string;
+    pathname: string;
+  };
+  hydrateMissingLocationsFromDetail?: boolean;
+  allowDetailSiteIdOmission?: boolean;
+  publishedWithinDays?: typeof RECENT_JOB_WINDOW_DAYS;
+}
+
+export type ProfileBoundSourceConfig =
+  | { kind: "amgen-manual-workday-lookup"; config: import("../amgenManualWorkdaySourceFetch").AmgenManualWorkdayConfig; expectedChannelIds?: readonly string[] }
+  | { kind: "amgen-native-china"; config: import("../amgenNativeSourceFetch").AmgenNativeConfig; expectedChannelIds?: readonly string[] }
+  | {kind:"msd-ajinga";config:MsdAjingaConfig;expectedChannelIds?:readonly string[];}
+  | { kind: "qilu-dual-official"; config: QiluDualPartitionConfig; expectedChannelIds: readonly ["qilu-marketing", "qilu-non-marketing"] }
+  | {
+      kind: "grifols-china-detail-scope";
+      config: GrifolsChinaFetchConfig;
+      expectedChannelIds?: readonly string[];
+    }
+  | {
+      kind: "jnj-careers-china";
+      config: JnjCareersChinaFetchConfig;
+      expectedChannelIds?: readonly string[];
+    }
+  | {
+      kind: "msd-dual-official";
+      config: MsdDualOfficialFetchConfig;
+      expectedChannelIds?: readonly string[];
+    }
+  | {
+      kind: "livzon-cecc";
+      config: LivzonCeccFetchConfig;
+      expectedChannelIds?: readonly string[];
+    }
+  | {
+      kind: "sinopharm-iguopin";
+      config: SinopharmIguopinFetchConfig;
+      expectedChannelIds?: readonly string[];
+    }
+  | {
+      kind: "xinhua-official-announcements";
+      config: XinhuaOfficialAnnouncementFetchConfig;
+      expectedChannelIds: readonly ["desktop", "mobile"];
+    };
+
+export type CompanyRecruitmentExecutionConfig = {
+  formalEligibility?: "QUARANTINED_PENDING_TRUSTED_ORACLE";
+  transientRetryPolicy?: {
+    maxRetries: 1 | 2;
+    backoffMs: number;
+  };
+} & (
+  | {
+      adapterId: "official-json";
+      json: OfficialJsonConfig;
+      officialJsonFetch?: OfficialJsonFetchConfig;
+      workday?: WorkdayFetchConfig;
+      hotjob?: HotjobWecruitFetchConfig;
+      hotjobLegacy?: HotjobLegacyFetchConfig;
+      profileBoundSource?: ProfileBoundSourceConfig;
+      moka?: MokaFetchConfig;
+    }
+  | {
+      adapterId: "html-table";
+      table: HtmlTableConfig;
+    }
+);
+
+export interface CompanyRecruitmentSourceSeed {
+  sourceId: string;
+  executionConfig: CompanyRecruitmentExecutionConfig;
+}
+
+export interface CompanyRecruitmentProfileSeed {
+  companyId: string;
+  sources: readonly CompanyRecruitmentSourceSeed[];
+}
+
+export type CompanyCompletenessStrategy =
+  | "STRICT_OFFICIAL_SOURCE_EVIDENCE"
+  | "OFFICIAL_HTML_PAGINATION_EVIDENCE"
+  | "STATIC_PUBLIC_LIST_EXHAUSTION";
+
+export interface CompanyRecruitmentSourceProfile {
+  companyId: string;
+  sourceId: string;
+  officialEntryAllowedUrls: readonly string[];
+  officialChainEvidenceUrl: string;
+  atsKind: ATSKind;
+  chinaSocialScope: {
+    channel: "SOCIAL";
+    geography: "MAINLAND_CHINA";
+    authority: "OFFICIAL_LINK_OR_EXPLICIT_ENDORSEMENT";
+  };
+  completenessStrategy: CompanyCompletenessStrategy;
+  failureDisplayStrategy: "VERIFYING_KEEP_OFFICIAL_ENTRY";
+  officialChainVerification: {
+    checkedAt: string;
+    reason: string;
+  };
+  executionConfig: CompanyRecruitmentExecutionConfig;
+}
+
+export interface CompanyRecruitmentProfile {
+  companyId: string;
+  sources: readonly CompanyRecruitmentSourceProfile[];
+}

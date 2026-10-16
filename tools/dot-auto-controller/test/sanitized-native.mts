@@ -1,0 +1,25 @@
+/** Synthetic HTTP only. Exercises sanitized family failure and actual Takeda path. */
+import assert from 'node:assert/strict';import path from 'node:path';import {pathToFileURL} from 'node:url';
+import {createHttpHtmlSourceFetch,type HttpHtmlRequest} from '../vendor/c60-source/src/crawler/httpHtmlSourceFetch.ts';
+import {runSourceCrawl} from '../vendor/c60-source/src/crawler/runSourceCrawl.ts';
+import {buildStagedSourceCrawlPlans,getPlanBySourceId,sourcePlanConfigSha256} from '../vendor/c60-source/src/crawler/sourcePlan.ts';
+import {candidateCompanies} from '../vendor/c60-source/src/data/companyRegistry.ts';
+import {buildJobDedupeKey} from '../vendor/c60-source/src/crawler/normalizedJob.ts';
+import {createPlanBoundHtmlBrowserTraversalValidation,issueBGradeTraversalCertificate} from '../vendor/c60-source/src/crawler/traversalCertificate.ts';
+const root=path.resolve(import.meta.dirname,'..'),stamp='2026-09-02T00:00:00.000Z';
+for(const capsule of ['c60-source','reader-main','reader-fallback']){
+ const load=(relative:string)=>import(pathToFileURL(path.join(root,'vendor',capsule,relative)).href);
+ const plans=await load('src/crawler/sourcePlan.ts'),registry=await load('src/data/companyRegistry.ts'),fetches=await load('src/crawler/officialJsonSourceFetch.ts'),semantic=await load('src/crawler/biSemanticCompleteness.ts');
+ const bi=plans.getPlanBySourceId(plans.buildStagedSourceCrawlPlans(registry.candidateCompanies),'source-boehringer-ingelheim-china-social');assert(bi);assert.equal(semantic.hasBiSemanticPlan(bi),true);
+ let httpCalls=0;const fetch=fetches.createOfficialJsonSourceFetch({now:()=>new Date(stamp),http:async()=>{httpCalls++;throw Error('DISABLED_FAMILY_MUST_NOT_CALL_HTTP');}});const result=await fetch(bi);
+ assert.equal(result.ok,false);assert.equal(result.failureReason,'51JOB_DISABLED_PRIVACY_SANITIZED_SOURCE');assert.equal(httpCalls,0);assert.equal(semantic.replayBiSemanticCompleteness(bi,{},[],stamp),undefined);
+}
+const sourceId='source-takeda-china-social',companyId='company-takeda-china';
+const plan=getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies),sourceId);assert(plan?.adapterId==='html-table'&&plan.source.surfaceId&&plan.expectedChannels?.[0]);let index=0;
+const response=(url:string,body:string,contentType:string,capturedAt:string)=>({status:200,body,finalUrl:url,contentType,capturedAt});
+const resultsHtml=(page:number,id:string,url:string)=>`<div id="search-results" data-current-page="${page}" data-total-pages="2" data-total-job-results="2" data-records-per-page="1"><ul id="search-results-list"><li><button class="js-save-job-btn" data-job-id="${id}"></button><h2 class="title">Role ${id}</h2><a href="${url}">Role ${id}</a><span class="job-location location">Beijing, China</span></li></ul></div>`;
+const fetch=createHttpHtmlSourceFetch({now:()=>new Date(stamp),http:async(request:HttpHtmlRequest)=>{const capturedAt=new Date(Date.parse(stamp)+index++*1000).toISOString();if(request.url===plan.source.officialEntryUrl)return response(request.url,'<div id="search-results" data-ajax-url="/search-results" data-total-pages="2" data-total-job-results="2" data-records-per-page="1" data-active-facet-id="0"></div><div id="search-filters"></div>','text/html',capturedAt);const page=Number(new URL(request.url).searchParams.get('CurrentPage')),id=page===1?'10001':'10002';return response(request.url,JSON.stringify({results:resultsHtml(page,id,'https://jobs.takeda.com/job/beijing/role/1113/'+id),filters:'<section id="search-filters"><input class="filter-checkbox"></section>',hasJobs:true,hasContent:false}),'application/json',capturedAt);}});
+const fetched=await fetch(plan),result=await runSourceCrawl(plan,{fetch:async()=>fetched});assert.equal(result.status,'SUCCESS');assert.equal(result.jobs.length,2);assert(result.fetchEvidence&&result.paginationEvaluation&&result.reconciliation);
+const keys=result.jobs.map(buildJobDedupeKey).sort();const independentValidation=createPlanBoundHtmlBrowserTraversalValidation({sourceId,companyId,sourceConfigSha256:sourcePlanConfigSha256(plan),surfaceIds:[plan.source.surfaceId],channelIds:plan.expectedChannels.map(x=>x.channelId),pages:keys.map((key,i)=>({pageNumber:i+1,declaredTotalPages:keys.length,matchKeys:[key],nextControlPresent:i<keys.length-1})),observedAt:stamp,expiresAt:'2026-09-09T00:00:00.000Z'});
+const decision=issueBGradeTraversalCertificate({binding:{releaseCandidateId:'synthetic-takeda',batchId:'synthetic-batch',sourceResultId:'synthetic-result',sourceConfigSha256:sourcePlanConfigSha256(plan)},plan,transportSuccess:true,adapterSuccess:true,evidence:result.fetchEvidence,paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs:result.jobs,independentValidation,validationExecution:'CURRENT_RUN',trigger:'INITIAL_QUALIFICATION',now:new Date('2026-09-02T00:05:00.000Z')});assert.equal(decision.status,'CERTIFIED');
+console.log(JSON.stringify({status:'SANITIZED_NATIVE_PASS',disabledCapsules:3,disabledFamilyHttpCalls:0,biSemanticAdmission:false,takedaJobs:2,takedaCertificate:decision.status,database:false,network:false}));

@@ -1,0 +1,91 @@
+#!/usr/bin/python3
+"""Fixed one-round lock owner. No daemon, scheduler, network, DB or arbitrary cmd.
+Rendered outside the replaceable target with a fixed reviewed binding. A null
+binding cannot open paths. Only its original private functions session sends
+finish; public loader API has no status/receipt/authorization arguments.
+"""
+import hashlib,json,os,pathlib,stat,sys,types,termios
+BINDING=__FIXED_LIFECYCLE_BINDING__
+
+def require(ok,code):
+    if not ok:raise RuntimeError(code)
+def exact_file(path,digest=None,limit=8*1024*1024):
+    for parent in path.parents:
+        st=parent.lstat()
+        require(stat.S_ISDIR(st.st_mode) and not st.st_mode&0o022 and st.st_uid in (0,os.getuid()),'LIFECYCLE_PARENT')
+    fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        st=os.fstat(fd);sig=lambda s:(s.st_dev,s.st_ino,s.st_size,s.st_mtime_ns,s.st_ctime_ns)
+        require(stat.S_ISREG(st.st_mode) and st.st_uid==os.getuid() and st.st_nlink==1 and not st.st_mode&0o022 and st.st_size<=limit,'LIFECYCLE_FILE')
+        with os.fdopen(os.dup(fd),'rb') as f:data=f.read(limit+1)
+        require(len(data)==st.st_size and sig(st)==sig(os.fstat(fd))==sig(path.lstat()),'LIFECYCLE_FILE_CHANGED')
+        if digest is not None:require(hashlib.sha256(data).hexdigest()==digest,'LIFECYCLE_FILE_PIN')
+        return data
+    finally:os.close(fd)
+
+def load_domain():
+    require(type(BINDING) is dict,'LIFECYCLE_UNQUALIFIED')
+    path=pathlib.Path(BINDING['modulePath'])
+    raw=exact_file(path,BINDING['moduleSha256'])
+    module=types.ModuleType('fixed_lifecycle_runtime');module.__file__=str(path)
+    sys.modules[module.__name__]=module
+    exec(compile(raw,str(path),'exec'),module.__dict__)
+    domain=module.Domain.from_json(json.dumps(BINDING['domain']))
+    return module,domain
+
+def emit(value):print(json.dumps(value,separators=(',',':')),flush=True)
+
+def main():
+    require(len(sys.argv)==1,'LIFECYCLE_NO_ARGUMENTS')
+    # PTY sessions remain writable. Disable echo before producing protocol bytes.
+    if sys.stdin.isatty():
+        attrs=termios.tcgetattr(0);attrs[3]&=~termios.ECHO;termios.tcsetattr(0,termios.TCSANOW,attrs)
+    module,domain=load_domain()
+    with domain.acquire('SH') as lease:
+        journal=module.OwnedRoundJournal(lease)
+        try:
+            # No candidate content has been opened before SH + durable ACTIVE.
+            target=domain.target
+            for name in ('install-incomplete','install-attempt'):
+                require(not os.path.lexists(target/name),'LIFECYCLE_INSTALL_INCOMPLETE')
+            entry=target/'candidate/functions-entry.enabled.js'
+            raw=exact_file(entry,BINDING['entrySha256'])
+            require(len(raw)==BINDING['entryBytes'],'LIFECYCLE_ENTRY_BYTES')
+            raw.decode('ascii')
+            serial=0;offset=0
+            emit({'kind':'LIFECYCLE_READY','serial':serial,'holderId':journal.round_id,
+                  'entrySha256':BINDING['entrySha256'],'entryBytes':len(raw)})
+            while True:
+                line=sys.stdin.buffer.readline(32769)
+                if not line:return 78  # EOF is abandonment, never completion.
+                require(len(line)<=32768 and line.endswith(b'\n'),'LIFECYCLE_COMMAND_SIZE')
+                command=json.loads(line);lease.check()
+                require(type(command) is dict and set(command)=={'op','serial'},'LIFECYCLE_COMMAND')
+                serial+=1
+                require(command['serial']==serial,'LIFECYCLE_SEQUENCE')
+                if command['op']=='read':
+                    require(offset<len(raw),'LIFECYCLE_READ_COMPLETE')
+                    text=raw[offset:offset+8192].decode('ascii');before=offset;offset+=len(text)
+                    emit({'kind':'LIFECYCLE_CHUNK','serial':serial,'holderId':journal.round_id,
+                          'offset':before,'next':offset,'text':text})
+                elif command['op']=='ping':
+                    emit({'kind':'LIFECYCLE_ALIVE','serial':serial,'holderId':journal.round_id})
+                elif command['op']=='finish':
+                    require(offset==len(raw),'LIFECYCLE_NOT_LOADED')
+                    # No caller-supplied boolean/result can request qualification.
+                    # This endpoint belongs to the original private owned session.
+                    journal.finish_from_owned_holder()
+                    emit({'kind':'LIFECYCLE_FINISHED','serial':serial,'holderId':journal.round_id})
+                    return 0
+                elif command['op']=='abandon':
+                    emit({'kind':'LIFECYCLE_UNKNOWN','serial':serial,'holderId':journal.round_id})
+                    return 78
+                else:raise RuntimeError('LIFECYCLE_OPERATION')
+        finally:journal.abandon()  # Preserves ACTIVE unless already completed.
+
+if __name__=='__main__':
+    try:sys.exit(main())
+    except BaseException as error:
+        if isinstance(error,SystemExit):raise
+        emit({'kind':'LIFECYCLE_HOLD','reason':str(error),'productionQualified':False})
+        sys.exit(78)

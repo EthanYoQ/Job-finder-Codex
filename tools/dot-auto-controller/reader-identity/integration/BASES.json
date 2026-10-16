@@ -1,0 +1,16 @@
+[
+  {
+    "role": "main",
+    "baseRelativeTree": "web-main",
+    "baseHttpServerSha256": "f5687185053be85fcc7c4be86c0e7770a89b761ce5c54d0d7e99fc66553d663f",
+    "patchedHttpServerSha256": "2a67b4c075233f2ec6122d2c7ddd6402daf42d18d6613aa1f1c29982b1edd838",
+    "patch": "main-httpServer.patch"
+  },
+  {
+    "role": "fallback",
+    "baseRelativeTree": "compatible-fallback",
+    "baseHttpServerSha256": "2fc5ec5778c10c9c894bbe66b9ef07b912ae4be5acef3c022fa18cbf6bebba7a",
+    "patchedHttpServerSha256": "7b6f9b99f19be29c9c4fa1006b2bd4152b16fd1235bb0b2dfe933a79809e9664",
+    "patch": "fallback-httpServer.patch"
+  }
+]

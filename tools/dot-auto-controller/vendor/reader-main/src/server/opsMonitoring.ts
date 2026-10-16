@@ -1,0 +1,231 @@
+export type OpsAlertCode =
+  | "WEBSITE_DOWN"
+  | "DATABASE_UNREACHABLE"
+  | "BACKUP_MISSING"
+  | "BACKUP_FAILED"
+  | "BACKUP_STALE"
+  | "RESTORE_RECEIPT_MISSING"
+  | "RESTORE_QUALIFICATION_FAILED"
+  | "RESTORE_QUALIFICATION_STALE"
+  | "CRAWL_SUCCESS_BELOW_SLO"
+  | "CRAWL_PARTIAL_COMPANY_RESULTS"
+  | "CRAWL_SUMMARY_MISSING"
+  | "CRAWL_SUMMARY_INVALID"
+  | "CRAWL_SUMMARY_STALE"
+  | "CRAWL_AUTHORITY_INVALID"
+  | "CRAWL_ATTEMPT_MISSING"
+  | "CRAWL_ATTEMPT_INVALID"
+  | "CRAWL_ATTEMPT_FAILED"
+  | "CRAWL_ATTEMPT_STALE"
+  | "MANDATORY_COMPANY_FAILURE"
+  | "CRAWL_COMPLETENESS_FAILURE"
+  | "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM";
+
+export type OpsAlertSeverity = "warning" | "critical";
+
+export interface OpsAlert {
+  code: OpsAlertCode;
+  severity: OpsAlertSeverity;
+  message: string;
+  dedupeKey?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface OpsAlertInput {
+  now: Date;
+  health: {
+    ok: boolean;
+    statusCode?: number;
+  };
+  database?: { ok: boolean };
+  backup: {
+    latestBackupAt?: string;
+    latestBackupSucceeded?: boolean;
+  };
+  restore?: {
+    latestRestoreAt?: string;
+    latestRestoreSucceeded?: boolean;
+  };
+  crawl: {
+    authorityState: "VALID" | "PAUSED" | "INVALID";
+    attemptState: "SUCCESS" | "RUNNING" | "PAUSED" | "MISSING" | "INVALID" | "FAILED" | "STALE";
+    summaryState: "VALID" | "MISSING" | "INVALID" | "STALE";
+    globalSuccessRate?: number;
+    completenessFailureCount?: number;
+    consecutiveFailuresByCompany: Record<string, number>;
+    initialQualificationPause?: {
+      notificationKey: string;
+      releaseCandidateId: string;
+      batchId: string;
+      completedRoundCount: 2;
+      stableCompanyCount: number;
+      minimumStableCompanyCount: number;
+    };
+  };
+}
+
+const BACKUP_STALE_HOURS = 26;
+const RESTORE_STALE_HOURS = 8 * 24;
+const CRAWL_SUCCESS_SLO = 0.8;
+
+export function evaluateOpsAlerts(input: OpsAlertInput): OpsAlert[] {
+  const alerts: OpsAlert[] = [];
+
+  const restoreAt = toDate(input.restore?.latestRestoreAt);
+  if (input.restore !== undefined && !restoreAt) {
+    alerts.push({ code: "RESTORE_RECEIPT_MISSING", severity: "critical",
+      message: "No successful backup restore qualification receipt is available." });
+  } else if (input.restore !== undefined && input.restore.latestRestoreSucceeded !== true) {
+    alerts.push({ code: "RESTORE_QUALIFICATION_FAILED", severity: "critical",
+      message: "The latest backup restore qualification receipt is invalid or failed." });
+  } else if (restoreAt && (restoreAt.getTime() > input.now.getTime() + 5 * 60_000 ||
+      input.now.getTime() - restoreAt.getTime() > RESTORE_STALE_HOURS * 3_600_000)) {
+    alerts.push({ code: "RESTORE_QUALIFICATION_STALE", severity: "critical",
+      message: "The latest successful backup restore qualification is older than eight days." });
+  }
+
+  if (input.crawl.authorityState === "INVALID") {
+    alerts.push({ code: "CRAWL_AUTHORITY_INVALID", severity: "critical", message: "Pinned crawl release authority is unavailable or invalid." });
+  }
+  const attemptAlert = {
+    MISSING: ["CRAWL_ATTEMPT_MISSING", "No crawl attempt evidence is available."],
+    INVALID: ["CRAWL_ATTEMPT_INVALID", "The latest crawl attempt evidence is invalid."],
+    FAILED: ["CRAWL_ATTEMPT_FAILED", "The latest crawl attempt failed."],
+    STALE: ["CRAWL_ATTEMPT_STALE", "The latest crawl attempt is stale."]
+  } as const;
+  if (!["SUCCESS", "RUNNING", "PAUSED"].includes(input.crawl.attemptState)) {
+    const [code, message] = attemptAlert[input.crawl.attemptState as keyof typeof attemptAlert];
+    alerts.push({ code, severity: "critical", message });
+  }
+
+  const pause = input.crawl.initialQualificationPause;
+  if (pause) {
+    if (
+      !/^[0-9a-f]{64}$/u.test(pause.notificationKey) || !pause.releaseCandidateId.trim() ||
+      !pause.batchId.trim() || pause.completedRoundCount !== 2 ||
+      !Number.isSafeInteger(pause.stableCompanyCount) || pause.stableCompanyCount < 0 ||
+      !Number.isSafeInteger(pause.minimumStableCompanyCount) || pause.minimumStableCompanyCount < 1 ||
+      pause.stableCompanyCount >= pause.minimumStableCompanyCount
+    ) throw new Error("Initial qualification pause monitoring input is invalid");
+    alerts.push({
+      code: "INITIAL_QUALIFICATION_PAUSED_BELOW_MINIMUM",
+      severity: "critical",
+      message: `Initial qualification paused after exactly two completed rounds: ${pause.stableCompanyCount}/${pause.minimumStableCompanyCount} stable companies. No third qualification round is allowed.`,
+      dedupeKey: `initial-qualification-pause:${pause.notificationKey}`,
+      metadata: {
+        releaseCandidateId: pause.releaseCandidateId,
+        batchId: pause.batchId,
+        completedRoundCount: pause.completedRoundCount,
+        stableCompanyCount: pause.stableCompanyCount,
+        minimumStableCompanyCount: pause.minimumStableCompanyCount
+      }
+    });
+  }
+
+  const summaryAlert = {
+    MISSING: ["CRAWL_SUMMARY_MISSING", "No crawl summary is available."],
+    INVALID: ["CRAWL_SUMMARY_INVALID", "The crawl summary is malformed or unsupported."],
+    STALE: ["CRAWL_SUMMARY_STALE", "The crawl summary is stale."]
+  } as const;
+  if (input.crawl.summaryState !== "VALID") {
+    const [code, message] = summaryAlert[input.crawl.summaryState];
+    alerts.push({ code, severity: "critical", message });
+  }
+
+  if (!input.health.ok || (input.health.statusCode !== undefined && input.health.statusCode >= 500)) {
+    alerts.push({
+      code: "WEBSITE_DOWN",
+      severity: "critical",
+      message: `Health check failed with status ${input.health.statusCode ?? "unknown"}.`
+    });
+  }
+
+  if (input.database?.ok === false) {
+    alerts.push({
+      code: "DATABASE_UNREACHABLE",
+      severity: "critical",
+      message: "Authenticated PostgreSQL readiness check failed."
+    });
+  }
+
+  if (input.backup.latestBackupSucceeded === false) {
+    alerts.push({
+      code: "BACKUP_FAILED",
+      severity: "critical",
+      message: "Latest backup run failed."
+    });
+  }
+
+  const latestBackupAt = toDate(input.backup.latestBackupAt);
+  if (!latestBackupAt) {
+    alerts.push({
+      code: "BACKUP_MISSING",
+      severity: "critical",
+      message: "No successful backup evidence is available."
+    });
+  } else {
+    const ageHours = (input.now.getTime() - latestBackupAt.getTime()) / 3_600_000;
+    if (ageHours > BACKUP_STALE_HOURS) {
+      alerts.push({
+        code: "BACKUP_STALE",
+        severity: "critical",
+        message: `Latest backup is ${Math.floor(ageHours)} hours old.`,
+        metadata: { latestBackupAt: latestBackupAt.toISOString() }
+      });
+    }
+  }
+
+  const globalSuccessRate = input.crawl.globalSuccessRate;
+  if (globalSuccessRate !== undefined && globalSuccessRate < CRAWL_SUCCESS_SLO) {
+    alerts.push({
+      code: "CRAWL_SUCCESS_BELOW_SLO",
+      severity: "critical",
+      message: `Global crawl success rate fell to ${(globalSuccessRate * 100).toFixed(1)}%.`,
+      metadata: { globalSuccessRate }
+    });
+  } else if (globalSuccessRate !== undefined && globalSuccessRate < 1) {
+    alerts.push({
+      code: "CRAWL_PARTIAL_COMPANY_RESULTS",
+      severity: "critical",
+      message: `Some company sources were unavailable; global crawl success was ${(globalSuccessRate * 100).toFixed(1)}%.`,
+      metadata: { globalSuccessRate }
+    });
+  }
+
+  const mandatoryCompanyFailures = Object.entries(input.crawl.consecutiveFailuresByCompany)
+    .filter(([, failures]) => failures >= 1)
+    .map(([companyId]) => companyId)
+    .sort();
+  if (mandatoryCompanyFailures.length > 0) {
+    alerts.push({
+      code: "MANDATORY_COMPANY_FAILURE",
+      severity: "critical",
+      message: `${mandatoryCompanyFailures.length} mandatory company source(s) failed the latest formal crawl.`,
+      metadata: { companies: mandatoryCompanyFailures }
+    });
+  }
+
+  const completenessFailureCount = input.crawl.completenessFailureCount ?? 0;
+  if (!Number.isSafeInteger(completenessFailureCount) || completenessFailureCount < 0) {
+    throw new Error("Completeness failure monitoring input is invalid");
+  }
+  if (completenessFailureCount > 0) {
+    alerts.push({
+      code: "CRAWL_COMPLETENESS_FAILURE",
+      severity: "critical",
+      message: `${completenessFailureCount} source(s) failed formal crawl completeness qualification.`,
+      metadata: { completenessFailureCount }
+    });
+  }
+
+  return alerts;
+}
+
+function toDate(value?: string): Date | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}

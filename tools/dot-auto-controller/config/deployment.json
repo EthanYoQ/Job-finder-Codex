@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "activated": false,
+  "reason": "Inactive privacy-sanitized derivative. Historical C60/reader identities cannot qualify these trees. New reviewed build/candidate and reader deployment required.",
+  "authorityDirectory": null,
+  "authorityIdentitySha256": null,
+  "deployedReaderIdentity": null,
+  "pg": null,
+  "originalPublisherStateFile": null
+}

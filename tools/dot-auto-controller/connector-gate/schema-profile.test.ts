@@ -1,0 +1,14 @@
+import {expect,it} from 'vitest';
+import {requireReviewDatabaseProfile} from './schema-profile.mts';
+import {JOB_DELTA_MIGRATION_NAME} from '../vendor/c60-source/src/db/jobProjectionDeltaProfile.ts';
+import {V75_FENCE_MIGRATION_NAME,V75_FENCE_SCHEMA_SHA256} from '../vendor/c60-source/src/db/v75FenceProfile.ts';
+const old={migrationVersion:JOB_DELTA_MIGRATION_NAME,schemaHash:'d'.repeat(64)};
+const current={migrationVersion:V75_FENCE_MIGRATION_NAME,schemaHash:V75_FENCE_SCHEMA_SHA256};
+it('preserves explicit and default historical SQL49 route',()=>{expect(()=>requireReviewDatabaseProfile(old,true)).not.toThrow();expect(()=>requireReviewDatabaseProfile(old,true,'SQL49')).not.toThrow();});
+it('requires explicit schema50 route',()=>{expect(()=>requireReviewDatabaseProfile(current,true,'SCHEMA50')).not.toThrow();expect(()=>requireReviewDatabaseProfile(current,true)).toThrow('REVIEW_EXISTING_49_PROFILE_REQUIRED');});
+it('rejects schema50 identity in SQL49 route',()=>{expect(()=>requireReviewDatabaseProfile(current,true,'SQL49')).toThrow('REVIEW_EXISTING_49_PROFILE_REQUIRED');});
+it('rejects SQL49 identity in schema50 route',()=>{expect(()=>requireReviewDatabaseProfile(old,true,'SCHEMA50')).toThrow('REVIEW_EXACT_50_PROFILE_REQUIRED');});
+it('rejects schema50 hash drift',()=>{expect(()=>requireReviewDatabaseProfile({...current,schemaHash:'d'.repeat(64)},true,'SCHEMA50')).toThrow('REVIEW_EXACT_50_PROFILE_REQUIRED');});
+it('rejects unknown explicit route without fallback',()=>{expect(()=>requireReviewDatabaseProfile(current,true,'other' as any)).toThrow('REVIEW_DATABASE_PROFILE_ROUTE_REQUIRED');});
+it('both profiles require original delta contract',()=>{for(const [db,profile] of [[old,'SQL49'],[current,'SCHEMA50']] as const)expect(()=>requireReviewDatabaseProfile(db,false,profile)).toThrow('REVIEW_BASE_49_PROFILE_REQUIRED');});
+it('rejects absent identity on either route',()=>{for(const profile of ['SQL49','SCHEMA50'] as const)expect(()=>requireReviewDatabaseProfile(undefined,true,profile)).toThrow();});

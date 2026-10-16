@@ -1,0 +1,66 @@
+--- a/src/server/httpServer.ts
++++ b/src/server/httpServer.ts
+@@ -1,3 +1,4 @@
++import { READER_IDENTITY_PATH, type ReaderIdentityHandler } from "./readerIdentity.mjs";
+ import { PrismaClient } from "@prisma/client";
+ import { createServer as createNodeServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+ import { readFile } from "node:fs/promises";
+@@ -36,6 +37,7 @@
+ 
+ export interface HttpServerOptions {
+   staticRoot?: string;
++  readerIdentity?: ReaderIdentityHandler;
+ }
+ 
+ type HttpServerDeps = PublicApiDeps & AdminApiDeps;
+@@ -207,7 +209,7 @@
+   const staticRoot = resolve(options.staticRoot ?? resolve(process.cwd(), "dist"));
+ 
+   return createNodeServer((request, response) => {
+-    void handleRequest(request, response, deps, staticRoot).catch((error: unknown) => {
++    void handleRequest(request, response, deps, staticRoot, options.readerIdentity).catch((error: unknown) => {
+       console.error("HTTP_SERVER_ERROR", error);
+       if (!response.headersSent) {
+         response.statusCode = 500;
+@@ -218,7 +220,7 @@
+   });
+ }
+ 
+-export async function startServer(): Promise<Server> {
++export async function startServer(options: Pick<HttpServerOptions, "readerIdentity"> = {}): Promise<Server> {
+   const policy=process.env.JOBFINDER_PUBLICATION_POLICY;
+   if(policy!==undefined&&policy!==SOURCE_QUALITY_POLICY_ID)throw new Error("UNKNOWN_PUBLICATION_POLICY");
+   const prisma = new PrismaClient();
+@@ -275,7 +277,7 @@
+     checkDatabaseReadiness,
+     readinessTimeoutMs,
+     ...(readPortableSnapshot ? {readPortableSnapshot} : {})
+-  });
++  }, options);
+   const host = process.env.HOST ?? DEFAULT_HOST;
+   const port = Number(process.env.PORT ?? DEFAULT_PORT);
+ 
+@@ -311,9 +313,22 @@
+   request: IncomingMessage,
+   response: ServerResponse,
+   deps: HttpServerDeps,
+-  staticRoot: string
++  staticRoot: string,
++  readerIdentity?: ReaderIdentityHandler
+ ): Promise<void> {
+   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
++
++  // This path must never fall through to a static, replayable JSON file. Only
++  // the reviewed pre-import identity bootstrap installs a live handler.
++  if (url.pathname === READER_IDENTITY_PATH) {
++    if (readerIdentity && await readerIdentity(request, response)) return;
++    writeResponse(response, {
++      status: 503,
++      headers: { "cache-control": "no-store, max-age=0", "pragma": "no-cache", "expires": "0" },
++      body: { error: "READER_IDENTITY_UNAVAILABLE" }
++    });
++    return;
++  }
+ 
+   if (shouldRouteToPublicApi(url.pathname)) {
+     const publicRequestStartedAt = performance.now();

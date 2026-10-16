@@ -1,0 +1,1993 @@
+{
+  "schemaVersion": 1,
+  "originCommit": "600ad0ab23e886ae9ac429d3d1b076e00af76e88",
+  "classification": "PRIVACY_SANITIZED_SOURCE_DERIVATIVE_NOT_LIVE_QUALIFICATION",
+  "files": [
+    {
+      "path": "package-lock.json",
+      "sha256": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9",
+      "bytes": 162783,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "package.json",
+      "sha256": "6a08adb18651704b67541c9cc6593de3f232909b39aedf6902d7481f8e06c134",
+      "bytes": 4540,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/admin/AdminApp.tsx",
+      "sha256": "6cc07c1cecd86e1bf6a093f5e7eb5c90d033935cb03987175afc43e80249cf86",
+      "bytes": 11141,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/admin/BrowserAdminApp.tsx",
+      "sha256": "77e376cf5eef8e034e08c95b5809af095fb93a524e074d38d8646cac8e544224",
+      "bytes": 2976,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/admin/adminViewModel.ts",
+      "sha256": "55fa47f1c234e144c4d57621fac33241532c63a50db1163368095c82488ecbe3",
+      "bytes": 5751,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/admin/auth.ts",
+      "sha256": "d2b068f45c8278949a823834084a31b909eff9c1ed2b175cc571ad40dc26c4e1",
+      "bytes": 3634,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/admin/legacyBase.css",
+      "sha256": "37a8b0bd62d6cedebf1444e3f8e87d765bcdd0d825ba38826fe445485d5102d4",
+      "bytes": 11428,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/admin/manualCrawlStatus.ts",
+      "sha256": "b94f5e257e351a2e4f0f3bf71e32cf1fdf08b177379adef5c21daef6eac1714b",
+      "bytes": 1630,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/admin/operations.ts",
+      "sha256": "277eddca5d4565c78cda35a747bc2f377b19ac6d45096e571a154b747f8da96c",
+      "bytes": 12147,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/admin/privacyOperations.ts",
+      "sha256": "f7c4c18621602dae4328c96d2c3fac41e158d5a5dd2175a02c5b8641d2d36e1b",
+      "bytes": 3397,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/App.css",
+      "sha256": "4b8798e9dd4829699f7bd0959b1931bdd49504259909e22a934837e3e9ad4cda",
+      "bytes": 46918,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/App.tsx",
+      "sha256": "54a36a5b6a043cecc258265d2ed37956d0317a4754a9d32808c54dbdadb352c0",
+      "bytes": 45443,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/RedesignComponents.tsx",
+      "sha256": "66663ea2f8a685df43e2c1e7c4fa1c69385fd31e533636fa8a9a63c50c74ec78",
+      "bytes": 15756,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/appDataProvider.ts",
+      "sha256": "16703a73eddc41e8c5a423be1b2a3aaf496129694d16f786fd02d1f8c06aedf6",
+      "bytes": 10245,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/assets/company-logos.png",
+      "sha256": "88622e5ffa9b52af237b0f4fb747c6a68da5700054d6a4f66c18ea0f3cc1109e",
+      "bytes": 275256,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/assets/company-logos.ts",
+      "sha256": "8413e506a53e98aa0a0d0753e682e5516bca29c3133b62d7380d0026f078bda6",
+      "bytes": 2356,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/assets/company-logos.webp",
+      "sha256": "18fe6535b810c9600fef18af220f6774428b7e8be50ce0bf8d063bf84c284fbf",
+      "bytes": 192258,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/boundedSnapshotRequest.ts",
+      "sha256": "547f5f118a264933095b98218bafef7ac2939f69ff26e8632c6c57334290f00b",
+      "bytes": 2258,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/designAssets.ts",
+      "sha256": "536e3e96652c48089a8c4c777da8e90af7b4023bdc8e33fc8701bd6c0c7ff146",
+      "bytes": 628,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/designRegions.ts",
+      "sha256": "ff079e6913e55ae5e7939d3cb706653dfa7a4104f3fe4d0e71400ce85e9d3987",
+      "bytes": 7854,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/jobData.ts",
+      "sha256": "456cea28cf82a191589cc09a3c509e2154dcfa1ab53fd0f80d04a1b5f7f0388b",
+      "bytes": 3376,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/app/jobSearch.ts",
+      "sha256": "8127047932a175ac3af023a44df5aeb50f405de783d3c0cf23123a05600a5b93",
+      "bytes": 2683,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/abbvieChinaRowScope.ts",
+      "sha256": "faf3185ead0e51915d7e17ed0dd7822c4b9c4b99ee4ba4da8359fe3c2fac2606",
+      "bytes": 5077,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/adapters/completeness.ts",
+      "sha256": "3b54912b0ece4f3943fec7999eeaa58c4fafef075988c04d84003ee242843918",
+      "bytes": 2279,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/adapters/dedupe.ts",
+      "sha256": "c76e93963c2f55939cc2be5b907bdca637aaf4280b51861a5cdcee0355138b2f",
+      "bytes": 442,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/adapters/htmlTable.ts",
+      "sha256": "1b64e5e2450b237a82f61f6435f9508daa3cbc77c54851ef81b3f9d971b36ae4",
+      "bytes": 11092,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/adapters/officialJson.ts",
+      "sha256": "459ef4b801bb8783abc0e2b9a5568bd996297c87cfafd14c408ff7420bd09b86",
+      "bytes": 9326,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/adapters/reconciliation.ts",
+      "sha256": "a0fed86ad3f14e46c88894b99a55a4a524ef11f3acc258fb98a3ef72fa24664d",
+      "bytes": 5050,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/adapters/safeAdapterValue.ts",
+      "sha256": "eed6ded4737880895ed8762f2cc4a3735ce1d1603f174e1be05663b32b42c5dc",
+      "bytes": 1169,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/adapters/types.ts",
+      "sha256": "6d8c2a488475fa1444ed9a8ac48fff64eea076f291398c7b84f0d4f169eeb204",
+      "bytes": 7318,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/amgenManualWorkdaySourceFetch.ts",
+      "sha256": "9827e5d05af21e16a52290ebf1666034ff8afdce50adc1b0514319dde9cbdc98",
+      "bytes": 21860,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/amgenNativeSourceFetch.ts",
+      "sha256": "6b669448c7fb4fff9d99286cdda045bf918bff876726c196c9ac5507d8ad0b78",
+      "bytes": 23730,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/artifactArchive.ts",
+      "sha256": "575a5fe0144cd443e5308d29ce25641981282a0f34b5e1beebed723cc7ff6ac1",
+      "bytes": 31316,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/astellasPdfCityAcquisition.ts",
+      "sha256": "3cabd4577d07e5cf6e4a33fd902eaf00f3b6f9745a87ed980feee89e0da5b49f",
+      "bytes": 8814,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/astellasPdfCityContract.ts",
+      "sha256": "20504c31302de4623ec7ec4f1636180e9ea78e395ee141c8cfc288621b7aad4c",
+      "bytes": 1627,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/astellasPdfLocations.ts",
+      "sha256": "60c62cc800ce24663358e49954200410c9b6904156b7a40ed9365e9841bda262",
+      "bytes": 12635,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/astraZenecaDetailAcquisition.ts",
+      "sha256": "eba50c500d7f0217a41c417fd9e1467160714abdce84a138ecc31e80a877aebb",
+      "bytes": 17611,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/astraZenecaDetailContract.ts",
+      "sha256": "7c6dada5698a12e661bb3fd934fa96a1e846cad773290eb6a4056663b8c5f9d1",
+      "bytes": 4832,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/astraZenecaDetails.ts",
+      "sha256": "46b268dda0a91a2325504bfd556428b2f392f6bcd2bb1daeb0c724ea6ce2d996",
+      "bytes": 20471,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/astraZenecaLocations.ts",
+      "sha256": "21d7e832f4eb41b133bccf64f9e75cb5f013c5012ec73a02b126b8d907046a87",
+      "bytes": 5025,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/authoritativeReleaseMembership.ts",
+      "sha256": "4954ce75d43e9cdaee616419442c58b4a5abfb95541d830326e9bfe42ec9c872",
+      "bytes": 8820,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/bayerMokaRenderedTraversal.ts",
+      "sha256": "ca195274de8921788bd6aa1dd1146ece9dfec2773d8a1cb514add754ece56489",
+      "bytes": 13706,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/bayerMokaScope.ts",
+      "sha256": "fb0c970a58ef785a914047d09e1dfd984cbc4545df8b79d76a2e0e728316a966",
+      "bytes": 15700,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/beisenDetailDates.ts",
+      "sha256": "0e8da6d2f3d6ce9bc05425099567eb5422346cbf24e0cf7175b281b78093429c",
+      "bytes": 15538,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/biSemanticCompleteness.ts",
+      "sha256": "53e749c99ba1afee373e75f5107bb99975b5f52e25113198e7ce7ad1d2e708be",
+      "bytes": 5632,
+      "originSha256": "b9cdb9ab89176826d6f09af5c229da684100d8038b88c0778e2015a0d9726d42",
+      "classification": "PRIVACY_SANITIZED_DERIVATIVE",
+      "change": "51job acquisition and BI semantic admission disabled; signing material and request signer removed"
+    },
+    {
+      "path": "src/crawler/biUiSemanticContract.ts",
+      "sha256": "2b12a5c87cd151a5c769d7d55edfd7e8dda82328c91f243b8a72ddc1887ba2cb",
+      "bytes": 6441,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/biogenListGeographyGuard.ts",
+      "sha256": "dda9b23a06f84449b6329dfea4cfdcb107c0c18de9aa25d6d3b9d08f51ce1f35",
+      "bytes": 10369,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/bmsMainlandGeography.ts",
+      "sha256": "b774f4aed0cb0dcb224579ff6cb1801088af1e36a7cea8dbe6529d3bac437a0c",
+      "bytes": 1996,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/bmsOfficialPostedDate.ts",
+      "sha256": "8df66b7857d3f082c2be106c44a6b669f1ed92c918b0a22043d5c4e66c4b92e8",
+      "bytes": 2812,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/browserSourceConcurrency.ts",
+      "sha256": "1eaacf993c92a4f4591fdc961c3100ae72fd30af85662b2182209282fd3fbd89",
+      "bytes": 1131,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/README.md",
+      "sha256": "c8974f1c462138ca885259fcc9950a3ad7ef13c9bd9cf04d603c9c06107268e5",
+      "bytes": 1349,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/catalog.ts",
+      "sha256": "5dacb82323767663687ef392825a1c67d80868d32b069d69eab5463c004eeb87",
+      "bytes": 5125,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/index.ts",
+      "sha256": "03fca072268edade71e6c688ebc11380f401f25b058d103443903e4c05b7d7c8",
+      "bytes": 4479,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/3sbio.ts",
+      "sha256": "6856134b71cdbb1e8129576b9298530eb610058fe54e2864b6c725cc16818a3f",
+      "bytes": 902,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/abbvie-china.ts",
+      "sha256": "82ebf137cdec302bd91a46ce6b6486ee0536ee9126d466d1122da373d3c969d0",
+      "bytes": 1613,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/amgen-china.ts",
+      "sha256": "129195c147d16544ca7d0d612858dc248b18d440643f0bbc1a6be0499073b446",
+      "bytes": 550,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/apeloa.ts",
+      "sha256": "04508e6a9bd371e5adefe21d32716201ac672f9b6f33b3af6e683e55a85e7750",
+      "bytes": 1462,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/astellas-china.ts",
+      "sha256": "329a9f37c752f5387f04cd8a75d9bac25c3e266a75b36e271d6dc121a354d276",
+      "bytes": 1527,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/astrazeneca.ts",
+      "sha256": "70a2f0a6b3ca6b50d2637993ee45ee3aada75df4e49c09055348e924c896e325",
+      "bytes": 1396,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/bayer-healthcare.ts",
+      "sha256": "4bb3db97068946369df383fb3b9acf941b5100e93cd301841f019f6bb92ea38a",
+      "bytes": 765,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/biogen-china.ts",
+      "sha256": "3d0e5b31b7c0b5c3596ffa94818e0a679e6834fdeeb0435c136bc8feac11cfbb",
+      "bytes": 756,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/bms-china.ts",
+      "sha256": "2a3f7c4c4dba7630a7973a6662834d553ddaae758bce3bcc04c96bd36f6c7e24",
+      "bytes": 1029,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/boehringer-ingelheim-china.ts",
+      "sha256": "b763d26f55394c7d4326382784c5717018f6f7c12bb8e43cdd9be2149d2261af",
+      "bytes": 744,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/buchang.ts",
+      "sha256": "50e9e370bd2e204924f3371521083969aef82cad537f72094108746717f191d3",
+      "bytes": 1277,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/changchun-high-tech.ts",
+      "sha256": "b30a7a5757f34961812f1664e78418ca7ecb931ce98eba705439de9079e2eb3b",
+      "bytes": 213,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/cr-pharma.ts",
+      "sha256": "509063bfc21c4eb2188cd03ce9795e3c6f5471b515c96b7464d8969751e3cefb",
+      "bytes": 1075,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/csl-china.ts",
+      "sha256": "50f62d4e009b9a50c92d07a32a23fc0aae60005150bfd3526c819e4edc914d97",
+      "bytes": 742,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/cspc.ts",
+      "sha256": "9629529cbf095ebfccba262a984af84711fd1cca3be0521200085a9a01b2bbcc",
+      "bytes": 716,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/cttq.ts",
+      "sha256": "a018380c1e2a5bfcb3343d0b1743a18f28561e75e2ae73f57c66a867dfd9cbc5",
+      "bytes": 844,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/daiichi-sankyo-china.ts",
+      "sha256": "0718284e71e79e1fad2570197b2abadc0b40c6fab621a53aac85a4d8132d9d7e",
+      "bytes": 578,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/dongyangguang.ts",
+      "sha256": "f98223f2e7acefddbc431bf47b173af1f6c5e98cf6533d534d38d5688c5d8b50",
+      "bytes": 774,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/fosun-pharma.ts",
+      "sha256": "4e78c13d979a857061ba441769776684bd5d166f9336e10e19ddac738b1b9783",
+      "bytes": 765,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/gilead-china.ts",
+      "sha256": "250e64b4029c048210f7d7d712a0fb2514e22ca26f702ecdc969ba2567068769",
+      "bytes": 760,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/gphl.ts",
+      "sha256": "e946a6e2cc86254cff1264f0a80f593a83e5e8c1f799dccae56a43acf6243321",
+      "bytes": 183,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/grand-pharma.ts",
+      "sha256": "179b55709d61cd89b892d092968f2323112dc3ccb2f8b956e6bf3d56aa9cb241",
+      "bytes": 1309,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/grifols-china.ts",
+      "sha256": "be08056ad38822393040c3abd63402773bf37174639f25254d830b4326387b23",
+      "bytes": 853,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/gsk-china.ts",
+      "sha256": "0dda4d9fceb3b5f7d441c13bba3702602abfb0ca78adcf240994457a002b7aa6",
+      "bytes": 933,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/hansoh.ts",
+      "sha256": "54490394bea55fa17279dcbc650a9c4079ac7520bb4611dda8e894ad205e2ee2",
+      "bytes": 1003,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/hengrui.ts",
+      "sha256": "918e34bf5fe54e308796741284b1fcfb6952e6c272c292765e45947fffe0c91a",
+      "bytes": 770,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/huahai.ts",
+      "sha256": "ffa8ce569c577695480cc7ee1d4dba647cf66d286a88e04e3b2bbf1c1f91b038",
+      "bytes": 1275,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/humanwell.ts",
+      "sha256": "b959514c667abd838c9a59ab2405248208e26e645d002de6975492dddccf7bba",
+      "bytes": 193,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/jimin-kexin.ts",
+      "sha256": "10382ec40faebede78c9c5dc6cbfdbad1ab57c5b744b195cd12e7d9980e19009",
+      "bytes": 697,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/johnson-innovative-medicine.ts",
+      "sha256": "59571566a4d4acff470c5e3d0435eba3508294560e01b5b9bf1b2a60e67997cd",
+      "bytes": 761,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/kelun.ts",
+      "sha256": "671f677dba18397df38982210471127a1528ccc30bc15ef15ea3992ea7fe7772",
+      "bytes": 1371,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/lilly-china.ts",
+      "sha256": "2d75305eb5ce7699a035edbd538621a929e44dc51793459c8240b2bc1bbdb6d7",
+      "bytes": 1051,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/livzon.ts",
+      "sha256": "42c904443ba733627e5812670de9cf6ba1ddd59c4412141f20808f66ed8dfc0c",
+      "bytes": 2707,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/lunan.ts",
+      "sha256": "37f6e7ffd42f98666856521377a2cac28fef2020431a0c9b210c87f10208cadb",
+      "bytes": 837,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/merck-china.ts",
+      "sha256": "9f1f82ec1566064bae280a8758dba77b787c0f81dfdaecd5578aad851f5a8671",
+      "bytes": 1026,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/msd-china.ts",
+      "sha256": "78382684bb38bf9181de4385f69222f2784db58d490231b09c2da611241a5621",
+      "bytes": 698,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/nhu.ts",
+      "sha256": "7aefe3a2e8fadbbae4163b116b12f31d13e361bdd752e19d39ae464930c6b00d",
+      "bytes": 806,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/north-china-pharma.ts",
+      "sha256": "ed8139b785127844b647a07b7ee922310bcd43f3f3e3e8fd58f4b468f53f1db3",
+      "bytes": 211,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/novartis.ts",
+      "sha256": "3f6cd7d07af0589dbec06eaed83b088fd80009925f009e477e320f43b5fa903d",
+      "bytes": 1615,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/novo-nordisk-china.ts",
+      "sha256": "9827c94f88b9729a9774850105135380992137b75c081ed5a9600ab7790c17de",
+      "bytes": 855,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/organon-china.ts",
+      "sha256": "a4db0b1250b1523309655dcfc0a119028e55cd899e0a98e0314f26d0721fd9a1",
+      "bytes": 1241,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/otsuka-china.ts",
+      "sha256": "88d3fe8719e231081ba153bed9db9424794de48fc66678fb3150e2dd96af8abd",
+      "bytes": 1396,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/pfizer-china.ts",
+      "sha256": "6294d0cfbaca1ba6176507a7634d089dc1ef7817d5e00658200117f6115ac776",
+      "bytes": 1015,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/qilu.ts",
+      "sha256": "0421812f58fe97ad7adfeb03f0510262206b0032114ec1f95f0510db7c01de5d",
+      "bytes": 480,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/roche-china.ts",
+      "sha256": "214faa71496c01657082abf12419b4a2db82d0f609095f4aa73be02b3480c835",
+      "bytes": 1367,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/sandoz-china.ts",
+      "sha256": "e04bf3e7d4da784779e738d9e60efa9cc53b7d258d856b66c46ead77be9da302",
+      "bytes": 1360,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/sanofi-china.ts",
+      "sha256": "78cf3e913793eb18bcab736093adf69c2e187bae655a2b368e00773b598b1dca",
+      "bytes": 1670,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/servier-china.ts",
+      "sha256": "522fdfb57dcdd5b87a3b4101b28127c0d9371244141107da6d4b127667cb6deb",
+      "bytes": 1069,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/shanghai-pharma.ts",
+      "sha256": "c0d4e5a7c1ec6be78001f7cce0f4f7936eda3e7a60e99f7f85b89180ac20f054",
+      "bytes": 896,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/sinopharm.ts",
+      "sha256": "92757f4b02fea996b571a05219ee50f000e37e0781345c548b6a633d2f206039",
+      "bytes": 1614,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/takeda-china.ts",
+      "sha256": "6fb6a9ae83d3e58a97d9e7ab471845147947662d0a3b9954c20de1ae07debbd8",
+      "bytes": 1254,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/teva-china.ts",
+      "sha256": "df6deae067538ea22c752dc4b298d4ddad7591b8367930c3300ec23ef2f9e05f",
+      "bytes": 895,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/tianjin-pharma.ts",
+      "sha256": "50950effb5db871304d113c027acfd09746ae00d89ba766fd0588f11a6e6daf5",
+      "bytes": 700,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/tongrentang.ts",
+      "sha256": "c2b627478b24121ad0d55c247a2d726f961a2d9c09153f61f6bb9926747b7867",
+      "bytes": 1291,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/ucb-china.ts",
+      "sha256": "fa59aaf0f2ffd764a83c790c4c667394d602a037fed3d6b8dc47d1418f75a45c",
+      "bytes": 966,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/united-lab.ts",
+      "sha256": "ae406c4b2f99f208bb3378c6597af6ca57b6c7420aa16969f0d8f28d6460bcf2",
+      "bytes": 890,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/viatris.ts",
+      "sha256": "b822b0535f1ff5972e39e0d36f2abc639ca56f877cc21c1c6e3f6cbb96c4a816",
+      "bytes": 1277,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/xinhua-pharma.ts",
+      "sha256": "b6939c8ac9a6ef882cedbb2d5b9969761f7b6442d2e0bbfaed13a36dfeb11bdb",
+      "bytes": 729,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/xiuzheng.ts",
+      "sha256": "1379de2699ee9325b8ee22ff94dad63e4334a1ee531cc47aec9c94a6ca6bef99",
+      "bytes": 828,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/profiles/yangzijiang.ts",
+      "sha256": "16e64a581d418696aa90a7688b1db502384e028e90ae8878f03251c1ffb6a020",
+      "bytes": 738,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/shared.ts",
+      "sha256": "3c0216fac95c49a19a40e82e0f4f1f63f1b1e7c923f86d42b0e05860fbd9863d",
+      "bytes": 1931,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/companyRecruitmentProfiles/types.ts",
+      "sha256": "4c41a91fbafa0b5a56b55529ca38a001b6486f13d1e7d9622f2820ffcf0a74e2",
+      "bytes": 4822,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/completenessAnomalyPolicy.ts",
+      "sha256": "ca58a779b0d4f673f8a76657e17db0d71aef9a65533bdbe37128800e99909ff7",
+      "bytes": 12794,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/completenessCertificate.ts",
+      "sha256": "5da74fb8a89f45d8905b5eb681c66096d5a80124d70b9a1b13aba6cace2a4434",
+      "bytes": 25648,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/crawlAttemptEvidence.ts",
+      "sha256": "adb9ec4fc24cd34effc3c3aad0955100f1b31b6b831bdb54450a01f66162bb70",
+      "bytes": 16875,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/crawlAttemptOrchestration.ts",
+      "sha256": "205795087d9c7df9dc8608dda705abaa0f30e5104466a8c395fbfc0fb25f19f1",
+      "bytes": 3471,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/crawlSummary.ts",
+      "sha256": "27590ee57f3c8b49f822b3ab81844b004fd9668cfb33500864ff10e95cc987f5",
+      "bytes": 21440,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/exactSourceDiagnostic.ts",
+      "sha256": "2c5ee156d38cb43e00156a3818fafc32f20db791284d1685c7777389b24e74ca",
+      "bytes": 13921,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/formalAdvisoryLock.ts",
+      "sha256": "388ae276d4a61e0552a4c42156731c24b5f645bc2625416bb228a90694f9ab30",
+      "bytes": 2707,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/formalCleanup.ts",
+      "sha256": "705ca3b799d3517924669fb941e6aa7d25c49d61d4a27360702397571cb4ad49",
+      "bytes": 453,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/formalCrawlLock.ts",
+      "sha256": "e22cef6e44a3363397fb3e168c1f6c96824ac6c540dea925d32f77e40e51cfcb",
+      "bytes": 4658,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/fosunScopeGeography.ts",
+      "sha256": "8fcbb6c0f9e3ea16b79874a0e4fc5af0098ca7621390efb842bf347fb779e171",
+      "bytes": 7006,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/gileadPublicAge.ts",
+      "sha256": "0a08b3ef16c5e0785c3a8787d0340179cdab766a92c8542b16e03d8dad0e5b0b",
+      "bytes": 5079,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/grifolsChinaSourceFetch.ts",
+      "sha256": "70e1273617e5349ccb91988c383da8f51143ecd25a942170d3f1fd7ee3b3b8d1",
+      "bytes": 30532,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/grifolsOfficialPostedDate.ts",
+      "sha256": "de37884f4a52b03f4cbb11daa7bf16010dc2ad5ad608b5a2fa3e9a70244ef134",
+      "bytes": 1734,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/hansohNativeWindowEvidence.ts",
+      "sha256": "6df9e19ecc860f90f8da77c292857bc5faae88b565aff0ccd93bc843193e9fe8",
+      "bytes": 11560,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/hengruiMainlandGeography.ts",
+      "sha256": "335eb97040486d5e662dec8975a1f0cfd96813921ab142c9fb689f4c4a6e1a11",
+      "bytes": 7708,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/hotjobEvidence.ts",
+      "sha256": "e3f305339b889b800fbb2b86c7d2294fa4d06fed9c711bca4d822ce7e5e76f34",
+      "bytes": 9583,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/hotjobLegacySourceFetch.ts",
+      "sha256": "bce3fe94c4b3ed37298d1542ee7fe01ff2019856de09268a7a880b13a47d31f2",
+      "bytes": 29949,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/hotjobWecruitSourceFetch.ts",
+      "sha256": "c008671f9b82b8e42f238a4f89e9cf9cdcbffab8cf4716623f3f7da4afa018c1",
+      "bytes": 20891,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/htmlTableRows.ts",
+      "sha256": "5279e07cb076da569f963f23577c07eefee51bdc7e2fba7caabbf9ac92a01167",
+      "bytes": 848,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/httpHtmlSourceFetch.ts",
+      "sha256": "10f08e0b3974ae46e3795408bccca4a8faeea9a76b9085780b78d8714736bd5d",
+      "bytes": 71765,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/independentOracleMigration.ts",
+      "sha256": "9535bb70c5dc65761c0e15b4665f85d7811e7a96f8cf38eb16131bbf54b723f9",
+      "bytes": 14596,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/independentSourceSurfaceOracle.ts",
+      "sha256": "f6612e5287f1b642fa48109a5004d605457a8cc6d3bd8ed2bf769d656b371f1c",
+      "bytes": 27706,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/independentTraversalDiagnostics.ts",
+      "sha256": "ff0b2a25f95cc1a521d2e90c833df8c8108581c1cb80c3628964f9221f81fb11",
+      "bytes": 7076,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/ingestion.ts",
+      "sha256": "270823d58d9a61c2f11497e56f53116eda019c4952493fb8ff6565f869721987",
+      "bytes": 1455,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/initialQualificationPauseBundle.ts",
+      "sha256": "14c310a720c0c230cc49656e32caf36f00c0d3f6c9728123393bd02cefe080ba",
+      "bytes": 3837,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/initialQualificationPauseCandidate.ts",
+      "sha256": "145cddcdd05ebe71bd296bc49c5e125892b6faeb0d3b2be856d7de2f70df1d3d",
+      "bytes": 3740,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/initialQualificationPauseEvidence.ts",
+      "sha256": "b8034219cb78c10e7019f5c89dcb4dbc3bd816775d582ca452f07e8062eb4358",
+      "bytes": 10297,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/isolatedBGradeTraversalValidator.ts",
+      "sha256": "b0c2ad0a0d7d64bd7c0d0bf24df4cad3314a2a3bfd27e93436c747329c2ac295",
+      "bytes": 9342,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/jnjCareersChinaSourceFetch.ts",
+      "sha256": "89bd6c66ee6ba0b337fb2d385963d9573a339a28972cc5a367c386a138dbb7fb",
+      "bytes": 28995,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/jnjCareersDomContract.ts",
+      "sha256": "2fa3c8afd770d176b2d0ffdc653025607cc93e9a431b5f471af74684c523d29b",
+      "bytes": 1763,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/jnjCareersDomEvidence.ts",
+      "sha256": "f0fc4945ce3df996c5e086479931d9325c5f979fe37711b504bbf47e6d2816ce",
+      "bytes": 15904,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/lifecycle.ts",
+      "sha256": "435dfb0b65c92f77ae2697efaaeb81dd169cf9fd68629d25e3938d5a2c9a93f2",
+      "bytes": 6389,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/lillyChinaQuality.ts",
+      "sha256": "1a0716695ca5ec29d34d76425963c3c4a47ef42c67e5737dca369620f0a2818d",
+      "bytes": 22089,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/livzonCeccEvidenceVerifier.ts",
+      "sha256": "c45b5d43bf176b6ff30cec7efd01b28168eba80094743a2714acd122642eb418",
+      "bytes": 24474,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/livzonCeccSourceFetch.ts",
+      "sha256": "1ccdb6c5795b5af5864ffe58c1cf61e07feaaf7f3db397ea6e994a93d3f7cc96",
+      "bytes": 28458,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/manualChromeCaptureEvidence.ts",
+      "sha256": "a29c6220847d5057218ce2a4b58de10d98ae463a719ac4eaea8e21658dc80dbb",
+      "bytes": 9902,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/manualChromeCspcReplay.ts",
+      "sha256": "a8d5140c7a8bfbdf13a111f54439aec60786c2fde3c679b7d9aa76e185212d8c",
+      "bytes": 8328,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/manualChromeQiluReplay.ts",
+      "sha256": "92ffb0055995753c3a292de31c07d7fbc49ee0bc043337d590f27b3cf438fb3b",
+      "bytes": 10379,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/manualCrawlWorker.ts",
+      "sha256": "1c8af9d4380ec38808ef9f4e745e1b142923d61109367a9bda4940aba479424f",
+      "bytes": 7931,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/manualCrawlWorkerCli.ts",
+      "sha256": "906a862362d7735f4a3c6d2f81ba30ef802ae51ba11fe341f00fe762669b5b4f",
+      "bytes": 508,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/manualSourceBatchExecutor.ts",
+      "sha256": "eeff898e6f0799bbff0f0f6479a1465452e9e71b49d02ebaaae6effc8a43cd8e",
+      "bytes": 2619,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/merckChinaQuality.ts",
+      "sha256": "ccf05fdcd9a522ac7e6658b5fdbd345d4bc2dc33e65301acf1b40a311d7a7ea4",
+      "bytes": 11449,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/mokaSourceFetch.ts",
+      "sha256": "eea01769928fe807055951e225210fbd71df7b52fbbf1225615d4994c13a6e3a",
+      "bytes": 62902,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/monitoringReleaseIdentity.ts",
+      "sha256": "1bb53284ea248c20d004174b841eefdc3a793722d447364498706b1571ff2ce9",
+      "bytes": 9462,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/msdAjingaSourceFetch.ts",
+      "sha256": "e41ca1fb4cdc53e10e9cb2700aa8a0f451acb7d52bbd88624ac425bdb52f0b45",
+      "bytes": 18353,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/msdDualOfficialSourceFetch.ts",
+      "sha256": "79d6a92591d3022d49fa386b0073386de391c79f3f7c15ecb0035eee689bd311",
+      "bytes": 70326,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/normalizedJob.ts",
+      "sha256": "9076d9b633e196a4037fedbe400610678c3c32337892378dc1f9c2af725fa7e4",
+      "bytes": 2918,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/novoChinaQuality.ts",
+      "sha256": "2f9692fb2973171f1113beb1bb573927e8398a4391199360acffc8a8267b80bb",
+      "bytes": 15951,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/officialHttpRuntimeLimits.ts",
+      "sha256": "cea9af28db1abfdbb1a7eef81c7851dc7acc7f34fd6610d69c1a513600874b03",
+      "bytes": 7615,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/officialJsonEvidence.ts",
+      "sha256": "ca0dd0116da6edd357ea9d9310128ce96936a3929bb4089a5696dac9cc9df26b",
+      "bytes": 18419,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/officialJsonRenderedTraversalValidator.ts",
+      "sha256": "03afeab98a380e16dc88969b06a280a007e5ec8e6e03d66f75f623c909d1135e",
+      "bytes": 53346,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/officialJsonSourceFetch.ts",
+      "sha256": "db476adb54180526d9b1c42857106a2bc4ed4dc237548ff7c9aafbfd2a226162",
+      "bytes": 394075,
+      "originSha256": "f261c0934a6fe5e4c40a84d62b2d4b1832301fadb9e54152b9a1b1974f8269cd",
+      "classification": "PRIVACY_SANITIZED_DERIVATIVE",
+      "change": "51job acquisition and BI semantic admission disabled; signing material and request signer removed"
+    },
+    {
+      "path": "src/crawler/organonChinaQuality.ts",
+      "sha256": "ee6d782e0f171145891e8be774756451060e6059b031bd428e1629d7a9c45642",
+      "bytes": 13808,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/organonOfficialPostedDate.ts",
+      "sha256": "96a2bc9685c8cd7ed9af3ac1f55cde9c9ad081989e2747f09c03bd300f4262e0",
+      "bytes": 4557,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/p0CrawlCommand.ts",
+      "sha256": "264afea3864dd91fa78af2976a459eec098e55db7fa3d47b22ba431bdaeb4006",
+      "bytes": 8559,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/paginationEvidence.ts",
+      "sha256": "86bf548a451937244ff3a8a10d03265809850985db6a35f3f9b6277da0bf76db",
+      "bytes": 26268,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/pfizerOfficialLocalities.ts",
+      "sha256": "161b412456a7b5ed9716513dfcbab95596573f91fec9c0d24c6a0243e28890b2",
+      "bytes": 4980,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/pfizerRenderedTraversal.ts",
+      "sha256": "bd25a07df1438909d34ccade7a0e2db1e08c47030fa2291874c2d782336de24f",
+      "bytes": 14064,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/pfizerWorkdayTraversal.ts",
+      "sha256": "283a90ee4913e90f248193053cccfba6c8ab419172a64138507cfb02f8e8a795",
+      "bytes": 21622,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/phenomOfficialPostedDate.ts",
+      "sha256": "f1bb93ac8ae2d2b135945adb9b2720557efc3461b3057cee7dc13cc576e35988",
+      "bytes": 1465,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/planBoundHtmlTraversalValidator.ts",
+      "sha256": "a7ee5fd8e03f8774502fb155334bdf45a0251592f67485ef153fe0afdc79bd66",
+      "bytes": 66951,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/portableCrawlLease.ts",
+      "sha256": "cc5c561e11d96fac635856769dc1c4ac22c7715e15ddb3759f44d47e99fcadf1",
+      "bytes": 8300,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/portableRuntimeDiagnostics.ts",
+      "sha256": "5e1352882f4c74f281943ac82f9e732541863548e8c9779ecace9d848c0d6a6a",
+      "bytes": 1968,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/portableScheduledCrawl.ts",
+      "sha256": "5a03371c3953ae83bf4d40c505b369e0c0e39f31f2fcbd19087aa120544d6b58",
+      "bytes": 3701,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/profileBoundSourceEvidence.ts",
+      "sha256": "79289f6b7ea7e91610a9557ac9678d127e958e11272aa114fc5228bfe31f8a55",
+      "bytes": 10189,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/profileBoundSourceFetch.ts",
+      "sha256": "7998385bae469b7a7e434ee35d8f273f30889e60b36274187dd99689ea16ebc3",
+      "bytes": 2196,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/qiluDualPartitionConfig.ts",
+      "sha256": "aa68ce3857695613cfae68bb95f51449b90b7049f000f7e1fe20f0fc2216b071",
+      "bytes": 696,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/qiluDualPartitionMainCapture.ts",
+      "sha256": "f126291407a84e530017a858f5fb7297f8cbf5b315b5938c62e55dd4305ce8bb",
+      "bytes": 9487,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/qiluDualPartitionSourceFetch.ts",
+      "sha256": "1635bd3f5c0b2e3e64156523e59fdb7c4353ba73ad24495777ea8dc92597b745",
+      "bytes": 18444,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/qiluRenderedTraversalValidator.ts",
+      "sha256": "287099b01cfc9556196722f06b0f6fc6016670ead56937816b9ba203d2a315db",
+      "bytes": 10031,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/redseaCandidateScope.ts",
+      "sha256": "9d8cfb2df814130782ee7c4500ccce7ae170fd72707f9b684197663c85e889ed",
+      "bytes": 8220,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/releaseMembershipAuthority.ts",
+      "sha256": "a5a62d57106f7a912c1b2c3093461f52d9a0c36ab04ae6d6ab96f603a276d8fd",
+      "bytes": 2292,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/reviewerSignatureCore.ts",
+      "sha256": "562145a5409629ab55ee1b56d4c138dbb8529ca44f32475ec879cae94182a402",
+      "bytes": 3795,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/reviewerSignatureTrust.ts",
+      "sha256": "f40a776276811c52770d903044bf1b7974c471bde17dd7178e1704424da8e74b",
+      "bytes": 1093,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/rocheChinaQuality.ts",
+      "sha256": "210e442ce0b46cfbc01f1a1717672f85195f174f38b029831ea628f8ab0c9833",
+      "bytes": 5917,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/runCrawlBatch.ts",
+      "sha256": "eea47ce762ae619a25c372d35cfaee85c289ba53b506419d3cc572a43e6f401b",
+      "bytes": 51620,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/runSourceCrawl.ts",
+      "sha256": "65d37ef93af0c0d28088a03b4f67cf0948b1cbac53bf805ba237da1549da3d76",
+      "bytes": 263284,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/runtimeAtomicEvidence.ts",
+      "sha256": "5376984caa209f52b5a4ad4515c90f10e24efd6fbcd09af286624aae727ec851",
+      "bytes": 41302,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/runtimeBatchIdentity.ts",
+      "sha256": "81485e7d021984da07d2fc78cfeb4733ce75d9affad88a376168fcf8c0201c6c",
+      "bytes": 4188,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sanofiChineseNative.ts",
+      "sha256": "792e5e32b3164d6770133fb8134ec2753074f6d05c08a3c6a8bf16eeabbaf531",
+      "bytes": 33342,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sanofiChineseRenderedTraversal.ts",
+      "sha256": "b5b931652d2efa6e4f812bd27710d26565bb38f8874eb391a1c41867daea6c84",
+      "bytes": 11293,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sanofiHistoricalPublicReceipt.ts",
+      "sha256": "0bde0ea1a46029eb32d929b3ca7ca546f5c260d92625e5ab1cb618c31d17ea5e",
+      "bytes": 2066,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sanofiLegacyIdentity.ts",
+      "sha256": "db62fe7fda32911a89aaf31eda4e5582f8151cd8c22e5faea831322359029884",
+      "bytes": 16915,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sanofiNativeQuality.ts",
+      "sha256": "475888aad9c5ca1164968986e6e13b81f121a484ef02881d31ae8431d2924d75",
+      "bytes": 24504,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/schedule.ts",
+      "sha256": "1f176c39577843db3d27ba8dba44bf4c6f3bdc5ef465a280511df2d5bb7f567e",
+      "bytes": 3735,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/servierMokaRenderedTraversal.ts",
+      "sha256": "95a601d54ddc82b6a7fe130418e920da1127266007ec11c0eb02d98f5d45b473",
+      "bytes": 15657,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/servierMokaScope.ts",
+      "sha256": "402f9dd8f7841fd83074de667ea3ff9c9719048ef9b942f33e7725ca4a5f4df1",
+      "bytes": 18747,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sinopharmIguopinSourceFetch.ts",
+      "sha256": "38eb5873cd9ea73deea57a2abd47cc83f276be69b5bd891575eaf9f740fae918",
+      "bytes": 41628,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sourceDiscovery.ts",
+      "sha256": "f2aec8f249afe372ea1e34fa9b09b9e0f853a3048a616c0a63375cac658c6d3a",
+      "bytes": 1659,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sourceFailureDiagnostics.ts",
+      "sha256": "f989fad78b5b28ce2fe50ec9f82de77f667a84527ff36850da7a5611130999fa",
+      "bytes": 11109,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sourceFetchEvidence.ts",
+      "sha256": "a0f97abe48b20a0383e6754c863c4dc3672f0047acc122fac47ec7e18cce2d96",
+      "bytes": 20717,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sourceFetchFailure.ts",
+      "sha256": "f5e233f701cac8cfb9666f5c0f504df05664def7f550615c005776c748d747ec",
+      "bytes": 3729,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sourceFetchRouter.ts",
+      "sha256": "063e58c98c3af6c1d579a0ffeef8c7555acfc8273080ee1a9c04b715092589d3",
+      "bytes": 3479,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sourcePlan.ts",
+      "sha256": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
+      "bytes": 23620,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sourceQualityAdmission.ts",
+      "sha256": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",
+      "bytes": 34113,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sourceQualityPublication.ts",
+      "sha256": "0a25d806239408b5d8f97b4b2ab30877f4ebe14f7ac31ceeb5a51d25db0ddf5b",
+      "bytes": 4386,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/sourceSurfaceOracleAuthority.ts",
+      "sha256": "0d5643f987844809297a52de45e4c5d534a1b04fe46196177e4190e408fc8b7f",
+      "bytes": 2904,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/stagedCrawlCli.ts",
+      "sha256": "10f689506296ed7447b5233fea48bde212076a3af38b5fa1b68bcdd01e89bfac",
+      "bytes": 25486,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/stagedCrawlEvidencePaths.ts",
+      "sha256": "6cb22428d4479787bd6de3edcee0a41eca6d0fb7abcb84e91acc4b6882408a0c",
+      "bytes": 3534,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/stagedMonitoringIdentity.ts",
+      "sha256": "24b043eb36f013b59d17a878a9c006d557fd3a4ccc53d6667ba543dd1971819b",
+      "bytes": 2213,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/stagedScheduleAuthority.ts",
+      "sha256": "e591bc6c8ff6b20651fea1b0647eadd50126358bb3ceb7aec4a19833ffb91970",
+      "bytes": 19677,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/stagedScheduledCrawl.ts",
+      "sha256": "47ce9d1c6a687d9e2e8b3a84b665e8df5f8cd864a0d264d929bbf452e600a767",
+      "bytes": 1415,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/strictCompletenessTrace.ts",
+      "sha256": "ed27dcbf61f35ea877f0c434f78534f29a320fb3f18bad015937b600fcd13ccd",
+      "bytes": 515,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/strictHtmlCompletenessProof.ts",
+      "sha256": "9ed3acf7558b58f6e0f3a81a47ed236fadfbd7b50977091b2f127a373e935573",
+      "bytes": 81386,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/strictJsonObjectKeys.ts",
+      "sha256": "06755d9fe4ce30f8536e6481d4fa3d405f95652e59e3e09c43d0d05cdb3e2ea5",
+      "bytes": 1728,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/strictMokaScopeExclusionProof.ts",
+      "sha256": "c433a6dae94200b273ae0c77ef0fda024f76e51ebfe98c38c1df32b8d7399ff2",
+      "bytes": 17114,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/strictPageRequestContract.ts",
+      "sha256": "101902e5aef62c7ad52fd779d89ad1a7f37bb3f5dca1e8edc77f1b8610164532",
+      "bytes": 1718,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/strictSourceScopeExclusionProof.ts",
+      "sha256": "f24e9796df968a4932a7e83e2f418c14395d6e510e2c264bd3e693bee507454e",
+      "bytes": 30593,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/tavily.ts",
+      "sha256": "fe5aa46d151551beac87af70637a39c0b08d812e1f53bbd6c4825b74f82f2215",
+      "bytes": 8131,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/tavilySourceFetch.ts",
+      "sha256": "eed03a0db87fe76c064e30204ecf887856413e52cfd3c6b515dea8351c6ba682",
+      "bytes": 2379,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/traversalCertificate.ts",
+      "sha256": "e3dab309db7215f1dd86cda57f32d22afa4f89a34ac6ed7a3dbf56d76039129d",
+      "bytes": 103526,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/ucbOfficialPostedDate.ts",
+      "sha256": "f9ad33d6acf0a885196540fb302f57494e0a8acf7e73c6a951acfb797f29b025",
+      "bytes": 5735,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/unsupportedSourceFetch.ts",
+      "sha256": "4fbf615152000a8d89f05c274118b0546df889c790355931e6262c7823170e0e",
+      "bytes": 662,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/workdayMainlandQuality.ts",
+      "sha256": "fc8b4018ee3fe37931b67d2f7abf1d6122c216bfe35a482ff9534e761714928c",
+      "bytes": 24789,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/workdaySourceFetch.ts",
+      "sha256": "7bf08b87c461afdb84fca9c1732b8ac5160ec6afac72545c63422633471f45e3",
+      "bytes": 115166,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/xinhuaOfficialAnnouncementSourceFetch.ts",
+      "sha256": "94cae0c7e95a7781d13d54cbd08b547b129ea41e12078bf05f0e1dceaf5bf209",
+      "bytes": 40673,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/crawler/yelloJobBoardEvidence.ts",
+      "sha256": "a34b4782ca2dcc20755d1c2ec5c371657cc7a3aa1936a3007d39d80d37b7dc22",
+      "bytes": 9108,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/data/companyRegistry.ts",
+      "sha256": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
+      "bytes": 56126,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/data/confirmedCompanyRosterV3.ts",
+      "sha256": "055cd36f6458381f722f7d0fc7d68aad7346164c94f1b633b2898fe0bdbd5fd8",
+      "bytes": 1394,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/data/confirmedCompanyRosterV3Members.ts",
+      "sha256": "c3e71393942b3eb61db591fd437b7a8cb04af8f91479ff1c239b0298656caeca",
+      "bytes": 1279,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/data/futureCrawlExpansionCandidates.ts",
+      "sha256": "5855b69b6b288f36ef6faf5e31086a74b0c01a12a7c62e3412cdb37cdbbb8768",
+      "bytes": 6287,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/data/humanVerifiedRecruitmentBaseline.ts",
+      "sha256": "f2ab2243e439d852dbbf581000f3f8f0f6c8d6649fb13c90277a934573203ed6",
+      "bytes": 5774,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/data/officialSourceResearchCandidate.ts",
+      "sha256": "57a84036f0b5c41cbff19e456572e1487d7d946342fbf83ae92001dfbdaf66b0",
+      "bytes": 29568,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/data/phase1ScopePolicy.ts",
+      "sha256": "643134e7a6ea69792bc91fbc98740d1f062fdf0284bfb089b7802a6402d4b23b",
+      "bytes": 5647,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/aiEnrichmentRepository.ts",
+      "sha256": "071bc7a63231c56c47c2f8b99d7d706f2d1dcfdab31b96958084a8215d3b01cf",
+      "bytes": 17608,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/companyRegistrySync.ts",
+      "sha256": "581a63a1b7954cb7a979b24d1866cc8703d25c320f88f7e14495eeb3b50cef9e",
+      "bytes": 13659,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/crawlRuntimeRepository.ts",
+      "sha256": "005a244298254af9825fb6bfda627a1f2c3af2ad49f82258c6251f28102be8e8",
+      "bytes": 11830,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/crawlStateRepository.ts",
+      "sha256": "2266e2d79905237555cc6f527bb3b572dc258f417d75d96bc3c5c60d3783be7b",
+      "bytes": 3516,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/emptyDatabaseMigrationVerification.ts",
+      "sha256": "d72b6884efda2955051d3436a7289dbdcfac43933fe8cdd408dc957ebe9f4dd2",
+      "bytes": 20459,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/emptyDatabaseMigrationVerificationCli.ts",
+      "sha256": "1cff02c1fe2b54233dadf5ea0e4903902851fd778c54317ff3f5783263ca5d22",
+      "bytes": 12694,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/existingDatabasePreflight.ts",
+      "sha256": "82767e984d950bdd1eabae96f6c3fee11f284f0135a6a3e8599b35a7a474285d",
+      "bytes": 10732,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/ingestionRepository.ts",
+      "sha256": "364a948deaf7b0bf4e0eea04507b58f98e8f72cf4b3e8573a81f89a894cda57b",
+      "bytes": 117018,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/jnjDomEvidenceAdmission.ts",
+      "sha256": "039eefe6a2c2aebf99273791654cdddc4e10ec5785e4d26c8163a8ce94c6d6a7",
+      "bytes": 5878,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/manualCrawlRequestRepository.ts",
+      "sha256": "80fe8fea31c2cae63833a5fbc291cfc71b0825edee6d21252729df110b7ae0cb",
+      "bytes": 17318,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/portableDisplayIdentity.ts",
+      "sha256": "8b448463b157b54580b6a14acb6c387bcacbf76491857cec97223dfce3b016ff",
+      "bytes": 6442,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/portablePublicSnapshotRepository.ts",
+      "sha256": "c877eb38a20554ea965a6772b5291b17c1435d6d2f72a90b2c4d7e651eac138b",
+      "bytes": 23751,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/portableRuntimeDatabase.ts",
+      "sha256": "40738f35c649091d353c88afff2fb6d2a95e692cb39561fc99e1bd522ff3d57b",
+      "bytes": 2058,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/portableScheduleObservations.ts",
+      "sha256": "59a4e4a5ee34a0979a5e1180cfae23d64591f489bbad37012d18a970f2da5edd",
+      "bytes": 3856,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/portableSnapshotCache.ts",
+      "sha256": "3d93cfbe831b94532f5896fad5722c56d5377478156bffa140edd87dc40fb570",
+      "bytes": 7481,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/prismaMappers.ts",
+      "sha256": "da2d751fced4c482d185d59aea342fd52ab5eedd444f4081f841d97c24e39c56",
+      "bytes": 3356,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/prismaMigrationManifest.ts",
+      "sha256": "075829ee27ccf5553ed1ead9b03383cf9f87325afb972b6ac283c49e1a183e57",
+      "bytes": 2236,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/db/publicationEligibilityRepository.ts",
+      "sha256": "0efdc0d87f0e5b9fde55ddc0ba0554d955ba85bd015dc46fdaa331c1479b56c4",
+      "bytes": 13193,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/company.ts",
+      "sha256": "6cd3e9dca7e5a63129ee934095be021b47aa66611135fe3cb89d418e925afc38",
+      "bytes": 3014,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/jobLocation.ts",
+      "sha256": "8fdb174e0b61e0d4a26a5bceca470a8bb42b6fd3cf6fdfbc0ae2d8a4d03e2fa5",
+      "bytes": 9142,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/jobProjectionDeltaReceipt.ts",
+      "sha256": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
+      "bytes": 8443,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/jobRecencyPolicy.ts",
+      "sha256": "dc228131237ea456dc25d1d2d1d1dcd4fae40c64657c58525776453c746575cc",
+      "bytes": 772,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/manualCrawlLeasePolicy.ts",
+      "sha256": "52bf9e21c64372dfbc4d256d9399c0b34fc533cb08e168bfb5c2c6572e29e19e",
+      "bytes": 469,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/portablePublicSnapshot.ts",
+      "sha256": "9d45413701e4cd72c53fcfdf3c032d202a5e3a13186c20b07fc067b0dea09de1",
+      "bytes": 40694,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/publicSnapshotRefresh.ts",
+      "sha256": "caca23fdc61d7ff708f82183e1533fb20e35795abee9fa96ced780b52da3f89d",
+      "bytes": 817,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/publicationEligibility.ts",
+      "sha256": "3820a2dd0de4913c90051328db6edae8e1b0fe3f0e0e70552ae2ef321e2f9d38",
+      "bytes": 21716,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/route-policy.ts",
+      "sha256": "b439967ac2da7995f7aab7add05f946b1bb3848d1ace765a0a9408193ceacb95",
+      "bytes": 790,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/sanofiHistoricalPublicPlan.ts",
+      "sha256": "a8d6c54476e7c34038d318e2c0df9bd6301ec255b3f4998e6a18a14a956f04b9",
+      "bytes": 2290,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/sanofiPublicTransition.ts",
+      "sha256": "0cc65e56a979b7a6077f029698d66a060cc0d5dea5c769ff310ce9703dfd38b9",
+      "bytes": 2176,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/search.ts",
+      "sha256": "ddf67a14b1ea5b7744ad69bd7ecf17f708cd58b95555b305f84337e1c9b56c0a",
+      "bytes": 2019,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/unstartedBatchAbort.ts",
+      "sha256": "7b0bce862ed8d03c204712f5bdb547f6455c4ef377aa5d93c24213e841e291e3",
+      "bytes": 2994,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/domain/verification.ts",
+      "sha256": "0c30a7813a6f0f6baa7c84f37614d02eda7f05323a0fe34d8ce04c199254e305",
+      "bytes": 4167,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/evidence/externalEvidenceValidator.ts",
+      "sha256": "6dd57bd286bc309cbe8d1ac755a89361eef9f5bbb04cbfc4f5aa28b81006f676",
+      "bytes": 11737,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/evidence/phase2AggregateManifest.ts",
+      "sha256": "2d3a7b25347db7660e90d231561e40a45bea0d0d3d365fc5d3f1e0c65e95eb1a",
+      "bytes": 16658,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/evidence/phase3AggregateValidator.ts",
+      "sha256": "661c51893753fda09daef6456e562a39c4a50c9337669e568084efcaea3bf686",
+      "bytes": 6627,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/evidence/phase4ReleaseManifest.ts",
+      "sha256": "190105bb0fcf54df2b62af51f649d5a495fe9ebdaadd8ba559d0834a7a8a8b90",
+      "bytes": 26006,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/main.tsx",
+      "sha256": "7cdb6ed5050a389fd1eee81673469e9ee3fe1faf9ab90deed1394f29d1287adc",
+      "bytes": 799,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/ops/backupAttemptReceipt.ts",
+      "sha256": "7925906ddf753ea6e6beaaad637af9c2e300add44e3fa913b4a813a00acabbc3",
+      "bytes": 7028,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/ops/deploymentBootstrap.ts",
+      "sha256": "33f18ebc3a06602fa7bcd8cd129fed80338c47f454f990d2dba993afad960ec5",
+      "bytes": 3243,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/ops/productionTsxProcess.ts",
+      "sha256": "63bb74f14070d95f2d63d6c59333148b9c1862eb1f2376bcbed24b2227eb8cf4",
+      "bytes": 258,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/ops/restoreQualification.ts",
+      "sha256": "5eb361b5b4ec682b635aaa567a658a95576230a93b492fe7b34ea6314d1ef5e0",
+      "bytes": 13756,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/buildIdentity.ts",
+      "sha256": "e88d82a6ff343b8c0023afa62b3e0a987149f57a1c868e945a2aeb99e7714351",
+      "bytes": 4789,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/currentReleaseIdentity.ts",
+      "sha256": "9b8998bf5e8b98265cd49e5aab4cd36dce853d7b8c7be4996d6bf0fb0a6262fa",
+      "bytes": 5010,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/dataQuality.ts",
+      "sha256": "8d79e456b0e031aae3089996edce2465789518c1e229e556ba88dd94b8b9f455",
+      "bytes": 11095,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/dockerBuildProvenance.ts",
+      "sha256": "dc514a759f9d36a7b46b1938cd9474b74acef5c33c362ece3e5556a03f8a5e65",
+      "bytes": 9461,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/formalBrowserPreflight.ts",
+      "sha256": "e9d0a7cacbf09ed735c78f39b88563075920e113d10be381e8703cab517e6b8c",
+      "bytes": 3664,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/lifecycleSetReconciliation.ts",
+      "sha256": "6989704db84e8d3396416443ce90696b9ed81ba8cae5cfcb81c42520b04b33aa",
+      "bytes": 4350,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/p0Readiness.ts",
+      "sha256": "af8e4bb5edcc638f067949aac00c466f56a9a3758807a98141203e6478877295",
+      "bytes": 10254,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/persistedReadiness.ts",
+      "sha256": "7ce21fc636005d795c70eeca2a9cb8c2bc0b2b52122884074c2363859bc62d88",
+      "bytes": 4531,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/prismaReadiness.ts",
+      "sha256": "e43097f2950d0c305fda35532408f9deb87881b3b4f216529dab62063112c2c7",
+      "bytes": 1245,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/productionImageContract.ts",
+      "sha256": "5662dafb34333dbe28141fdcfb630f7cbcb62d3cbe4c4c1b2c881c501db283ee",
+      "bytes": 3305,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/stagedDataQuality.ts",
+      "sha256": "ad695912989b93b2d2aad2a1c8d1e54336c985dd81a24797ab50b0d107a3b80c",
+      "bytes": 9253,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/stagedReleaseCandidateBootstrap.ts",
+      "sha256": "db6532a4b092afe2aa6ae18c78dc4c02f835465e629ecb477d192a0f77089ab1",
+      "bytes": 11844,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/stagedReleasePromotion.ts",
+      "sha256": "c51cd6b29f986b68e44f3733bed02ea5ee3d033bce03dfa7cf2637e98dd32ad5",
+      "bytes": 9262,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/stagedReleaseReadiness.ts",
+      "sha256": "8e76309b5200e0034c28e7975bd24e513116da797865758507a3b24fafbc667b",
+      "bytes": 9901,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/strictPersistedReadiness.ts",
+      "sha256": "8ddc679c2467e13286b2895a92814e06b410b8c855151e247717ba671603e946",
+      "bytes": 10507,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/readiness/strictPrismaReadiness.ts",
+      "sha256": "aa32d43c1e4f5b17dfa329e80ac71de6032e3501afa507560081e2f48699382f",
+      "bytes": 15231,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/release/authoritativeLaunchReceipt.ts",
+      "sha256": "fa02babd537c1778d85cf6173654c4e8bc76de32a1ab465f4fe323affe968155",
+      "bytes": 16566,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/release/fixedCohortAuditSourceProjection.ts",
+      "sha256": "61f02dbbea1f149305f5dca53584773581f5e0a5c69ff3a0321843fbaef7ed22",
+      "bytes": 2505,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/release/fixedCohortCompletenessAudit.ts",
+      "sha256": "43c14fafafae69f8d8248b59854ff2398ab96fc60e3bd0e04706021607f3406d",
+      "bytes": 28713,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/release/formalQualificationState.ts",
+      "sha256": "a868cf38eaf95e980b1edc52bda99b155bfbc3cce0045c92a3a9b35b38bab87f",
+      "bytes": 10928,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/release/formalQualificationTiming.ts",
+      "sha256": "339d17e3c8f8be264c11cf84e3b92a66a6315c7c9c9b39f8f01618f30e2614fd",
+      "bytes": 1052,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/release/launchManifest.ts",
+      "sha256": "2bf4014fbddeebd3b600556f1d64eb1d5b08ebce2782eb85fdbefae1b7cc46d8",
+      "bytes": 13940,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/release/launchReceiptFiles.ts",
+      "sha256": "dd7d431ae12a90156e90daa5e412b06398cd424b6dd99f77ebd707b7fe3222d5",
+      "bytes": 3778,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/release/portableCoveragePolicy.ts",
+      "sha256": "2ce257bddb3e09fdbcc7abd9f7d8838ac04a61dff8959c0022c436d25283d9ae",
+      "bytes": 1794,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/release/portableSourceCoverageHolds.ts",
+      "sha256": "b5ff9f97e9a7e40171b7af6dd47ec914028f76a07d706cb2c71559e8f568c90b",
+      "bytes": 704,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/security/browserRuntimeQualification.ts",
+      "sha256": "0b1faf3cceb5796ccb39199457726b2749648688305f8216b7fab503f29cffa9",
+      "bytes": 6931,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/security/credentialMaterial.ts",
+      "sha256": "cc50761f01fb7f97ad934003059669d3934efb52ab7dc4f48ffd1ba61667b5ed",
+      "bytes": 789,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/security/productionSecurityGate.ts",
+      "sha256": "3d2f88d720f8d48e0968cf13ef6b4ffd40e3ee464165faf8eb0ed85d4c9041ba",
+      "bytes": 25219,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/security/runtimeExposureContract.json",
+      "sha256": "20f292c794460c973e79433fbd838e28f7c14ff16ad792ecf69ec094061033c0",
+      "bytes": 377,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/security/runtimeExposureQualification.ts",
+      "sha256": "7cba88546ebc3c24a9b54390ae486a1239eba18cc5fc77009dacf7396bb6092e",
+      "bytes": 8057,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/adminApi.ts",
+      "sha256": "de6677d36980cc06dbcbd7e1706223c156a1a271b68a5bfbda652d1dcd4afa7a",
+      "bytes": 11500,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/alertDelivery.ts",
+      "sha256": "f35ea13adec56f2ec16143da1354552856d64b9fbfc761b41acc240ff3c1350d",
+      "bytes": 2912,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/coverageService.ts",
+      "sha256": "74684fb6bb54adce16c2a81e99c2f0f795f7e3d05b09c7e228f565ce4f06636b",
+      "bytes": 2747,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/deploymentReadiness.ts",
+      "sha256": "9472b94d8e605b86da0cfca18cb6c091f67b2a999528f0dd4ba41b6312fd7ac8",
+      "bytes": 4679,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/feedbackService.ts",
+      "sha256": "089c994b5543c07e75fa053f3bca11fdc030d47e3d45eab556489fa97d6aefec",
+      "bytes": 2092,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/httpServer.ts",
+      "sha256": "a43882e88c2412dafb07ceacad2faf5a8e0b86bee6e808c08e3ac410b9bba860",
+      "bytes": 21079,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/jobSearchService.ts",
+      "sha256": "b4b9a6efd16c5ac622ee27323cbe790fbeaa111b202e3d43c55ef9a38cd2bfd1",
+      "bytes": 10692,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/oneShotAlertDelivery.ts",
+      "sha256": "6faab5a4a63043a789d3d3f033ed6d413980777105795aa9cdb176abe1a29c59",
+      "bytes": 5523,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/opsMonitoring.ts",
+      "sha256": "9d202056301ba7bb92c553b85dcdd300b83edb4b0c37ad9b7d80b273600720c9",
+      "bytes": 8561,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/portablePublicationApi.ts",
+      "sha256": "f6ab5b0a52acc280e3553f1343b13aabe7304d2b1961ef2ef6260e9563904e85",
+      "bytes": 8767,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/postgresReadiness.ts",
+      "sha256": "bd2f0edd9204c9fb3c2eeca244c00a83c5e5cd9f04c8c383f872845beb522bba",
+      "bytes": 4099,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/privacyRetention.ts",
+      "sha256": "dd8d60d191cc33479ccef1e25ea18abc32f312e8ff1eabe470b429841bbbe8e5",
+      "bytes": 2161,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/publicApi.ts",
+      "sha256": "2060ea5c99a648bce11dc01a04d71a3be945e70c650e9df1a9aacfc4aaf14d13",
+      "bytes": 14017,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/publicResponseEncoding.ts",
+      "sha256": "175cdbf8475af36672101866dac2d908a36fccce0d18fd393a81aa401658393b",
+      "bytes": 3696,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/rateLimit.ts",
+      "sha256": "457ecd3a1eb3f8a28e085906bedc306776cc24bb9125f3a304325f656941c606",
+      "bytes": 2034,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/snapshotRefreshError.ts",
+      "sha256": "96c1f34da1d37d96b10df4520a8dda3b87ca68c0f62443e2144d3e985e20159b",
+      "bytes": 3524,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/staticDocuments.ts",
+      "sha256": "e12ac9936e17be9935920e3928789f18c1bf8b32a9739628da7b305cd7c4f287",
+      "bytes": 4391,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/server/staticResponse.ts",
+      "sha256": "a0483410a3bbaae347a7417fbf2fb234adf66d6a8ba08b47ae5f689a8bdb7400",
+      "bytes": 3391,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "src/style.d.ts",
+      "sha256": "dd7c523dffeee7339420b12d8afbe58ce6c02d2cdf1730808b5980f8d107738f",
+      "bytes": 158,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "dc62ec0b18b47ea881a9fe0bbcb1cb6a39331832cd7de3f7d7a1274402b9c8f8",
+      "bytes": 540,
+      "classification": "EXACT_HISTORICAL_FILE_BYTES"
+    }
+  ],
+  "originCommitIsProvenanceOnly": true,
+  "newBuildAndCandidateRequired": true
+}
