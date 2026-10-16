@@ -7,6 +7,7 @@ import contextlib,ctypes,errno,fcntl,hashlib,json,os,shutil,stat,subprocess,sys,
 # Fixed bindings are inserted by the owned installer before executing this
 # exact canonical staging source. No offline/public callback is authority.
 _pins=INSTALL_PINS
+_budget=INSTALL_BUDGET
 BOUND_ARTIFACTS=None
 PARENT=Path(INSTALL_SCOPE['parent'])
 TARGET_NAME=INSTALL_SCOPE['target']
@@ -101,16 +102,12 @@ def authority(cap):
  cap.lifecycle_lease.check()
 
 def checkpoint(cap,label):
- authority(cap)
+ authority(cap);_budget.before(full=True)
  # Internal holder-owned continuation, never caller-selected qualification.
  if label=='before-rename':cap.verify_final_facts()
 
 def copy_regular(src,dst):
- b=exact_bytes(src);dst.parent.mkdir(parents=True,exist_ok=True);fd=os.open(dst,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,stat.S_IMODE(src.stat().st_mode))
- try:
-  with os.fdopen(os.dup(fd),'wb') as stream:stream.write(b);stream.flush()
- finally:os.close(fd)
- require(exact_bytes(dst)==b,'COPY_CHANGED')
+ b=exact_bytes(src);_budget.put(dst,b,stat.S_IMODE(src.stat().st_mode));require(exact_bytes(dst)==b,'COPY_CHANGED')
 
 def verify_stage(stage,run_original=True,incomplete=False,*,lifecycle_lease=None):
  require(lifecycle_lease is not None,'LIFECYCLE_LEASE_REQUIRED');lifecycle_lease.check();require(stage.parent==lifecycle_lease.domain.parent,'LIFECYCLE_STAGE_SCOPE')
@@ -147,8 +144,7 @@ def verify_stage(stage,run_original=True,incomplete=False,*,lifecycle_lease=None
   code+="import fs from 'node:fs';let calls=0;const deny=()=>{calls++;throw Error('REAL_TOOL_FORBIDDEN');};const tools=new Proxy({}, {get:()=>deny});const api=new Function('tools','notify',fs.readFileSync("+json.dumps(str(stage/'candidate/functions-entry.js'))+",'utf8'))(tools,()=>{});const r=await api.runLiveRound();if(r.status!=='DISABLED'||r.realToolCalls!==0||calls!==0)throw Error('DEFAULT_NOT_DISABLED');"
   p=subprocess.run([str(node),'--input-type=module','-e',code],env=ENV,capture_output=True,timeout=120,pass_fds=(lifecycle_lease.prepare_exec(),));
   if p.returncode!=0:
-   diagnostic=stage.parent/'native-verifier.stderr.log';fd=os.open(diagnostic,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
-   with os.fdopen(fd,'wb') as stream:stream.write(p.stderr)
+   diagnostic=stage.parent/'native-verifier.stderr.log';_budget.put(diagnostic,p.stderr)
   require(p.returncode==0,'ORIGINAL_VERIFIER_FAILED:'+p.stderr.decode()[-1800:])
  return {'sourceFiles':SOURCE_COUNT,'build':BUILD,'originalVerifiersExecuted':run_original,'activation':False,'productionQualified':False}
 
@@ -170,20 +166,22 @@ def _stage_under_lifecycle(cap):
  verify_sources(SOURCE);require(git(SOURCE,'rev-parse','HEAD').strip().decode()==HEAD,'SOURCE_HEAD')
  deps=manifest(EVIDENCE/'dependencies-manifest.json',DEP_PIN);dist=manifest(EVIDENCE/'dist-manifest.json',DIST_PIN);verify_tree(BUILT/'node_modules',deps);verify_tree(BUILT/'dist',dist);require(sha(exact_bytes(NODE))==NODE_PIN,'NODE_PIN')
  require(shutil.disk_usage(cap.case).free>1500*1024*1024,'DISK_SPACE')
- cap.stage.mkdir(mode=0o700);(cap.stage/'install-incomplete').write_bytes(b'INCOMPLETE: NEVER AUTHORIZE EXECUTION\n')
+ _budget.before(full=True);_budget.metadata();cap.stage.mkdir(mode=0o700);_budget.put(cap.stage/'install-incomplete',b'INCOMPLETE: NEVER AUTHORIZE EXECUTION\n')
  # No hardlinks: staging must not mutate any previously reviewed baseline.
- shutil.copytree(SOURCE,cap.stage/'runtime-checkout',symlinks=True)
+ _budget.copytree(SOURCE,cap.stage/'runtime-checkout')
  # Local metadata only: original verifier excludes these two runtime domains.
  exclude=cap.stage/'runtime-checkout/.git/info/exclude'
  require(not exclude.exists() or exact_bytes(exclude) in (b'',b'**/node_modules\n**/dist/\n'),'UNEXPECTED_GIT_EXCLUDE')
- exclude.write_bytes(b'**/node_modules\n**/dist/\n')
+ _budget.metadata();fd=os.open(exclude,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,0o644)
+ try:_budget.write(fd,b'**/node_modules\n**/dist/\n')
+ finally:os.close(fd)
  v=cap.stage/'runtime-checkout'/PREFIX/'vendor/c60-source'
- shutil.copytree(BUILT/'node_modules',v/'node_modules',symlinks=True);shutil.copytree(BUILT/'dist',v/'dist',symlinks=True)
+ _budget.copytree(BUILT/'node_modules',v/'node_modules');_budget.copytree(BUILT/'dist',v/'dist')
  package=cap.stage/'runtime-checkout'/PREFIX
- (package/'node_modules').symlink_to('vendor/c60-source/node_modules',target_is_directory=True)
- for n in ('connector-host-runtime','candidate','deployments'):(cap.stage/n).mkdir(mode=0o700)
+ _budget.metadata();(package/'node_modules').symlink_to('vendor/c60-source/node_modules',target_is_directory=True)
+ for n in ('connector-host-runtime','candidate','deployments'):_budget.metadata();(cap.stage/n).mkdir(mode=0o700)
  copy_regular(NODE,cap.stage/'connector-host-runtime/node');copy_regular(package/'fixed-host/functions-entry.js',cap.stage/'candidate/functions-entry.js');copy_regular(MANIFEST,cap.stage/'deployments'/(SOURCE_PIN+'.source-manifest.json'));(cap.stage/'deployments'/(SOURCE_PIN+'.source-manifest.json')).chmod(0o400)
- fd=os.open(cap.stage/'install.lock',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600);os.close(fd)
+ _budget.metadata();fd=os.open(cap.stage/'install.lock',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600);os.close(fd)
  # The absent fixed target is never consulted as production authority.
  result=verify_stage(cap.stage,incomplete=True,lifecycle_lease=cap.lifecycle_lease);checkpoint(cap,'stage-verified');sync_all(cap.stage);(cap.stage/'install-incomplete').unlink()
  fd=os.open(cap.stage,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)

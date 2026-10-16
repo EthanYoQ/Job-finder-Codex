@@ -9,6 +9,10 @@ STAGING_SOURCE=__FIXED_INSTALL_STAGING_SOURCE__
 READER_SOURCE=__FIXED_INSTALL_READER_SOURCE__
 FACTS_SOURCE=__FIXED_INSTALL_FACTS_SOURCE__
 BOUND_ARTIFACTS_SOURCE=__FIXED_INSTALL_BOUND_ARTIFACTS_SOURCE__
+BUDGET_SOURCE=__FIXED_INSTALL_BUDGET_SOURCE__
+BUDGET_ACCOUNTING_SOURCE=__FIXED_INSTALL_BUDGET_ACCOUNTING_SOURCE__
+BUDGET_POLICY=__FIXED_INSTALL_BUDGET_POLICY__
+_BUDGET=None
 
 def require(ok,code):
  if not ok:raise RuntimeError(code)
@@ -25,6 +29,7 @@ def sync_dir(p):
  try:os.fsync(fd)
  finally:os.close(fd)
 def put(path,raw,mode=0o600):
+ if _BUDGET is not None:return _BUDGET.put(path,raw,mode)
  fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,mode)
  try:
   with os.fdopen(os.dup(fd),'wb') as f:f.write(raw);f.flush();os.fsync(f.fileno())
@@ -67,24 +72,32 @@ class Install:
   require(self.lifecycle.SCOPE==expected,'INSTALL_LIFECYCLE_SCOPE')
   self.cm=None;self.lease=None;self.reader=None;self.staged=False;self.published=False;self.complete=None;self.bound=None
  def begin(self):
+  global _BUDGET
+  self.budget=module('embedded_install_budget',BUDGET_SOURCE).Guard(BUDGET_ACCOUNTING_SOURCE,BUDGET_POLICY,BINDING['measuredPins'],self.s)
+  _BUDGET=self.budget
+  self.budget.before(65536,full=True)
   # Any owner/lock/target/stage pre-existence is UNKNOWN, never a retry shortcut.
   for p in (self.owner,self.target,self.stage,self.parent/('.'+self.s['target']+'.lifecycle.lock'),self.parent/('.'+self.s['target']+'.lifecycle-mutation-active.json'),self.parent/('.'+self.s['target']+'.lifecycle-active.json')):
    require(not os.path.lexists(p),'INSTALL_EXISTING_OR_UNKNOWN')
   self.owner.mkdir(mode=0o700);self.owner_id=identity(self.owner.stat());sync_dir(self.parent)
   put(self.owner/'BOOTSTRAP_ACTIVE',self.nonce.encode());sync_dir(self.owner)
+  self.budget.before(65536,full=True)
   self.domain=self.lifecycle.provision_for_installer(self.parent,self.s['target'])
   # Between provision and acquisition, absent candidate/owner manifest blocks
   # readers; existing owner prevents all other bootstrap installers.
   self.cm=self.lifecycle.exclusive_transaction(self.domain);self.lease=self.cm.__enter__()
-  self.staging=module('embedded_install_staging',STAGING_SOURCE,{'INSTALL_PINS':BINDING['measuredPins'],'INSTALL_SCOPE':self.s})
+  self.staging=module('embedded_install_staging',STAGING_SOURCE,{'INSTALL_PINS':BINDING['measuredPins'],'INSTALL_SCOPE':self.s,'INSTALL_BUDGET':self.budget})
   self.cap=self.staging.owned_capability(self.lease)
+  self.budget.before(full=True)
  def continuity(self):
+  self.budget.before()
   self.lease.check();require(identity(self.owner.lstat())==self.owner_id and stat.S_IMODE(self.owner.stat().st_mode)==0o700,'INSTALL_OWNER_CHANGED')
   require(checked(self.owner/'BOOTSTRAP_ACTIVE')==self.nonce.encode(),'INSTALL_BOOTSTRAP_CHANGED')
  def stage_files(self):
   require(not self.staged and not self.published,'INSTALL_STAGE_ORDER');self.continuity()
   result=self.staging._stage_under_lifecycle(self.cap)
   require(self.staging.git(self.cap.stage/'runtime-checkout','rev-parse','HEAD^{tree}').strip().decode()==self.control['treeSha'],'INSTALL_LOCAL_TREE')
+  self.budget.before(full=True)
   self.staged=True;return {'kind':'INSTALL_STAGED','nonce':self.nonce,'sourceFiles':result['sourceFiles']}
  def node(self,code,payload,timeout=60):
   pins=BINDING['measuredPins'];node=pathlib.Path(pins['nodePath']);require(sha(checked(node))==pins['nodeSha256'],'INSTALL_NODE_PIN')
@@ -160,7 +173,9 @@ class Install:
  def finish(self):
   require(self.complete is not None and self.published,'INSTALL_COMPLETE_REQUIRED');self.continuity()
   require(json.loads(checked(self.owner/'COMPLETE'))==self.complete,'INSTALL_COMPLETE_VERIFY')
+  self.budget.before(65536,full=True)
   self.lease.finish_mutation_from_owned_transaction()
+  self.budget.before(full=True)
  def close(self):
   if self.cm:self.cm.__exit__(None,None,None)
 
