@@ -206,7 +206,7 @@ def _publish_under_lifecycle(cap):
   st=os.stat(STAGE_NAME,dir_fd=pfd,follow_symlinks=False);require(stat.S_ISDIR(st.st_mode) and ident(st)==stageid and st.st_uid==os.getuid() and not st.st_mode&0o022,'STAGE_INODE_CHANGED')
   at=os.stat('install.lock',dir_fd=sfd,follow_symlinks=False);lf=os.fstat(lfd);require(ident(at)==ident(lf)==lockid and stat.S_ISREG(at.st_mode) and at.st_nlink==1 and stat.S_IMODE(at.st_mode)==0o600 and at.st_size==0,'LOCK_INODE_CHANGED')
  try:
-  
+
   try:fcntl.flock(lfd,fcntl.LOCK_EX|fcntl.LOCK_NB)
   except BlockingIOError as e:raise Hold('INSTALL_LOCK_BUSY') from e
   continuity();checkpoint(cap,'locked');continuity();verify_stage(cap.stage,False,lifecycle_lease=cap.lifecycle_lease);sync_all(cap.stage);os.fsync(pfd);checkpoint(cap,'before-rename');continuity()

@@ -122,7 +122,7 @@ class Install:
      require(checked(out)==raw,'INSTALL_BOUND_SOURCE_MANIFEST');continue
     require(name=='candidate/functions-entry.js' and checked(out)==checked(self.cap.stage/'runtime-checkout'/self.staging.PREFIX/'fixed-host/functions-entry.js'),'INSTALL_BOUND_REPLACE')
     temporary=out.with_name('.bound-disabled-entry');put(temporary,raw,0o400);os.replace(temporary,out)
-   else:put(out,raw,0o400)
+   else:put(out,raw,0o644 if name in ('candidate/fixed-preimport-launch.py','candidate/fixed-preflight.mjs','candidate/fixed-recovery-helper.mts') else 0o400)
   self.staging.BOUND_ARTIFACTS=target_files
   self.staging.sync_all(self.cap.stage)
   self.staging.verify_stage(self.cap.stage,lifecycle_lease=self.lease)

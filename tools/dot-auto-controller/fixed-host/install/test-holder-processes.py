@@ -1,12 +1,13 @@
 """Real installer process/PTY tests. Case-mapped scope only, zero network/DB.
-Measured 473 baseline is used only until final candidate measurements replace it.
+Set INSTALL_TEST_PINS to an explicitly measured candidate JSON. No default pins.
 """
 from pathlib import Path
 import base64,contextlib,hashlib,importlib.util,json,os,pty,select,shutil,signal,subprocess,sys,tempfile,time,types,unittest
 sys.dont_write_bytecode=True
 HERE=Path(__file__).resolve().parent;HOST=HERE.parent;ROOT=HOST.parents[2]
 EVIDENCE=ROOT/'evidence/install';CASES=EVIDENCE/'lifecycle-cases';CASES.mkdir(parents=True,exist_ok=True,mode=0o700)
-PINS=json.loads((ROOT.parent/'first-install-schema50-lifecycle-candidate-20261016T0209Z/MEASURED_INSTALL_PINS.json').read_text())
+PINS_PATH=Path(os.environ['INSTALL_TEST_PINS']).resolve()
+PINS=json.loads(PINS_PATH.read_text())
 NODE=PINS['nodePath'];sha=lambda x:hashlib.sha256(x).hexdigest()
 spec=importlib.util.spec_from_file_location('lifecycle_render',HOST/'scripts/build-lifecycle-artifacts.py');build=importlib.util.module_from_spec(spec);spec.loader.exec_module(build)
 FACTTURE=subprocess.check_output([NODE,'--input-type=module','-e',"import {expected,r,row} from "+json.dumps((HERE/'facts-fixture.mjs').as_uri())+";console.log(JSON.stringify({expected,r,row}));"],env={'PATH':'/usr/bin:/bin'})
@@ -28,11 +29,12 @@ class Process:
   if trace:
    # Test-only Python tracing pauses actual unmodified source at a specified
    # line. The parent sends SIGKILL; no production hook or pass boolean exists.
-   scope,needle=trace
+   scope,needle=trace[:2];delay=trace[2] if len(trace)>2 else 120
    target=(f['source'] if scope=='holder' else (HERE/'staging.py.in').read_text()).splitlines()
    matches=[i+1 for i,l in enumerate(target) if needle in l];assert len(matches)==1,(needle,matches)
    targetfile=filename if scope=='holder' else '<fixed-embedded-embedded_install_staging>'
-   prefix="import sys,os,time\ndef trace(f,event,arg):\n if event=='line' and f.f_code.co_filename=="+repr(targetfile)+" and f.f_lineno=="+str(matches[0])+":\n  os.write(2,b'TEST_PAUSED\\n');time.sleep(120)\n return trace\nsys.settrace(trace)\n"
+   condition=" and f.f_locals.get('label')=='before-rename'" if scope=='staging' and "verify_final_facts()" in needle else ""
+   prefix="import sys,os,time\ndef trace(f,event,arg):\n if event=='line' and f.f_code.co_filename=="+repr(targetfile)+" and f.f_lineno=="+str(matches[0])+condition+":\n  os.write(2,b'TEST_PAUSED\\n');time.sleep("+str(delay)+")\n return trace\nsys.settrace(trace)\n"
   code=prefix+"exec(compile("+repr(f['source'])+","+repr(filename)+",'exec'),{'__name__':'__main__'})"
   # File holds only fixed test bootstrap bytes. Actual production renderer uses
   # the same-session pinned source streaming protocol tested separately.
@@ -91,7 +93,8 @@ class BootstrapTests(unittest.TestCase):
  def setUp(self):self.f=prepare_case();self.ps=[]
  def tearDown(self):
   for p in self.ps:p.close()
-  shutil.rmtree(self.f['case'])
+  # Preserve every owned case, including failed/UNKNOWN originals.
+  pass
  def start(self,**kw):p=Process(self.f,**kw);self.ps.append(p);return p
  def replay_holds(self):
   p=self.start();r=p.read();self.assertEqual(r['kind'],'INSTALL_HOLD');self.assertEqual(r['reason'],'INSTALL_EXISTING_OR_UNKNOWN')
