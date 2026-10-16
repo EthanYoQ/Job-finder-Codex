@@ -10,7 +10,11 @@ for(const file of [one,seven,eleven,out])assert(!path.resolve(file).startsWith(r
 const variants={};
 for(const [name,count,file] of [['one',1,one],['seven',7,seven],['eleven',11,eleven]]){
  const raw=fs.readFileSync(file),data=JSON.parse(raw);assert.equal(data.kind,'SYNTHETIC_ORIGINAL_SCHEMA50_VIATRIS_COMPILER_FIXTURE');assert.equal(data.context.sourceId,'source-viatris-social');assert.equal(data.model.row.sourceId,'source-viatris-social');assert.equal(data.syntheticFixtureOptions.count,count);assert.equal(data.model.projections.length,count);assert(data.model.row.completenessCertificate);assert.equal(data.context.latestAccepted,null);assert.equal(data.context.firstAccepted,null);
- for(const [i,p] of data.model.projections.entries()){assert.equal(p.sourceId,'source-viatris-social');assert.equal(p.companyId,'company-viatris');assert.equal(p.sourceJobId,'synthetic-'+(i+1));assert.equal(p.officialTitle,'Synthetic Viatris Role '+(i+1));assert.equal(p.officialUrl,'https://careersite.tupu360.com/Viatris/position/detail?positionId=synthetic-'+(i+1));}
+ const expected=new Map(Array.from({length:count},(_,i)=>['synthetic-'+(i+1),{title:'Synthetic Viatris Role '+(i+1),url:'https://careersite.tupu360.com/Viatris/position/detail?positionId=synthetic-'+(i+1)}]));
+ // Native projection order is lexical by raw ID, not numeric fixture order.
+ // Compare an ID copy, preserving duplicates; never reorder native projections.
+ assert.deepEqual(data.model.projections.map(p=>p.sourceJobId).sort(),[...expected.keys()].sort(),'EXACT_NATIVE_RAW_ID_BIJECTION');
+ for(const p of data.model.projections){const row=expected.get(p.sourceJobId);assert.ok(row,'EXACT_NATIVE_RAW_ID');assert.equal(p.sourceId,'source-viatris-social');assert.equal(p.companyId,'company-viatris');assert.equal(p.officialTitle,row.title);assert.equal(p.officialUrl,row.url);}
  variants[name]={path:path.resolve(file),sha256:sha(raw),options:data.syntheticFixtureOptions,projectionCount:count};
 }
 const result={kind:'FIVE_SOURCE_VIATRIS_FIXTURE_SET',variants,zeroSemantics:'ORIGINAL_TUPU_FAILED_NO_SUCCESS_FIXTURE',nativeEmitter:'fixed-host/viatris/build-full-composition-fixture.mts',nativeEmitterSha256:sha(fs.readFileSync(root+'/fixed-host/viatris/build-full-composition-fixture.mts')),realDatabaseCalls:0,realBrowserCalls:0,networkCalls:0,productionQualified:false};

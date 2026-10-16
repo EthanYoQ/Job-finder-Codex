@@ -21,7 +21,12 @@ const ucbFixtures=Object.fromEntries(Object.entries(ucbManifest.variants).map(([
 assert.equal(ucbManifest.readerCases.length,5);assert.ok(ucbManifest.readerCases.every(c=>c.passed));
 const viatrisManifest=JSON.parse(fs.readFileSync(viatrisManifestPath,'utf8'));assert.equal(viatrisManifest.kind,'FIVE_SOURCE_VIATRIS_FIXTURE_SET');assert.equal(viatrisManifest.zeroSemantics,'ORIGINAL_TUPU_FAILED_NO_SUCCESS_FIXTURE');
 const viatrisFixtures=Object.fromEntries(Object.entries(viatrisManifest.variants).map(([key,v])=>{const raw=fs.readFileSync(v.path);assert.equal(sha(raw),v.sha256);return [key,JSON.parse(raw)];}));
-for(const [name,count]of [['one',1],['seven',7],['eleven',11]]){const f=viatrisFixtures[name];assert.equal(f.kind,'SYNTHETIC_ORIGINAL_SCHEMA50_VIATRIS_COMPILER_FIXTURE');assert.equal(f.model.projections.length,count);for(const [i,p]of f.model.projections.entries()){assert.equal(p.sourceId,IDS.viatris);assert.equal(p.companyId,'company-viatris');assert.equal(p.sourceJobId,'synthetic-'+(i+1));assert.equal(p.officialTitle,'Synthetic Viatris Role '+(i+1));assert.equal(p.officialUrl,'https://careersite.tupu360.com/Viatris/position/detail?positionId=synthetic-'+(i+1));}}
+for(const [name,count]of [['one',1],['seven',7],['eleven',11]]){
+ const f=viatrisFixtures[name];assert.equal(f.kind,'SYNTHETIC_ORIGINAL_SCHEMA50_VIATRIS_COMPILER_FIXTURE');assert.equal(f.model.projections.length,count);
+ const expected=new Map(Array.from({length:count},(_,i)=>['synthetic-'+(i+1),{title:'Synthetic Viatris Role '+(i+1),url:'https://careersite.tupu360.com/Viatris/position/detail?positionId=synthetic-'+(i+1)}]));
+ assert.deepEqual(f.model.projections.map(p=>p.sourceJobId).sort(),[...expected.keys()].sort(),'EXACT_NATIVE_RAW_ID_BIJECTION');
+ for(const p of f.model.projections){const row=expected.get(p.sourceJobId);assert.ok(row,'EXACT_NATIVE_RAW_ID');assert.equal(p.sourceId,IDS.viatris);assert.equal(p.companyId,'company-viatris');assert.equal(p.officialTitle,row.title);assert.equal(p.officialUrl,row.url);}
+}
 const fixturePaths={takeda:path.resolve(takedaPath),biogen:path.resolve(biogenPath),hengrui:manifest.variants.seven.path,ucb:ucbManifest.variants.seven.path,viatris:viatrisManifest.variants.seven.path};
 const fixtures=Object.fromEntries(Object.entries(fixturePaths).map(([k,p])=>[k,JSON.parse(fs.readFileSync(p,'utf8'))]));
 for(const [name,f] of [...Object.entries(fixtures),...Object.values(hengruiFixtures).map(f=>['hengrui',f])]){
