@@ -14,7 +14,7 @@ for(const scenario of ['zero','multipage','duplicate','unknown-outcome'])test('o
  assert.equal(execFileSync('git',['status','--porcelain'],{cwd:repo,encoding:'utf8'}).trim(),'','COMMITTED_CANDIDATE_REQUIRED');
  const commit=execFileSync('git',['rev-parse','HEAD'],{cwd:repo,encoding:'utf8'}).trim(),build=createBuildIdentity(producer,commit),e=deriveCurrentStagedScheduleExpectation(build),plan=e.plans.find(p=>p.source.id===SOURCE)!;
  const round='round-'+randomBytes(16).toString('hex'),roundRoot=path.join(state,'rounds',round),task=path.join(roundRoot,'connector-host-task'),relay=path.join(task,'relay'),bindings=path.join(state,'connector-host-bindings');
- for(const dir of [path.join(state,'rounds'),roundRoot,task,relay,bindings]){if(!fs.existsSync(dir))fs.mkdirSync(dir,{mode:0o700});assert.equal(fs.lstatSync(dir).mode&0o777,0o700);}
+ for(const dir of [path.join(state,'rounds'),roundRoot,task,relay,path.join(roundRoot,'artifacts'),bindings]){if(!fs.existsSync(dir))fs.mkdirSync(dir,{mode:0o700});assert.equal(fs.lstatSync(dir).mode&0o777,0o700);}
  const candidate={id:'synthetic-ucb-command-'+round.slice(6),goalId:'jobfinder-portable-required-40',version:100},databaseIdentity={migrationVersion:'20261014141000_v75_retired_candidate_fence',schemaHash:'6709fcde7b1953fd1d817d61d3239023fb29ec0ae4fc481efc69ffddbfa13af7',dbSnapshotHash:'e'.repeat(64)};
  const registration={...candidate,commitSha:commit,...databaseIdentity,rosterHash:e.rosterSha256,sourcePlanHash:e.sourcePlanSha256,sourceConfigHash:e.sourceConfigSha256,adapterBundleHash:e.adapterBundleSha256,sourceTreeHash:build.sourceTreeSha256,runtimeTreeHash:build.runtimeTreeSha256,oracleVersion:STAGED_SCHEDULE_ORACLE_VERSION,minimumStableCompanyCount:41,status:'BUILDING'};
  const batchId='synthetic-ucb-'+round.slice(6),control={projectId:'yiopvxysxrtrnvqxwgbx',build,candidate,databaseIdentity},config=sourcePlanConfigSha256(plan);
@@ -55,7 +55,7 @@ for(const scenario of ['zero','multipage','duplicate','unknown-outcome'])test('o
     }else if(request.kind==='READ_OUTCOME'){
      assert(publication);const oracle=read(task+'/test-only-reviewed-packet.json');assert.equal(oracle.kind,'TEST_ONLY_PACKET_DATA');assert.equal(oracle.productionQualified,false);assert.equal(oracle.sqlSha256,sha(publication.sql));rows=[{row:oracle.row,batch:oracle.batch,holderId:''}];outcomeRead=request;
     }else throw Error('SYNTHETIC_UNEXPECTED_RELAY_KIND:'+request.kind);
-    const result=scenario==='unknown-outcome'&&request.kind==='READ_OUTCOME'?{status:'FAILED',code:'XX000',outcome:'UNKNOWN'}:{status:'SUCCEEDED',rows};
+    const result=request.kind==='READ_CONTEXT'?context():scenario==='unknown-outcome'&&request.kind==='READ_OUTCOME'?{status:'FAILED',code:'XX000',outcome:'UNKNOWN'}:{status:'SUCCEEDED',rows};
     const response={schemaVersion:1,requestId:request.requestId,requestSha256,kind:request.kind,result};const responseBytes=JSON.stringify(response);fs.writeFileSync(path.join(relay,request.requestId+'.response.json'),responseBytes,{flag:'wx',mode:0o600});seen.add(request.requestId);kinds.push(request.kind);
     if(request.kind==='READ_OUTCOME')expectedOutcome={type:'PRODUCER_OUTCOME_VERIFIED_V1',tuple:{releaseCandidateId:candidate.id,batchId,sourceId:SOURCE,sourceResultId:batchId+'--'+SOURCE},readRequestSha256:requestSha256,responseSha256:sha(responseBytes)};
    }
@@ -65,7 +65,11 @@ for(const scenario of ['zero','multipage','duplicate','unknown-outcome'])test('o
   if(scenario==='duplicate'){assert.notEqual(ended.code,0);assert.deepEqual(kinds,['READ_CONTEXT']);assert.equal(session.snapshot().reviewSeen,false);assert(!fs.existsSync(task+'/reviewed-publication-data.json'));}
   else if(scenario==='unknown-outcome'){assert.notEqual(ended.code,0);assert.equal(session.snapshot().outcomeSeen,false);assert.equal(session.snapshot().held,true);assert.equal(kinds.filter(x=>x==='PUBLISH').length,1);assert.equal(kinds.filter(x=>x==='READ_OUTCOME').length,1);assert(!kinds.includes('LEASE_RELEASE'));}
   else{assert.equal(ended.code,0,stderr+'\n'+diagnostic);assert.deepEqual(kinds,['READ_CONTEXT','READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME']);assert.equal(session.snapshot().held,false);assert(outcomeRead);session.acceptExpectedOutcome(expectedOutcome);session.consumeOutcome();assert.throws(()=>session.consumeOutcome());}
-  assert.equal(session.snapshot().dispatchAllowed,false);const http=read(roundRoot+'/http-port-log.json');assert.equal(http.realNetworkCalls,0);
+  assert.equal(session.snapshot().dispatchAllowed,false);const http=read(roundRoot+'/http-port-log.json');assert.equal(http.realNetworkCalls,0);assert.equal(http.requests.length,scenario==='multipage'?3:2);
+  const failures=fs.readdirSync(roundRoot+'/artifacts').filter(n=>n.includes('.failure-')).map(n=>read(roundRoot+'/artifacts/'+n));
+  if(scenario==='duplicate'){assert.equal(failures.length,1);assert.equal(failures[0].phase,'CHECK_SOURCE_RESULT');assert.equal(failures[0].errors[0].code,'PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED');assert.equal(failures[0].crawlResult.truth.completenessVerified,false);}
+  else if(scenario==='unknown-outcome'){assert.equal(failures.length,1);assert.equal(failures[0].phase,'DB_STARTED_PUBLICATION');}
+  else assert.deepEqual(failures,[]);
   const result={scenario,kind:'SYNTHETIC_EXTERNAL_PORTS_ACTUAL_NATIVE_COMMAND',passed:true,commit,build,count,roundRoot,relayKinds:kinds,httpRequestCount:http.requests.length,sidecarProduced:!!publication,oneShotPublication:kinds.filter(x=>x==='PUBLISH').length<=1,realDatabaseCalls:0,realNetworkCalls:0,productionQualified:false,session:session.snapshot()};write(roundRoot+'/result.json',result);console.log(JSON.stringify(result));
  }finally{if(!ended)child!.kill('SIGTERM');}
 });
