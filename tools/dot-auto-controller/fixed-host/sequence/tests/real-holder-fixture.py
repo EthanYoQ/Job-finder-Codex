@@ -6,7 +6,7 @@ All completed/unknown cases are intentionally retained, never repaired/deleted.
 import hashlib,json,os,sys,tempfile,types
 from pathlib import Path
 sys.dont_write_bytecode=True
-EVIDENCE=Path('/workspace/scratch/5e9614251709/four-source-sequence-evidence-20261016T0812Z')
+EVIDENCE=Path('/workspace/scratch/5e9614251709/five-source-sequence-source-evidence-20261016T1235Z')
 CASES=EVIDENCE/'small-tests/lifecycle-cases'
 def require(ok,code):
     if not ok:raise RuntimeError(code)
@@ -28,7 +28,7 @@ def prepare():
     lock=sources['lock'];require(lock.count('__FIXED_LIFECYCLE_SCOPE__')==1,'LOCK_SCOPE_TOKEN')
     lock=lock.replace('__FIXED_LIFECYCLE_SCOPE__',repr({'kind':'TEST_ONLY','casesRoot':str(CASES)})).encode()
     module_file=stable/'lifecycle_lock.py';put(module_file,lock)
-    module=load(lock,module_file,'sequence_small_fixture');domain=module.provision_for_installer(case,'synthetic-four-source')
+    module=load(lock,module_file,'sequence_small_fixture');domain=module.provision_for_installer(case,'synthetic-five-source')
     with module.exclusive_transaction(domain) as lease:
         domain.target.mkdir(mode=0o700);(domain.target/'candidate').mkdir(mode=0o700)
         entry_file=domain.target/'candidate/functions-entry.enabled.js';put(entry_file,entry,0o400)
@@ -44,6 +44,9 @@ def prepare():
 def writer():
     fixture=Path(sys.argv[2]);require(fixture.name=='fixture.json' and fixture.parent.parent.parent==CASES,'FIXTURE_SCOPE')
     data=json.loads(fixture.read_text());p=Path(data['modulePath']);raw=p.read_bytes();require(sha(raw)==data['moduleSha256'],'MODULE_PIN')
+    if sys.argv[1]=='current-writer':
+        incoming=json.load(sys.stdin)['lock'];require(incoming.count('__FIXED_LIFECYCLE_SCOPE__')==1,'CURRENT_LOCK_SCOPE')
+        raw=incoming.replace('__FIXED_LIFECYCLE_SCOPE__',repr({'kind':'TEST_ONLY','casesRoot':str(CASES)})).encode()
     module=load(raw,p,'sequence_small_writer');domain=module.Domain.from_json(json.dumps(data['domain']))
     try:
         with module.exclusive_transaction(domain) as lease:
@@ -53,6 +56,6 @@ def writer():
     except (RuntimeError,OSError) as error:
         print(json.dumps({'status':'HOLD','reason':str(error),'productionAuthority':False}));return 78
 if __name__=='__main__':
-    require(sys.argv[1] in ('prepare','writer'),'FIXTURE_OPERATION')
+    require(sys.argv[1] in ('prepare','writer','current-writer'),'FIXTURE_OPERATION')
     if sys.argv[1]=='prepare':require(len(sys.argv)==2,'FIXTURE_ARGS');prepare()
     else:require(len(sys.argv)==3,'FIXTURE_ARGS');sys.exit(writer())

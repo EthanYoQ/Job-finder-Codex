@@ -31,7 +31,7 @@ class Activation(unittest.TestCase):
   compile(helper,'<pure-qualified-helper>','exec')
   for original in ('source_inventory()','LIFECYCLE_LEASE','ACTIVATION_REGISTRATION_16',"cli['age'](packet['checkedAt'],60)",'record_activation_started();put(enabled)','ACTIVATION_COMPLETE_SOURCE_SET'):
    self.assertIn(original,helper)
-  self.assertIn("for profile in ('takeda','biogen','hengrui','ucb'):",helper)
+  self.assertIn("for profile in ('takeda','biogen','hengrui','ucb','viatris'):",helper)
  def test_measured_pin_closed_set(self):
   old=a.ACTIVATION_PINS
   try:

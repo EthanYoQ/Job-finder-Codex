@@ -33,9 +33,9 @@ def render(binding=None):
    require(type(e) is dict and e.get('role')==role and e.get('readerFileHashes')==hashes and len(hashes)==19,'INSTALL_READER_PINS')
    require(type(e.get('build')) is dict and all(re.fullmatch('[a-f0-9]{64}',str(e['build'].get(k,''))) for k in ('manifestSha256','entrypointSha256','proofModuleSha256')),'INSTALL_READER_BUILD')
   require(type(binding['deploymentBytes']) is str,'INSTALL_DEPLOYMENT_BYTES')
-  release=json.loads(binding['deploymentBytes']);require(release.get('kind')=='CLOSED_FOUR_SOURCE_RELEASE' and release.get('order')==['takeda','biogen','hengrui','ucb'],'INSTALL_CLOSED_RELEASE')
+  release=json.loads(binding['deploymentBytes']);require(release.get('kind')=='CLOSED_FIVE_SOURCE_RELEASE' and release.get('order')==['takeda','biogen','hengrui','ucb','viatris'],'INSTALL_CLOSED_RELEASE')
   deployment=release['profiles']['takeda']
-  require(set(release['profiles'])=={'takeda','biogen','hengrui','ucb'} and all(release['profiles'][name]['expectedRow']==deployment['expectedRow'] and release['profiles'][name]['build']==deployment['build'] for name in ('takeda','biogen','hengrui','ucb')),'INSTALL_SHARED_RELEASE')
+  require(set(release['profiles'])=={'takeda','biogen','hengrui','ucb','viatris'} and all(release['profiles'][name]['expectedRow']==deployment['expectedRow'] and release['profiles'][name]['build']==deployment['build'] for name in ('takeda','biogen','hengrui','ucb','viatris')),'INSTALL_SHARED_RELEASE')
   require(deployment['expectedRow']==binding['expectedRow'] and deployment['build']['commitSha']==binding['commitSha'] and deployment['fixturePreloadSha256'] is None,'INSTALL_DEPLOYMENT_IDENTITY')
   candidate_id=binding['expectedRow']['id']
   require(type(candidate_id) is str and re.fullmatch('[A-Za-z0-9][A-Za-z0-9._-]{0,127}',candidate_id),'INSTALL_CANDIDATE_ID')
@@ -60,7 +60,7 @@ def render_holder(measured_pins,control):
  tokens={'__FIXED_INSTALL_HOLDER_BINDING__':binding,'__FIXED_INSTALL_LIFECYCLE_SOURCE__':lifecycle,'__FIXED_INSTALL_STAGING_SOURCE__':(INSTALL/'staging.py.in').read_text(),'__FIXED_INSTALL_READER_SOURCE__':(INSTALL/'reader-helper.mjs').read_text(),'__FIXED_INSTALL_FACTS_SOURCE__':(INSTALL/'facts.mjs').read_text(),'__FIXED_INSTALL_BOUND_ARTIFACTS_SOURCE__':(HERE/'bound-artifacts.py.in').read_text()}
  source=(INSTALL/'install-holder.py.in').read_text()
  original="name in ('candidate/fixed-preimport-launch.py','candidate/fixed-preflight.mjs','candidate/fixed-recovery-helper.mts')"
- replacement="name in ('candidate/fixed-takeda-preimport-launch.py','candidate/fixed-takeda-preflight.mjs','candidate/fixed-takeda-recovery-helper.mts','candidate/fixed-biogen-preimport-launch.py','candidate/fixed-biogen-preflight.mjs','candidate/fixed-biogen-recovery-helper.mts','candidate/fixed-hengrui-preimport-launch.py','candidate/fixed-hengrui-preflight.mjs','candidate/fixed-hengrui-recovery-helper.mts','candidate/fixed-ucb-preimport-launch.py','candidate/fixed-ucb-preflight.mjs','candidate/fixed-ucb-recovery-helper.mts')"
+ replacement="name in ('candidate/fixed-takeda-preimport-launch.py','candidate/fixed-takeda-preflight.mjs','candidate/fixed-takeda-recovery-helper.mts','candidate/fixed-biogen-preimport-launch.py','candidate/fixed-biogen-preflight.mjs','candidate/fixed-biogen-recovery-helper.mts','candidate/fixed-hengrui-preimport-launch.py','candidate/fixed-hengrui-preflight.mjs','candidate/fixed-hengrui-recovery-helper.mts','candidate/fixed-ucb-preimport-launch.py','candidate/fixed-ucb-preflight.mjs','candidate/fixed-ucb-recovery-helper.mts','candidate/fixed-viatris-preimport-launch.py','candidate/fixed-viatris-preflight.mjs','candidate/fixed-viatris-recovery-helper.mts')"
  require(source.count(original)==1,'SEQUENCE_INSTALL_MODE_ANCHOR');source=source.replace(original,replacement)
  for token,value in tokens.items():
   require(source.count(token)==1,'INSTALL_HOLDER_TEMPLATE_TOKEN:'+token);source=source.replace(token,repr(value))

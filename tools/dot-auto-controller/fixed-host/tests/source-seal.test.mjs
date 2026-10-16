@@ -86,3 +86,8 @@ test('actual source body retains original successful and held control flows', {s
  const reports=await run(bundle,fixtureData,fs.readFileSync(path.join(HOST,'functions/sha256.js'),'utf8'),'LIVE',{deployment,activation},original,()=>{},sourceFactory);
  assert.equal(reports.length,cases.length);
 });
+
+for(const name of ['biogen','hengrui','ucb','viatris'])test(name+' retains exact private source sealing and one-shot capability block',()=>{
+ const other=fs.readFileSync(path.join(HOST,name+'/body.template.js'),'utf8');
+ assert.equal(other.slice(other.indexOf('const sourceCycleIdentity='),other.indexOf('let roundInFlight=')),block);
+});

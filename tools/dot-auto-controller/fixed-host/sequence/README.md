@@ -1,6 +1,6 @@
-# Closed local Takeda → Biogen → Hengrui → UCB sequence
+# Closed local Takeda → Biogen → Hengrui → UCB → Viatris sequence
 
-This candidate adds one compile-fixed, no-argument entry for four sources in one
+This candidate adds one compile-fixed, no-argument entry for five sources in one
 immutable release. It is disabled by default. It is not a production activation,
 scheduled-tick result, recovery authority, or a 36-source implementation.
 
@@ -8,9 +8,10 @@ scheduled-tick result, recovery authority, or a 36-source implementation.
 
 - One candidate, original 16 fields, schema50 and 41-company registration
 - One immutable source/runtime identity and original source-specific rules
-- Fixed order: Takeda, then Biogen, then Hengrui, then UCB. No runtime source selector is exposed
-- Shared readonly runtime checkout and Node/dependency tree
-- Separate fixed `sources/takeda`, `sources/biogen`, `sources/hengrui` and `sources/ucb` state roots, rounds,
+- Fixed order: Takeda, then Biogen, then Hengrui, then UCB, then Viatris. No runtime source selector is exposed
+- A fresh source release requires separately qualified runtime identity; this SOURCE_ONLY
+  candidate has no dependency tree, dist, installation or inherited runtime qualification
+- Separate fixed `sources/takeda`, `sources/biogen`, `sources/hengrui`, `sources/ucb` and `sources/viatris` state roots, rounds,
   binding files, allocation/execution locks and active-round pointers
 - Separate pinned candidate CLI/preflight/recovery files and stable CLI entries
 - One original lifecycle SH and durable ACTIVE throughout the complete sequence
@@ -20,7 +21,7 @@ scheduled-tick result, recovery authority, or a 36-source implementation.
 
 `build-functions-entry.py` deterministically compiles the original source bodies,
 pipe/observer cores, SQL extraction and source-specific UI ports. Its source
-manifest closes all four profiles plus the native path binding, installer and
+manifest closes all five profiles plus the native path binding, installer and
 activation renderers. Missing/cross-wired profile or shared identity drift rejects
 the whole release. A profile cannot be installed or activated independently by
 this release's outer entry.
@@ -40,7 +41,7 @@ It does not become a successful Observation or refresh crawledAt. The ordinary
 reported source status remains HOLD for that safely closed failure.
 
 The original holder records source start and settlement durably and completes
-only after all four private close capabilities have been consumed by the same
+only after all five private close capabilities have been consumed by the same
 coordinator. A durable BEGIN precedes ACTIVE creation, and complete historical lineage is
 checked before a new cycle or EX mutation. Lost ACTIVE, partial records or
 missing completion never restore authority. Each command and source barrier
@@ -59,7 +60,7 @@ No lock is cleared on timeout, process death, recovered JSON, or exit status.
 `render-install.py`, `bound-artifacts.py.in` and `activation-renderer.py` retain
 the original EX install transaction, full source/runtime gates, reader identity,
 registration freshness and one-boolean activation transform. The rendered
-artifact map contains all four profile CLIs and all four profile deployment documents,
+artifact map contains all five profile CLIs and all five profile deployment documents,
 as well as the single closed-release document. Generation never executes them.
 
 Tests under `tests/` clearly distinguish source-only/unit/synthetic composition.
@@ -69,10 +70,10 @@ fresh owned case. Do not run it without the original free-space gate. Runtime,
 measurement manifests and test evidence belong outside this source tree.
 
 The last step of that TEST_ONLY installation is a prepare-only wiring probe of
-all four installed stable CLIs under the original holder. It performs no child
+all five installed stable CLIs under the original holder. It performs no child
 launch or SQL call and deliberately retains unlaunched state and global HOLD.
 The pre-probe installation/activation receipt is saved separately; this case
-cannot be reused as a fresh cycle or called a completed four-source execution.
+cannot be reused as a fresh cycle or called a completed five-source execution.
 
 Production publication, official Supabase execution, the Aliyun reader/UI and a
 real future scheduling tick still require their own authorized verification.
@@ -85,18 +86,26 @@ US/HK exclusions. It does not use the Biogen Workday parser or zero-job rule.
 The native Hengrui builder/core/UI and all seven original ready publications stay
 unchanged; the private source-seal bridge is the same reviewed implementation.
 
-This candidate directly descends from actual UCB head
-36bd3c5a6052159cac47609bbc58750012b74eb0. Its 48e three-source ancestry and
-original b52/5ff merge parents remain exact history. Prior qualifications do not
-qualify this new source. Negative history requires exactly eight ordered records;
-there is no migration of prior single/two/three-source history and no recovered
-completion authority. This iteration is source-only and small tests. Runtime,
-measurement, fresh test installation and production remain separately gated.
+This candidate directly descends from sealed integration head
+`e47896671e3b5bb100ac41f5211bb805be7818dc`. That exact merge retains ordered
+parents `36a03b847f66e8d68d68e2cff1f00fd6b4b83b51` and
+`bf192cdce3d3b13347ab51ca3b26120786d55544`, including the full earlier UCB,
+Hengrui, shared completeness, legacy and B-selector provenance. Both changed
+native fixed-layout bindings retain their entire e478 prior records under a
+strict five-source derivative layer. Unrelated records and current bytes remain
+unchanged. Prior runtime qualifications do not qualify this new source.
 
-The strict original Hengrui-only and UCB-only manifest refreshers still refuse
-unrelated changes. Two four-source native state bindings carry explicit 36bd
-parent provenance while retaining their full prior c53 chain. No original
-source plan, configuration hash, roster, parser, compiler or reader is changed.
+Current history requires exactly ten ordered start/settle records. Prior
+four-source eight-record COMPLETE, ACTIVE or HOLD histories are rejected
+without migration, appended records or recovered completion authority. Older
+single/two/three-source history is likewise not valid five-source authority.
+The original ordinary (non-sequence) journal rules remain unchanged.
+
+This iteration is SOURCE_ONLY plus bounded pure Node/Python tests. The native
+Viatris fixture emitter and current full generated composition are NOT_RUN.
+The derive-release, bound installation, installed five-CLI prepare probe,
+bound runtime exercise, real public UI and production paths are NOT_RUN here.
+They require separately approved runtime/dependency identity and fresh evidence.
 
 ## UCB observed UI identity
 
@@ -112,3 +121,24 @@ replaces observed page data with expected data. Raw AX and fixed DOM traversal,
 count/deletion/source-card checks remain part of the actual composed test path.
 Tests use synthetic external AX/DOM and database results; no real public UI or
 application authorization is established here.
+
+## Viatris observed UI identity
+
+Viatris retains the original Tupu CONFIGURED_CHANNEL_TRAVERSAL: initial GET,
+then the original next-page POST with max/offset/pageSize/social parameters.
+There is no official total and zero jobs is FAILED under the original adapter.
+Raw positionId, original title and parsed officialUrl are preserved. Native
+source rules and compilers are unchanged.
+
+The original reader's same visible `.job` row supplies `a.href` and `p.en`.
+The anchor aria-label can be translated and is never the original-title
+identity. After the original committed receipt/binding checks, an immutable
+one-to-one exact URL → raw positionId map joins independently observed URL and
+original title. Unknown/duplicate URLs, ambiguous mappings and title mismatches
+HOLD. No Phenom identity or URL-derived job ID is used. The B6 source card must
+also satisfy the row visibility/ancestor checks. Current UI tests use explicitly
+synthetic DOM/AX and do not claim a real UI capture.
+
+See `tests/FIVE_SOURCE_GENERATED_COMPOSITION.md` for the current declared
+composition and its NOT_RUN boundary. `tests/GENERATED_COMPOSITION.md` retains
+the historical four-source description and 82-case result only.

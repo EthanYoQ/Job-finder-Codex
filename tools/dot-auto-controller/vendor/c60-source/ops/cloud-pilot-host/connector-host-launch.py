@@ -66,7 +66,7 @@ if len(rows) != 36 or sum(r['route'] == 'PORTABLE' for r in rows) != 20 or sourc
 env = {'PATH': str(RUNTIME) + ':/usr/bin:/bin', 'LANG': 'C.UTF-8', 'TZ': 'UTC', 'TSX_DISABLE_CACHE': '1', 'NODE_DISABLE_COMPILE_CACHE': '1', 'JOBFINDER_CONNECTOR_HOST_SHA256': selector, 'JOBFINDER_CLOUD_SOURCE_ID': source}
 sequence_layout = os.environ.get('JOBFINDER_FIXED_SEQUENCE_LAYOUT')
 if sequence_layout is not None:
-    if sequence_layout != 'TAKEDA_BIOGEN_HENGRUI_UCB_V1' or source not in ('source-takeda-china-social','source-biogen-china-social','source-hengrui-social','source-ucb-china-social'):
+    if sequence_layout != 'TAKEDA_BIOGEN_HENGRUI_UCB_VIATRIS_V1' or source not in ('source-takeda-china-social','source-biogen-china-social','source-hengrui-social','source-ucb-china-social','source-viatris-social'):
         fail('HOST_SEQUENCE_LAYOUT')
     env['JOBFINDER_FIXED_SEQUENCE_LAYOUT'] = sequence_layout
 round_id = os.environ.get('JOBFINDER_CONNECTOR_ROUND_ID')

@@ -1,3 +1,4 @@
+import {retainedFiveSourceManifest,readBeforeFiveSource,fiveSourceAncestorEntry} from './five-source-ancestry.mjs';
 /** Validate every current byte and both complete frozen views before ancestral assertions. */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';import {createHash} from 'node:crypto';
@@ -11,8 +12,8 @@ const root=path.resolve(import.meta.dirname,'..'),prefix='tools/dot-auto-control
 export const integrationHash=b=>createHash('sha256').update(b).digest('hex');
 export const integrationGit=(head,relative)=>execFileSync('git',['show',head+':'+prefix+relative],{cwd:root,maxBuffer:8*1024*1024});
 const sharedFrozen=JSON.parse(integrationGit(S,'C60_SOURCE_MANIFEST.json')),viatrisFrozen=JSON.parse(integrationGit(V,'C60_SOURCE_MANIFEST.json'));
-export const actualIntegrationManifest=JSON.parse(fs.readFileSync(root+'/vendor/C60_SOURCE_MANIFEST.json'));
-const actualBytes=relative=>fs.readFileSync(root+'/vendor/c60-source/'+relative);
+export const actualIntegrationManifest=retainedFiveSourceManifest;
+const actualBytes=readBeforeFiveSource;
 export function validateIntegrationViews(current,readSource=actualBytes){
  assert.equal(current.files.length,878);assert.equal(new Set(current.files.map(f=>f.path)).size,878);
  const pilot=current.files.find(f=>f.path===P);assert(integration(pilot));
@@ -49,6 +50,7 @@ function provenance(file){
  throw Error('UNEXPECTED_INTEGRATION_VIEW_CLASS:'+file.classification);
 }
 export function integrationAncestorEntry(entry,side='shared'){
+ entry=fiveSourceAncestorEntry(entry);
  const relative=entry.path?.startsWith(prefix+'c60-source/')?entry.path.slice((prefix+'c60-source/').length):null;
  const original=records.get(relative),view=views[side].files.find(f=>f.path===relative);
  if(!original||!view||JSON.stringify(original)===JSON.stringify(view))return entry;

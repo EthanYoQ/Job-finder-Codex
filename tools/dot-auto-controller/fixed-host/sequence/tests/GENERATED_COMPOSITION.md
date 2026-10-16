@@ -1,4 +1,9 @@
-# Lightweight generated four-source composition
+# Historical four-source composition (retained record)
+
+> Historical documentation for the retained four-source ancestor only. Its 82-case
+> result and four-input command do not describe or qualify the current five-source
+> driver. Do not run the historical command against the current driver. See
+> `FIVE_SOURCE_GENERATED_COMPOSITION.md`; current full composition is NOT_RUN.
 
 `generated-composition.test.mjs` loads the current pinned sequence builder and the canonical test's synthetic release constructor. The original release validator must produce `CLOSED_FOUR_SOURCE_RELEASE` in fixed order Takeda → Biogen → Hengrui → UCB. It renders the closed release in memory and changes only the outer activation data's `enabled` field. Actual source factories, execution bodies, shared cores, close-capability gates, coordinator and source-specific UI code remain unchanged.
 

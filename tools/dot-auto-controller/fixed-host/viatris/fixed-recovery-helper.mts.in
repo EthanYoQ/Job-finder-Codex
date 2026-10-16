@@ -1,0 +1,83 @@
+/** Fixed data-only checks after original source/Node/runtime preflight.
+ * Never dispatches SQL, emits IPC, restores a permit, or evaluates source text. */
+import fs from 'node:fs';import {createHash} from 'node:crypto';import {pathToFileURL} from 'node:url';
+const BASE='__JOBFINDER_FIXED_DEPLOYMENT_ROOT__';
+const P=BASE+'/runtime-checkout/tools/dot-auto-controller',V=P+'/vendor/c60-source';
+const [op,roundId]=process.argv.slice(2);const check=(ok:any,code:string)=>{if(!ok)throw Error(code);};
+const sha=(s:string|Buffer)=>createHash('sha256').update(s).digest('hex');
+const exact=(x:any,keys:string[])=>x&&typeof x==='object'&&!Array.isArray(x)&&Object.keys(x).sort().join(',')===keys.slice().sort().join(',');
+check(process.argv.length===4&&/^round-[a-f0-9]{32}$/.test(roundId)&&process.env.JOBFINDER_CONNECTOR_ROUND_ID===roundId,'FIXED_HELPER_ROUND');
+check(['TEST_ONLY','LIVE'].includes(process.env.JOBFINDER_FIXED_LOCAL_MODE??''),'FIXED_HELPER_MODE');
+const {readChecked,loadBinding,TASK_ROOT,RELAY_ROOT}=await import(pathToFileURL(V+'/ops/cloud-pilot-host/connector-host-binding.mjs').href);
+check(TASK_ROOT===BASE+'/rounds/'+roundId+'/connector-host-task'&&RELAY_ROOT===TASK_ROOT+'/relay','FIXED_HELPER_PATH');
+const {assertRelayRequestReady,readyRequestNames}=await import(pathToFileURL(V+'/ops/cloud-pilot-host/relay-request-ready.mjs').href);
+const binding=loadBinding(),read=(leaf:string)=>readChecked(TASK_ROOT+'/'+leaf).bytes;
+const seed=JSON.parse(read('fixed-seed.json').toString('utf8'));
+check(seed.batchId==='fixed-v4-'+roundId.slice(6)&&seed.projectId==='yiopvxysxrtrnvqxwgbx'&&seed.sourceId==='source-viatris-social'&&seed.candidateId===binding.control.candidate.id&&seed.buildSha256===binding.control.build.contentSha256,'FIXED_HELPER_SEED');
+const tuple={releaseCandidateId:seed.candidateId,batchId:seed.batchId,sourceId:seed.sourceId,sourceResultId:seed.batchId+'--'+seed.sourceId};
+const {canonicalProjectionJson,parseJobProjectionDeltaReceipt,hashJobPersistedProjection}=await import(pathToFileURL(V+'/src/domain/jobProjectionDeltaReceipt.ts').href);
+const same=(a:any,b:any)=>canonicalProjectionJson(a)===canonicalProjectionJson(b);
+const input=()=>JSON.parse(fs.readFileSync(0,'utf8'));
+const request=(id:string)=>{check(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id),'FIXED_REQUEST_ID');assertRelayRequestReady(RELAY_ROOT+'/'+id+'.request.json');const raw=read('relay/'+id+'.request.json'),r=JSON.parse(raw.toString('utf8'));check(exact(r,['schemaVersion','requestId','kind','expiresAt','payload','requestSha256']),'FIXED_REQUEST_KEYS');const {requestSha256,...body}=r;check(r.schemaVersion===1&&r.requestId===id&&sha(JSON.stringify(body))===requestSha256&&r.payload.projectId===seed.projectId,'FIXED_REQUEST_HASH');return r;};
+function projections(){
+ const raw=read('reviewed-projections.json'),data=JSON.parse(raw.toString('utf8'));
+ check(exact(data,['schemaVersion','kind','binding','receiptSha256','sqlSha256','projections'])&&data.schemaVersion===1&&data.kind==='REVIEWED_PACKET_PROJECTION_DATA'&&same(data.binding,tuple)&&Array.isArray(data.projections),'FIXED_PROJECTION_DOCUMENT');return {raw,data};
+}
+const awaitBudget=await import(pathToFileURL(V+'/src/crawler/cloudSourcePilotRelay.ts').href);
+function publicationData(){
+ const raw=read('reviewed-publication-data.json'),data=JSON.parse(raw.toString('utf8'));
+ check(exact(data,['schemaVersion','kind','seed','sql','sqlSha256','sourceResult','expiresAt','holderId','receiptSha256','projectionsSha256'])&&data.schemaVersion===1&&data.kind==='REVIEWED_PUBLICATION_DATA'&&same(data.seed,seed)&&typeof data.sql==='string'&&sha(data.sql)===data.sqlSha256&&typeof data.holderId==='string'&&data.holderId.length>0,'FIXED_PUBLICATION_DATA');
+ const row=data.sourceResult;check(row.id===tuple.sourceResultId&&row.batchId===tuple.batchId&&row.sourceId===tuple.sourceId&&row.releaseCandidateId===tuple.releaseCandidateId&&row.sourceConfigHash===binding.sourceConfigSha256,'FIXED_PUBLICATION_TUPLE');
+ const receipt=parseJobProjectionDeltaReceipt(row.completenessCertificate,row.completenessCertificateSha256);check(same(receipt.binding,tuple)&&row.completenessCertificateSha256===data.receiptSha256,'FIXED_PUBLICATION_RECEIPT');
+ const p=projections();check(sha(p.raw)===data.projectionsSha256&&p.data.receiptSha256===data.receiptSha256&&p.data.sqlSha256===data.sqlSha256,'FIXED_PUBLICATION_PROJECTIONS');
+ const members=receipt.members.filter((m:any)=>m.setKind==='VISIBLE');check(p.data.projections.length===members.length&&new Set(p.data.projections.map((x:any)=>x.dedupeKey)).size===members.length,'FIXED_VISIBLE_SET');
+ for(const m of members){const matches=p.data.projections.filter((x:any)=>x.dedupeKey===m.jobKey);check(matches.length===1&&hashJobPersistedProjection(matches[0])===m.jobProjectionSha256,'FIXED_VISIBLE_PROJECTION_HASH');}
+ const names=fs.readdirSync(RELAY_ROOT);check(!names.some((n:string)=>n.includes('.request-publishing-')&&n.endsWith('.tmp')||n.endsWith('.request.json')&&!names.includes(n.replace(/\.json$/,'.ready'))),'FIXED_REQUEST_NOT_READY_HOLD');const requests=readyRequestNames(names).map((n:string)=>request(n.slice(0,-'.request.json'.length))).filter((r:any)=>r.kind==='PUBLISH');
+ check(requests.length===1,'FIXED_ORIGINAL_PUBLISH_COUNT');const r=requests[0];const {PILOT_BUDGET}=awaitBudget;check(r.payload.sql===data.sql&&r.expiresAt===data.expiresAt&&Number.isFinite(Date.parse(data.expiresAt))&&Date.parse(r.payload.dispatchBefore)===Date.parse(data.expiresAt)-PILOT_BUDGET.publishDbMs-PILOT_BUDGET.publishTransportMs,'FIXED_ORIGINAL_SQL_WINDOW_EXACT');
+ return {data,raw,r,receipt,recoveryDataSha256:sha(raw)};
+}
+function recovery(){
+ const p=publicationData(),record=JSON.parse(read('dispatch-data.json').toString('utf8'));
+ check(exact(record,['schemaVersion','roundId','seed','requestId','requestSha256','sqlSha256','recoveryDataSha256'])&&record.schemaVersion===1&&record.roundId===roundId&&same(record.seed,seed)&&record.requestId===p.r.requestId&&record.requestSha256===p.r.requestSha256&&record.sqlSha256===p.data.sqlSha256&&record.recoveryDataSha256===p.recoveryDataSha256,'FIXED_ORIGINAL_DISPATCH_DATA');
+ const m=JSON.parse(read('relay/'+p.r.requestId+'.dispatch.json').toString('utf8'));
+ check(m.schemaVersion===1&&m.requestId===p.r.requestId&&m.requestSha256===p.r.requestSha256&&m.kind==='PUBLISH'&&m.state==='MAY_HAVE_BEEN_SENT','FIXED_ORIGINAL_DISPATCH_MARKER');return p;
+}
+function query(){
+ // Exact original READ_OUTCOME compiler, no SQL parser or extended DB interface.
+ const sourceResult={id:tuple.sourceResultId,batchId:tuple.batchId};
+ const literal=(value:string)=>`E'${value.replaceAll('\\','\\\\').replaceAll("'","''")}'`;
+ return `SELECT
+ (SELECT to_jsonb(s) FROM public."CrawlBatchSourceResult" s WHERE id=${literal(sourceResult.id)}) AS row,
+ (SELECT to_jsonb(b) FROM public."CrawlBatch" b WHERE id=${literal(sourceResult.batchId)}) AS batch,
+ (SELECT "holderId" FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS "holderId"`;
+}
+function revived(row:any){
+ if(row===null)return null;check(row&&typeof row==='object'&&!Array.isArray(row),'FIXED_OUTCOME_ROW');const out={...row};
+ for(const field of ['startedAt','finishedAt'])if(out[field]!==null&&out[field]!==undefined){const value=String(out[field]);out[field]=new Date(/(?:Z|[+-]\d\d:\d\d)$/.test(value)?value:value+'Z');check(Number.isFinite(out[field].getTime()),'FIXED_OUTCOME_TIME');}
+ return out;
+}
+let result:any;
+if(op==='projections'){const p=projections();result={projections:p.data.projections};}
+else if(op==='publication-data'){const p=publicationData();result={kind:'FIXED_PUBLICATION_DATA',roundId,seed,originalTuple:tuple,requestId:p.r.requestId,requestSha256:p.r.requestSha256,sqlSha256:p.data.sqlSha256,recoveryDataSha256:p.recoveryDataSha256,receiptSha256:p.data.receiptSha256,originalPublishExpiresAt:p.r.expiresAt};}
+else if(op==='recovery-query'){const p=recovery(),sql=query();result={originalTuple:tuple,readQuery:sql,querySha256:sha(sql),originalPublishExpiresAt:p.r.expiresAt,requestId:p.r.requestId,requestSha256:p.r.requestSha256,sqlSha256:p.data.sqlSha256,recoveryDataSha256:p.recoveryDataSha256};}
+else if(op==='verify-recovery'){
+ const p=recovery(),x=input();check(exact(x,['rows'])&&Array.isArray(x.rows),'FIXED_RECOVERY_ROWS');let status='UNKNOWN';
+ if(x.rows.length===1&&exact(x.rows[0],['row','batch','holderId'])&&(typeof x.rows[0].holderId==='string'||x.rows[0].holderId===null)){
+  const row=x.rows[0];try{
+   const {inspectPersistedAtomicCommitOutcome}=await import(pathToFileURL(V+'/src/db/ingestionRepository.ts').href);
+   const out=await inspectPersistedAtomicCommitOutcome({sourceResult:revived(p.data.sourceResult)} as any,{crawlBatchSourceResult:{findUnique:async()=>revived(row.row),findMany:async()=>{throw Error('FIXED_RECOVERY_FIND_MANY_FORBIDDEN');}}} as any);
+   const b=row.batch;
+   if(out.state==='COMMITTED_EXACT'&&b&&b.id===tuple.batchId&&b.releaseCandidateId===tuple.releaseCandidateId&&b.status==='SUCCESS'&&b.atomicCommittedCount===1&&b.completenessVerifiedCount===1&&row.holderId!==p.data.holderId)status='DB_RECONCILED_COMMITTED';
+  }catch{status='UNKNOWN';}
+ }
+ result={databaseStatus:status,ui:'UNVERIFIED',ipcRestored:false,publicationPermitRestored:false,actualObservationCrawledAtRead:false};
+}else if(op==='classify-context'){
+ const x=input();check(exact(x,['schemaVersion','requestId','requestSha256','responseSha256','captureStartedAtMs'])&&x.schemaVersion===1&&Number.isSafeInteger(x.captureStartedAtMs)&&Number.isFinite(new Date(x.captureStartedAtMs).getTime()),'FIXED_CAPTURE_TIME');
+ const r=request(x.requestId);check(r.requestSha256===x.requestSha256&&r.kind==='READ_CONTEXT'&&r.payload.purpose==='PRE_CAPTURE'&&r.payload.sourceId===seed.sourceId&&r.payload.sourceConfigSha256===binding.sourceConfigSha256,'FIXED_CONTEXT_REQUEST');
+ const bytes=read('relay/'+r.requestId+'.response.json');check(sha(bytes)===x.responseSha256,'FIXED_ACTUAL_RESPONSE_BYTES');const response=JSON.parse(bytes.toString('utf8'));
+ check(exact(response,['schemaVersion','requestId','requestSha256','kind','result'])&&response.schemaVersion===1&&response.requestId===r.requestId&&response.requestSha256===r.requestSha256&&response.kind===r.kind,'FIXED_CONTEXT_RESPONSE');
+ const context=response.result;check(context&&context.sourceId===seed.sourceId&&context.sourceConfigSha256===binding.sourceConfigSha256&&Number.isFinite(Date.parse(context.checkedAt)),'FIXED_CONTEXT_SCOPE');
+ const {evaluateViatrisSourceDue}=await import(pathToFileURL(P+'/connector-gate/viatris-due-policy.mts').href);
+ result=evaluateViatrisSourceDue(context.latestAccepted,x.captureStartedAtMs);
+}else throw Error('FIXED_DATA_OPERATION');
+console.log(JSON.stringify(result));

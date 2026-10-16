@@ -17,11 +17,11 @@ for(const at of [1,2,3])test('abort at check '+at+' never exposes ready and pres
 for(const which of ['deadline','dispatchBefore'])test(which+' remains absolute',async()=>{const f=fixture();await assert.rejects(publishRelayRequest(f.file,f.text,{deadline:Date.now()+60000,[which]:Date.now()-1}),/RELAY_DEADLINE|RELAY_DISPATCH_BUDGET/);assert.equal(fs.readdirSync(f.relay).length,0);});
 test('all direct relay reads require ready, including expire and respond',()=>{const f=fixture();put(f.file,f.text);reject(f.cli('expire-undispatched',f.id,JSON.parse(f.text).requestSha256));const result=f.relay+'/'+f.id+'.host-result.json';put(result,JSON.stringify({requestId:f.id,requestSha256:JSON.parse(f.text).requestSha256,result:{}}));reject(f.cli('respond',result));assert.equal(fs.existsSync(f.relay+'/'+f.id+'.response.json'),false);});
 test('malformed ready basename cannot select a request',()=>assert.throws(()=>readyRequestNames(['bad.request.ready']),/REQUEST_READY_NAME/));
-test('all nine FilePilotRelay writers including UCB use the exact same publication barrier',()=>{
+test('all eleven FilePilotRelay writers including Viatris use the exact same publication barrier',()=>{
  const s=fs.readFileSync(pkg+'/vendor/c60-source/src/crawler/cloudSourcePilotRelay.ts','utf8');
- const names=['request','publishOwnedTakeda','readAndVerifyOwnedTakedaOutcome','publishOwnedBiogen','readAndVerifyOwnedBiogenOutcome','publishOwnedHengrui','readAndVerifyOwnedHengruiOutcome','publishOwnedUcb','readAndVerifyOwnedUcbOutcome'];
+ const names=['request','publishOwnedTakeda','readAndVerifyOwnedTakedaOutcome','publishOwnedBiogen','readAndVerifyOwnedBiogenOutcome','publishOwnedHengrui','readAndVerifyOwnedHengruiOutcome','publishOwnedUcb','readAndVerifyOwnedUcbOutcome','publishOwnedViatris','readAndVerifyOwnedViatrisOutcome'];
  const barrier='await publishRelayRequest(prepared.base+".request.json",prepared.serializedRequest,{deadline:prepared.deadline,dispatchBefore:(prepared.request.payload as {dispatchBefore?:string}|null)?.dispatchBefore===undefined?undefined:Date.parse((prepared.request.payload as {dispatchBefore:string}).dispatchBefore),signal});';
- assert.equal((s.match(/await publishRelayRequest\(/g)||[]).length,9);assert.equal(s.split(barrier).length-1,9);assert.equal((s.match(/writeFile\(prepared.base\+".request.json"/g)||[]).length,0);
+ assert.equal((s.match(/await publishRelayRequest\(/g)||[]).length,11);assert.equal(s.split(barrier).length-1,11);assert.equal((s.match(/writeFile\(prepared.base\+".request.json"/g)||[]).length,0);
  for(const name of names){const marker='  async '+name+(name==='request'?'<T>':'')+'(';assert.equal(s.split(marker).length-1,1,name);const start=s.indexOf(marker),end=s.indexOf('\n  }',start);assert(start>=0&&end>start,name);const body=s.slice(start,end);assert.equal((body.match(/await publishRelayRequest\(/g)||[]).length,1,name);assert.equal(body.split(barrier).length-1,1,name);}
 });
 

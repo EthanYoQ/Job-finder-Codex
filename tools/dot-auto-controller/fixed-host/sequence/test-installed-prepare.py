@@ -1,6 +1,6 @@
 """Final TEST_ONLY installed wiring probe. Leaves the original global HOLD.
 
-The original holder keeps SH/ACTIVE while the four exact installed stable CLIs
+The original holder keeps SH/ACTIVE while the five exact installed stable CLIs
 are independently invoked with only prepare. No business entry is evaluated,
 no child is launched, no bootstrap SQL is called, and no cycle is completed.
 Do not reuse this retained case as a fresh cycle after this final probe.
@@ -9,19 +9,19 @@ from pathlib import Path
 import hashlib,json,os,select,subprocess,sys,types
 sys.dont_write_bytecode=True
 sha=lambda raw:hashlib.sha256(raw).hexdigest()
-SOURCE_IDS={'takeda':'source-takeda-china-social','biogen':'source-biogen-china-social','hengrui':'source-hengrui-social','ucb':'source-ucb-china-social'}
-REPORT_KIND='ACTUAL_INSTALLED_FOUR_STABLE_CLI_PREPARE_ONLY_FINAL_HOLD'
+SOURCE_IDS={'takeda':'source-takeda-china-social','biogen':'source-biogen-china-social','hengrui':'source-hengrui-social','ucb':'source-ucb-china-social','viatris':'source-viatris-social'}
+REPORT_KIND='ACTUAL_INSTALLED_FIVE_STABLE_CLI_PREPARE_ONLY_FINAL_HOLD'
 def validate_prepared_identities(results):
  # Pure checks over the actual probe results; this never creates authority or
- # fabricates a receipt. Every individual identity must be distinct four ways.
- assert type(results) is list and [r['profile'] for r in results]==['takeda','biogen','hengrui','ucb']
+ # fabricates a receipt. Every individual identity must be distinct across all five sources.
+ assert type(results) is list and [r['profile'] for r in results]==['takeda','biogen','hengrui','ucb','viatris']
  for r in results:
   assert r['prepared']['seed']['sourceId']==SOURCE_IDS[r['profile']]
   assert r['prepared']['cfg']['sourceId']==SOURCE_IDS[r['profile']]
- assert len({r['prepared']['roundId'] for r in results})==4
- assert len({r['stateRoot'] for r in results})==4
+ assert len({r['prepared']['roundId'] for r in results})==5
+ assert len({r['stateRoot'] for r in results})==5
  for field in ('batchId','launchChallenge'):
-  assert len({r['prepared']['seed'][field] for r in results})==4
+  assert len({r['prepared']['seed'][field] for r in results})==5
 def probe(case,evidence):
  case=Path(case).resolve();evidence=Path(evidence).resolve()
  assert case.parent==evidence/'lifecycle-cases' and case.name.startswith('case-')
@@ -31,8 +31,8 @@ def probe(case,evidence):
  activation=case/'strict-disabled-activation-result.json'
  assert json.loads(activation.read_bytes())['passed'] is True
  assert (target/'candidate/functions-entry.enabled.js').is_file()
- assert set(binding['profiles'])=={'takeda','biogen','hengrui','ucb'}
- for name in ('holder.py','cli-takeda.py','cli-biogen.py','cli-hengrui.py','cli-ucb.py','lifecycle_lock.py'):
+ assert set(binding['profiles'])=={'takeda','biogen','hengrui','ucb','viatris'}
+ for name in ('holder.py','cli-takeda.py','cli-biogen.py','cli-hengrui.py','cli-ucb.py','cli-viatris.py','lifecycle_lock.py'):
   assert sha((owner/name).read_bytes())==manifest['files'][name]['sha256']
  active=case/'.installed-disabled.lifecycle-active.json';assert not active.exists()
  before={'activationResultSha256':sha(activation.read_bytes()),'ownerManifestSha256':sha((owner/'OWNER_MANIFEST.json').read_bytes()),'normalInstallActivationPassedBeforeProbe':True}
@@ -44,7 +44,7 @@ def probe(case,evidence):
   ready=json.loads(process.stdout.readline());assert ready['kind']=='LIFECYCLE_READY';assert active.exists()
   # The original holder has not received read: executable business bytes are
   # never evaluated. These calls test only independently installed wiring.
-  for profile in ('takeda','biogen','hengrui','ucb'):
+  for profile in ('takeda','biogen','hengrui','ucb','viatris'):
    env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','PYTHONDONTWRITEBYTECODE':'1','JOBFINDER_FIXED_LOCAL_MODE':'LIVE','JOBFINDER_FIXED_DEPLOYMENT_SHA256':binding['profiles'][profile]['deploymentSha256']}
    run=subprocess.run(['/usr/bin/python3','-I',str(owner/('cli-'+profile+'.py')),'prepare'],capture_output=True,timeout=120,env=env)
    (case/('prepare-'+profile+'.stdout')).write_bytes(run.stdout);(case/('prepare-'+profile+'.stderr')).write_bytes(run.stderr)
