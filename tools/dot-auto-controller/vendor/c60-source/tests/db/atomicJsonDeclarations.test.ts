@@ -57,3 +57,16 @@ it("losslessly packs uniform records and rejects an invalid tuple index", () => 
   expect(decodeDeclarations(declarations)).toEqual({terminal: sourceResult, context: expectedContext});
   expect(() => decodeDeclarations(declarations.replace("tuple.value->0", "tuple.value->999999"))).toThrow();
 });
+
+
+it("shares repeated nested evidence without discarding cheaper uniform-record packing", () => {
+  const dom = { html: "O'Brien \\ 中文\n".repeat(600), page: 1 };
+  const rows = Array.from({ length: 30 }, (_, n) => ({ id: n, payload: { dom, body: `original-${n}` } }));
+  const sourceResult = { pages: [{ rawRows: rows }, { rawRows: rows.map(row => ({ ...row, id: row.id + 30 })) }] };
+  const expectedContext = { sourceId: "fixture" };
+  const before = JSON.stringify({ sourceResult, expectedContext });
+  const declarations = compileAtomicJsonDeclarations(sourceResult, expectedContext);
+  expect(JSON.stringify({ sourceResult, expectedContext })).toBe(before);
+  expect(decodeDeclarations(declarations)).toEqual({ terminal: sourceResult, context: expectedContext });
+  expect(Buffer.byteLength(declarations)).toBeLessThan(Buffer.byteLength(before) / 4);
+});

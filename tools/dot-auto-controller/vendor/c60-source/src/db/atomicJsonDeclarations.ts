@@ -46,7 +46,16 @@ export function compileAtomicJsonDeclarations(sourceResult: unknown, expectedCon
       JSON.stringify(Object.keys(row)) === JSON.stringify(Object.keys(rows[0]! as object))) &&
       Object.keys(rows[0]! as object).length <= 50) {
       const packed = compileAtomicJsonRecords(rows as Record<string, unknown>[]);
-      if (Buffer.byteLength(packed) < Buffer.byteLength(node.literal)) return packed;
+      if (Buffer.byteLength(packed) < Buffer.byteLength(node.literal)) {
+        const previousNames = new Set(names.keys()), previousDeclarations = declarations.length;
+        const shared = originalExpressionFor(node);
+        const added = declarations.slice(previousDeclarations).map(value => value + "\n").join("");
+        if (Buffer.byteLength(shared) + Buffer.byteLength(added) < Buffer.byteLength(packed)) return shared;
+        // Packing must not leave declarations from the rejected shared form.
+        for (const child of names.keys()) if (!previousNames.has(child)) names.delete(child);
+        declarations.length = previousDeclarations;
+        return packed;
+      }
     }
     return originalExpressionFor(node);
   }
