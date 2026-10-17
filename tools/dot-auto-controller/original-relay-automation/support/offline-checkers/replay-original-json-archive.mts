@@ -4,7 +4,7 @@ const run=process.argv[2],d=JSON.parse(fs.readFileSync(run+'/review/PACKET_REVIE
 const sha=(x:any)=>createHash('sha256').update(x).digest('hex');
 const {createOfficialJsonSourceFetch}=await import(V+'/src/crawler/officialJsonSourceFetch.ts');
 const {createPresenceCheckedHttpHtmlSourceFetch}=await import(V+'/src/crawler/httpHtmlSourceFetch.ts');
-assert(['source-ucb-china-social','source-viatris-social','source-hansoh-social'].includes(d.terminal.sourceId));const originalFetch=d.plan.adapterId==='html-table'?createPresenceCheckedHttpHtmlSourceFetch:createOfficialJsonSourceFetch;
+assert(['source-ucb-china-social','source-viatris-social','source-hansoh-social','source-takeda-china-social','source-merck-china-social'].includes(d.terminal.sourceId));const originalFetch=d.plan.adapterId==='html-table'?createPresenceCheckedHttpHtmlSourceFetch:createOfficialJsonSourceFetch;
 const {sanitizeEvidenceHttpUrl}=await import(V+'/src/crawler/sourceFetchEvidence.ts');
 const {runSourceCrawl,replayStrictSourceQualityEvidence}=await import(V+'/src/crawler/runSourceCrawl.ts');
 const {loadPilotContext}=await import(V+'/src/crawler/cloudPilotContext.ts');

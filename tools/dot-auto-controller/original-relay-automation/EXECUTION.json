@@ -1,22 +1,31 @@
 {
-  "checkedAt": "2026-10-17T06:33:00Z",
+  "checkedAt": "2026-10-17T06:53:00Z",
   "entry": "run-original-functions.js",
   "routeCount": 36,
-  "connectedSourceCount": 5,
+  "connectedSourceCount": 7,
+  "initialDueQueryCount": 1,
+  "preCommitSourceDueRecheck": true,
   "actualSingleInvocation": {
-    "batchId": "dot-auto-hansoh-20261017T062837084Z",
+    "batchId": "dot-auto-hansoh-20261017T064120517Z",
     "pages": 4,
-    "uniqueJobs": 302,
-    "phase": "PRE_LOCK_ADMISSION",
-    "newDatabaseCommit": false,
-    "newWebPublication": false,
-    "reason": "Beisen downstream completeness remained manual"
+    "currentJobs": 302,
+    "graceJobs": 9,
+    "visibleJobs": 311,
+    "newJobs": 29,
+    "changedExistingJobs": 49,
+    "databaseOutcome": "COMMITTED",
+    "webOutcome": "VERIFIED",
+    "modelDirectedIntermediateSteps": 0,
+    "externalApprovalDuringRun": "OBSERVED_TOOL_MAPPING_UNCONFIRMED"
   },
-  "recentSuccessesSkipped": [
-    "source-ucb-china-social",
-    "source-viatris-social",
-    "source-biogen-china-social",
-    "source-hengrui-social"
-  ],
-  "scheduledEndToEndValidated": false
+  "latestCandidate": 80,
+  "latestAttempt": {
+    "batchId": "dot-auto-merck-20261017T065003994Z",
+    "phase": "CHECK_SOURCE_RESULT",
+    "reason": "Merck China official field validation failed",
+    "newDatabaseCommit": false,
+    "newWebPublication": false
+  },
+  "scheduledEndToEndValidated": false,
+  "full36Validated": false
 }

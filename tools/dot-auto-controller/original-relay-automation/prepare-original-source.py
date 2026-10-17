@@ -6,7 +6,7 @@ assert row['route']=='PORTABLE'
 selector=json.loads((R/'hengrui/binding-selector.json').read_text())
 binding=json.loads((B/'connector-host-bindings'/f"{selector['sha256']}.json").read_text())
 assert binding['projectId']=='yiopvxysxrtrnvqxwgbx' and binding['route']=='PORTABLE'
-binding.update(sourceId=source,sourceConfigSha256=row['sourceConfigSha256'],ownerId='dot-cloud-'+folder+'-social-pilot')
+binding.update(sourceId=source,sourceConfigSha256=row['sourceConfigSha256'],ownerId='dot-cloud-'+source[7:]+'-pilot')
 data=json.dumps(binding,separators=(',',':')).encode(); digest=hashlib.sha256(data).hexdigest(); target=B/'connector-host-bindings'/f'{digest}.json'
 if target.exists(): assert target.read_bytes()==data
 else:
