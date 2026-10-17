@@ -23,7 +23,7 @@ import { ucbOfficialCities, exactUcbPostedDatePlan, exactUcbPostedDateBootstrap,
 import { isDeepStrictEqual } from "node:util";
 import { hasAstellasPdfCityPlan, replayAstellasPdfCities } from "./astellasPdfCityAcquisition";
 import { hasAstraZenecaDetailPlan, replayAstraZenecaDetails } from "./astraZenecaDetailAcquisition";
-import { requiresHansohNativeWindowReplay, validateStrictHansohNativeWindowEvidence } from "./hansohNativeWindowEvidence";
+import { requiresHansohNativeWindowReplay, validateStrictHansohNativeWindowEvidence, hasUnrecognizedHansohLocation } from "./hansohNativeWindowEvidence";
 import { createDecipheriv, createHash } from "node:crypto";
 import { hasHengruiScopeExclusionPolicy, replayHengruiScopeExclusionProof } from "./strictMokaScopeExclusionProof";
 import { load } from "cheerio";
@@ -382,6 +382,10 @@ async function finalizeTruth(
   } else if (observation.completenessStatus === "VERIFIED") {
     observation.completenessStatus = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
     observation.completenessBlockerReason = "Strict completeness evidence gate was not satisfied";
+  }
+  if (!completenessVerified && requiresHansohNativeWindowReplay(plan) && fetchResult.fetchEvidence &&
+      hasUnrecognizedHansohLocation(fetchResult.fetchEvidence)) {
+    observation.completenessBlockerReason = "HANSOH_UNRECOGNIZED_MAINLAND_LOCATION";
   }
   if (!completenessVerified && hasAstraZenecaDetailPlan(plan) && !fetchResult.fetchEvidence?.astraZenecaDetails) {
     observation.completenessStatus = "NEEDS_MANUAL_COMPLETENESS_REVIEW";

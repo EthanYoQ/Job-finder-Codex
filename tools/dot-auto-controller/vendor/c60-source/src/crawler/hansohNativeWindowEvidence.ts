@@ -130,9 +130,10 @@ function realProjectedPostDate(value: unknown): boolean {
 }
 
 // Reuse the independently replayed positive province/prefecture vocabulary,
-// with three exact observed Hansoh hierarchy aliases. This is validation only:
+// with exact observed Hansoh hierarchy aliases. This is validation only:
 // original location strings and output cities remain unchanged.
 const HANSOH_HIERARCHIES = new Map([
+  ["江苏省·淮安市·淮安区", "江苏省·淮安市"],
   ["上海市·浦东新区", "上海市"],
   ["江苏省·常州市·新北区", "江苏省·常州市"],
   ["云南省·大理白族自治州", "云南省·大理"]
@@ -151,3 +152,16 @@ function clean(value: string): string { return value.replace(/\s+/gu, " ").trim(
 function hash(value: string): string { return createHash("sha256").update(value, "utf8").digest("hex"); }
 function irreversible(value: unknown): string { return `sha256:${hash(JSON.stringify(value))}`; }
 function persistentId(value: string): string { return `official-json:${irreversible(value)}`; }
+
+
+// Diagnostic only: acceptance still requires the complete native replay above.
+export function hasUnrecognizedHansohLocation(evidence: PersistentSourceFetchEvidence): boolean {
+  try {
+    return evidence.pages.some(page => {
+      const artifact = evidence.artifacts.find(item => item.logicalKey === page.artifactLogicalKey);
+      const root: unknown = JSON.parse(artifact?.body ?? "");
+      return record(root) && Array.isArray(root.Data) &&
+        root.Data.some(raw => record(raw) && !mainlandGeography(raw));
+    });
+  } catch { return false; }
+}

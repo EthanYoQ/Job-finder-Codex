@@ -47,6 +47,17 @@ function rehash(fetched: any) {
 }
 
 describe("Hansoh native half-year request and independent replay", () => {
+  it("replays the observed Huaian district and preserves the original location", async () => {
+    const observed = {Id: "5ce20cd6-59de-44a0-95a1-76eabe12be05", LocNames: ["江苏省·淮安市·淮安区"], PostDate: "2026-10-15T18:55:19"};
+    const {result} = await collect([row(1, observed)]);
+    expect(result.truth.completenessVerified).toBe(true);
+    expect(result.jobs[0].locationRaw).toBe("江苏省·淮安市·淮安区");
+    expect(result.jobs[0].cities).toEqual(["淮安区"]);
+    const rejected = await collect([row(1, {...observed, LocNames: ["江苏省·淮安市·未知区"]})]);
+    expect(rejected.result.truth.completenessVerified).toBe(false);
+    expect(rejected.result.observation.completenessBlockerReason).toBe("HANSOH_UNRECOGNIZED_MAINLAND_LOCATION");
+  });
+
   it("binds the canonical source to the native 180-day filter without altering United Lab's 183-day policy", () => {
     expect(canonicalPlan().officialJsonFetch).toEqual(nativePlan().officialJsonFetch);
     const united = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-united-lab-social") as Plan;
