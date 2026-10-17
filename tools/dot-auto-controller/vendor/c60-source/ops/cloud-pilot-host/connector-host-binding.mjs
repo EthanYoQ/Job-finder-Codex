@@ -67,8 +67,8 @@ const freeze=o=>{if(o&&typeof o==='object'){Object.values(o).forEach(freeze);Obj
 // The producer build hashes this reviewed constant; the outer catalogue must match
 // these exact bytes. A mutable outer catalogue cannot widen the source allowlist.
 export function nativeCatalogue(){
- const r=readChecked(CATALOG_FILE,{mode:0o644,max:12311});
- if(r.bytes.length!==12311||hash(r.bytes)!==CATALOG_SHA256)fail('HOST_CATALOG_DRIFT');
+ const r=readChecked(CATALOG_FILE,{mode:0o644,max:12308});
+ if(r.bytes.length!==12308||hash(r.bytes)!==CATALOG_SHA256)fail('HOST_CATALOG_DRIFT');
  const rows=json(r.bytes).routingCatalogue;
  if(!Array.isArray(rows)||rows.length!==36||new Set(rows.map(r=>r.sourceId)).size!==36||rows.filter(r=>r.route==='PORTABLE').length!==20||rows.filter(r=>r.route==='TRUE_A').length!==12||rows.filter(r=>r.route==='TRUE_B').length!==4)fail('HOST_CATALOG_SCOPE');
  return freeze(rows);
