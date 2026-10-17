@@ -384,7 +384,7 @@ export function selectPortableSourceSnapshots(
   }).sort((a, b) => compare(a.sourceId, b.sourceId));
 }
 
-function verifiedMembers(selected: NonNullable<PortableSourceSelection["selected"]>, members: readonly PortableLifecycleMemberRow[]): Map<string, number> {
+export function verifiedMembers(selected: NonNullable<PortableSourceSelection["selected"]>, members: readonly PortableLifecycleMemberRow[]): Map<string, number> {
   const result = selected.result;
   const sets = {CURRENT: new Map<string, number>(), GRACE: new Map<string, number>(), VISIBLE: new Map<string, number>()};
   for (const member of members) {

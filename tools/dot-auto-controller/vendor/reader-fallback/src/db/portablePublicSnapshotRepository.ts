@@ -1,3 +1,5 @@
+import {readNovoSingleClosures} from "./novoSingleClosureRepository";
+import {NOVO_CLOSURE_SOURCE,NOVO_CLOSURE_COMPANY,novoSingleClosureRemoves} from "../domain/novoSingleJobClosure";
 import { isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
 import { portableSnapshotIdentities } from "./portableDisplayIdentity";
 import { sanofiCertificateArtifactLocators, type SanofiArtifactCommitment } from "../crawler/traversalCertificate";
@@ -8,7 +10,7 @@ import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256, type SourceCrawlPl
 import { candidateCompanies } from "../data/companyRegistry";
 import { getPortableCoverageScope, PORTABLE_COVERAGE_POLICY_ID } from "../release/portableCoveragePolicy";
 import { P0_LAUNCH_MANIFEST, selectLaunchCompanies, validateLaunchManifest } from "../release/launchManifest";
-import { supportsPublicBGrade, selectPortableSourceSnapshots, projectPortableSourceJobs, type PortableProjectedSource, type PortablePublicJob, type PortableSnapshotOptions } from "../domain/portablePublicSnapshot";
+import { supportsPublicBGrade, verifiedMembers, selectPortableSourceSnapshots, projectPortableSourceJobs, type PortableProjectedSource, type PortablePublicJob, type PortableSnapshotOptions } from "../domain/portablePublicSnapshot";
 import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "../domain/publicationEligibility";
 import { PortableSnapshotCache, PORTABLE_SNAPSHOT_VERSION_SQL, portableSnapshotVersion, portableSnapshotValidUntil } from "./portableSnapshotCache";
@@ -46,6 +48,7 @@ const jobSelect = {
 } as const satisfies Prisma.JobSelect;
 export type PortableJobRow = Prisma.JobGetPayload<{select: typeof jobSelect}>;
 export interface PortableSnapshotTransactionDb {
+  lossLedgerEntry?: {findMany(args: unknown): PromiseLike<unknown[]>};
   evidenceArtifact?: {findMany(args: Prisma.EvidenceArtifactFindManyArgs): PromiseLike<unknown[]>};
   $queryRawUnsafe?<T = unknown>(query: string): PromiseLike<T>;
   crawlBatchSourceResult: {findMany(args: Prisma.CrawlBatchSourceResultFindManyArgs): PromiseLike<unknown[]>};
@@ -200,6 +203,8 @@ export async function readPortablePublicSnapshotWithStatus(
     if (!Array.isArray(rawResults)) throw new Error("INVALID_PORTABLE_SOURCE_RESULT_ROWS");
     const results = structuredClone(rawResults) as PortableSourceResultRow[];
     await bindSanofiPersistedArtifacts(tx,results);
+    const novoClosed = requiredPlans.some(plan => plan.source.id === NOVO_CLOSURE_SOURCE)
+      ? await readNovoSingleClosures(tx as Parameters<typeof readNovoSingleClosures>[0],readOptions.currentTime) : [];
     // Prefetch candidates only, never publication authority. A publishing selection must be
     // the newest committed/verified row: a later invalid or unclaimed receipt forces a hold.
     // Keep all history for the verifier's true floor, latest attempt and integrity decisions.
@@ -223,6 +228,7 @@ export async function readPortablePublicSnapshotWithStatus(
       // not merely by a timestamp carried in the latest receipt. Prefetch only;
       // exact receipt, identity and membership verification remains in the domain.
       const memberResultIds = new Set(pending.map(({result}) => result.id));
+      for (const closure of novoClosed) memberResultIds.add(closure.previousSourceResultId);
       for (const {result} of pending) {
         if (!isJobProjectionDeltaReceipt(result.completenessCertificate)) continue;
         try {
@@ -247,7 +253,7 @@ export async function readPortablePublicSnapshotWithStatus(
       if (!Array.isArray(rawJobs)) throw new Error("INVALID_PORTABLE_JOB_ROWS");
       jobs = structuredClone(rawJobs) as PortableJobRow[];
     }
-    return {results, members, jobs, version};
+    return {results, members, jobs, version, novoClosed};
   }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 10_000});
   timing?.record("tx", performance.now() - transactionStartedAt);
   if (data.cached) {
@@ -255,7 +261,7 @@ export async function readPortablePublicSnapshotWithStatus(
     const {snapshot, ...identity} = data.cached;
     return {snapshot, snapshotRefresh: {state, ...identity}};
   }
-  const {results, members, jobs, version} = data;
+  const {results, members, jobs, version, novoClosed} = data;
   const rebuildStartedAt = performance.now();
   // Receipt hashing, rendered evidence replay and lifecycle/job projection are pure CPU
   // work over the same owned snapshot. Release the database connection before doing them.
@@ -271,10 +277,36 @@ export async function readPortablePublicSnapshotWithStatus(
     }
     selections.sort((left, right) => Buffer.compare(Buffer.from(left.sourceId), Buffer.from(right.sourceId)));
   } else selections = selectPortableSourceSnapshots(requiredPlans, results, readOptions);
+  // Closure identity is backed by the original accepted receipt and its complete
+  // immutable membership set, not a title match or mutable Job.visible flag.
+  for (const closure of novoClosed) {
+    const plan = requiredPlans.find(plan => plan.source.id === NOVO_CLOSURE_SOURCE)!;
+    const row = results.find(row => row.id === closure.previousSourceResultId && row.sourceId === NOVO_CLOSURE_SOURCE);
+    if (!plan || !row?.finishedAt || row.finishedAt >= new Date(closure.capturedAt)) throw Error("NOVO_CLOSURE_HISTORY_REQUIRED");
+    const historical = selectPortableSourceSnapshots([plan],[row],{...readOptions,currentTime:row.finishedAt})[0]!;
+    if (!historical.selected || historical.state !== "PUBLISHING" ||
+        !verifiedMembers(historical.selected,members.filter(m => m.sourceResultId === row.id)).has(closure.jobKey)) {
+      throw Error("NOVO_CLOSURE_HISTORY_INVALID");
+    }
+  }
   const sources: PortableProjectedSource[] = [];
   for (const source of selections) {
-    sources.push(projectPortableSourceJobs(source,
-      members.filter(member => member.sourceResultId === source.selectedSourceResultId), jobs, readOptions, members));
+    const projected = projectPortableSourceJobs(source,
+      members.filter(member => member.sourceResultId === source.selectedSourceResultId), jobs, readOptions, members);
+    // First verify the original complete snapshot. A separate, same-transaction
+    // single-job proof can only remove its exact key; it cannot refresh a source.
+    if (projected.state === "PUBLISHING" && projected.sourceId === NOVO_CLOSURE_SOURCE) {
+      const applicable = novoClosed.filter(d => jobs.some(job => job.id === d.jobId && job.dedupeKey === d.jobKey &&
+        job.companyId === NOVO_CLOSURE_COMPANY && job.sourceId === NOVO_CLOSURE_SOURCE));
+      const shouldRemove = (job: PortablePublicJob) => applicable.some(d => novoSingleClosureRemoves(job,d));
+      const removed = projected.jobs.filter(shouldRemove);
+      projected.jobs = projected.jobs.filter(job => !shouldRemove(job));
+      projected.visibleJobCount = projected.jobs.length;
+      const maximumAge = readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS;
+      projected.staleJobCount -= removed.filter(job => readOptions.currentTime.getTime() -
+        Date.parse(job.lastConfirmedObservedAt ?? job.lastSeenAt) > maximumAge).length;
+    }
+    sources.push(projected);
     if (yieldAfterSource) await yieldAfterSource();
   }
   for (const excluded of emptySelections.filter(source => excludedSourceIds.has(source.sourceId))) {

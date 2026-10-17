@@ -51,6 +51,7 @@ enum ReleaseCandidateStatus {
 }
 
 enum CrawlBatchKind {
+  JOB_VERIFICATION
   FULL_RELEASE
   SCHEDULED
   MANUAL_SOURCE

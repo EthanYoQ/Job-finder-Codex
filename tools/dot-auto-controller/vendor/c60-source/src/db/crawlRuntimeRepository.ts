@@ -50,7 +50,7 @@ export interface PrismaCrawlRuntimeDb {
   };
   crawlObservation: {
     findMany(args: {
-      where: { sourceId: string; batch: { is: { kind: { not: "MANUAL_SOURCE" } } } };
+      where: { sourceId: string; batch: { is: { kind: { in: ["FULL_RELEASE", "SCHEDULED", "BASELINE"] } } } };
       select: { crawledAt: true; successful: true };
       orderBy: { crawledAt: "desc" };
       take: 10;
@@ -128,7 +128,7 @@ export function createPrismaCrawlRuntimeDeps(db: PrismaCrawlRuntimeDb, options: 
         return readPortableScheduleObservations({findMany:args=>reader.findMany!(args)},plan,(options.now??(()=>new Date()))());
       }
       return db.crawlObservation.findMany({
-        where: { sourceId, batch: { is: { kind: { not: "MANUAL_SOURCE" } } } },
+        where: { sourceId, batch: { is: { kind: { in: ["FULL_RELEASE", "SCHEDULED", "BASELINE"] } } } },
         select: { crawledAt: true, successful: true },
         orderBy: { crawledAt: "desc" },
         take: 10

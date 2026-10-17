@@ -1,9 +1,9 @@
 {
   "main": {
     "readerFileHashes": {
-      "src/domain/portablePublicSnapshot.ts": "081a5e8cc590b7b0ced83a437f7287aa3caf19849e33c0dd954d81562c341af0",
+      "src/domain/portablePublicSnapshot.ts": "0b4e30cd2b89dec6e9eea5cd9754819ed2002be20973d17a1c2e5a968d17c0fd",
       "src/domain/jobProjectionDeltaReceipt.ts": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
-      "src/db/portablePublicSnapshotRepository.ts": "c877eb38a20554ea965a6772b5291b17c1435d6d2f72a90b2c4d7e651eac138b",
+      "src/db/portablePublicSnapshotRepository.ts": "678acce78f1f6071a04f3aac7ecc7dd05160066b13e412cbf6a6f88cc0b020af",
       "src/crawler/sourceQualityAdmission.ts": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",
       "src/crawler/sourcePlan.ts": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
       "src/data/companyRegistry.ts": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
@@ -21,7 +21,9 @@
       "src/crawler/hengruiMainlandGeography.ts": "134cbbcf98ab80003d567f2a77b19491d837ec26adfd920f28511c41d1fae4a1",
       "src/crawler/reviewedMainlandCity.ts": "a9e555b60879a90d96e0ee228316130586e4d87e420b90be340c44609d706ae1",
       "src/crawler/sanofiChineseNative.ts": "fb513a20ec38020bcc6c4c5a05978b93efc30e84240f025737e484aaa3fab298",
-      "src/crawler/sanofiNativeQuality.ts": "9db161f9ef260d8436e469df128ef5ab6f69c79b3b48fb551d6365b689e765ef"
+      "src/crawler/sanofiNativeQuality.ts": "9db161f9ef260d8436e469df128ef5ab6f69c79b3b48fb551d6365b689e765ef",
+      "src/domain/novoSingleJobClosure.ts": "56aded2e3cf23beb960eb6b87ffe74f7fd4ad5c978702129ccdd374754511c13",
+      "src/db/novoSingleClosureRepository.ts": "674252ec121c8494e0533c6ab336b22236f570a8ea5d0881eef82e8abbdbffce"
     },
     "originCommit": "6510baecc784ec87999cb5ea546b0995afe9222f",
     "capsuleClassification": "PRIVACY_SANITIZED_DERIVATIVE",
@@ -35,9 +37,9 @@
   },
   "fallback": {
     "readerFileHashes": {
-      "src/domain/portablePublicSnapshot.ts": "081a5e8cc590b7b0ced83a437f7287aa3caf19849e33c0dd954d81562c341af0",
+      "src/domain/portablePublicSnapshot.ts": "0b4e30cd2b89dec6e9eea5cd9754819ed2002be20973d17a1c2e5a968d17c0fd",
       "src/domain/jobProjectionDeltaReceipt.ts": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
-      "src/db/portablePublicSnapshotRepository.ts": "c877eb38a20554ea965a6772b5291b17c1435d6d2f72a90b2c4d7e651eac138b",
+      "src/db/portablePublicSnapshotRepository.ts": "678acce78f1f6071a04f3aac7ecc7dd05160066b13e412cbf6a6f88cc0b020af",
       "src/crawler/sourceQualityAdmission.ts": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",
       "src/crawler/sourcePlan.ts": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
       "src/data/companyRegistry.ts": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
@@ -55,7 +57,9 @@
       "src/crawler/hengruiMainlandGeography.ts": "134cbbcf98ab80003d567f2a77b19491d837ec26adfd920f28511c41d1fae4a1",
       "src/crawler/reviewedMainlandCity.ts": "a9e555b60879a90d96e0ee228316130586e4d87e420b90be340c44609d706ae1",
       "src/crawler/sanofiChineseNative.ts": "fb513a20ec38020bcc6c4c5a05978b93efc30e84240f025737e484aaa3fab298",
-      "src/crawler/sanofiNativeQuality.ts": "9db161f9ef260d8436e469df128ef5ab6f69c79b3b48fb551d6365b689e765ef"
+      "src/crawler/sanofiNativeQuality.ts": "9db161f9ef260d8436e469df128ef5ab6f69c79b3b48fb551d6365b689e765ef",
+      "src/domain/novoSingleJobClosure.ts": "56aded2e3cf23beb960eb6b87ffe74f7fd4ad5c978702129ccdd374754511c13",
+      "src/db/novoSingleClosureRepository.ts": "674252ec121c8494e0533c6ab336b22236f570a8ea5d0881eef82e8abbdbffce"
     },
     "originCommit": "600ad0ab23e886ae9ac429d3d1b076e00af76e88",
     "capsuleClassification": "PRIVACY_SANITIZED_DERIVATIVE",

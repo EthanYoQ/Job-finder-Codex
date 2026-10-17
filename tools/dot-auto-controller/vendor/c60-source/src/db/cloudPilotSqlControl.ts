@@ -1,3 +1,7 @@
+import { buildNovoSingleClosureDetails,NOVO_CLOSURE_SOURCE,NOVO_CLOSURE_BLOCKER } from "../domain/novoSingleJobClosure";
+import { assertNovoVerificationArchive,type NovoVerificationCapture } from "../crawler/novoJobVerification";
+import { emptyReconciliation } from "../crawler/adapters/reconciliation";
+import { NOVO_JOB_VERIFICATION_MIGRATION_NAME, NOVO_JOB_VERIFICATION_MIGRATION_SHA256, NOVO_JOB_VERIFICATION_SCHEMA_SHA256, compileNovoJobVerificationProfileGuard } from "./novoJobVerificationProfile";
 import { V75_FENCE_MIGRATION_NAME, V75_FENCE_MIGRATION_SHA256, V75_FENCE_SCHEMA_SHA256, compileV75FenceProfileGuard } from "./v75FenceProfile";
 import { JOB_DELTA_MIGRATION_NAME, JOB_DELTA_MIGRATION_SHA256, JOB_DELTA_SOURCE_GUARD_PROSRC_SHA256, JOB_DELTA_FUNCTION_MD5, JOB_DELTA_BASELINE_CHECK_MD5, JOB_DELTA_TRIGGER_PROFILES } from "./jobProjectionDeltaProfile";
 import { createHash } from "node:crypto";
@@ -22,7 +26,7 @@ import { SOURCE_QUALITY_POLICY_ID, SOURCE_QUALITY_RECEIPT_SCHEMA } from "../craw
 export interface CloudPilotControlInput {
   projectId: string; build: BuildIdentityArtifact;
   candidate: { id: string; goalId: string; version: number }; expiresAt: string;
-  databaseIdentity?: {migrationVersion: typeof JOB_DELTA_MIGRATION_NAME | typeof V75_FENCE_MIGRATION_NAME; schemaHash:string; dbSnapshotHash:string}|undefined;
+  databaseIdentity?: {migrationVersion: typeof JOB_DELTA_MIGRATION_NAME | typeof V75_FENCE_MIGRATION_NAME | typeof NOVO_JOB_VERIFICATION_MIGRATION_NAME; schemaHash:string; dbSnapshotHash:string}|undefined;
 }
 export interface CloudPilotPendingInput extends CloudPilotControlInput {
   holderId: string; planned: PlannedBatchWithSourcesInput;
@@ -52,7 +56,7 @@ const SOURCE=CLOUD_PILOT_SOURCE.id, PROJECT="yiopvxysxrtrnvqxwgbx";
 const identifier=z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u),sha=z.string().regex(/^[a-f0-9]{64}$/u);
 const candidateSchema=z.object({id:identifier,goalId:z.literal("jobfinder-portable-required-40"),version:z.number().int().min(10).max(2147483647)}).strict();
 const buildSchema=z.object({schemaVersion:z.literal(2),commitSha:z.string().regex(/^[a-f0-9]{40}$/u),sourceTreeSha256:sha,runtimeTreeSha256:sha,contentSha256:sha}).strict();
-const commonSchema=z.object({projectId:z.literal(PROJECT),build:buildSchema,candidate:candidateSchema,expiresAt:z.string().datetime(),databaseIdentity:z.object({migrationVersion:z.enum([JOB_DELTA_MIGRATION_NAME,V75_FENCE_MIGRATION_NAME]),schemaHash:sha,dbSnapshotHash:sha}).strict().optional()}).strict();
+const commonSchema=z.object({projectId:z.literal(PROJECT),build:buildSchema,candidate:candidateSchema,expiresAt:z.string().datetime(),databaseIdentity:z.object({migrationVersion:z.enum([JOB_DELTA_MIGRATION_NAME,V75_FENCE_MIGRATION_NAME,NOVO_JOB_VERIFICATION_MIGRATION_NAME]),schemaHash:sha,dbSnapshotHash:sha}).strict().optional()}).strict();
 const pendingSchema=commonSchema.extend({holderId:z.string().uuid(),planned:z.unknown()}).strict();
 const finalizeSchema=pendingSchema.extend({outcome:z.literal("COMMITTED_EXACT"),sourceRow:z.record(z.unknown())}).strict();
 const publicationContextSchema=z.object({snapshotSha256:sha.optional(),checkedAt:z.string().datetime({offset:true}),sourceId:z.literal(SOURCE),sourceConfigSha256:z.literal(CLOUD_PILOT_SOURCE.sourceConfigSha256),
@@ -89,11 +93,13 @@ function matches(table:string,alias:string,row:Record<string,unknown>,data=json(
 const fail=(condition:string,code:string)=>`IF ${condition} THEN RAISE EXCEPTION '${code}'; END IF;`;
 function historyGuard(input:Pick<CloudPilotControlInput,"databaseIdentity">){
  const incremental=input.databaseIdentity!==undefined;
- const fenced=input.databaseIdentity?.migrationVersion===V75_FENCE_MIGRATION_NAME;
- if(fenced&&input.databaseIdentity?.schemaHash!==V75_FENCE_SCHEMA_SHA256)throw Error("PILOT_SCHEMA50_MANIFEST_DRIFT");
+ const verification=input.databaseIdentity?.migrationVersion===NOVO_JOB_VERIFICATION_MIGRATION_NAME;
+ const fenced=verification||input.databaseIdentity?.migrationVersion===V75_FENCE_MIGRATION_NAME;
+ if(verification&&input.databaseIdentity?.schemaHash!==NOVO_JOB_VERIFICATION_SCHEMA_SHA256)throw Error("PILOT_SCHEMA51_MANIFEST_DRIFT");
+ if(fenced&&!verification&&input.databaseIdentity?.schemaHash!==V75_FENCE_SCHEMA_SHA256)throw Error("PILOT_SCHEMA50_MANIFEST_DRIFT");
  if(incremental&&(!/^[a-f0-9]{64}$/.test(JOB_DELTA_MIGRATION_SHA256)||!/^[a-f0-9]{64}$/.test(JOB_DELTA_SOURCE_GUARD_PROSRC_SHA256)))throw Error("PILOT_INCREMENTAL_PROFILE_NOT_VERIFIED");
- const migrations=incremental?[...history.migrations,{migrationName:JOB_DELTA_MIGRATION_NAME,checksum:JOB_DELTA_MIGRATION_SHA256},...(fenced?[{migrationName:V75_FENCE_MIGRATION_NAME,checksum:V75_FENCE_MIGRATION_SHA256}]:[])]:history.migrations;
- const guard=incremental?fail(`(SELECT encode(extensions.digest(convert_to(prosrc,'UTF8'),'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.enforce_source_result_state_machine()')) IS DISTINCT FROM ${text(JOB_DELTA_SOURCE_GUARD_PROSRC_SHA256)}`,"PILOT_INCREMENTAL_GUARD_DRIFT")
+ const migrations=incremental?[...history.migrations,{migrationName:JOB_DELTA_MIGRATION_NAME,checksum:JOB_DELTA_MIGRATION_SHA256},...(fenced?[{migrationName:V75_FENCE_MIGRATION_NAME,checksum:V75_FENCE_MIGRATION_SHA256}]:[]),...(verification?[{migrationName:NOVO_JOB_VERIFICATION_MIGRATION_NAME,checksum:NOVO_JOB_VERIFICATION_MIGRATION_SHA256}]:[])]:history.migrations;
+ const guard=verification?compileNovoJobVerificationProfileGuard():incremental?fail(`(SELECT encode(extensions.digest(convert_to(prosrc,'UTF8'),'sha256'),'hex') FROM pg_proc WHERE oid=to_regprocedure('public.enforce_source_result_state_machine()')) IS DISTINCT FROM ${text(JOB_DELTA_SOURCE_GUARD_PROSRC_SHA256)}`,"PILOT_INCREMENTAL_GUARD_DRIFT")
  :fail(`(SELECT md5(pg_get_functiondef(to_regprocedure('public.enforce_source_result_state_machine()')))) IS DISTINCT FROM ${text(history.sourceResultGuardMd5)}`,"PILOT_SQL45_GUARD_DRIFT");
  return `LOCK TABLE public."_prisma_migrations" IN SHARE MODE;
 ${fail(`(SELECT count(*) FROM public."_prisma_migrations") <> ${migrations.length} OR EXISTS(SELECT 1 FROM public."_prisma_migrations" m FULL JOIN jsonb_to_recordset(${json(migrations)}) e("migrationName" text,checksum text) ON m.migration_name=e."migrationName" WHERE m.migration_name IS NULL OR e."migrationName" IS NULL OR m.checksum IS DISTINCT FROM e.checksum OR m.finished_at IS NULL OR m.rolled_back_at IS NOT NULL) OR (SELECT count(DISTINCT migration_name) FROM public."_prisma_migrations") <> ${migrations.length}`,"PILOT_MIGRATION_HISTORY")}
@@ -101,7 +107,7 @@ ${guard}
 ${fenced?compileV75FenceProfileGuard():""}
 ${incremental?JOB_DELTA_TRIGGER_PROFILES.map(trigger=>fail(`NOT EXISTS(SELECT 1 FROM pg_trigger t WHERE t.tgrelid=${text('public.'+quote(trigger.tableName))}::regclass AND t.tgname=${text(trigger.name)} AND t.tgenabled='O' AND t.tgdeferrable AND t.tginitdeferred AND md5(pg_get_triggerdef(t.oid))=${text(trigger.md5)})`,"PILOT_INCREMENTAL_TRIGGER_DRIFT")).join("\n"):""}
 ${incremental?fail(`(SELECT md5(pg_get_constraintdef(oid)) FROM pg_constraint WHERE conrelid='public."CrawlBatchSourceResult"'::regclass AND conname='CrawlBatchSourceResult_baseline_transition_shape_check') IS DISTINCT FROM ${text(JOB_DELTA_BASELINE_CHECK_MD5)}`,"PILOT_INCREMENTAL_BASELINE_CHECK_DRIFT"):""}
-${incremental?Object.entries(JOB_DELTA_FUNCTION_MD5).map(([name,md5])=>fail(`(SELECT md5(pg_get_functiondef(to_regprocedure(${text(name)})))) IS DISTINCT FROM ${text(md5)}`,"PILOT_INCREMENTAL_FUNCTION_DEFINITION_DRIFT")).join("\n"):""}`;
+${incremental?Object.entries(JOB_DELTA_FUNCTION_MD5).filter(([name])=>!verification||name!=="public.enforce_source_result_state_machine()").map(([name,md5])=>fail(`(SELECT md5(pg_get_functiondef(to_regprocedure(${text(name)})))) IS DISTINCT FROM ${text(md5)}`,"PILOT_INCREMENTAL_FUNCTION_DEFINITION_DRIFT")).join("\n"):""}`;
 }
 function candidateGuard(c:ReturnType<typeof candidateData>){return `PERFORM 1 FROM public."ReleaseCandidate" r WHERE r.id=${text(c.id)} AND ${matches("ReleaseCandidate","r",c)} FOR SHARE;
 ${fail("NOT FOUND","PILOT_CANDIDATE_DRIFT")}`;}
@@ -291,4 +297,99 @@ export function prepareCloudPilotDbStartedControl(input:CloudPilotDbStartedInput
  WHERE id='formal-crawl' AND "holderId"=${text(holderId)};
  GET DIAGNOSTICS affected=ROW_COUNT; ${fail('affected <> 1','CRAWL_LEASE_LOST')}`;
  return {before,after,expectedContext:publicationContextComparisonValue(context)};
+}
+
+/** Evidence-only Novo correction. A single packet, original tables and lock;
+ * no Job write, whole-source certificate, fake failed crawl, or freshness update. */
+export function compileCloudPilotNovoJobVerificationSql(input:CloudPilotControlInput & {
+  holderId:string;batchId:string;context:CloudPilotPublicationContext;capture:NovoVerificationCapture;
+}):string {
+ const {holderId,batchId,capture,context,...control}=input;
+ commonSchema.parse(control);z.string().uuid().parse(holderId);identifier.parse(batchId);
+ if(SOURCE!==NOVO_CLOSURE_SOURCE||input.databaseIdentity?.migrationVersion!==NOVO_JOB_VERIFICATION_MIGRATION_NAME)throw Error('NOVO_JOB_VERIFICATION_SCOPE');
+ const c=candidateData(input),plan=readyPlan!,details=buildNovoSingleClosureDetails(capture.raw,capture.identity);
+ publicationContextSchema.parse(context);
+ if(!context.latestAccepted||!context.jobs.some(j=>j.dedupeKey===details.jobKey&&j.officialUrl===details.officialUrl))throw Error('NOVO_JOB_VERIFICATION_CURRENT_BINDING');
+ const sourceResultId=`${batchId}--${SOURCE}`,tuple={releaseCandidateId:c.id,batchId,sourceId:SOURCE,sourceResultId};identifier.parse(sourceResultId);
+ assertNovoVerificationArchive(tuple,capture);
+ const startedAt=new Date(capture.raw.startedAt),finishedAt=new Date(capture.raw.capturedAt),blockerReason=`Only native job ${details.nativeId} was verified; the full source was not crawled.`;
+ const identity={releaseCandidateId:c.id,commitSha:c.commitSha,rosterSha256:c.rosterHash,sourcePlanSha256:c.sourcePlanHash,sourceConfigSha256:c.sourceConfigHash,
+   adapterBundleSha256:c.adapterBundleHash,batchKind:'SCHEDULED' as const,ownerId:CLOUD_PILOT_SOURCE.ownerId,expectedPlannedSourceIds:[SOURCE],expectedPlannedSourceSetSha256:hashCanonicalStringSet([SOURCE]),expectedPlannedSourceCount:1};
+ // Reuse only original pending-row construction. This specialized batch is not sent to a crawler.
+ const p=buildPendingRuntimeBatch(batchId,[plan],identity,startedAt),pending=sourceData(p);
+ const batch={...p.batch,kind:'JOB_VERIFICATION',status:'RUNNING',finishedAt:null,aggregateJobSetSha256:null,...zeroes(BATCH_COUNTERS)};
+ const counts={rawCount:1,parsedCount:1,validCount:0,normalizedCount:0,dedupeInputCount:0,dedupeOutputCount:0,parseDiscardCount:0,validationDiscardCount:1,normalizationDiscardCount:0,dedupeDiscardCount:0,collisionCount:0,discardCount:1};
+ const empty=hashCanonicalStringSet([]),terminal={transportState:'SUCCEEDED',adapterState:'SUCCEEDED',completenessState:'INCOMPLETE',atomicCommitState:'COMMITTED',finishedAt,
+   ...counts,blockerCode:NOVO_CLOSURE_BLOCKER,blockerReason,failureCode:null,failureReason:null,expectedJobCount:null,expectedEvidenceKind:null,
+   canonicalOutputSetSha256:empty,adapterInputCount:0,adapterOutputCount:0,adapterLossCount:0,adapterCollisionGroupCount:0,
+   adapterReconciliationSha256:emptyReconciliation().ledgerSha256,collisionLedgerSha256:empty};
+ const {logicalKey:_key,bodyRepresentation:_repr,rawBodySha256:_raw,redactionDescriptors:_desc,...artifact}=capture.artifact;
+ const storedArtifact={...artifact,redactionCommitmentSha256:capture.artifact.rawBodySha256??capture.artifact.sha256};
+ const observation={id:`${batchId}--observation`,...tuple,commitSha:c.commitSha,rosterSha256:c.rosterHash,sourcePlanSha256:c.sourcePlanHash,
+   sourceConfigSha256:pending.sourceConfigHash,adapterVersion:pending.adapterVersion,observedFrom:startedAt,observedTo:finishedAt,crawledAt:finishedAt,
+   successful:false,transportSucceeded:true,adapterSucceeded:true,completenessVerified:false,atomicCommitSucceeded:true,structuredJobCount:0,...counts,
+   expectedJobCount:null,completenessStatus:'INCOMPLETE',completenessEvidenceKind:null,completenessEvidenceUrl:null,completenessBlockerReason:blockerReason,
+   totalPages:null,pageSize:null,pagesVisited:0,canonicalRawSha256:null,canonicalOutputSha256:null,canonicalGraceSha256:null,canonicalVisibleSha256:null,
+   expectedSurfaceSha256:null,visitedSurfaceSha256:null,expectedChannelSha256:null,visitedChannelSha256:null,paginationTraceSha256:null,
+   artifactRedactionCommitmentSha256:storedArtifact.redactionCommitmentSha256,officialEvidenceArtifactId:artifact.id,stableRequiredFields:[],failureReason:null};
+ const loss={id:`${batchId}--closure`,...tuple,stage:'VALIDATION',reason:'Novo official application explicitly no longer accepts applicants',
+   rawLocator:`novo-single-job-${details.nativeId}`,details,candidateKey:null,winnerKey:null,recordedAt:finishedAt};
+ const currentContext=publicationContextQuery(c.id,SOURCE_QUALITY_POLICY_ID,true);
+ const body=`${historyGuard(input)}\n${candidateGuard(c)}
+ INSERT INTO public."CrawlCoordinatorLock" (id,"holderId","acquiredAt","heartbeatAt",metadata) VALUES ('formal-crawl','',clock_timestamp(),clock_timestamp(),'portable-quality-sync-v1:released') ON CONFLICT (id) DO NOTHING;
+ PERFORM 1 FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl' FOR UPDATE;
+ UPDATE public."CrawlCoordinatorLock" SET "holderId"=${text(holderId)},"acquiredAt"=clock_timestamp(),"heartbeatAt"=clock_timestamp(),metadata='novo-job-verification-v1' WHERE id='formal-crawl' AND ("holderId"='' OR "heartbeatAt"<=clock_timestamp()-interval '300 seconds');
+ GET DIAGNOSTICS affected=ROW_COUNT; ${fail('affected<>1','CRAWL_LEASE_BUSY')}
+ LOCK TABLE public."Job",public."CrawlBatchSourceResult",public."CrawlBatch" IN SHARE ROW EXCLUSIVE MODE;
+ ${fail(`${text(capture.raw.capturedAt)}::timestamptz>clock_timestamp()`,'NOVO_CAPTURE_TIME_FUTURE')}
+ ${fail(context.snapshotSha256?`(SELECT ${publicationContextDigestSql('context')} FROM (${currentContext}) current_context) IS DISTINCT FROM ${text(context.snapshotSha256)}`:
+   `(SELECT context-'checkedAt' FROM (${currentContext}) current_context) IS DISTINCT FROM (${json(context)}-'checkedAt')`,'PILOT_CONTEXT_CHANGED')}
+ ${fail(`EXISTS(SELECT 1 FROM public."LossLedgerEntry" l JOIN public."CrawlBatchSourceResult" r ON r.id=l."sourceResultId" JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE b.kind::text='JOB_VERIFICATION' AND r."atomicCommitState"='COMMITTED' AND l."sourceId"=${text(SOURCE)} AND l.details->>'jobKey'=${text(details.jobKey)} AND l.details->>'previousSourceResultId'=${text(details.previousSourceResultId)} AND l.details->>'nativeBodySha256'=${text(details.nativeBodySha256)})`,'NOVO_VERIFICATION_ALREADY_APPLIED_RECONCILE_ONLY')}
+ ${insert('CrawlBatch',batch)}
+ ${insert('CrawlBatchSourceResult',pending)}
+ ${insert('EvidenceArtifact',storedArtifact)}
+ ${insert('CrawlObservation',observation)}
+ ${insert('LossLedgerEntry',loss)}
+ UPDATE public."CrawlBatchSourceResult" SET (${Object.keys(terminal).map(quote).join(',')})=(SELECT ${Object.keys(terminal).map(quote).join(',')} FROM jsonb_populate_record(NULL::public."CrawlBatchSourceResult",${json(terminal)})) WHERE id=${text(sourceResultId)} AND "atomicCommitState"='PENDING';
+ GET DIAGNOSTICS affected=ROW_COUNT; ${fail('affected<>1','NOVO_VERIFICATION_TERMINAL_DRIFT')}
+ UPDATE public."CrawlBatch" SET status='INCOMPLETE',"aggregateJobSetSha256"=${text(empty)},"finishedAt"=${text(capture.raw.capturedAt)}::timestamp,"heartbeatAt"=clock_timestamp(),"transportSucceededCount"=1,"adapterSucceededCount"=1,"completenessIncompleteCount"=1,"atomicCommittedCount"=1,"blockedSourceCount"=1 WHERE id=${text(batchId)} AND status='RUNNING';
+ GET DIAGNOSTICS affected=ROW_COUNT; ${fail('affected<>1','NOVO_VERIFICATION_BATCH_DRIFT')}
+ UPDATE public."CrawlCoordinatorLock" SET "holderId"='',"heartbeatAt"=clock_timestamp(),metadata='portable-quality-sync-v1:released' WHERE id='formal-crawl' AND "holderId"=${text(holderId)};
+ GET DIAGNOSTICS affected=ROW_COUNT; ${fail('affected<>1','CRAWL_LEASE_LOST')}`;
+ return packet(control,body,`SELECT id,"sourceId","completenessState","atomicCommitState",${text(details.jobKey)} AS "closedJobKey" FROM public."CrawlBatchSourceResult" WHERE id=${text(sourceResultId)}`);
+}
+
+/** All closures share one transaction and one connector request. Each job retains
+ * its honest evidence-only source result; any failed proof rolls back the set. */
+export function compileCloudPilotNovoJobVerificationSetSql(input:CloudPilotControlInput & {
+ holderId:string;context:CloudPilotPublicationContext;captures:readonly {batchId:string;capture:NovoVerificationCapture}[];
+}):string {
+ const {captures,...common}=input;
+ if(captures.length===0||new Set(captures.map(c=>c.batchId)).size!==captures.length||new Set(captures.map(c=>c.capture.identity.jobKey)).size!==captures.length)throw Error('NOVO_VERIFICATION_SET_INVALID');
+ const packets=captures.map(c=>compileCloudPilotNovoJobVerificationSql({...common,...c}).replace(/^BEGIN;\n/,'').replace(/\nSELECT id,"sourceId","completenessState","atomicCommitState",[^\n]+\nCOMMIT;$/,''));
+ if(packets.some(p=>/\nCOMMIT;?$/.test(p)))throw Error('NOVO_VERIFICATION_PACKET_SHAPE');
+ return `BEGIN;\n${packets.join('\n')}\nSELECT id,"sourceId","completenessState","atomicCommitState" FROM public."CrawlBatchSourceResult" WHERE id IN (${captures.map(c=>text(`${c.batchId}--${SOURCE}`)).join(',')}) ORDER BY id;\nCOMMIT;`;
+}
+
+export function compileCloudPilotNovoJobVerificationReadbackSql(batchIds:readonly string[]):string {
+ if(batchIds.length===0||new Set(batchIds).size!==batchIds.length)throw Error('NOVO_VERIFICATION_READBACK_IDS');batchIds.forEach(id=>identifier.parse(id));
+ const ids=batchIds.map(text).join(',');
+ return `WITH b AS (SELECT * FROM public."CrawlBatch" WHERE id IN (${ids})),r AS (SELECT * FROM public."CrawlBatchSourceResult" WHERE "batchId" IN (${ids})),l AS (SELECT * FROM public."LossLedgerEntry" WHERE "sourceResultId" IN (SELECT id FROM r)),a AS (SELECT * FROM public."EvidenceArtifact" WHERE "sourceResultId" IN (SELECT id FROM r) OR id IN (SELECT details->>'previousApplicationArtifactId' FROM l)) SELECT jsonb_build_object('batches',coalesce((SELECT jsonb_agg(to_jsonb(b)) FROM b),'[]'::jsonb),'results',coalesce((SELECT jsonb_agg(to_jsonb(r)) FROM r),'[]'::jsonb),'losses',coalesce((SELECT jsonb_agg(to_jsonb(l)) FROM l),'[]'::jsonb),'artifacts',coalesce((SELECT jsonb_agg(to_jsonb(a)) FROM a),'[]'::jsonb)) AS verification;`;
+}
+
+/** The existing portable-reader row projection plus only the native metadata and
+ * closure rows needed for exact job verification; no artifact bodies are queried. */
+export function compileCloudPilotNovoVerificationInputsSql(control:Omit<CloudPilotControlInput,'expiresAt'>):string {
+ if(SOURCE!==NOVO_CLOSURE_SOURCE)throw Error('NOVO_JOB_VERIFICATION_SCOPE');
+ const publication=compileCloudPilotPublicationContextSql(control,SOURCE_QUALITY_POLICY_ID).replace(/;$/,'');
+ const childCounts=['TransportAttemptEvidence','EvidenceArtifact','CrawlObservation','PaginationEvidence','LossLedgerEntry','LifecycleSetEvidenceMember'].map((table,index)=>`${text(['transportAttempts','evidenceArtifacts','observations','paginationEvidence','lossLedgerEntries','lifecycleSetMembers'][index]!)},(SELECT count(*) FROM public.${quote(table)} x WHERE x."sourceResultId"=r.id)`).join(',');
+ return `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;\nWITH publication AS (${publication}),results AS (
+ SELECT to_jsonb(r)||jsonb_build_object('batch',to_jsonb(b),'observations',coalesce((SELECT jsonb_agg(to_jsonb(o)) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id),'[]'::jsonb),'_count',jsonb_build_object(${childCounts})) AS row
+ FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE r."sourceId"=${text(SOURCE)} AND r."sourceConfigHash"=${text(CLOUD_PILOT_SOURCE.sourceConfigSha256)} AND b.kind='SCHEDULED'
+ ),closures AS (SELECT to_jsonb(l)||jsonb_build_object('sourceResult',to_jsonb(r)||jsonb_build_object('batch',to_jsonb(b))) AS row FROM public."LossLedgerEntry" l JOIN public."CrawlBatchSourceResult" r ON r.id=l."sourceResultId" JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE l."sourceId"=${text(SOURCE)} AND b.kind::text='JOB_VERIFICATION')
+ SELECT jsonb_build_object('schemaVersion','novo-job-verification-input-v1','sourceId',${text(SOURCE)},'sourceConfigSha256',${text(CLOUD_PILOT_SOURCE.sourceConfigSha256)},'checkedAt',clock_timestamp(),'isolationLevel',current_setting('transaction_isolation'),'transactionReadOnly',current_setting('transaction_read_only'),'publicationContext',(SELECT context FROM publication),
+ 'results',coalesce((SELECT jsonb_agg(row) FROM results),'[]'::jsonb),'closureRecords',coalesce((SELECT jsonb_agg(row) FROM closures),'[]'::jsonb),
+ 'jobs',coalesce((SELECT jsonb_agg(to_jsonb(j)) FROM public."Job" j WHERE j."sourceId"=${text(SOURCE)}),'[]'::jsonb),
+ 'members',coalesce((SELECT jsonb_agg(to_jsonb(m)) FROM public."LifecycleSetEvidenceMember" m WHERE m."sourceId"=${text(SOURCE)}),'[]'::jsonb),
+ 'artifacts',coalesce((SELECT jsonb_agg(to_jsonb(a)) FROM public."EvidenceArtifact" a WHERE a."sourceId"=${text(SOURCE)} AND a.kind='OFFICIAL_COMPANY_PAGE' AND a."extractorLocator" LIKE 'novo-application-%'),'[]'::jsonb)) AS verification_input;\nCOMMIT;`;
 }
