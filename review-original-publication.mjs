@@ -21,5 +21,8 @@ if(expectedContext.snapshotSha256){
 const packet=await review(run,id,run+'/review/PACKET_REVIEW.json',{originalOuterDeadline:starts[0].outerDeadline,publicationContext});
 const {replayOriginalPortableReaders}=await import(R+'/offline-checkers/original-portable-reader-replay.mts');
 await replayOriginalPortableReaders({run,outputDirectory:run+'/review',before:read(path.dirname(run)+'/READER_BEFORE.json'),packet});
-for(const script of [...(special?[]:['replay-original-json-archive.mts']),'project-original-target-api.mts'])execFileSync(process.execPath,['--import',V+'/node_modules/tsx/dist/loader.mjs',R+'/offline-checkers/'+script,run],{stdio:['ignore','ignore','pipe'],timeout:120000});
+for(const script of [...(special?[]:['replay-original-json-archive.mts']),'project-original-target-api.mts']){
+ const timeout=Math.min(Date.parse(request.payload.dispatchBefore),Date.parse(request.expiresAt),starts[0].outerDeadline)-Date.now();assert(timeout>0,'ORIGINAL_REVIEW_DEADLINE');
+ execFileSync(process.execPath,['--import',V+'/node_modules/tsx/dist/loader.mjs',R+'/offline-checkers/'+script,run],{stdio:['ignore','ignore','pipe'],timeout});
+}
 console.log(JSON.stringify({requestId:id,requestSha256:request.requestSha256}));

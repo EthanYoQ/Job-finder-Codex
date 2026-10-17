@@ -11,3 +11,21 @@ assert.equal(starts,1);assert.equal(waits,1);
 tools.write_stdin=async()=>({exit_code:1,output:'failed'});
 await assert.rejects(h.cmd("node '/original/host-files.mts' connector-validate"),/HOST_COMMAND:firstfailed/);
 console.log('PASS: yielded original session is awaited once; failed completion stays failed');
+
+const entry=fs.readFileSync(new URL('./run-original-functions.js',import.meta.url),'utf8');
+const commandSource=entry.slice(entry.indexOf('async function command('),entry.indexOf('const read='));
+const command=await new A('tools',commandSource+'return command;')(tools);
+tools.exec_command=async()=>({exit_code:137,output:'warning only'});
+await assert.rejects(command('original-read-only-step'),/LOCAL_STEP:exit=137; warning only/);
+console.log('PASS: outer command preserves actual exit code even when stderr only contains warnings');
+
+const review=fs.readFileSync(new URL('./review-original-publication.mjs',import.meta.url),'utf8');
+const remaining=review.match(/const timeout=(.*?);assert\(timeout>0,'ORIGINAL_REVIEW_DEADLINE'\)/)[1];
+const remainingTime=new Function('request','starts','Date','return '+remaining);
+const req={payload:{dispatchBefore:'2026-10-17T14:00:00Z'},expiresAt:'2026-10-17T14:01:00Z'};
+const now=Date.parse('2026-10-17T13:43:00Z');
+assert.equal(remainingTime(req,[{outerDeadline:now+1800000}],{parse:Date.parse,now:()=>now}),1020000);
+assert.equal(remainingTime(req,[{outerDeadline:now+1000}],{parse:Date.parse,now:()=>now}),1000);
+assert(remainingTime(req,[{outerDeadline:now-1}],{parse:Date.parse,now:()=>now})<0);
+assert(!review.includes('timeout:120000'));
+console.log('PASS: review uses earliest original deadline, without arbitrary 120-second sublimit');
