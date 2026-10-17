@@ -1,0 +1,12 @@
+import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {execFileSync} from 'node:child_process';
+const B='/workspace/scratch/5e9614251709',R=B+'/takeda-original-recovery-20261017T0417Z',V=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source';
+const [run,id,relay]=process.argv.slice(2),read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
+fs.mkdirSync(run+'/relay',{recursive:true});fs.mkdirSync(run+'/review',{recursive:true});
+const request=read(relay+'/'+id+'.request.json');fs.copyFileSync(relay+'/'+id+'.request.json',run+'/relay/'+id+'.request.json');fs.writeFileSync(run+'/relay/'+id+'.request.json.sql',request.payload.sql,{flag:'wx'});
+const starts=fs.readFileSync(run+'/diagnostics/process.jsonl','utf8').trim().split('\n').map(JSON.parse).filter(x=>x.event==='WRAPPER_START');assert.equal(starts.length,1);
+process.chdir(V);const {reviewOriginalPortableSql}=await import(R+'/offline-checkers/original-portable-sql-review.mts');
+const packet=await reviewOriginalPortableSql(run,id,run+'/review/PACKET_REVIEW.json',{originalOuterDeadline:starts[0].outerDeadline});
+const {replayOriginalPortableReaders}=await import(R+'/offline-checkers/original-portable-reader-replay.mts');
+await replayOriginalPortableReaders({run,outputDirectory:run+'/review',before:read(path.dirname(run)+'/READER_BEFORE.json'),packet});
+for(const script of ['replay-original-json-archive.mts','project-original-target-api.mts'])execFileSync(process.execPath,['--import',V+'/node_modules/tsx/dist/loader.mjs',R+'/offline-checkers/'+script,run],{stdio:['ignore','ignore','pipe'],timeout:120000});
+console.log(JSON.stringify({requestId:id,requestSha256:request.requestSha256}));
