@@ -23,12 +23,12 @@ import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import ts from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/typescript/lib/typescript.js";
 import {decodeDeclarations} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/review-packet-envelope.mts";
-import {prepareCloudPilotDbStartedControl,CLOUD_PILOT_SOURCE} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/cloudPilotSqlControl.ts";
+import {prepareCloudPilotDbStartedControl,publicationContextComparisonValue,CLOUD_PILOT_SOURCE} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/cloudPilotSqlControl.ts";
 import {deriveCurrentStagedScheduleExpectation} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/stagedScheduleAuthority.ts";
 import {buildPendingRuntimeBatch} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts";
 import {hashCanonicalStringSet} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeBatchIdentity.ts";
 import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection,hashProjectionJson} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts";
-export async function reviewOriginalPortableSql(runArg:string,requestId:string,output:string,{originalOuterDeadline}: {originalOuterDeadline:number}){
+export async function reviewOriginalPortableSql(runArg:string,requestId:string,output:string,{originalOuterDeadline,publicationContext}: {originalOuterDeadline:number;publicationContext?:any}){
 assert(runArg&&requestId&&output);
 assert(Number.isFinite(originalOuterDeadline)&&Date.now()<originalOuterDeadline);
 const R=resolve("/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native",'../vendor'),run=resolve(runArg),host=resolve(run,'..');
@@ -44,7 +44,9 @@ assert.equal(control.build.commitSha,git('rev-parse','HEAD')); assert.deepEqual(
 const runtimeVerification=await verifyNodeRuntimeProfile();
 const {requestSha256,...requestBody}=request;assert.equal(sha(JSON.stringify(requestBody)),requestSha256);
 const declarations=/^SET LOCAL statement_timeout = '120000ms';\nDO (\$atomic_[a-f0-9]{32}\$)\nDECLARE affected bigint; job_data jsonb; ([\s\S]*?) current_context jsonb;/.exec(sql);assert(declarations);
-const {terminal,context}=decodeDeclarations(declarations[2]);const legacyCertificate=terminal.completenessCertificate.legacyCertificate;
+const {terminal,context:packetContext}=decodeDeclarations(declarations[2]);
+const context=packetContext.snapshotSha256?publicationContext:packetContext;assert(context,'READ_CONTEXT_REQUIRED');assert.deepEqual(publicationContextComparisonValue(context),packetContext,'READ_CONTEXT_BINDING');
+const legacyCertificate=terminal.completenessCertificate.legacyCertificate;
 assert.equal(legacyCertificate.schemaVersion,'plan-bound-source-quality-v1');assert.equal(legacyCertificate.policyId,'PLAN_BOUND_SOURCE_QUALITY_V1');const packet={terminal,context,legacyCertificate};
 const registered=json(join(host,'expected-candidate.json'));for(const k of ['id','goalId','status','version','commitSha','rosterHash','schemaHash','oracleVersion','dbSnapshotHash','sourcePlanHash','sourceTreeHash','runtimeTreeHash','migrationVersion','sourceConfigHash','adapterBundleHash','minimumStableCompanyCount'])assert.deepEqual(context.candidateRow[k],registered[k],'REGISTERED_16_FIELD:'+k);
 for(const[k,v]of Object.entries(control.databaseIdentity))assert.deepEqual(context.candidateRow[k],v,'DATABASE_IDENTITY:'+k);
@@ -62,6 +64,13 @@ function parseRows(s:string,start:number){let i=start;
  const literal=()=>{take("E'");let value='';while(i<s.length){let c=s[i++];if(c==='\\'){assert.equal(s[i++],'\\');value+='\\';}else if(c==="'"){if(s[i]==="'"){i++;value+="'";}else return value;}else value+=c;}throw Error('unclosed SQL literal');};
  const jsonLiteral=()=>{const v=JSON.parse(literal());take('::jsonb');return v;};
  if(s.startsWith("E'",i)){const rows=jsonLiteral();assert(Array.isArray(rows));return {rows,end:i};}
+ if(s.startsWith("(SELECT jsonb_agg(member.value || jsonb_build_object('id', ",i)){
+  take("(SELECT jsonb_agg(member.value || jsonb_build_object('id', ");const ids=jsonLiteral();
+  take("->(member.ordinality::int-1)) ORDER BY member.ordinality)\n    FROM jsonb_array_elements(source_result_data->'completenessCertificate'->'members') WITH ORDINALITY AS member(value, ordinality))");
+  const members=terminal.completenessCertificate.members;assert(Array.isArray(ids));assert.equal(ids.length,members.length);
+  const keys=['releaseCandidateId','batchId','sourceId','sourceResultId','setKind','jobKey','jobKeySha256','lifecycleStatus','missingCount'];
+  return {rows:members.map((member:any,n:number)=>({id:ids[n],...Object.fromEntries(keys.map(k=>[k,member[k]]))})),end:i};
+ }
  take('(SELECT jsonb_agg(');const common=jsonLiteral();assert(common&&!Array.isArray(common));take(' || jsonb_build_object(');const fields:any[]=[];
  while(!s.startsWith(') ORDER BY tuple.ordinality)',i)){if(fields.length)take(', ');const key=literal();take(', tuple.value->');const m=/^\d+/.exec(s.slice(i));assert(m);i+=m[0].length;assert(!fields.some(x=>x[0]===key));assert(!Object.hasOwn(common,key));fields.push([key,Number(m[0])]);}
  take(') ORDER BY tuple.ordinality)\n    FROM jsonb_array_elements(');const tuples=jsonLiteral();take(') WITH ORDINALITY AS tuple(value, ordinality))');assert(Array.isArray(tuples));
@@ -100,7 +109,7 @@ while(offset<middle.length){const s=middle.slice(offset);let stmt:string;let wri
  }else if(s.startsWith('UPDATE public."CrawlBatchSourceResult" AS target')){
   stmt=s;const where={id:terminal.id,releaseCandidateId:terminal.releaseCandidateId,batchId:terminal.batchId,sourceId:terminal.sourceId,atomicCommitState:'PENDING'};writes=[{kind:'terminal',stage:'REVIEW',where,data:original.sourceResultTerminalData(originalOrderedTerminal)}];uuidQueue=[];decoded.push({table:'CrawlBatchSourceResult',rows:[terminal]});
  }else throw Error('UNCONSUMED_BODY_AT_'+offset+':'+s.slice(0,120));
- const compiled=original.compileAtomicWriteStatements(writes,()=>{},true,terminal.finishedAt).join('\n');assert.equal(uuidQueue.length,0,'UUID queue mismatch');assert.equal(compiled,stmt,'ORIGINAL_MUTATION_TEMPLATE_MISMATCH');regenerated.push(compiled);offset+=stmt.length;if(offset<middle.length){assert.equal(middle[offset],'\n');offset++;}
+ const compiled=original.compileAtomicWriteStatements(writes,()=>{},true,terminal.finishedAt,undefined,terminal.completenessCertificate.members).join('\n');assert.equal(uuidQueue.length,0,'UUID queue mismatch');assert.equal(compiled,stmt,'ORIGINAL_MUTATION_TEMPLATE_MISMATCH');regenerated.push(compiled);offset+=stmt.length;if(offset<middle.length){assert.equal(middle[offset],'\n');offset++;}
 }
 assert.equal(regenerated.join('\n'),middle,'BODY_NOT_FULLY_RECONSTRUCTED');
 return {decoded,through,plan};
@@ -108,7 +117,7 @@ return {decoded,through,plan};
 const {decoded,through,plan}=verifyFullBody(sql);
 const negativeCases=[
  ['arbitrary inserted SQL',sql.replace('\nINSERT INTO public."EvidenceArtifact"','\nPERFORM pg_sleep(1);\nINSERT INTO public."EvidenceArtifact"')],
- ['weakened context guard',sql.replace("IF (current_context-'checkedAt') IS DISTINCT FROM (expected_context_data-'checkedAt')",'IF false')],
+ ['weakened context guard',sql.replace(/IF [^\n]* THEN RAISE EXCEPTION 'PILOT_CONTEXT_CHANGED'; END IF;/,"IF false THEN RAISE EXCEPTION 'PILOT_CONTEXT_CHANGED'; END IF;")],
  ['removed coordinator release',sql.replace("SET \"holderId\"='',\"heartbeatAt\"=clock_timestamp(),metadata='portable-quality-sync-v1:released'","SET \"holderId\"='retained',\"heartbeatAt\"=clock_timestamp(),metadata='portable-quality-sync-v1:released'")],
  ['arbitrary trailing SQL',sql+'\nSELECT 1;'],
  ['altered update target scope',sql.replace('target."sourceId" = E\''+cfg.sourceId+'\'','target."sourceId" = E\'source-other\'')],

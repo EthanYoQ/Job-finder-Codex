@@ -1,8 +1,8 @@
 {
-  "checkedAt": "2026-10-17T06:53:00Z",
+  "checkedAt": "2026-10-17T07:11:00Z",
   "entry": "run-original-functions.js",
   "routeCount": 36,
-  "connectedSourceCount": 7,
+  "connectedSourceCount": 17,
   "initialDueQueryCount": 1,
   "preCommitSourceDueRecheck": true,
   "actualSingleInvocation": {
@@ -18,7 +18,7 @@
     "modelDirectedIntermediateSteps": 0,
     "externalApprovalDuringRun": "OBSERVED_TOOL_MAPPING_UNCONFIRMED"
   },
-  "latestCandidate": 80,
+  "latestCandidate": 81,
   "latestAttempt": {
     "batchId": "dot-auto-merck-20261017T065003994Z",
     "phase": "CHECK_SOURCE_RESULT",
@@ -27,5 +27,10 @@
     "newWebPublication": false
   },
   "scheduledEndToEndValidated": false,
-  "full36Validated": false
+  "full36Validated": false,
+  "remainingUnconnectedSourceCount": 19,
+  "reviewFailureUsesOriginalNotDispatched": true,
+  "Cspc": "NOT_DISPATCHED_CURRENT_NATIVE_DOM_AND_DETAIL_OBSERVATIONS_MISSING",
+  "moduleIsFullProjectBackup": false,
+  "CspcQueryPoolIsNotActiveTotal": true
 }

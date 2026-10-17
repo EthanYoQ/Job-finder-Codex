@@ -36,7 +36,14 @@ async function serviceOriginalRelay(job) {
    if (request.kind === 'PUBLISH') {
     if (publication || prepared.status !== 'AWAITING_PARENT_REVIEW') throw Error('PUBLICATION_STATE');
     // Reuse the actual source's packet/raw/reader checks, without model intervention.
-    const reviewed = await reviewPublication(request, prepared);
+    let reviewed;
+    try { reviewed = await reviewPublication(request, prepared); }
+    catch (error) {
+     // Original relay outcome: this request has not reached sqlDispatch. Let the producer reconcile and exit.
+     await h.respond(request, relayDirectory, {status:'FAILED', outcome:'NOT_DISPATCHED', code:'ORIGINAL_REVIEW_FAILED'});
+     publication={status:'FAILED',outcome:'NOT_DISPATCHED'};
+     continue;
+    }
     if (reviewed?.requestId !== request.requestId || reviewed?.requestSha256 !== request.requestSha256)
      throw Error('REVIEW_REQUEST_MISMATCH');
     if (Date.now() >= Date.parse(request.payload.dispatchBefore) || Date.now() >= Date.parse(request.expiresAt))

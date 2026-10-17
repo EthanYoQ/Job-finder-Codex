@@ -1,0 +1,23 @@
+{
+  "checkedAt": "2026-10-17T07:06:40Z",
+  "sourceId": "source-cspc-social",
+  "batchId": "dot-auto-cspc-20261017T065540825Z",
+  "requestId": "487b5834-46ac-405c-b0c2-dcc5677411ba",
+  "state": "NOT_DISPATCHED",
+  "reason": "CURRENT_NATIVE_DOM_AND_DETAIL_OBSERVATIONS_MISSING",
+  "candidateIds": 37,
+  "returnedIds": 31,
+  "unexplainedCandidateIds": 6,
+  "independentRequiredJdObservationsPresent": false,
+  "readOutcome": {
+    "row": null,
+    "batch": null,
+    "holderId": ""
+  },
+  "workerExit": 1,
+  "newDatabaseCommit": false,
+  "newWebPublication": false,
+  "candidateCountIsActiveTotal": false,
+  "unexplainedCandidatesRemainUnknown": true,
+  "fourApiPlaceholderJdsRemainDetailInsufficient": true
+}
