@@ -409,7 +409,7 @@ function verifiedMembers(selected: NonNullable<PortableSourceSelection["selected
       key.startsWith(`${result.sourceId}:`) ? key.slice(result.sourceId.length + 1) : "");
     if (keys.some(key => !key) || hashCanonicalStringSet(keys) !== traversal.canonicalMatchKeySetSha256) throw new Error("PUBLIC_B_GRADE_FINAL_MEMBER_DRIFT");
   }
-  return selected.receipt.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA ? sets.VISIBLE : sets.CURRENT;
+  return selected.deltaReceipt || selected.receipt.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA ? sets.VISIBLE : sets.CURRENT;
 }
 
 function verifiedDeltaMembers(selected: AcceptedPortableSource, members: readonly PortableLifecycleMemberRow[],

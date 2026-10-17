@@ -1,8 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { createCipheriv, createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { candidateCompanies } from '../../src/data/companyRegistry';
 import { buildStagedSourceCrawlPlans, getPlanBySourceId, sourcePlanConfigSha256 } from '../../src/crawler/sourcePlan';
-import { createMokaSourceFetch, decryptMokaResponse, type MokaHttpRequest } from '../../src/crawler/mokaSourceFetch';
+import { createMokaSourceFetch, decryptMokaResponse, mokaDetailLocations, type MokaHttpRequest } from '../../src/crawler/mokaSourceFetch';
 import { runSourceCrawl } from '../../src/crawler/runSourceCrawl';
 import { issueAGradeOfficialTotalCertificate } from '../../src/crawler/completenessCertificate';
 const now='2026-10-02T15:00:00.000Z', iv='de7c21ed8d6f50fe', key='6e9ecb8e9c6c1a5e';
@@ -42,4 +43,45 @@ describe('GSK native Open requisition scope',()=>{
  it('rejects a frozen/paused record instead of silently discarding it',async()=>{const {result}=await crawl({pausedRow:true});expect(result.truth.completenessVerified).toBe(false);});
  it('rejects a bootstrap that no longer defines the official Req status field',async()=>{const {result}=await crawl({missingDefinition:true});expect(result.truth.completenessVerified).toBe(false);});
  it('rejects replay after the source policy is removed',async()=>{const {p,result}=await crawl();const changed=structuredClone(p);if(changed.adapterId==='official-json')delete changed.moka!.requisitionStatusPolicy;expect(certify(changed,result)).toMatchObject({status:'REJECTED'});});
+});
+
+const primaryLocationFixtures = JSON.parse(readFileSync('tests/fixtures/moka/gsk-primary-location-20261017.json', 'utf8')) as Array<{
+ detail: { id: string; orgId: string; title: string; status: string; locations: unknown[]; customFields: Record<string, {name: string; value: string}> };
+}>;
+describe('GSK official custom primary location', () => {
+ it.each(primaryLocationFixtures)('captures and strictly replays the actual official detail $detail.id', async ({detail}) => {
+  const p=plan();
+  const init={org:{id:'gsk'},siteId:'148067',mode:'social',aesIv:iv,jobCustomFields:[{id:273744,name:'Req status',type:'select_info',detail:['Open']}]};
+  const fetch=createMokaSourceFetch({now:()=>new Date(now),http:async request=>{
+   const body=request.method==='GET'
+    ? `<input id="init-data" value="${JSON.stringify(init).replaceAll('"','&quot;')}">`
+    : encrypted(request.url.endsWith('/job') ? {success:true,data:detail} : {success:true,data:{jobStats:{total:1},offset:0,jobs:[{id:detail.id,title:detail.title,status:'open',locations:[]}]}});
+   return {status:200,body,finalUrl:request.url.replace(/#.*$/,''),contentType:request.method==='GET'?'text/html':'application/json',capturedAt:now};
+  }});
+  const result=await runSourceCrawl(p,{fetch});
+  expect(result.truth.completenessVerified,JSON.stringify(result)).toBe(true);
+  expect(result.jobs).toHaveLength(1);
+  expect(result.jobs[0]).toMatchObject({locationRaw:'Shanghai Qiantan Plaza',cities:['Shanghai Qiantan Plaza']});
+  expect(certify(p,result)).toMatchObject({status:'CERTIFIED',certificate:{counts:{officialTotal:1,finalUniqueJobCount:1}}});
+ });
+ it('does not broaden source, site, country or conflicting location evidence', () => {
+  const original=primaryLocationFixtures[0]!.detail;
+  expect(mokaDetailLocations(original,'gsk','148067')).toEqual([{cityName:'Shanghai Qiantan Plaza'}]);
+  expect(mokaDetailLocations(original,'other','148067')).toEqual([]);
+  expect(mokaDetailLocations(original,'gsk','other')).toEqual([]);
+  for (const [id,name,value] of [
+   ['277551','Primary job posting location','London'],
+   ['279542','Primary location','Beijing'],
+   ['277551','Renamed field','Shanghai Qiantan Plaza'],
+   ['271770','Additional job posting locations','Singapore'],
+   ['277552','Additional locations','Hong Kong']
+  ] as const) {
+   const detail=structuredClone(original);detail.customFields[id]={name,value};
+   expect(mokaDetailLocations(detail,'gsk','148067')).toEqual([]);
+  }
+  const native={...original,locations:[{cityName:'London',country:'UK'}]};
+  expect(mokaDetailLocations(native,'gsk','148067')).toEqual(native.locations);
+  expect(mokaDetailLocations({...original,status:'closed'},'gsk','148067')).toEqual([]);
+  expect(mokaDetailLocations({...original,customFields:{}},'gsk','148067')).toEqual([]);
+ });
 });

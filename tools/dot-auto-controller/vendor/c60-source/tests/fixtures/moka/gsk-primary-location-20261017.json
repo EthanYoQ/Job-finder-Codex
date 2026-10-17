@@ -1,0 +1,76 @@
+[
+  {
+    "purpose": "PROJECTED_OFFICIAL_DETAIL_REGRESSION_FIXTURE_NOT_PRODUCTION_EVIDENCE",
+    "requestedUrl": "https://app.mokahr.com/api/outer/ats-apply/website/job",
+    "requestBody": {
+      "orgId": "gsk",
+      "siteId": "148067",
+      "jobId": "611b83af-d495-49e3-9d51-b7b307372f2e",
+      "locale": "zh-CN"
+    },
+    "httpStatus": 200,
+    "capturedAt": "2026-10-17T08:02:03.444Z",
+    "detail": {
+      "id": "611b83af-d495-49e3-9d51-b7b307372f2e",
+      "orgId": "gsk",
+      "title": "Finance Director, Vaccine, Strategic Partnership and Pipeline",
+      "status": "open",
+      "locations": [],
+      "customFields": {
+        "271770": {
+          "name": "Additional job posting locations",
+          "value": ""
+        },
+        "277551": {
+          "name": "Primary job posting location",
+          "value": "Shanghai Qiantan Plaza"
+        },
+        "277552": {
+          "name": "Additional locations",
+          "value": ""
+        },
+        "279542": {
+          "name": "Primary location",
+          "value": "Shanghai Qiantan Plaza"
+        }
+      }
+    }
+  },
+  {
+    "purpose": "PROJECTED_OFFICIAL_DETAIL_REGRESSION_FIXTURE_NOT_PRODUCTION_EVIDENCE",
+    "requestedUrl": "https://app.mokahr.com/api/outer/ats-apply/website/job",
+    "requestBody": {
+      "orgId": "gsk",
+      "siteId": "148067",
+      "jobId": "792bb379-d309-44c3-98b5-50bfb04da0b9",
+      "locale": "zh-CN"
+    },
+    "httpStatus": 200,
+    "capturedAt": "2026-10-17T08:04:11.397Z",
+    "detail": {
+      "id": "792bb379-d309-44c3-98b5-50bfb04da0b9",
+      "orgId": "gsk",
+      "title": "Finance Associate Director, Business Partner (IL5)",
+      "status": "open",
+      "locations": [],
+      "customFields": {
+        "271770": {
+          "name": "Additional job posting locations",
+          "value": ""
+        },
+        "277551": {
+          "name": "Primary job posting location",
+          "value": "Shanghai Qiantan Plaza"
+        },
+        "277552": {
+          "name": "Additional locations",
+          "value": ""
+        },
+        "279542": {
+          "name": "Primary location",
+          "value": "Shanghai Qiantan Plaza"
+        }
+      }
+    }
+  }
+]

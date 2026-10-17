@@ -1,7 +1,7 @@
 {
   "main": {
     "readerFileHashes": {
-      "src/domain/portablePublicSnapshot.ts": "9d45413701e4cd72c53fcfdf3c032d202a5e3a13186c20b07fc067b0dea09de1",
+      "src/domain/portablePublicSnapshot.ts": "081a5e8cc590b7b0ced83a437f7287aa3caf19849e33c0dd954d81562c341af0",
       "src/domain/jobProjectionDeltaReceipt.ts": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
       "src/db/portablePublicSnapshotRepository.ts": "c877eb38a20554ea965a6772b5291b17c1435d6d2f72a90b2c4d7e651eac138b",
       "src/crawler/sourceQualityAdmission.ts": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",
@@ -30,7 +30,7 @@
   },
   "fallback": {
     "readerFileHashes": {
-      "src/domain/portablePublicSnapshot.ts": "9d45413701e4cd72c53fcfdf3c032d202a5e3a13186c20b07fc067b0dea09de1",
+      "src/domain/portablePublicSnapshot.ts": "081a5e8cc590b7b0ced83a437f7287aa3caf19849e33c0dd954d81562c341af0",
       "src/domain/jobProjectionDeltaReceipt.ts": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
       "src/db/portablePublicSnapshotRepository.ts": "c877eb38a20554ea965a6772b5291b17c1435d6d2f72a90b2c4d7e651eac138b",
       "src/crawler/sourceQualityAdmission.ts": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",

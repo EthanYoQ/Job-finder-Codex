@@ -6,7 +6,7 @@ import {applySanofiNativeProjection} from "./sanofiNativeQuality";
 import { isPfizerWorkdayTraversalPlan, replayPfizerWorkdayTraversal, PFIZER_PAGINATION_POLICY, PFIZER_CHANNEL } from "./pfizerWorkdayTraversal";
 import { isBayerMedicalTraversalPlan, replayBayerMedicalTraversal } from "./bayerMokaScope";
 import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail } from "./rocheChinaQuality";
-import { mokaNativeListScope } from "./mokaSourceFetch";
+import { mokaDetailLocations, mokaNativeListScope } from "./mokaSourceFetch";
 import { auditRedseaCandidateScope } from "./redseaCandidateScope";
 import { hasBeisenDetailDatePlan, replayBeisenDetailDates } from "./beisenDetailDates";
 import { replayWorkdayMainlandQuality } from "./workdayMainlandQuality";
@@ -2100,7 +2100,7 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
       strictMokaStringValue(detail.orgId) !== config.expectedOrgId ||
       (detailSiteId !== config.expectedSiteId &&
         !(detailSiteId === undefined && config.allowDetailSiteIdOmission === true)) ||
-      strictMokaCities(detail.locations).length === 0) return false;
+      strictMokaCities(mokaDetailLocations(detail, config.expectedOrgId, config.expectedSiteId)).length === 0) return false;
   }
   return true;
 }
