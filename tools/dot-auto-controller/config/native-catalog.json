@@ -259,9 +259,9 @@
     },
     {
       "sourceId": "source-sanofi-china-social",
-      "route": "TRUE_A",
-      "sourceConfigSha256": "106fb80ad4e6c953d41a2dd67156f42e1bc4416766c98912a60ad59722df97c3",
-      "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
+      "route": "TRUE_B",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee",
+      "c60Use": "KNOWN_SOURCE_FIX_RESTORED_OFFLINE_VERIFIED",
       "executionAuthorizedByAudit": false
     },
     {

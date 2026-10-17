@@ -8,6 +8,7 @@ import { P0_LAUNCH_MANIFEST, selectLaunchCompanies } from "../src/release/launch
 import { buildFixedCohortCompletenessAudit, type FixedCohortAuditSourceInput } from
   "../src/release/fixedCohortCompletenessAudit";
 import { projectFailedFixedCohortAuditSource } from "../src/release/fixedCohortAuditSourceProjection";
+import { bindSanofiPersistedArtifacts, type PortableSourceResultRow } from "../src/db/portablePublicSnapshotRepository";
 
 const outputPath = process.env.FIXED_COHORT_AUDIT_PATH ?? ".runtime/audit/fixed-cohort-completeness.json";
 const prisma = new PrismaClient();
@@ -36,6 +37,8 @@ try {
       include: { sourceResults: { include: { evidenceArtifacts: { orderBy: { path: "asc" } },
         paginationEvidence: { orderBy: { sequence: "asc" } }, observations: true } } }
     });
+    // The shared binder uses only persisted source identity/state and receipt fields.
+    await bindSanofiPersistedArtifacts(transaction, batch.sourceResults as unknown as PortableSourceResultRow[]);
     return { authority, batch };
   }, { isolationLevel: "RepeatableRead", maxWait: 10_000, timeout: 30_000 });
   const observedSourceIds = batch.sourceResults.map(({ sourceId }) => sourceId);
@@ -65,6 +68,7 @@ try {
       return missingSource(plan);
     }
     const grade = certificateGrade(row.completenessCertificate);
+    const sanofiArtifacts = (row as typeof row & Pick<PortableSourceResultRow, "sanofiArtifacts">).sanofiArtifacts;
     const declaredPagesByChannel = new Map<string, number | null>();
     for (const page of row.paginationEvidence) {
       const key = page.channelId ?? "\0SOURCE", current = declaredPagesByChannel.get(key);
@@ -73,12 +77,13 @@ try {
     }
     const totalPages = declaredPagesByChannel.size > 0 &&
       [...declaredPagesByChannel.values()].every((value): value is number => value !== null)
-      ? [...declaredPagesByChannel.values()].reduce((sum, value) => sum + value, 0) : null;
+      ? [...declaredPagesByChannel.values()].reduce<number>((sum, value) => sum + value!, 0) : null;
     return {
       sourceResultId: row.id, companyId: plan.company.id, sourceId: plan.source.id,
       adapterFamily: adapterFamily(plan), grade, sourceConfigSha256: row.sourceConfigHash,
       canonicalJobSetSha256: row.canonicalOutputSetSha256, certificate: row.completenessCertificate,
       canonicalRawEvidenceIdSetSha256: row.observations[0]!.canonicalRawSha256,
+      ...(sanofiArtifacts ? { sanofiArtifacts } : {}),
       certificateSha256: row.completenessCertificateSha256, officialSurfaceIds: row.officialSurfaceIds,
       plannedSurfaceIds: plan.source.surfaceId ? [plan.source.surfaceId] : [],
       plannedChannelIds: plan.expectedChannels?.map(({ channelId }) => channelId) ?? [],

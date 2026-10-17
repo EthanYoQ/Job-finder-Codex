@@ -12,6 +12,7 @@ import { listCurrentPrismaMigrations, prismaMigrationManifestSha256 } from "../s
 import { parseFixedCohortCompletenessAuditReport } from "../src/release/fixedCohortCompletenessAudit";
 import { readFormalQualificationRoundOneReceipt } from "../src/release/formalQualificationState";
 import { selectQualificationPair } from "../src/release/formalQualificationTiming";
+import { bindSanofiPersistedArtifacts, type PortableSourceResultRow } from "../src/db/portablePublicSnapshotRepository";
 
 const prisma = new PrismaClient();
 const receiptPath = required("LAUNCH_RECEIPT_PATH");
@@ -32,6 +33,9 @@ try {
         finishedAt: { not: null } }, orderBy: [{ finishedAt: "desc" }, { id: "desc" }], take: 10,
       include: { sourceResults: { orderBy: { sourceId: "asc" }, include: { observations: true } } }
     });
+    const selectedBatches = selectQualificationPair(batches, evaluatedAt);
+    // The shared binder uses only persisted source identity/state and receipt fields.
+    await bindSanofiPersistedArtifacts(transaction, selectedBatches.flatMap(({ sourceResults }) => sourceResults) as unknown as PortableSourceResultRow[]);
     const migrationRows = await transaction.$queryRaw<Array<{ migrationName: string; checksum: string;
       finishedAt: Date | null; rolledBackAt: Date | null }>>(Prisma.sql`
       SELECT migration_name AS "migrationName", checksum, finished_at AS "finishedAt", rolled_back_at AS "rolledBackAt"
@@ -41,7 +45,7 @@ try {
       SELECT EXISTS (SELECT 1 FROM "AdminUser" WHERE email = ${required("ADMIN_EMAIL").toLowerCase()}
         AND "passwordHash" = ${required("ADMIN_PASSWORD_HASH")} AND "disabledAt" IS NULL AND role = 'ADMIN') AS initialized
     `);
-    return { authority, batches: selectQualificationPair(batches, evaluatedAt),
+    return { authority, batches: selectedBatches,
       bootstrapReady: migrationHistoryMatches(migrationRows, migrations) && adminRows[0]?.initialized === true };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: 10_000, timeout: 30_000 });
   const { authority, batches } = snapshot;
@@ -52,12 +56,14 @@ try {
     adapterBundleSha256: batch.adapterBundleSha256!, status: batch.status,
     finishedAt: batch.finishedAt?.toISOString() ?? "", certificates: batch.sourceResults.map((source): LaunchCertificateEvidence => {
       const company = manifestBySource.get(source.sourceId);
+      const sanofiArtifacts = (source as typeof source & Pick<PortableSourceResultRow, "sanofiArtifacts">).sanofiArtifacts;
       if (source.observations.length !== 1 || source.observations[0]!.sourceResultId !== source.id ||
           !source.observations[0]!.canonicalRawSha256) throw new Error("Launch certificate raw observation binding is incomplete");
       return { sourceResultId: source.id, companyId: company?.companyId ?? "", sourceId: source.sourceId,
         category: company?.category ?? "DOMESTIC_PHARMA", grade: certificateGrade(source.completenessCertificate),
         sourceConfigSha256: source.sourceConfigHash, canonicalJobSetSha256: source.canonicalOutputSetSha256 ?? "",
         canonicalRawEvidenceIdSetSha256: source.observations[0]!.canonicalRawSha256,
+        ...(sanofiArtifacts ? { sanofiArtifacts } : {}),
         certificate: source.completenessCertificate, certificateSha256: source.completenessCertificateSha256 };
     })
   }));

@@ -24,7 +24,7 @@ export const NATIVE_MODE='NATIVE_PORTABLE_CONNECTOR_V1';
 export const AB_MODE='NATIVE_AB_CONNECTOR_V1';
 export const entrypointsFor=c=>c.kind===AB_MODE?{...ENTRYPOINTS,producer:'scripts/p0-cloud-source-pilot.ts'}:ENTRYPOINTS;
 export const CATALOG_FILE=path.resolve(PRODUCER_ROOT,'../../config/native-catalog.json');
-export const CATALOG_SHA256='ee84807ec4cd79b8290ed7a1148ba121b143a7182091e01c33aff05cb61edc34';
+export const CATALOG_SHA256='88a131892a7760df77c1c3310d61e1a2eccee14b1d21646c7915dee60b1d0973';
 export const SOURCE='source-takeda-china-social';
 export const SOURCE_HASH='048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f';
 export const PROJECT='yiopvxysxrtrnvqxwgbx';
@@ -67,14 +67,14 @@ const freeze=o=>{if(o&&typeof o==='object'){Object.values(o).forEach(freeze);Obj
 // The producer build hashes this reviewed constant; the outer catalogue must match
 // these exact bytes. A mutable outer catalogue cannot widen the source allowlist.
 export function nativeCatalogue(){
- const r=readChecked(CATALOG_FILE,{mode:0o644,max:12326});
- if(r.bytes.length!==12326||hash(r.bytes)!==CATALOG_SHA256)fail('HOST_CATALOG_DRIFT');
+ const r=readChecked(CATALOG_FILE,{mode:0o644,max:12311});
+ if(r.bytes.length!==12311||hash(r.bytes)!==CATALOG_SHA256)fail('HOST_CATALOG_DRIFT');
  const rows=json(r.bytes).routingCatalogue;
- if(!Array.isArray(rows)||rows.length!==36||new Set(rows.map(r=>r.sourceId)).size!==36||rows.filter(r=>r.route==='PORTABLE').length!==20||rows.filter(r=>r.route==='TRUE_A').length!==13||rows.filter(r=>r.route==='TRUE_B').length!==3)fail('HOST_CATALOG_SCOPE');
+ if(!Array.isArray(rows)||rows.length!==36||new Set(rows.map(r=>r.sourceId)).size!==36||rows.filter(r=>r.route==='PORTABLE').length!==20||rows.filter(r=>r.route==='TRUE_A').length!==12||rows.filter(r=>r.route==='TRUE_B').length!==4)fail('HOST_CATALOG_SCOPE');
  return freeze(rows);
 }
 export function portableCatalogue(){return nativeCatalogue().filter(r=>r.route==='PORTABLE');}
-export const isSupportedABRoute=r=>r.route==='TRUE_A'||r.route==='TRUE_B'&&['source-pfizer-china-social','source-bayer-healthcare-social','source-servier-china-social'].includes(r.sourceId);
+export const isSupportedABRoute=r=>r.route==='TRUE_A'||r.route==='TRUE_B'&&['source-pfizer-china-social','source-bayer-healthcare-social','source-servier-china-social','source-sanofi-china-social'].includes(r.sourceId);
 export function abCatalogue(){return nativeCatalogue().filter(isSupportedABRoute);
 }
 let captured,snapshot,fileIdentity;

@@ -1,3 +1,4 @@
+import {isSanofiChinesePlan,createSanofiChineseSourceFetch} from "./sanofiChineseNative";
 import { projectKelunMainlandFetch } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,createSanofiNativeSourceFetch} from "./sanofiNativeQuality";
 import { acquireNovartisOfficialPresence, NOVARTIS_PRESENCE_UNKNOWN } from "./novartisOfficialPresence";
@@ -31,6 +32,8 @@ export interface HttpHtmlRequest {
   headers: Record<string, string>;
   body?: string;
   evidenceChannelId?: string;
+  /** Explicitly prohibit redirects for a narrowly bound authority request. */
+  redirect?: "error";
 }
 
 export interface HttpHtmlResponse {
@@ -69,6 +72,7 @@ function createUnpartitionedHttpHtmlSourceFetch(
   deps: HttpHtmlSourceFetchDeps = {}
 ): SourceFetchFunction {
   return async (plan) => {
+    if (isSanofiChinesePlan(plan)) return createSanofiChineseSourceFetch(deps)(plan);
     if (hasSanofiNativePolicy(plan)) return createSanofiNativeSourceFetch(deps)(plan);
     const capturedAt = (deps.now ?? (() => new Date()))().toISOString();
     const interactions: Array<{ request: HttpHtmlRequest; response: HttpHtmlResponse }> = [];
@@ -757,7 +761,7 @@ function buildPageUrl(
   return url.toString();
 }
 
-async function defaultHttpHtmlClient(request: HttpHtmlRequest): Promise<HttpHtmlResponse> {
+export async function defaultHttpHtmlClient(request: HttpHtmlRequest): Promise<HttpHtmlResponse> {
   try {
     return await fetchHtml(request);
   } catch (error) {

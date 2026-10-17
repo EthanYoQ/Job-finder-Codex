@@ -43,7 +43,7 @@ finally:
 # A fixed, reviewed catalogue, never a JSON-selected path or executable. Node's
 # binding loader independently verifies the same bytes, closed keys and source.
 CATALOG = PRODUCER.parent.parent / 'config/native-catalog.json'
-CATALOG_SHA = 'ee84807ec4cd79b8290ed7a1148ba121b143a7182091e01c33aff05cb61edc34'
+CATALOG_SHA = '88a131892a7760df77c1c3310d61e1a2eccee14b1d21646c7915dee60b1d0973'
 for p in CATALOG.parents:
     st = p.lstat()
     if not stat.S_ISDIR(st.st_mode) or st.st_mode & 0o022 or st.st_uid not in [uid, 0]:
@@ -51,7 +51,7 @@ for p in CATALOG.parents:
 fd = os.open(CATALOG, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 try:
     before = os.fstat(fd)
-    if not stat.S_ISREG(before.st_mode) or before.st_uid != uid or before.st_nlink != 1 or stat.S_IMODE(before.st_mode) != 0o644 or before.st_size != 12326:
+    if not stat.S_ISREG(before.st_mode) or before.st_uid != uid or before.st_nlink != 1 or stat.S_IMODE(before.st_mode) != 0o644 or before.st_size != 12311:
         fail('HOST_CATALOG_FILE')
     data = os.read(fd, before.st_size + 1)
     if identity(before) != identity(os.fstat(fd)) or identity(before) != identity(CATALOG.lstat()) or hashlib.sha256(data).hexdigest() != CATALOG_SHA:
@@ -60,7 +60,7 @@ finally:
     os.close(fd)
 rows = json.loads(data)['routingCatalogue']
 source = os.environ.get('JOBFINDER_CLOUD_SOURCE_ID', '')
-supported = lambda r: r['route'] == 'PORTABLE' or r['route'] == 'TRUE_A' or (r['route'] == 'TRUE_B' and r['sourceId'] in ['source-pfizer-china-social', 'source-bayer-healthcare-social', 'source-servier-china-social'])
+supported = lambda r: r['route'] == 'PORTABLE' or r['route'] == 'TRUE_A' or (r['route'] == 'TRUE_B' and r['sourceId'] in ['source-pfizer-china-social', 'source-bayer-healthcare-social', 'source-servier-china-social', 'source-sanofi-china-social'])
 if len(rows) != 36 or sum(r['route'] == 'PORTABLE' for r in rows) != 20 or source not in {r['sourceId'] for r in rows if supported(r)}:
     fail('HOST_SOURCE_ENV')
 # No inherited NODE_OPTIONS/NODE_PATH/preload or alternate source/loader escapes.

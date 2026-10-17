@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { verifyAGradeCompletenessCertificateReceipt } from "../crawler/completenessCertificate";
-import { verifyBGradeTraversalCertificateReceipt } from "../crawler/traversalCertificate";
+import { verifyBGradeTraversalCertificateReceipt, type SanofiArtifactCommitment } from "../crawler/traversalCertificate";
 import { FORMAL_QUALIFICATION_MAXIMUM_WINDOW_MS, FORMAL_QUALIFICATION_MINIMUM_SEPARATION_MS } from "./formalQualificationTiming";
 import {
   P0_LAUNCH_MANIFEST,
@@ -20,6 +20,7 @@ export interface LaunchCertificateEvidence {
   canonicalRawEvidenceIdSetSha256: string;
   certificate: unknown | null;
   certificateSha256: string | null;
+  sanofiArtifacts?: readonly SanofiArtifactCommitment[];
 }
 
 export interface LaunchBatchEvidence {
@@ -254,7 +255,9 @@ function validateCertificate(certificate: LaunchCertificateEvidence, batch: Laun
       companyId: certificate.companyId,
       sourceConfigSha256: certificate.sourceConfigSha256,
       canonicalJobSetSha256: certificate.canonicalJobSetSha256,
-      canonicalRawEvidenceIdSetSha256: certificate.canonicalRawEvidenceIdSetSha256
+      canonicalRawEvidenceIdSetSha256: certificate.canonicalRawEvidenceIdSetSha256,
+      ...(certificate.sourceId === "source-sanofi-china-social" && certificate.sanofiArtifacts
+        ? { sanofiArtifacts: certificate.sanofiArtifacts } : {})
     };
     if (certificate.grade === "A") {
       verifyAGradeCompletenessCertificateReceipt({

@@ -1,3 +1,4 @@
+import {isSanofiChinesePlan,replaySanofiChineseNative,SANOFI_CN_PAGINATION_POLICY} from "./sanofiChineseNative";
 import { reviewedAbbvieCity } from "./abbvieChinaRowScope";
 import { exactKelunMainlandPlan, replayKelunMainlandScope } from "./kelunMainlandScope";
 import { isServierTraversalPlan, replayServierTraversal } from "./servierMokaScope";
@@ -259,6 +260,16 @@ export async function runSourceCrawl(
         ...(!replay.detailComplete || replay.scopeReviewRequired ? {completenessBlockerReason: replay.scopeReviewRequired ? "ASTRAZENECA_SOURCE_SCOPE_REVIEW" : "ASTRAZENECA_DETAIL_UNRESOLVED"} : {})
       }};
       return finalizeTruth(withFetchEvidence(result, fetchResult), fetchResult, plan);
+    }
+    if (isSanofiChinesePlan(plan) && fetchResult.fetchEvidence) {
+      const replay = replaySanofiChineseNative(plan,fetchResult.fetchEvidence,deps.isBaseline ?? true);
+      const normalized = reconcileAdapterRows(replay.jobs.length,replay.jobs.length,replay.jobs,[]);
+      const result:CrawlAdapterResult = {status:"SUCCESS",...normalized,observation:{
+        id:`${plan.source.id}:cn-native:${fetchResult.capturedAt}`,sourceId:plan.source.id,crawledAt:new Date(fetchResult.capturedAt),
+        successful:true,structuredJobCount:replay.jobs.length,stableRequiredFields:["company","title","officialUrl","location"],
+        completenessStatus:"NEEDS_MANUAL_COMPLETENESS_REVIEW"
+      }};
+      return finalizeTruth(withFetchEvidence(result,fetchResult),fetchResult,plan);
     }
     const htmlResult = reconcileResult(htmlTableAdapter.extract({
       ...baseInput, html: fetchResult.html, table: plan.table
@@ -524,6 +535,13 @@ function strictCompletenessGate(
     const evidence = parsePersistentSourceFetchEvidence(fetchResult.fetchEvidence);
     if (plan.executionAuthority !== "STAGED") return strictGateTrace(plan, "EXECUTION_AUTHORITY");
     validateExecutablePlanChannelBinding(plan);
+    if (isSanofiChinesePlan(plan)) {
+      const checked=replaySanofiChineseNative(plan,evidence,outputJobs[0]?.isBaseline ?? true);
+      const replay=evaluatePaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,...SANOFI_CN_PAGINATION_POLICY});
+      return isDeepStrictEqual(checked.jobs,outputJobs)&&replay.safeCompleteness&&replay.verifiedEligible&&
+        isDeepStrictEqual(replay,fetchResult.paginationEvaluation)&&ledger.adapterLosses.length===0&&ledger.collisionGroups.length===0&&
+        ledger.rawInputCount===outputJobs.length&&ledger.dedupeInputCount===outputJobs.length&&ledger.dedupeOutputCount===outputJobs.length;
+    }
     if (isPfizerWorkdayTraversalPlan(plan)) {
       const replay = evaluatePaginationEvidence({evidence, expectedChannelIds:[], filteredOutput:true, ...PFIZER_PAGINATION_POLICY});
       return replay.verifiedEligible && replay.paginationTraceSha256 === fetchResult.paginationEvaluation.paginationTraceSha256 &&
@@ -661,6 +679,7 @@ function strictGateTrace(_plan: SourceCrawlPlan, _reason: string): false {
 }
 
 export function supportsStrictOfficialTotalCertificate(plan: SourceCrawlPlan): boolean {
+  if (isSanofiChinesePlan(plan)) return false;
   if (isServierTraversalPlan(plan)) return false;
   if (plan.adapterId === "html-table") {
     if (plan.table.strictEmbeddedJsonZero?.kind === "TEVA_SMARTAPPLY_CHINA") return true;

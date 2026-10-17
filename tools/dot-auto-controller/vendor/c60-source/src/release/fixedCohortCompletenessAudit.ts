@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { P0_LAUNCH_MANIFEST, launchManifestIdentity, validateLaunchManifest } from "./launchManifest";
 import { certificateSha256 } from "./authoritativeLaunchReceipt";
 import { verifyAGradeCompletenessCertificateReceipt } from "../crawler/completenessCertificate";
-import { verifyBGradeTraversalCertificateReceipt } from "../crawler/traversalCertificate";
+import { verifyBGradeTraversalCertificateReceipt, type SanofiArtifactCommitment } from "../crawler/traversalCertificate";
 import { B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES } from "../crawler/independentTraversalDiagnostics";
 
 export type AuditFailureClass = "PRODUCT_DEFECT" | "SOURCE_TEMPORARILY_UNAVAILABLE" | "CONFIGURATION_ERROR" | "EVIDENCE_INSUFFICIENT";
@@ -14,6 +14,7 @@ export interface FixedCohortAuditSourceInput {
   plannedSurfaceIds: readonly string[]; plannedChannelIds: readonly string[];
   officialSurfaceIds: readonly string[]; officialChannelIds: readonly string[];
   evidenceArtifacts: readonly { id: string; path: string; sha256: string }[];
+  sanofiArtifacts?: readonly SanofiArtifactCommitment[];
   paginationEvidence: readonly { artifactId: string; sequence: number; channelId: string | null; requestedCursor: string | null;
     returnedCursor: string | null; requestedOffset: number | null; returnedOffset: number | null;
     requestedPage: number | null; returnedPage: number | null; requestedPageSize: number | null;
@@ -157,7 +158,10 @@ const PAGINATION_KEYS = ["anomalyCodes", "artifactId", "capturedAt", "channelId"
   "returnedOffset", "returnedPage", "returnedPageSize", "sequence", "termination", "validJobIdSetSha256"] as const;
 
 function parseAuditCompany(value: unknown): FixedCohortCompletenessAuditReport["companies"][number] {
-  if (!isRecord(value) || !exactKeys(value, SOURCE_KEYS) || !stringField(value.sourceResultId) ||
+  const hasSanofiArtifacts = isRecord(value) && Object.prototype.hasOwnProperty.call(value, "sanofiArtifacts");
+  if (!isRecord(value) || !exactKeys(value, hasSanofiArtifacts ? [...SOURCE_KEYS, "sanofiArtifacts"] : SOURCE_KEYS) ||
+      (hasSanofiArtifacts && (value.sourceId !== "source-sanofi-china-social" || value.grade !== "B" ||
+        !Array.isArray(value.sanofiArtifacts) || !value.sanofiArtifacts.every(validSanofiArtifactCommitment))) || !stringField(value.sourceResultId) ||
       !stringField(value.companyId) || !stringField(value.sourceId) || !stringField(value.adapterFamily) ||
       !["A", "B", "C"].includes(String(value.grade)) || !stringField(value.sourceConfigSha256) ||
       !nullableString(value.certificateSha256) || !nullableSha256(value.canonicalJobSetSha256) ||
@@ -193,6 +197,12 @@ function stripDerivedAuditFields(
 function validEvidenceArtifact(value: unknown): boolean {
   return isRecord(value) && exactKeys(value, ["id", "path", "sha256"]) && stringField(value.id) &&
     stringField(value.path) && stringField(value.sha256);
+}
+function validSanofiArtifactCommitment(value: unknown): boolean {
+  const keys = ["releaseCandidateId", "batchId", "sourceResultId", "sourceId", "kind", "extractorLocator", "sha256"];
+  return isRecord(value) && exactKeys(value, keys) && keys.every(key => stringField(value[key])) &&
+    value.sourceId === "source-sanofi-china-social" && ["ORACLE_RESULT", "ATS_PAGE"].includes(String(value.kind)) &&
+    /^[0-9a-f]{64}$/u.test(String(value.sha256));
 }
 function validPaginationEvidence(value: unknown): boolean {
   return isRecord(value) && exactKeys(value, PAGINATION_KEYS) && stringField(value.artifactId) &&
@@ -238,7 +248,9 @@ function certificateValid(source: FixedCohortAuditSourceInput, releaseCandidateI
       channelIds: source.plannedChannelIds,
       ...(source.canonicalRawEvidenceIdSetSha256 ? {
         canonicalRawEvidenceIdSetSha256: source.canonicalRawEvidenceIdSetSha256
-      } : {}) };
+      } : {}),
+      ...(source.sourceId === "source-sanofi-china-social" && source.sanofiArtifacts
+        ? { sanofiArtifacts: source.sanofiArtifacts } : {}) };
   try {
     if (source.grade === "A") verifyAGradeCompletenessCertificateReceipt({ certificate: source.certificate,
       certificateSha256: source.certificateSha256, expected });

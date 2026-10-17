@@ -178,8 +178,18 @@ function publicationContextQuery(candidateId:string,sourceAdmissionPolicy?:typeo
  const portable=sourceAdmissionPolicy===SOURCE_QUALITY_POLICY_ID,bGrade=!portable&&requiresBGradeTraversalCertificate(readyPlan!);
  const certificate=portable?SOURCE_QUALITY_RECEIPT_SCHEMA:bGrade?'b-grade-independent-traversal-v2':'a-grade-official-total-v2';
  const certificateSql=incremental?`(CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END)`:`r."completenessCertificate"`;
+ const sanofiArtifacts=bGrade&&SOURCE==='source-sanofi-china-social'?`,coalesce((
+ SELECT jsonb_agg(jsonb_build_object('releaseCandidateId',a."releaseCandidateId",'batchId',a."batchId",'sourceResultId',a."sourceResultId",'sourceId',a."sourceId",'kind',a.kind,'extractorLocator',a."extractorLocator",'sha256',a.sha256) ORDER BY a.kind,a."extractorLocator",a.id)
+ FROM public."EvidenceArtifact" a
+ WHERE a."releaseCandidateId"=r."releaseCandidateId" AND a."batchId"=r."batchId" AND a."sourceResultId"=r.id AND a."sourceId"=r."sourceId"
+ AND ((a.kind='ORACLE_RESULT' AND a."extractorLocator"='sanofi-cn-module-anomalies-v2') OR (a.kind='ATS_PAGE' AND a."extractorLocator" IN (
+ SELECT 'sanofi-cn-detail-v2|request-contract-v2|sha256:'||encode(extensions.digest(convert_to(
+ '{"body":null,"coordinate":{"id":'||to_json(h->>'id')::text||'},"family":"html","method":"GET","role":"sanofi-cn-detail","url":'||to_json(h->>'officialUrl')::text||',"v":2}','UTF8'),'sha256'),'hex')
+ FROM jsonb_array_elements(coalesce((${certificateSql}#>>'{mainTraversal,sanofiIdentityProof,oracleBody}')::jsonb->'entries','[]'::jsonb)) h
+ WHERE h->>'code'='SANOFI_CN_FOREIGN_HEADER_NATIVE_AUTHORITY'
+ )))),'[]'::jsonb) AS "evidenceArtifacts"`:'';
  return `WITH matching AS (
- SELECT r.*${bGrade||incremental?`,coalesce((SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id),'[]'::jsonb) AS observations`:''} FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
+ SELECT r.*${bGrade||incremental?`,coalesce((SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id),'[]'::jsonb) AS observations`:''}${sanofiArtifacts} FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
  WHERE r."sourceId"=${text(SOURCE)} AND r."sourceConfigHash"=${text(CLOUD_PILOT_SOURCE.sourceConfigSha256)}
  AND r."completenessState"='VERIFIED' AND r."atomicCommitState"='COMMITTED'
  AND r."completenessCertificateSha256" IS NOT NULL
@@ -246,7 +256,7 @@ export function prepareCloudPilotDbStartedControl(input:CloudPilotDbStartedInput
  -- The historical advisory-only writers do not share our owner row. These
  -- short, self-exclusive table locks also exclude inserts and Batch.kind
  -- changes until commit. Ordinary SELECT remains available.
- LOCK TABLE public."Job",public."CrawlBatchSourceResult",public."CrawlBatch"${requiresBGradeTraversalCertificate(plan)?',public."CrawlObservation"':''} IN SHARE ROW EXCLUSIVE MODE;
+ LOCK TABLE public."Job",public."CrawlBatchSourceResult",public."CrawlBatch"${requiresBGradeTraversalCertificate(plan)?',public."CrawlObservation"':''}${!sourceAdmissionPolicy&&SOURCE==='source-sanofi-china-social'?',public."EvidenceArtifact"':''} IN SHARE ROW EXCLUSIVE MODE;
  ${historyGuard(input)}
  ${candidateGuard(c)}
  PERFORM 1 FROM public."RecruitmentSource" r WHERE ${matches('RecruitmentSource','r',sourceConfig)} FOR SHARE;

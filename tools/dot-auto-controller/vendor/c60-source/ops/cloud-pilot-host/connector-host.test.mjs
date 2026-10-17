@@ -114,7 +114,7 @@ function nativeRequest(id,change={}){const row=portableCatalogue().find(r=>r.sou
 const astellas='source-astellas-china-social',biogen='source-biogen-china-social';
 test('native catalogue is the exact closed 20 of the actual 36 sources',()=>{
  const all=JSON.parse(fs.readFileSync(CATALOG_FILE)).routingCatalogue,portable=portableCatalogue();
- assert.equal(all.length,36);assert.equal(portable.length,20);assert.equal(all.filter(r=>r.route==='TRUE_A').length,13);assert.equal(all.filter(r=>r.route==='TRUE_B').length,3);
+ assert.equal(all.length,36);assert.equal(portable.length,20);assert.equal(all.filter(r=>r.route==='TRUE_A').length,12);assert.equal(all.filter(r=>r.route==='TRUE_B').length,4);
  for(const row of portable){const selected=nativeBinding(row.sourceId,c=>{c.control.candidate.id='OFFLINE_CLOSED_'+row.sourceId;});const r=spawnSync(process.execPath,['--input-type=module','-e',`import {loadBinding} from ${JSON.stringify(path.join(testRoot,'connector-host-binding.mjs'))}; console.log(loadBinding().sourceId);`],{cwd:PRODUCER_ROOT,env:env({[SELECTOR]:selected,JOBFINDER_CLOUD_SOURCE_ID:row.sourceId}),encoding:'utf8'});assert.equal(r.status,0,r.stderr);assert.equal(r.stdout.trim(),row.sourceId);}
 });
 test('two PORTABLE sources use the real original compiler and derived owner/hash',async()=>{

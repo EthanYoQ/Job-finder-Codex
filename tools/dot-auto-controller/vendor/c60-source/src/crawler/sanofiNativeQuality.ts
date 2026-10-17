@@ -33,7 +33,7 @@ const body=(a:SourceFetchArtifactDraft)=>typeof a.body==="string"?a.body:Buffer.
 const assert=(v:unknown):void=>{if(!v)throw Error("SANOFI_NATIVE_CHAIN_INVALID");};
 const setEqual=(a:string[],b:string[])=>same([...new Set(a)].sort(),[...new Set(b)].sort());
 const absolute=(value:string,base:string)=>new URL(value,base).toString();
-export function hasSanofiNativePolicy(plan:SourceCrawlPlan):boolean{return plan.adapterId==="html-table"&&plan.table.sanofiNativePolicy!==undefined;}
+export function hasSanofiNativePolicy(plan:SourceCrawlPlan):boolean{return plan.adapterId==="html-table"&&plan.table.sanofiNativePolicy===POLICY;}
 function exactPlan(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapterId:"html-table"}>{return plan.adapterId==="html-table"&&plan.company.id==="company-sanofi-china"&&plan.company.officialChineseName==="赛诺菲中国"&&plan.source.id==="source-sanofi-china-social"&&plan.source.companyId===plan.company.id&&plan.source.kind==="SOCIAL"&&plan.source.atsKind==="OFFICIAL_HTML"&&plan.source.officialEntryUrl===ENGLISH&&plan.source.officialChainEvidenceUrl==="https://jobs.sanofi.cn/"&&plan.table.sanofiNativePolicy===POLICY&&plan.table.sanofiChineseEntryUrl===SANOFI_CHINESE_ENTRY;}
 function listPlan(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,cn=false){const table=structuredClone(plan.table);delete table.sanofiNativePolicy;delete table.sanofiChineseEntryUrl;if(cn)table.fields.officialUrl={selector:"a[data-job-id]",attribute:"href"};return {...plan,source:{...plan.source,officialEntryUrl:cn?SANOFI_CHINESE_ENTRY:ENGLISH},table};}
 function json(value:string):Record<string,unknown>{assert(hasUniqueJsonObjectKeys(value));const parsed=rec(JSON.parse(value));assert(parsed);return parsed!;}

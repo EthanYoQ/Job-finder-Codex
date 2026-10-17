@@ -50,7 +50,6 @@ export const REQUIRED_A_GRADE_COMPLETENESS_CERTIFICATES = Object.freeze({
   "source-organon-china-social": "company-organon-china",
   "source-pfizer-china-social": "company-pfizer-china",
   "source-roche-china-social": "company-roche-china",
-  "source-sanofi-china-social": "company-sanofi-china",
   "source-servier-china-social": "company-servier-china",
   "source-shanghai-pharma-social": "company-shanghai-pharma",
   "source-ucb-china-social": "company-ucb-china",

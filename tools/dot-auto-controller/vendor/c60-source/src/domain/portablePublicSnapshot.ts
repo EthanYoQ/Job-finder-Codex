@@ -25,7 +25,7 @@ const B_GRADE_PUBLIC_POLICY = "STRICT_PLAN_BOUND_INDEPENDENT_TRAVERSAL_REPLAY_V2
 // Only the two reviewed COMPLETE_PAGE_TRAVERSAL integrations are public here.
 const B_GRADE_PUBLIC_CONFIGS: Readonly<Record<string, string>> = Object.freeze(Object.fromEntries(
   buildStagedSourceCrawlPlans(candidateCompanies).filter(plan =>
-    ["source-pfizer-china-social", "source-bayer-healthcare-social", "source-servier-china-social"].includes(plan.source.id) &&
+    ["source-pfizer-china-social", "source-bayer-healthcare-social", "source-servier-china-social", "source-sanofi-china-social"].includes(plan.source.id) &&
     getPortableCoverageScope().requiredSourceIds.includes(plan.source.id) && requiresBGradeTraversalCertificate(plan))
     .map(plan => [plan.source.id, sourcePlanConfigSha256(plan)])));
 type PublicBReceipt = Extract<BGradeTraversalCertificate, {schemaVersion: typeof B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION}>;
@@ -153,7 +153,8 @@ function verifyAcceptedBGrade(row: PortableSourceResultRow, plan: SourceCrawlPla
     sourceId: plan.source.id, companyId: plan.company.id, sourceConfigSha256: sourcePlanConfigSha256(plan),
     surfaceIds: [plan.source.surfaceId!], channelIds: plan.expectedChannels!.map(channel => channel.channelId),
     canonicalJobSetSha256: row.canonicalOutputSetSha256 ?? "", adapterReconciliationSha256: row.adapterReconciliationSha256 ?? "",
-    collisionLedgerSha256: row.collisionLedgerSha256 ?? "", canonicalRawEvidenceIdSetSha256: observation.canonicalRawSha256 ?? ""
+    collisionLedgerSha256: row.collisionLedgerSha256 ?? "", canonicalRawEvidenceIdSetSha256: observation.canonicalRawSha256 ?? "",
+    ...(plan.source.id==="source-sanofi-china-social" && row.sanofiArtifacts ? {sanofiArtifacts:row.sanofiArtifacts} : {})
   }});
   const receipt = row.completenessCertificate as PublicBReceipt;
   const count = receipt.counts, normalized = count.finalUniqueJobCount + count.dedupeDiscardCount;
