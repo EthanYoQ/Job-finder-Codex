@@ -203,4 +203,26 @@ describe("Novo nested shared geography", () => {
       expect(replayNovoChinaRows(plan, result.fetchEvidence!, result.jobs, CAPTURED_AT)).toBe(true);
     }
   });
+
+  it.each(["insufficient JD", "wrong apply identity"])("distinguishes %s without accepting or closing the row", async kind => {
+    const plan = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), SOURCE_ID)!;
+    const requests: string[] = [];
+    const fetch = createOfficialJsonSourceFetch({ now: () => new Date(CAPTURED_AT), http: async request => {
+      requests.push(request.url);
+      const page = pages.get(request.url); if (!page) throw Error("Unexpected synthetic URL");
+      const body = kind === "insufficient JD" ? page.body.replace(
+        "Develop synthetic laboratory procedures and maintain documented quality controls for research teams.",
+        "*</p><p>We commit to an inclusive recruitment process and equality of opportunity for all our job applicants.") :
+        page.body.replace("company=novonordisk", "company=other");
+      return { ...page, body, status: 200, capturedAt: CAPTURED_AT };
+    } });
+    const result = await runSourceCrawl(plan, { fetch, isBaseline: true });
+    expect(result).toMatchObject({ status: "FAILED", jobs: [], failureReason:
+      kind === "insufficient JD" ? "NOVO_DETAIL_INSUFFICIENT" : "Novo application status UNKNOWN" });
+    expect(result.fetchEvidence?.fetchLosses).toEqual([]);
+    expect(result.fetchEvidence?.supportingArtifactOnlyFailure?.code).toBe(
+      kind === "insufficient JD" ? "NOVO_DETAIL_INSUFFICIENT" : "NOVO_APPLICATION_STATUS_UNKNOWN");
+    expect(requests.some(url => url.includes("career_job_req_id="))).toBe(false);
+    expect(result.truth.completenessVerified).toBe(false);
+  });
 });

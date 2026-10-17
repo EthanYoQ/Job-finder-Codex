@@ -242,3 +242,34 @@ it("rejects normalized output changes and V1 policy relabeling", async () => {
   expect(validateStrictAmgenManualWorkdayEvidence(legacyPlan(), result.fetchEvidence!, result.jobs)).toBe(false);
   expect((await createAmgenManualWorkdaySourceFetch({ http: fixture.http, now })(legacyPlan())).ok).toBe(false);
 });
+
+function pendingXinganFixture(name = "Xing'an Meng") {
+  const fixture = amgenManualWorkdayFixture(1), row = fixture.rows[0]!;
+  editSchema(fixture, s => { s.jobLocation[0].address.addressLocality = name; s.jobLocation[0].address.addressRegion = "Nei Mongol"; });
+  row.info.location = `China - ${name}`;
+  row.info.jobRequisitionLocation.descriptor = "China  - Field/Remote";
+  fixture.lookupRows[0]!.locationsText = row.info.location;
+  return fixture;
+}
+it.each(["Xing'an Meng", "Zhaoqing", "Xinxiang", "Jingmen", "Neijiang", "Nanchong"])("retains verified %s as city pending without borrowing the title city", async name => {
+  const fixture = pendingXinganFixture(name), p = plan();
+  const result = await runSourceCrawl(p, { fetch: createAmgenManualWorkdaySourceFetch({ http: fixture.http, now }) });
+  expect(result.status).toBe("SUCCESS");
+  expect(result.jobs[0]).toMatchObject({ locationRaw: `China - ${name}`, cities: ["城市待核"], officialUrl: fixture.rows[0]!.externalUrl });
+  expect(validateStrictAmgenManualWorkdayEvidence(p, result.fetchEvidence!, result.jobs)).toBe(true);
+});
+it.each([
+  ["foreign native country", (f: Fixture) => editSchema(f, s => { s.jobLocation[0].address.addressCountry = "India"; })],
+  ["wrong CN country", (f: Fixture) => { f.rows[0]!.info.jobRequisitionLocation.country.alpha2Code = "IN"; }],
+  ["different requisition", (f: Fixture) => { f.rows[0]!.info.jobReqId = "R-99999"; }],
+  ["closed application", (f: Fixture) => { f.rows[0]!.info.canApply = false; }],
+  ["unposted application", (f: Fixture) => { f.rows[0]!.info.posted = false; }]
+] as const)("keeps %s rejection for the pending location", async (_, mutate) => {
+  const fixture = pendingXinganFixture(); mutate(fixture);
+  expect((await createAmgenManualWorkdaySourceFetch({ http: fixture.http, now })(plan())).ok).toBe(false);
+});
+
+it("does not admit arbitrary unknown locations as city pending", async () => {
+  const fixture = pendingXinganFixture("Unverified Place");
+  expect((await createAmgenManualWorkdaySourceFetch({ http: fixture.http, now })(plan())).ok).toBe(false);
+});

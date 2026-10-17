@@ -60,7 +60,7 @@ const CITIES: Readonly<Record<string, string>> = {
   Yichang: "宜昌", Jiaozuo: "焦作", Kaifeng: "开封", Zhumadian: "驻马店", Zhoukou: "周口", Liuzhou: "柳州", Wuhu: "芜湖",
   Shantou: "汕头", "Xi'an": "西安", Xiamen: "厦门", Urumqi: "乌鲁木齐"
 };
-const PENDING_NAMES = new Set(["Taizhou", "JTaizhou", "Longnan", "Fuyang", "Field/Remote"]);
+const PENDING_NAMES = new Set(["Taizhou", "JTaizhou", "Longnan", "Fuyang", "Field/Remote", "Xing'an Meng", "Zhaoqing", "Xinxiang", "Jingmen", "Neijiang", "Nanchong"]);
 function descriptorCity(p: Profile, descriptor: unknown): string | undefined {
   if (!text(descriptor)) return undefined;
   const name = p.tenant === "amgen" ? /^China\s+- ([A-Za-z'() /]+)$/u.exec(descriptor)?.[1]
