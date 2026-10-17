@@ -23,5 +23,3 @@ The October17 09:56 CSPC run completed all31 fresh cloud-CDP DOM/detail observat
 The shared original official-JSON URL sanitizer is used for replay, preserving page/country/filter query identities. The same archived-completion queue supports MSD and Roche parallel requests; Roche replay clocks follow original response times while the canonical artifact array, timestamps, hashes, certificates and final fields remain unchanged. No inactive BI or candidate88 material is included here.
 
 Pfizer completed fresh210 CURRENT/45 GRACE with original B evidence and full web readback. A failed public snapshot refresh is retried once through the original read-only refresh flow; persistent failure still fails the source. Organon remains held until current manual-keyword/country set comparison and native application evidence are connected.
-
-AZ original owned-detail replay is configured only with the fresh evidence envelope produced by source commit 6435ee677b7c7751b7b0b444f2e1ee77799e9501 or a verified descendant. All 36 route configurations are present; this does not mean all sources are runnable or accepted. Existing source-specific holds and exclusions remain.

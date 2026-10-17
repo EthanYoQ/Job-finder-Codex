@@ -4,13 +4,13 @@ const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 const {runOriginalSerial, serviceOriginalRelay} = await new AsyncFunction(readFileSync(new URL('./automatic-relay-functions.js', import.meta.url), 'utf8'))();
 function fixture({unknown=false, expired=false, reviewFails=false}={}) {
  const calls=[], sourceId='source-ucb-china-social', deadline=Date.now()+60000;
- const queue=['READ_CONTEXT','PUBLISH','READ_OUTCOME'].map((kind,i)=>({kind, requestId:String(i), requestSha256:'bound-'+i, expired:i===1&&expired, expiresAt:new Date(deadline).toISOString(), payload:{sql:'original',dispatchBefore:new Date(deadline-1000).toISOString()}}));
+ const queue=['READ_CONTEXT','READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME'].map((kind,i)=>({kind, requestId:String(i), requestSha256:'bound-'+i, expired:i===2&&expired, expiresAt:new Date(deadline).toISOString(), payload:{sql:'original',dispatchBefore:new Date(deadline-1000).toISOString()}}));
  const h={cfg:{project:'yiopvxysxrtrnvqxwgbx',sourceId}, next:async()=>queue.shift(), respond:async(r,dir,result)=>{calls.push('reject:'+result.outcome);}, sqlDispatch:async r=>{calls.push('dispatch'); return unknown?{status:'FAILED',outcome:'UNKNOWN'}:{status:'SUCCEEDED'};}};
  const stage={h,handle:async r=>{calls.push(r.kind);return {status:r.kind==='PUBLISH'?'AWAITING_PARENT_REVIEW':'SUCCEEDED'};}};
- return {calls,job:{sourceId,deadline,stage,relayDirectory:'/original/relay',reviewPublication:async r=>{calls.push('review');if(reviewFails)throw Error('raw mismatch');return r;},pollProducer:async()=>({exitCode:queue.length?null:0}),readback:async()=>{calls.push('readback');return {status:'WEB_VERIFIED'};}}};
+ return {calls,job:{sourceId,deadline,stage,relayDirectory:'/original/relay',reviewPublication:async (r,prepared,contextRequestId)=>{calls.push('review');assert.equal(contextRequestId,'1');if(reviewFails)throw Error('raw mismatch');return r;},pollProducer:async()=>({exitCode:queue.length?null:0}),readback:async()=>{calls.push('readback');return {status:'WEB_VERIFIED'};}}};
 }
 const ok=fixture();assert.equal((await serviceOriginalRelay(ok.job)).status,'WEB_VERIFIED');
-assert.deepEqual(ok.calls,['READ_CONTEXT','PUBLISH','review','dispatch','READ_OUTCOME','readback']);
+assert.deepEqual(ok.calls,['READ_CONTEXT','READ_PUBLICATION_CONTEXT','PUBLISH','review','dispatch','READ_OUTCOME','readback']);
 const unknown=fixture({unknown:true});assert.equal((await serviceOriginalRelay(unknown.job)).reason,'UNKNOWN_PUBLICATION');assert.equal(unknown.calls.filter(x=>x==='dispatch').length,1);assert(!unknown.calls.includes('readback'));assert(unknown.calls.includes('READ_OUTCOME'));
 const stopped=fixture({unknown:true});stopped.job.pollProducer=async()=>({exitCode:stopped.calls.includes('dispatch')?99:null});const stoppedResult=await serviceOriginalRelay(stopped.job);assert.equal(stoppedResult.reason,'UNKNOWN_PUBLICATION');assert.equal(stoppedResult.outcomeSeen,false);assert.equal(stopped.calls.filter(x=>x==='dispatch').length,1);
 const stale=fixture({expired:true});assert.equal((await serviceOriginalRelay(stale.job)).reason,'EXPIRED_OR_UNKNOWN_DISPATCH');assert(!stale.calls.includes('dispatch'));
@@ -42,3 +42,16 @@ assert(entry.includes('captureJnjManagedDom'));assert(entry.includes('prepare-jn
 
 for(const [id,folder] of [['source-bayer-healthcare-social','bayer'],['source-servier-china-social','servier']])assert.equal(folders[id],folder);
 assert(entry.includes('captureMokaBDom'));assert(entry.includes("'/scripts/capture-'+source+'-b-source.ts'"));
+
+const transport=fixture({unknown:true});transport.job.pollProducer=async()=>{if(transport.calls.includes('dispatch'))throw Error('exec-server transport disconnected');return {exitCode:null};};
+let startsAfterTransport=0;const transportResult=await runOriginalSerial(['uncertain','next'],async()=>{startsAfterTransport++;return transport.job;});
+assert.equal(startsAfterTransport,1);assert.equal(transportResult[0].reason,'UNKNOWN_PUBLICATION');assert.equal(transportResult[0].requestId,'2');assert.match(transportResult[0].diagnostic,/transport disconnected/);assert.equal(transport.calls.filter(x=>x==='dispatch').length,1);
+console.log('PASS: post-dispatch transport failure remains UNKNOWN and prevents another source launch');
+
+const noContext=fixture();const originalNext=noContext.job.stage.h.next;
+noContext.job.stage.h.next=async()=>{let request=await originalNext();if(request?.kind==='READ_PUBLICATION_CONTEXT')request=await originalNext();return request;};
+assert.equal((await serviceOriginalRelay(noContext.job)).status,'HELD');assert(!noContext.calls.includes('dispatch'));assert(noContext.calls.includes('reject:NOT_DISPATCHED'));
+const failedContext=fixture(), originalHandle=failedContext.job.stage.handle;
+failedContext.job.stage.handle=async request=>{const prepared=await originalHandle(request);return request.kind==='READ_PUBLICATION_CONTEXT'?{status:'FAILED'}:prepared;};
+assert.equal((await serviceOriginalRelay(failedContext.job)).status,'HELD');assert(!failedContext.calls.includes('dispatch'));assert(failedContext.calls.includes('reject:NOT_DISPATCHED'));
+console.log('PASS: only the same job successful publication-context request is passed to review; missing/failed read cannot dispatch');
