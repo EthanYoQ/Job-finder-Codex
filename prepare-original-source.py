@@ -1,7 +1,7 @@
 import hashlib, json, os, pathlib, sys
 B=pathlib.Path('/workspace/scratch/5e9614251709'); R=B/'takeda-original-recovery-20261017T0417Z'; D=pathlib.Path(__file__).parent
 source,folder=sys.argv[1:]; row=next(r for r in json.loads((D/'sources.json').read_text())['rows'] if r['sourceId']==source)
-assert (row['route'] in ['PORTABLE','TRUE_A'] or row['route']=='TRUE_B' and source in ['source-pfizer-china-social','source-bayer-healthcare-social','source-servier-china-social']) and source != 'source-astrazeneca-social'
+assert (row['route'] in ['PORTABLE','TRUE_A'] or row['route']=='TRUE_B' and source in ['source-pfizer-china-social','source-bayer-healthcare-social','source-servier-china-social'])
 # Reuse the current registered producer's existing binding; its original verifier rechecks actual code and runtime.
 selector=json.loads((R/'hengrui/binding-selector.json').read_text())
 binding=json.loads((B/'connector-host-bindings'/f"{selector['sha256']}.json").read_text())
