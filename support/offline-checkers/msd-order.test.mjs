@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {stripTypeScriptTypes} from 'node:module';
+const source=fs.readFileSync(new URL('./replay-original-json-archive.mts',import.meta.url),'utf8');
+const block=source.slice(source.indexOf('const pendingMsd='),source.indexOf('let i=0, replayNow='));
+const factory=new Function('assert','httpArtifacts','sanitizeEvidenceHttpUrl',stripTypeScriptTypes(block)+';return msdArtifact;');
+const request=factory(assert,[{requestedUrl:'second'},{requestedUrl:'first'}],x=>x),completed=[];
+await Promise.all([request('first').then(a=>completed.push(a.requestedUrl)),request('second').then(a=>completed.push(a.requestedUrl))]);
+assert.deepEqual(completed,['second','first']);
+await assert.rejects(factory(assert,[{requestedUrl:'known'}],x=>x)('unknown'),/MSD_EXACT_REQUEST_IDENTITY/);
+await assert.rejects(factory(assert,[{requestedUrl:'first'},{requestedUrl:'second'}],x=>x)('second'),/MSD_ARCHIVED_COMPLETION_ORDER_MISMATCH/);
+console.log('PASS: original completion order, absent request and incomplete group');

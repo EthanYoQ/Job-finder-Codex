@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-17T08:17:45Z",
+  "checkedAt": "2026-10-17T08:53:15Z",
   "entry": "run-original-functions.js",
   "routeCount": 36,
   "connectedSourceCount": 31,
@@ -29,7 +29,7 @@
     "visibleJobs": 30,
     "newJobs": 0,
     "changedExistingJobs": 9,
-    "crawledAt": "2026-10-17T08:15:38.943Z",
+    "crawledAt": "2026-10-17T08:15:33.006Z",
     "webVerifiedAt": "2026-10-17T08:16:46.033Z",
     "modelDirectedIntermediateSteps": 0
   },
@@ -64,5 +64,15 @@
       "legacy Library upload"
     ],
     "actualProductionRunAfterChange": "CR_PHARMA_A_COMMITTED_EXACT_AND_WEB_VERIFIED"
-  }
+  },
+  "completeEnumerationRun": {
+    "report": "RUN_20261017T0829Z.json",
+    "sources": 36,
+    "webVerified": 5,
+    "recentObservationSkipped": 11,
+    "held": 20,
+    "modelDirectedIntermediateStages": 0,
+    "scheduledTrigger": false
+  },
+  "msdReplayFix": "Exact URL matching with original archived concurrent completion order; 251 request/122 job prior raw read-only replay PASS, fresh production pending"
 }
