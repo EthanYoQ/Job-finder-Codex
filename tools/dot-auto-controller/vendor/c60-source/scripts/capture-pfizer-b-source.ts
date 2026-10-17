@@ -8,11 +8,12 @@ import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from "../src/craw
 import { createWorkdaySourceFetch } from "../src/crawler/workdaySourceFetch";
 import { runSourceCrawl, type SourceFetchResult } from "../src/crawler/runSourceCrawl";
 import { createOfficialJsonRenderedTraversalValidation } from "../src/crawler/traversalCertificate";
+import { captureOfficialJsonRenderedTraversal, OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES } from "../src/crawler/officialJsonRenderedTraversalValidator";
 import { pfizerDomPacketsToPages } from "../src/crawler/pfizerRenderedTraversal";
 import { runWithOfficialSourceAttemptTimeout, fetchWithOfficialTimeout } from "../src/crawler/officialHttpRuntimeLimits";
 
 const [mode, directory, domFile, ...extra] = process.argv.slice(2);
-if (!["main", "dom"].includes(mode ?? "") || !directory || extra.length || mode === "dom" && !domFile || mode === "main" && domFile) throw Error("Usage: capture-pfizer-b-source.ts main <new-private-dir> | dom <new-private-dir> <actual-managed-browser-capture.json>");
+if (!["main", "dom", "browser"].includes(mode ?? "") || !directory || extra.length || mode === "dom" && !domFile || mode !== "dom" && domFile) throw Error("Usage: capture-pfizer-b-source.ts main <new-private-dir> | dom <new-private-dir> <actual-managed-browser-capture.json> | browser <new-private-dir>");
 const root = resolve(directory); await mkdir(root, {mode:0o700});
 const put = (name:string,data:string|Uint8Array) => writeFile(join(root,name),data,{flag:"wx",mode:0o600});
 const sourceId = "source-pfizer-china-social", plan = buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id===sourceId)!;
@@ -43,11 +44,12 @@ if (mode === "main") {
     await put("capture-summary.json",JSON.stringify(summary,null,2));console.log(JSON.stringify(summary));
     if(!result.truth.completenessVerified) process.exitCode=1;
 } else {
-    const raw=await readFile(resolve(domFile!),"utf8"),capture=JSON.parse(raw);
-    if(capture.captureKind!=="MANAGED_BROWSER_DOM_JSONLD"||typeof capture.observedAt!=="string"||!Number.isFinite(Date.parse(capture.observedAt)))throw Error("Expected a real managed-browser DOM capture with its original observedAt");
+    const captured=mode==="browser"?await captureOfficialJsonRenderedTraversal({sourceId,entryUrl:OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[sourceId].entryUrl,signal:AbortSignal.timeout(20*60_000)}):undefined;
+    const raw=captured?JSON.stringify({captureKind:"CLOUD_BROWSER_DOM_JSONLD",...captured}):await readFile(resolve(domFile!),"utf8"),capture=JSON.parse(raw);
+    if(!captured&&(capture.captureKind!=="MANAGED_BROWSER_DOM_JSONLD"||typeof capture.observedAt!=="string"||!Number.isFinite(Date.parse(capture.observedAt))))throw Error("Expected a real managed-browser DOM capture with its original observedAt");
     await put("managed-browser-capture.json",raw);
     const rawCaptureSha256=createHash("sha256").update(raw).digest("hex");
-    const pages=pfizerDomPacketsToPages(capture.packets,rawCaptureSha256);
+    const pages=captured?.pages??pfizerDomPacketsToPages(capture.packets,rawCaptureSha256);
     const validation=createOfficialJsonRenderedTraversalValidation({sourceId,companyId:plan.company.id,sourceConfigSha256,surfaceIds:[plan.source.surfaceId!],channelIds:plan.expectedChannels!.map(c=>c.channelId),pages,observedAt:capture.observedAt,expiresAt:new Date(Date.parse(capture.observedAt)+7*24*60*60_000).toISOString()});
     await put("independent-validation.json",JSON.stringify(validation,null,2));
     const summary={purpose:"NON_CERTIFYING_INDEPENDENT_DOM_CAPTURE",sourceId,sourceConfigSha256,observedAt:capture.observedAt,finishedAt:new Date().toISOString(),rawCount:pages.reduce((n,p)=>n+p.rawRows.length,0),excludedCount:pages.flatMap(p=>p.rawRows).filter(r=>r.scopeDecision==="EXCLUDED_AUDITED").length,pageCount:pages.length,rawCaptureSha256,artifactSha256:validation.artifactSha256};

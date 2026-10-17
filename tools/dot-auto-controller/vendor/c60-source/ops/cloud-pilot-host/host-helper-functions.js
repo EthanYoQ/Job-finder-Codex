@@ -1,6 +1,6 @@
 
 const loaded=load("cloudPilotHostConfig");
-const isConnector=mode=>["TAKEDA_PORTABLE_CONNECTOR_V1","NATIVE_PORTABLE_CONNECTOR_V1"].includes(mode);
+const isConnector=mode=>["TAKEDA_PORTABLE_CONNECTOR_V1","NATIVE_PORTABLE_CONNECTOR_V1","NATIVE_AB_CONNECTOR_V1"].includes(mode);
 const cfg=isConnector(loaded?.mode)?Object.freeze({...loaded}):loaded;
 if(!cfg)throw Error("HOST_CONFIG_REQUIRED");
 const connector=isConnector(cfg.mode);
