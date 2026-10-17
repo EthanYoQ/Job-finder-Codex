@@ -14,7 +14,6 @@ if(load('originalRelayReadOnly')===true)return states.map(s=>({sourceId:s.source
 return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const state=stateById[sourceId];
  if(state.crawledAt&&Date.parse(state.checkedAt)-Date.parse(state.crawledAt)<43200000)return {skip:'REAL_OBSERVATION_WITHIN_12H:'+state.crawledAt};
- if(sourceId==='source-cspc-social')throw Error('CSPC_CURRENT_NATIVE_DOM_AND_DETAIL_OBSERVATIONS_NOT_CONNECTED'); // 37 configured IDs are not an active-job total.
  if(sourceId==='source-sanofi-china-social')throw Error('SANOFI_CHINESE_ENTRY_READER_PAIR_PENDING'); // Original recovery hold: EN_CN_V1 producer does not match required CN_NATIVE_APPLICATION_V2.
  if(!sourceFolders[sourceId])throw Error('ROUTE_NOT_CONNECTED:'+routeById[sourceId].route);
  if(state.holder||Number(state.running)||Number(state.manual))throw Error('EXISTING_WRITER_RECONCILE_ONLY');
@@ -29,6 +28,11 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  await command('python3 '+q(D+'/readback-original-web.py')+' '+q(S)+' '+q(routeById[sourceId].companyId));
  const batchId='dot-auto-'+sourceFolders[sourceId]+'-'+new Date().toISOString().replace(/[-:.]/g,''),run=S+'/'+batchId;
  await command('mkdir -p '+q(run+'/artifacts'));
+ if(sourceId==='source-cspc-social'){
+  const runStartedAt=new Date().toISOString(),directory=run+'/independent-dom';await command('mkdir -p '+q(directory));await save(run+'/run-start.json',{runStartedAt});
+  const {captureCspcDomObservation}=await new A(await read(D+'/cspc-functions.js'))();
+  await captureCspcDomObservation({directory,browserSource:await read(D+'/cspc-dom-runtime-functions.js')+'\n'+await read(D+'/cspc-browser-runtime.js'),runStartedAt,dispatchBefore:new Date(Date.now()+1800000).toISOString()});
+ }
  const [fresh]=await sql(`SELECT clock_timestamp() AS "checkedAt",to_jsonb(r) AS candidate FROM public."ReleaseCandidate" r WHERE id='${control.candidate.id}';`);if(!fresh?.candidate)throw Error('CANDIDATE_MISSING');
  await save(run+'/bootstrap.json',{schemaVersion:1,checkedAt:new Date(fresh.checkedAt).toISOString(),candidateRows:[fresh.candidate],batchId});
  const digest=(await command('sha256sum '+q(run+'/bootstrap.json'))).split(' ')[0];
