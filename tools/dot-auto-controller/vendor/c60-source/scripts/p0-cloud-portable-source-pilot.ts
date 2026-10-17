@@ -120,6 +120,7 @@ export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;re
     const bundle=await makeArchiveBundle({workspaceRoot,...tuple,evidenceSubdirectory:EVIDENCE,artifacts:archive.artifacts});
     const bundleBytes=JSON.stringify(bundle,null,2),bundleSha256=sha256(bundleBytes),bundlePath=join(workspaceRoot,`${batchId}.archive.json`);
     await writeFile(bundlePath,bundleBytes,{flag:"wx",mode:0o600});
+    if(result.fetchEvidence.astellasPdfLocations)await writeFile(join(workspaceRoot,`${batchId}.astellas-evidence.json`),JSON.stringify({capturedAt:result.observation.crawledAt.toISOString(),paginationEvaluation:result.paginationEvaluation,evidence:{...result.fetchEvidence,artifacts:result.fetchEvidence.artifacts.map(({body,...artifact})=>({...artifact,binary:body instanceof Uint8Array}))}}),{flag:"wx",mode:0o600});
     phase="PRE_LOCK_ADMISSION";const initialAdmission=await issueSourceQualityAdmission({plan,result,binding:{releaseCandidateId:identity.releaseCandidateId,batchId,sourceResultId:pending.id,sourceConfigSha256:pending.sourceConfigHash,adapterVersion:pending.adapterVersion},archive:{workspaceRoot,evidenceSubdirectory:EVIDENCE,artifacts:archive.artifacts}});
     if(initialAdmission.status!=="ACCEPTED")throw Error(`PILOT_ADMISSION_REJECTED:${initialAdmission.codes.join(",")}`);
     input.signal?.throwIfAborted();
