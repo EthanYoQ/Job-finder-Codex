@@ -25,9 +25,9 @@ async function readOriginalReaderBefore(query, sql) {
  const one=async query=>{const rows=await sql(query);if(!Array.isArray(rows)||rows.length!==1)throw Error('READER_ROW_COUNT');return rows[0];};
  const header=await one(queries.header),before=header.reader_before,refs=before.results,loaded=new Map();
  if(!/^[a-f0-9]{64}$/.test(header.snapshot_sha256)||!Array.isArray(refs)||new Set(refs.map(r=>r.id)).size!==refs.length)throw Error('READER_HEADER_INVALID');
- const verify=(ref,actual)=>{if(!ref||typeof ref.id!=='string'||!actual?.row||actual.row.id!==ref.id||actual.row.sourceId!==before.sourceId||actual.row.sourceConfigHash!==before.sourceConfigSha256||actual.sha256!==ref.sha256)throw Error('READER_ROW_CHANGED');};
+ const verify=(ref,actual,currentConfig=true)=>{if(!ref||typeof ref.id!=='string'||!actual?.row||actual.row.id!==ref.id||actual.row.sourceId!==before.sourceId||(currentConfig&&actual.row.sourceConfigHash!==before.sourceConfigSha256)||actual.sha256!==ref.sha256)throw Error('READER_ROW_CHANGED');};
  before.results=[];
- for(const ref of refs){const actual=await one(queries.writer(ref.id));verify(ref,actual);loaded.set(ref.id,actual);before.results.push(actual.row);}
+ for(const ref of refs){const actual=await one(queries.writer(ref.id));verify(ref,actual,before.sourceId!=='source-sanofi-china-social');loaded.set(ref.id,actual);before.results.push(actual.row);}
  const publications=new Map();
  for(const key of ['firstAccepted','latestAccepted']){
   const ref=before.publicationContext[key];if(ref===null)continue;

@@ -215,8 +215,8 @@
       "sourceId": "source-sanofi-china-social",
       "companyId": "company-sanofi-china",
       "companyName": "赛诺菲中国",
-      "route": "TRUE_A",
-      "sourceConfigSha256": "106fb80ad4e6c953d41a2dd67156f42e1bc4416766c98912a60ad59722df97c3"
+      "route": "TRUE_B",
+      "sourceConfigSha256": "2925884ffb70805a106c730a5b24a8992b0d13ce0348de28639e27d1bbfeacee"
     },
     {
       "sourceId": "source-servier-china-social",

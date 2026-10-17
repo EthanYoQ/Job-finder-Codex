@@ -15,7 +15,6 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const state=stateById[sourceId];
  if(state.crawledAt&&Date.parse(state.checkedAt)-Date.parse(state.crawledAt)<43200000)return {skip:'REAL_OBSERVATION_WITHIN_12H:'+state.crawledAt};
  if(sourceId==='source-organon-china-social')throw Error('ORGANON_MANUAL_KEYWORD_COUNTRY_APPLICATION_EVIDENCE_PENDING');
- if(sourceId==='source-sanofi-china-social')throw Error('SANOFI_CHINESE_ENTRY_READER_PAIR_PENDING'); // Original recovery hold: EN_CN_V1 producer does not match required CN_NATIVE_APPLICATION_V2.
  if(!sourceFolders[sourceId])throw Error('ROUTE_NOT_CONNECTED:'+routeById[sourceId].route);
  if(state.holder||Number(state.running)||Number(state.manual))throw Error('EXISTING_WRITER_RECONCILE_ONLY');
  const active=await command("python3 -c "+q("import pathlib; print(any((p.read_bytes().split(b'\\0')[0].endswith(b'/node') and any(a.endswith(b'/run-with-http-diagnostics.mjs') or a.endswith(b'/p0-cloud-portable-source-pilot.ts') or a.endswith(b'/p0-cloud-source-pilot.ts') for a in p.read_bytes().split(b'\\0'))) for p in pathlib.Path('/proc').glob('[0-9]*/cmdline') if p.exists()))"));if(active.trim()==='True')throw Error('EXISTING_CLOUD_PRODUCER_RECONCILE_ONLY');
@@ -23,10 +22,10 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const S=R+'/'+sourceFolders[sourceId],config=JSON.parse(await read(S+'/host-config.json')),control=JSON.parse(await read(S+'/control-base.json')),binding=JSON.parse(await read(S+'/binding-selector.json'));
  store('cloudPilotHostConfig',{mode:config.mode,bindingSha256:binding.sha256,root:V+'/ops/cloud-pilot-host',repo:V,project:'yiopvxysxrtrnvqxwgbx',sourceId});
  const stage=await new A(load('cloudPilotHostStages'))();await stage.h.binding();if(await stage.h.next(relay))throw Error('EXISTING_RELAY_RECONCILE_ONLY'); // Existing identity validator rejects stale source/build bindings.
- const template=await read(R+'/transport/viatris-reader-before-original.sql');
+ const template=await read(R+'/transport/'+(sourceId==='source-sanofi-china-social'?'sanofi-reader-before-original.sql':'viatris-reader-before-original.sql'));
  const query=template.replaceAll('__ORIGINAL_CERTIFICATE_SCHEMA__',routeById[sourceId].route==='PORTABLE'?'plan-bound-source-quality-v1':routeById[sourceId].route==='TRUE_A'?'a-grade-official-total-v2':'b-grade-independent-traversal-v2').replaceAll('__ORIGINAL_REQUIRES_PORTABLE_POLICY__',String(routeById[sourceId].route==='PORTABLE')).replaceAll('source-viatris-social',sourceId).replaceAll('company-viatris',routeById[sourceId].companyId).replaceAll('5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9',config.sourceConfigSha256).replaceAll('dot-cloud-native-c2b39d9-20261016',control.candidate.id).replaceAll('viatris-reader-before-v1',sourceFolders[sourceId]+'-reader-before-v1');
  let before;
- if(sourceId==='source-servier-china-social'){
+ if(['source-servier-china-social','source-sanofi-china-social'].includes(sourceId)){
   const {readOriginalReaderBefore}=await new A(await read(D+'/reader-before-functions.js'))();
   before=await readOriginalReaderBefore(query,sql);
  }else before=(await sql(query))[0].reader_before;
@@ -47,6 +46,13 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
   const manifest=directory+'/manifest.json',manifestSha=(await command('sha256sum '+q(manifest))).split(' ')[0];
   const prepared=run+'/current-capture';await command(q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/prepare-jnj-dom-current-capture.ts')+' '+q(directory)+' '+q(manifestSha)+' '+q(prepared));
   const path=prepared+'/current-capture.json';currentCapture={path,sha256:(await command('sha256sum '+q(path))).split(' ')[0]};
+ }
+ if(sourceId==='source-sanofi-china-social'){
+  const directory=run+'/independent-dom';await command('mkdir -p '+q(directory));
+  const {captureSanofiDom}=await new A(await read(D+'/sanofi-functions.js'))();
+  await captureSanofiDom({directory,browserSource:await read(D+'/sanofi-browser-runtime.js'),deadline:Date.now()+1200000});
+  const validationDirectory=run+'/independent-validation';await command(q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/capture-sanofi-cn-b-source.ts')+' independent '+q(validationDirectory)+' '+q(directory+'/dom-capture.json'));
+  const path=validationDirectory+'/independent-validation.json';independentValidation={path,sha256:(await command('sha256sum '+q(path))).split(' ')[0]};
  }
  if(['source-bayer-healthcare-social','source-servier-china-social'].includes(sourceId)){
   const source=sourceFolders[sourceId],directory=run+'/independent-dom';await command('mkdir -p '+q(directory));

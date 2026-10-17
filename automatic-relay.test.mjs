@@ -20,9 +20,9 @@ console.log('PASS: serial relay, single dispatch, unknown/expiry hold, failed so
 const entry=readFileSync(new URL('./run-original-functions.js',import.meta.url),'utf8');
 const folders=JSON.parse(entry.match(/const sourceFolders=(\{[^\n]+\});/)[1].replaceAll("'",'"'));
 const routes=JSON.parse(readFileSync(new URL('./sources.json',import.meta.url),'utf8')).rows;
-assert.equal(routes.length,36);assert.equal(Object.keys(folders).length,36);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='PORTABLE').length,20);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='TRUE_A').length,13);assert.equal(folders['source-astrazeneca-social'],'astrazeneca');
+assert.equal(routes.length,36);assert.equal(Object.keys(folders).length,36);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='PORTABLE').length,20);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='TRUE_A').length,12);assert.equal(folders['source-astrazeneca-social'],'astrazeneca');
 assert.equal(folders['source-pfizer-china-social'],'pfizer');
-console.log('PASS: 36 original routes, 20 portable, 13 original A and three original B configurations; configuration is not live acceptance');
+console.log('PASS: 36 original routes, 20 portable, 12 original A and four original B configurations; configuration is not live acceptance');
 
 assert(entry.includes("mode:config.mode"));assert(entry.includes("config.route==='PORTABLE'?'p0-cloud-portable-source-pilot.ts':'p0-cloud-source-pilot.ts'"));
 const prepare=readFileSync(new URL('./prepare-original-source.py',import.meta.url),'utf8');assert(prepare.includes("kind=mode,route=row['route']"));assert(prepare.includes("'mode':mode,'route':row['route']"));
