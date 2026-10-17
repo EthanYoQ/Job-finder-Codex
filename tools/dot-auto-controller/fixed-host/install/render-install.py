@@ -55,7 +55,6 @@ def render_holder(measured_pins,control):
  lifecycle=ns['render_fixed_module']((HERE.parent/'lifecycle/lifecycle_lock.py').read_text()).decode()
  binding={'schemaVersion':1,'scope':{'kind':'FIXED_PRODUCTION','parent':PARENT,'target':'job-finder-fixed-live-controller-v1'},'measuredPins':measured_pins,'controlBinding':control}
  tokens={'__FIXED_INSTALL_HOLDER_BINDING__':binding,'__FIXED_INSTALL_LIFECYCLE_SOURCE__':lifecycle,'__FIXED_INSTALL_STAGING_SOURCE__':(HERE/'staging.py.in').read_text(),'__FIXED_INSTALL_READER_SOURCE__':(HERE/'reader-helper.mjs').read_text(),'__FIXED_INSTALL_FACTS_SOURCE__':(HERE/'facts.mjs').read_text(),'__FIXED_INSTALL_BOUND_ARTIFACTS_SOURCE__':(HERE/'bound-artifacts.py.in').read_text()}
- tokens.update({'__FIXED_INSTALL_BUDGET_SOURCE__':(HERE/'synchronous-budget.py').read_text(),'__FIXED_INSTALL_BUDGET_ACCOUNTING_SOURCE__':(HERE/'budget-accounting.py').read_text(),'__FIXED_INSTALL_BUDGET_POLICY__':json.loads((HERE/'budget-policy.json').read_text())})
  source=(HERE/'install-holder.py.in').read_text()
  for token,value in tokens.items():
   require(source.count(token)==1,'INSTALL_HOLDER_TEMPLATE_TOKEN:'+token);source=source.replace(token,repr(value))
