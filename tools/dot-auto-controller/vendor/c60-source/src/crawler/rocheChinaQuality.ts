@@ -2,6 +2,7 @@ import { load } from "cheerio";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
+import { sensitiveOfficialJsonField } from "./officialJsonEvidence";
 import type { SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 
 export const ROCHE_NATIVE_DETAIL_POLICY = "ROCHE_WORKDAY_NATIVE_V1" as const;
@@ -47,7 +48,7 @@ export function rocheNativeDetail(raw: Record<string, unknown>, artifact: Source
   let info: Record<string, unknown> | undefined;
   try { info = record(record(JSON.parse(body))?.jobPostingInfo); } catch { return undefined; }
   const externalUrl = (raw.applyUrl as string).replace(/\/apply$/u, "");
-  if (!info || info.jobReqId !== raw.reqId || !text(info.title) || clean(info.title) !== clean(raw.title) ||
+  if (!info || info.jobReqId !== raw.reqId || !text(info.title) || sensitiveOfficialJsonField({ title: info.title }) ||
     info.jobPostingSiteId !== "roche-ext" || info.jobPostingId !== new URL(externalUrl).pathname.split("/").at(-1) ||
     info.externalUrl !== externalUrl || info.posted !== true || info.canApply !== true || !text(info.jobDescription) ||
     !load(info.jobDescription).text().trim() || !text(info.location) ||
@@ -65,6 +66,7 @@ export function rocheNativeDetail(raw: Record<string, unknown>, artifact: Source
     ? listCities : [CITY_PENDING];
   const postedDate = phenomOfficialPostedDate(raw.postedDate);
   const officialPublishedAt = postedDate && info.startDate === postedDate.slice(0, 10) ? postedDate : undefined;
-  return { title: clean(raw.title), officialUrl: raw.applyUrl as string, locationRaw: mainland.map(clean).join(" | "), cities,
+  // Native title is authoritative after exact identity binding; both titles remain in their exact artifacts.
+  return { title: clean(info.title), officialUrl: raw.applyUrl as string, locationRaw: mainland.map(clean).join(" | "), cities,
     ...(officialPublishedAt ? {officialPublishedAt} : {}) };
 }

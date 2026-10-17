@@ -27,9 +27,17 @@ describe("Roche native application and public field binding", () => {
     expect(rocheNativeDetail(raw, artifact(), started)).toMatchObject({ title: "Role", cities: ["上海"], locationRaw: "上海, 中国大陆",
       officialUrl: raw.applyUrl, officialPublishedAt: "2026-09-30T00:00:00.000Z" });
   });
-  it.each([{posted:false},{canApply:false},{jobReqId:"different"},{title:"Wrong role"},{jobPostingId:"wrong"},
+  it.each([{posted:false},{canApply:false},{jobReqId:"different"},{title:" "},{title:"password=synthetic-test-value"},{country:{descriptor:"Ireland"},location:"Dublin"},{jobPostingId:"wrong"},
     {externalUrl:"https://evil.test"},{jobDescription:""}])("rejects conflicting native identity/application %j", patch => {
     expect(rocheNativeDetail(raw, artifact(raw, patch), started)).toBeUndefined();
+  });
+  it("uses the exact-ID native title while preserving both conflicting title inputs", () => {
+    const row = { ...raw, title: "List category label" };
+    const detail = artifact(row, { title: "  Native job title  " });
+    const rawBefore = JSON.stringify(row), bodyBefore = detail.body;
+    expect(rocheNativeDetail(row, detail, started)?.title).toBe("Native job title");
+    expect(JSON.stringify(row)).toBe(rawBefore);
+    expect(detail.body).toBe(bodyBefore);
   });
   it("rejects absent, redirected, stale, or non-exact native evidence", () => {
     expect(rocheNativeDetail(raw, undefined, started)).toBeUndefined();
@@ -68,10 +76,11 @@ describe("Roche native application and public field binding", () => {
 
 it("runs current Roche acquisition through native details and rejects output-only tampering", async () => {
   const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==="source-roche-china-social")!;
+  const listed = { ...raw, title: "List category label" };
   const urls:string[]=[]; let posts=0; let clock=0;
   const fetcher=createOfficialJsonSourceFetch({now:()=>new Date(clock++===0?started:"2026-10-02T12:00:03.000Z"),http:async request=>{
     urls.push(request.url);
-    const body=request.method==="POST" ? JSON.stringify({refineSearch:{totalHits:1,data:{jobs:posts++===0?[]:[raw],
+    const body=request.method==="POST" ? JSON.stringify({refineSearch:{totalHits:1,data:{jobs:posts++===0?[]:[listed],
       aggregations:posts===1?[{field:"country",value:{中国大陆:1}}]:[]}}}) :
       request.url.includes("/wday/cxs/") ? artifact().body as string :
       '<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11-ds"};</script>';
@@ -80,8 +89,15 @@ it("runs current Roche acquisition through native details and rejects output-onl
   const result=await runSourceCrawl(plan,{fetch:fetcher});
   expect(urls).toContain(rocheNativeDetailUrl(raw));
   expect(result.truth).toMatchObject({completenessVerified:true});
-  expect(result.jobs[0]).toMatchObject({officialPublishedAt:"2026-09-30T00:00:00.000Z",cities:["上海"]});
+  expect(result.jobs[0]).toMatchObject({officialTitle:"Role",officialPublishedAt:"2026-09-30T00:00:00.000Z",cities:["上海"]});
   const evidence=result.fetchEvidence!, declaration=evidence.declaredCompleteness!;
+  const listArtifact=evidence.artifacts.find(a=>a.logicalKey==="phenom-page-0000")!;
+  const detailArtifact=evidence.artifacts.find(a=>a.logicalKey===`roche-detail-${raw.reqId}`)!;
+  expect(listArtifact.bodyRepresentation).toBe("EXACT");
+  expect(detailArtifact.bodyRepresentation).toBe("EXACT");
+  expect(JSON.parse(listArtifact.body as string).refineSearch.data.jobs[0].title).toBe(listed.title);
+  expect(JSON.parse(detailArtifact.body as string).jobPostingInfo.title).toBe(info.title);
+
   const original=evidence.artifacts.find(a=>a.logicalKey===declaration.artifactLogicalKey)!;
   const candidate={binding:{releaseCandidateId:"rc-roche",batchId:"batch-roche",sourceResultId:"result-roche",sourceConfigSha256:sourcePlanConfigSha256(plan)},
     plan,transportSuccess:true,adapterSuccess:true,evidence,paginationEvaluation:result.paginationEvaluation!,reconciliation:result.reconciliation!,jobs:result.jobs,
@@ -93,5 +109,6 @@ it("runs current Roche acquisition through native details and rejects output-onl
       expect(issueAGradeOfficialTotalCertificate({...candidate,evidence:changed})).toMatchObject({status:"REJECTED"});
     }
   }
-  expect(issueAGradeOfficialTotalCertificate({...candidate,jobs:result.jobs.map(job=>({...job,officialTitle:"Forged"}))})).toMatchObject({status:"REJECTED"});
+  for (const title of ["Forged", listed.title])
+    expect(issueAGradeOfficialTotalCertificate({...candidate,jobs:result.jobs.map(job=>({...job,officialTitle:title}))})).toMatchObject({status:"REJECTED"});
 });

@@ -9,14 +9,15 @@ import type { NormalizedJobRecord } from "./normalizedJob";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import type { PersistentSourceFetchEvidence } from "./sourceFetchEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
+import { reviewedMainlandCity } from "./reviewedMainlandCity";
 
 export const NOVO_CHINA_LOCATION_POLICY = "NOVO_CHINA_NESTED_LOCATION_V2" as const;
 export const NOVO_NATIVE_APPLICATION_POLICY = "NOVO_NATIVE_APPLICATION_V1" as const;
 export const NOVO_CHINA_ENDPOINT = "https://www.novonordisk.com.cn/bin/nncorp/careersearch?keyword=&country=China&category=&locale=zh-cn";
 const ENTRY = "https://www.novonordisk.com.cn/careers/find-a-job/career-search-results.html?searchText=&countries=China&categories=";
 const SOURCE_ID = "source-novo-nordisk-china-social", COMPANY_ID = "company-novo-nordisk-china";
-// Reviewed public list locations. A new pair requires review; a contradictory
-// country/state/city must never be hidden behind a pending-city marker.
+// Retain source-specific reviewed pairs and reuse the shared reviewed geography.
+// A contradictory or unknown country/state/city never becomes city-pending.
 const LOCATIONS = [
   { city: "Beijing", state: "Beijing", normalized: "北京" },
   { city: "Shanghai", state: "Shanghai", normalized: "上海" },
@@ -25,6 +26,9 @@ const LOCATIONS = [
   { city: "Songyuan", state: "Jilin", normalized: "松原" },
   { city: "Changchun", state: "Jilin", normalized: "长春" }
 ] as const;
+function novoChinaCity(city: string, state: string): string | undefined {
+  return LOCATIONS.find(item => item.city === city && item.state === state)?.normalized ?? reviewedMainlandCity(city, state);
+}
 const RAW_FIELDS = ["jobId", "jobTitle", "jobLocale", "jobLocationLabel", "jobCountry", "jobCategory", "jobSubCategory", "jobState", "jobCity"];
 const record = (value: unknown): Record<string, unknown> | undefined => value !== null && typeof value === "object" && !Array.isArray(value)
   ? value as Record<string, unknown> : undefined;
@@ -78,22 +82,22 @@ export function parseNovoChinaResponse(body: string): { rawJobs: Record<string, 
     !same(data.countriesParam, ["China"]) || !same(data.categoriesParam, []) || !Array.isArray(data.jobs) || data.jobs.length !== data.totalMatches) return undefined;
   const states = pairs(data.states), cities = pairs(data.cities), subcategories = pairs(data.subCategories);
   if (!states || !cities || !subcategories ||
-    states.some(item => item.label !== item.value || !LOCATIONS.some(location => location.state === item.value)) ||
-    cities.some(item => item.label !== item.value || !LOCATIONS.some(location => location.city === item.value))) return undefined;
+    states.some(item => item.label !== item.value || !cities.some(city => novoChinaCity(city.value, item.value))) ||
+    cities.some(item => item.label !== item.value || !states.some(state => novoChinaCity(item.value, state.value)))) return undefined;
   const rawJobs: Record<string, unknown>[] = [], jobs: Projection[] = [], ids = new Set<string>();
   for (const value of data.jobs) {
     const raw = record(value);
     if (!raw || !exactKeys(raw, RAW_FIELDS) || typeof raw.jobId !== "string" || !/^[1-9][0-9]{5}\.en_GB$/u.test(raw.jobId) ||
       raw.jobLocale !== "en_GB" || !text(raw.jobTitle) || ids.has(raw.jobId) || !same(pair(raw.jobCountry), { label: "China", value: "China" })) return undefined;
     const state = pair(raw.jobState), city = pair(raw.jobCity), category = pair(raw.jobCategory), subcategory = pair(raw.jobSubCategory);
-    const location = LOCATIONS.find(item => item.city === city?.value && item.state === state?.value);
-    if (!state || !city || !location || state.label !== state.value || city.label !== city.value ||
-      raw.jobLocationLabel !== `China, ${location.city}` || !category || !subcategory ||
+    const normalizedCity = state && city ? novoChinaCity(city.value, state.value) : undefined;
+    if (!state || !city || !normalizedCity || state.label !== state.value || city.label !== city.value ||
+      raw.jobLocationLabel !== `China, ${city.value}` || !category || !subcategory ||
       !states.some(item => same(item, state)) || !cities.some(item => same(item, city)) ||
       !subcategories.some(item => same(item, subcategory))) return undefined;
     ids.add(raw.jobId); rawJobs.push(raw);
     jobs.push({ sourceJobId: persistentOfficialJsonJobId(raw.jobId), title: raw.jobTitle.replace(/\s+/gu, " ").trim(),
-      locationRaw: raw.jobLocationLabel, cities: [location.normalized],
+      locationRaw: raw.jobLocationLabel, cities: [normalizedCity],
       officialUrl: new URL(`/content/nncorp/cn/zh_cn/careers/find-a-job/job-ad.${raw.jobId}.html`, ENTRY).href });
   }
   return { rawJobs, jobs, total: data.totalMatches };
