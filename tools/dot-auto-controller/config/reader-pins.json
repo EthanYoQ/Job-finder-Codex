@@ -19,7 +19,9 @@
       "package-lock.json": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9",
       "src/crawler/bayerMokaScope.ts": "dd1224c79985e59caf634fd6c846b783231c70d48a4ad8662936a52cee65592e",
       "src/crawler/hengruiMainlandGeography.ts": "134cbbcf98ab80003d567f2a77b19491d837ec26adfd920f28511c41d1fae4a1",
-      "src/crawler/reviewedMainlandCity.ts": "a9e555b60879a90d96e0ee228316130586e4d87e420b90be340c44609d706ae1"
+      "src/crawler/reviewedMainlandCity.ts": "a9e555b60879a90d96e0ee228316130586e4d87e420b90be340c44609d706ae1",
+      "src/crawler/sanofiChineseNative.ts": "edc4dfd80c7b2539cbf46133a98174f1371e74db799a8adb02822b046b7e5502",
+      "src/crawler/sanofiNativeQuality.ts": "9db161f9ef260d8436e469df128ef5ab6f69c79b3b48fb551d6365b689e765ef"
     },
     "originCommit": "6510baecc784ec87999cb5ea546b0995afe9222f",
     "capsuleClassification": "PRIVACY_SANITIZED_DERIVATIVE",
@@ -51,7 +53,9 @@
       "package-lock.json": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9",
       "src/crawler/bayerMokaScope.ts": "dd1224c79985e59caf634fd6c846b783231c70d48a4ad8662936a52cee65592e",
       "src/crawler/hengruiMainlandGeography.ts": "134cbbcf98ab80003d567f2a77b19491d837ec26adfd920f28511c41d1fae4a1",
-      "src/crawler/reviewedMainlandCity.ts": "a9e555b60879a90d96e0ee228316130586e4d87e420b90be340c44609d706ae1"
+      "src/crawler/reviewedMainlandCity.ts": "a9e555b60879a90d96e0ee228316130586e4d87e420b90be340c44609d706ae1",
+      "src/crawler/sanofiChineseNative.ts": "edc4dfd80c7b2539cbf46133a98174f1371e74db799a8adb02822b046b7e5502",
+      "src/crawler/sanofiNativeQuality.ts": "9db161f9ef260d8436e469df128ef5ab6f69c79b3b48fb551d6365b689e765ef"
     },
     "originCommit": "600ad0ab23e886ae9ac429d3d1b076e00af76e88",
     "capsuleClassification": "PRIVACY_SANITIZED_DERIVATIVE",

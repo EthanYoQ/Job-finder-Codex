@@ -47,7 +47,7 @@ export function parseSanofiDetail(html:string,url:string,id:string):SanofiDetail
  try{
   const parsed=new URL(url);if(!["jobs.sanofi.com","jobs.sanofi.cn"].includes(parsed.hostname)||parsed.protocol!=="https:"||parsed.username||parsed.password||parsed.hash||parsed.search||!parsed.pathname.endsWith(`/${id}`))return undefined;
   const $=load(html),schemas:Record<string,unknown>[]=[];
-  for(const node of $('script[type="application/ld+json"]').toArray()){const raw=$(node).html()??"";if(!hasUniqueJsonObjectKeys(raw))return undefined;const value=JSON.parse(raw);for(const item of Array.isArray(value)?value:[value])if(rec(item)?.["@type"]==="JobPosting")schemas.push(item);}
+  for(const node of $('script[type="application/ld+json"]').toArray()){const raw=($(node).html()??"").replace(/"(?:[^"\\]|\\.)*"/gu,token=>token.replace(/\t/gu,"\\t"));if(!hasUniqueJsonObjectKeys(raw))return undefined;const value=JSON.parse(raw);for(const item of Array.isArray(value)?value:[value])if(rec(item)?.["@type"]==="JobPosting")schemas.push(item);}
   if(schemas.length!==1)return undefined;const data=schemas[0]!,reqId=rec(data.identifier)?.value;
   if(!text(reqId)||!/^R\d+$/u.test(reqId)||!text(data.title)||data.url!==url||!(parsed.hostname==="jobs.sanofi.cn"?["Sanofi","General Medicines","Manufacturing and Supply","Vaccines","Corporate Functions","Specialty Care","Research and Development"]:["Sanofi"]).includes(rec(data.hiringOrganization)?.name as string)||!text(data.description)||!load(data.description).text().trim()||!Array.isArray(data.jobLocation)||!data.jobLocation.length)return undefined;
   const countries=data.jobLocation.map(v=>rec(rec(v)?.address)?.addressCountry);if(!countries.every(text))return undefined;

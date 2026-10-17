@@ -76,7 +76,9 @@ function parseChineseDetail(html:string,row:SanofiChineseRow,allowForeignHeader:
   const u=new URL(row.url);requireValue(u.origin==="https://jobs.sanofi.cn"&&!u.username&&!u.password&&!u.hash&&!u.search&&u.pathname.endsWith(`/3036/${row.id}`));
   const $=load(html),schemas:Record<string,unknown>[]=[];
   for(const n of $('script[type="application/ld+json"]').toArray()){
-    const raw=$(n).html()??"";requireValue(hasUniqueJsonObjectKeys(raw));const v=JSON.parse(raw);
+    // Reuse the existing AstraZeneca JSON-LD TAB compatibility without changing values.
+    // Invalid backslash-TAB escapes remain invalid; evidence bodies are untouched.
+    const raw=($(n).html()??"").replace(/"(?:[^"\\]|\\.)*"/gu,token=>token.replace(/(\\*)\t/gu,(tab,slashes:string)=>slashes.length%2?tab:slashes+'\\t'));requireValue(hasUniqueJsonObjectKeys(raw));const v=JSON.parse(raw);
     for(const item of Array.isArray(v)?v:[v])if(rec(item)?.["@type"]==="JobPosting")schemas.push(item);
   }
   requireValue(schemas.length===1);const s=schemas[0]!,reqId=rec(s.identifier)?.value;
