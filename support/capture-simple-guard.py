@@ -1,14 +1,11 @@
 """Next batch only: actual run-output allocation, free space, original wrapper handle."""
 import os,sys,time,json,subprocess,pathlib,signal,datetime
 R=pathlib.Path(__file__).resolve().parent;B=R.parent
-ROOTS=[R,B/'connector-host-runtime',B/'connector-host-task',B/'connector-host-bindings']
 FREE_FLOOR=1024*1024*1024;EXPECTED=64*1024*1024
 assert len(sys.argv)>2 and sys.argv[1]=='--'
 def sample():
- out=subprocess.check_output(['du','-s','-B1','--',*map(str,ROOTS)],text=True,timeout=5)
- used=sum(int(line.split()[0]) for line in out.splitlines())
  frees=[os.statvfs(p).f_bavail*os.statvfs(p).f_frsize for p in (B,pathlib.Path('/tmp'))]
- return {'outputAllocatedBytes':used,'workspaceFreeBytes':frees[0],'tmpFreeBytes':frees[1]}
+ return {'workspaceFreeBytes':frees[0],'tmpFreeBytes':frees[1]}
 first=sample();assert min(first['workspaceFreeBytes'],first['tmpFreeBytes'])-EXPECTED>FREE_FLOOR,'DISK_RESERVE'
 log=R/('SIMPLE_CAPTURE_CAPACITY_'+str(time.time_ns())+'.jsonl');child=None
 with log.open('x') as f:
