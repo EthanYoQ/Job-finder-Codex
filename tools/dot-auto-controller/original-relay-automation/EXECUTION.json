@@ -1,1 +1,22 @@
-{"checkedAt":"2026-10-17T06:14:44Z","test":"PASS","actualFunctionsExecution":[{"sourceId":"source-ucb-china-social","status":"SKIPPED","reason":"REAL_OBSERVATION_WITHIN_12H:2026-10-17 04:52:16.122"},{"sourceId":"source-viatris-social","status":"SKIPPED","reason":"REAL_OBSERVATION_WITHIN_12H:2026-10-17 05:35:10.064"}],"newPublications":0,"livePublicationPathVerified":false,"scheduledTriggerVerified":false,"scope":["source-ucb-china-social","source-viatris-social"],"note":"Original source bindings must match the current registered build before due sources launch."}
+{
+  "checkedAt": "2026-10-17T06:33:00Z",
+  "entry": "run-original-functions.js",
+  "routeCount": 36,
+  "connectedSourceCount": 5,
+  "actualSingleInvocation": {
+    "batchId": "dot-auto-hansoh-20261017T062837084Z",
+    "pages": 4,
+    "uniqueJobs": 302,
+    "phase": "PRE_LOCK_ADMISSION",
+    "newDatabaseCommit": false,
+    "newWebPublication": false,
+    "reason": "Beisen downstream completeness remained manual"
+  },
+  "recentSuccessesSkipped": [
+    "source-ucb-china-social",
+    "source-viatris-social",
+    "source-biogen-china-social",
+    "source-hengrui-social"
+  ],
+  "scheduledEndToEndValidated": false
+}

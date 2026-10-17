@@ -50,7 +50,7 @@ async function serviceOriginalRelay(job) {
   const producer = await pollProducer();
   if (producer.exitCode !== null) {
    if (producer.exitCode !== 0 || publication?.status !== 'SUCCEEDED' || !outcomeSeen)
-    return {status: 'HELD', reason: 'PRODUCER_OR_OUTCOME_INCOMPLETE', exitCode: producer.exitCode};
+    return {status: 'HELD', reason: 'PRODUCER_OR_OUTCOME_INCOMPLETE', exitCode: producer.exitCode, diagnostic:producer.diagnostic};
    return await readback();
   }
   if (!request) await new Promise(resolve => setTimeout(resolve, 1000));
