@@ -1,5 +1,5 @@
 import { isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
-import { sanofiCertificateArtifactLocators, type SanofiArtifactCommitment } from "../crawler/traversalCertificate";
+import { SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION, sanofiCertificateArtifactLocators, type SanofiArtifactCommitment } from "../crawler/traversalCertificate";
 import type { Prisma } from "@prisma/client";
 import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256, type SourceCrawlPlan } from "../crawler/sourcePlan";
 import { candidateCompanies } from "../data/companyRegistry";
@@ -78,7 +78,7 @@ export interface PortablePublicSnapshot {
 /** Only Sanofi identity proofs need this one narrow metadata read. No bodies,
  * paths, or independent-validation JSON are queried or exposed in the snapshot. */
 export async function bindSanofiPersistedArtifacts(tx: PortableSnapshotTransactionDb, results: PortableSourceResultRow[]): Promise<void> {
-  const requests: Array<{row:PortableSourceResultRow; locators:string[]}> = [];
+  const requests: Array<{row:PortableSourceResultRow; locators:string[]; all:boolean}> = [];
   for(const row of results){
     if(row.sourceId!=="source-sanofi-china-social" || row.atomicCommitState!=="COMMITTED" || row.completenessState!=="VERIFIED") continue;
     // Never inherit caller-supplied commitments across the database read boundary.
@@ -87,14 +87,14 @@ export async function bindSanofiPersistedArtifacts(tx: PortableSnapshotTransacti
       const certificate = isJobProjectionDeltaReceipt(row.completenessCertificate) ?
         parseJobProjectionDeltaReceipt(row.completenessCertificate, row.completenessCertificateSha256 ?? "").legacyCertificate : row.completenessCertificate;
       if ((certificate as {grade?: unknown} | null)?.grade !== "B") continue;
-      requests.push({row,locators:sanofiCertificateArtifactLocators(certificate)});
+      requests.push({row,locators:sanofiCertificateArtifactLocators(certificate),all:(certificate as {schemaVersion?:unknown}).schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION});
     } catch { /* The receipt reader holds invalid proofs. */ }
   }
   if(requests.length===0 || !tx.evidenceArtifact) return;
   const artifacts=await tx.evidenceArtifact.findMany({
-    where:{OR:requests.map(({row,locators})=>({releaseCandidateId:row.releaseCandidateId,batchId:row.batchId,
-      sourceResultId:row.id,sourceId:row.sourceId,extractorLocator:{in:locators}}))},
-    select:{releaseCandidateId:true,batchId:true,sourceResultId:true,sourceId:true,kind:true,sha256:true,extractorLocator:true}
+    where:{OR:requests.map(({row,locators,all})=>({releaseCandidateId:row.releaseCandidateId,batchId:row.batchId,
+      sourceResultId:row.id,sourceId:row.sourceId,...(all?{}:{extractorLocator:{in:locators}})}))},
+    select:{releaseCandidateId:true,batchId:true,sourceResultId:true,sourceId:true,kind:true,sha256:true,extractorLocator:true,byteCount:true,capturedAt:true}
   });
   if(!Array.isArray(artifacts)) throw new Error("SANOFI_CN_PERSISTED_ARTIFACT_COMMITMENTS_REQUIRED");
   for(const {row} of requests) row.sanofiArtifacts=(artifacts as SanofiArtifactCommitment[]).filter(a=>

@@ -32,7 +32,7 @@ export function reconcileLifecycleSets(evidence:LifecycleSetEvidence):LifecycleS
     if(entry.status==="ACTIVE"&&entry.missingSuccessfulCrawlCount===0){if(!inCurrent||!inVisible||inGrace)fail("LIFECYCLE_ENTRY_ORPHAN");continue}
     if(entry.status==="ACTIVE"&&entry.missingSuccessfulCrawlCount===1){if(!inGrace||!inVisible||inCurrent)fail("LIFECYCLE_ENTRY_ORPHAN");continue}
     if(entry.status==="SUSPECTED_OFFLINE"&&entry.missingSuccessfulCrawlCount===2){if(inCurrent||inGrace||inVisible)fail("HIDDEN_ENTRY_VISIBLE");continue}
-    if(entry.status==="OFFLINE"&&entry.missingSuccessfulCrawlCount>=3){if(inCurrent||inGrace||inVisible)fail("HIDDEN_ENTRY_VISIBLE");continue}
+    if(entry.status==="OFFLINE"&&entry.missingSuccessfulCrawlCount>=1){if(inCurrent||inGrace||inVisible)fail("HIDDEN_ENTRY_VISIBLE");continue}
     fail("LIFECYCLE_ENTRY_INVALID");
   }
   const hashes={currentSha256:canonicalStringSetSha256(current),graceSha256:canonicalStringSetSha256(grace),visibleSha256:canonicalStringSetSha256(visible)};

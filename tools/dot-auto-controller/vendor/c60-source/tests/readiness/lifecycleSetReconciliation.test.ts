@@ -10,6 +10,8 @@ describe("lifecycle set reconciliation",()=>{
  it("passes legal first-miss grace and derives counts",()=>expect(reconcileLifecycleSets(valid())).toMatchObject({currentCount:1,graceCount:1,visibleCount:2}));
  it.each([
   ["suspected count two","suspected",2],
+  ["offline count one","offline",1],
+  ["offline count two","offline",2],
   ["offline count three","offline",3],
   ["offline count four","offline",4]
  ])("accepts legal hidden %s",(_name,key,count)=>{const value:any=structuredClone(valid());value.lifecycleEntries.find((e:any)=>e.key===key).missingSuccessfulCrawlCount=count;expect(reconcileLifecycleSets(value)).toMatchObject({visibleCount:2})});
@@ -25,7 +27,7 @@ describe("lifecycle set reconciliation",()=>{
   ,["active count two",(x:any)=>{x.lifecycleEntries.push(entry("bad-active","ACTIVE",2))}]
   ,["suspected count one",(x:any)=>{x.lifecycleEntries.find((e:any)=>e.key==="suspected").missingSuccessfulCrawlCount=1}]
   ,["suspected count three",(x:any)=>{x.lifecycleEntries.find((e:any)=>e.key==="suspected").missingSuccessfulCrawlCount=3}]
-  ,["offline count two",(x:any)=>{x.lifecycleEntries.find((e:any)=>e.key==="offline").missingSuccessfulCrawlCount=2}]
+  ,["offline count zero",(x:any)=>{x.lifecycleEntries.find((e:any)=>e.key==="offline").missingSuccessfulCrawlCount=0}]
   ,["suspected hidden membership",(x:any)=>{x.visibleKeys.push("suspected");x.visibleSha256=canonicalStringSetSha256(x.visibleKeys)}]
   ,["offline hidden membership",(x:any)=>{x.visibleKeys.push("offline");x.visibleSha256=canonicalStringSetSha256(x.visibleKeys)}]
  ])("rejects %s",(_name,mutate)=>{const value:any=structuredClone(valid());mutate(value);expect(()=>reconcileLifecycleSets(value)).toThrow()});

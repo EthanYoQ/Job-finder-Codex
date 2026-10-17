@@ -1,3 +1,5 @@
+import {sanofiChineseIndependentObservedAt,sanofiChineseIndependentFinishedAt} from "../src/crawler/sanofiChineseRenderedTraversal";
+import type {SourceFetchArtifactDraft} from "../src/crawler/sourceFetchEvidence";
 import { isSanofiChinesePlan, bindSanofiChineseIndependentArtifact } from "../src/crawler/sanofiChineseNative";
 import { loadPilotContext } from "../src/crawler/cloudPilotContext";
 import {runDbStartedCloudPublication,requireDbStartedOuterDeadline} from "../src/crawler/cloudDbStartedPilot";
@@ -25,7 +27,7 @@ import { buildJobDedupeKey } from "../src/crawler/normalizedJob";
 import { compilePortableAtomicSourceEvidenceSql, inspectPersistedAtomicCommitOutcome, type AtomicSourceEvidenceCommit } from "../src/db/ingestionRepository";
 import { CLOUD_PILOT_SOURCE } from "../src/db/cloudPilotSqlControl";
 import { issueAGradeOfficialTotalCertificate } from "../src/crawler/completenessCertificate";
-import { requiresBGradeTraversalCertificate, parseBGradeIndependentTraversalValidation, issueBGradeTraversalCertificate } from "../src/crawler/traversalCertificate";
+import { requiresBGradeTraversalCertificate, parseBGradeIndependentTraversalValidation, issueBGradeTraversalCertificate, SANOFI_INDEPENDENT_ORIGINAL_LOCATOR, isCurrentBGradeCertificateSchema, type SanofiIndependentArchiveBinding } from "../src/crawler/traversalCertificate";
 export const PILOT_SOURCE=CLOUD_PILOT_SOURCE.id;
 const EVIDENCE="cloud-pilot/runtime-evidence";
 const record=z.record(z.unknown());
@@ -87,12 +89,19 @@ export async function runCloudSourcePilot(input:{bootstrapPath:string;reviewedSh
   const bGrade=requiresBGradeTraversalCertificate(plan);
   if(bGrade!==Boolean(bootstrap.independentValidation))throw Error("PILOT_B_INDEPENDENT_INPUT_REQUIRED");
   let independentTraversalValidation;
+  let sanofiOriginal:SourceFetchArtifactDraft|undefined,sanofiIndependentOriginal:SanofiIndependentArchiveBinding|undefined;
   if(bootstrap.independentValidation){
     const raw=await readFile(bootstrap.independentValidation.path);
     if(sha256(raw)!==bootstrap.independentValidation.sha256)throw Error("PILOT_B_INDEPENDENT_INPUT_HASH");
     independentTraversalValidation=parseBGradeIndependentTraversalValidation(JSON.parse(raw.toString("utf8")));
     await writeFile(join(resolve(input.workspaceRoot),`${bootstrap.batchId}.independent-validation.json`),raw,{flag:"wx",mode:0o600});
     if(independentTraversalValidation.sourceId!==PILOT_SOURCE||independentTraversalValidation.companyId!==plan.company.id||independentTraversalValidation.sourceConfigSha256!==sourcePlanConfigSha256(plan))throw Error("PILOT_B_INDEPENDENT_INPUT_SCOPE");
+    if(isSanofiChinesePlan(plan)){
+      if(independentTraversalValidation.schemaVersion!=="official-json-browser-network-traversal-v1")throw Error("PILOT_SANOFI_INDEPENDENT_SCHEMA");
+      sanofiIndependentOriginal={sha256:bootstrap.independentValidation.sha256,byteCount:raw.length,canonicalArtifactSha256:independentTraversalValidation.artifactSha256};
+      sanofiOriginal={id:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR,logicalKey:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR,kind:"COMMAND_OUTPUT",
+        capturedAt:sanofiChineseIndependentFinishedAt(independentTraversalValidation.pages),body:raw,bodyRepresentation:"EXACT",extractorLocator:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR};
+    }
   }
   if(PILOT_SOURCE===JNJ_DOM_SOURCE&&!bootstrap.currentCapture)throw Error("PILOT_JNJ_CURRENT_DOM_CAPTURE_REQUIRED");
   const currentCapture=bootstrap.currentCapture?await readCurrentWorkerCapture(bootstrap.currentCapture,plan):undefined;
@@ -107,7 +116,9 @@ export async function runCloudSourcePilot(input:{bootstrapPath:string;reviewedSh
     const pre=await relay.request("READ_CONTEXT",{projectId:"yiopvxysxrtrnvqxwgbx",sourceId:PILOT_SOURCE,sourceConfigSha256:CLOUD_PILOT_SOURCE.sourceConfigSha256,purpose:"PRE_CAPTURE"},preRequestedAt+PILOT_BUDGET.controlMs,value=>z.object({checkedAt:z.string().datetime()}).passthrough().parse(value),input.signal);
     if(Date.parse(pre.checkedAt)<preRequestedAt-1000||Date.parse(pre.checkedAt)>Date.now()+1000)throw Error("PILOT_CONTEXT_FRESH_READ_REQUIRED");
     const preContext=await loadPilotContext(pre,plan,true);
-    const captureStartedAt=currentCapture?.startedAt??new Date();
+    // Compact Sanofi starts with this run's original independent DOM, not archive time.
+    const captureStartedAt=sanofiIndependentOriginal&&independentTraversalValidation?.schemaVersion==="official-json-browser-network-traversal-v1"
+      ?new Date(sanofiChineseIndependentObservedAt(independentTraversalValidation.pages)):currentCapture?.startedAt??new Date();
     const sourceFetch=currentCapture?.fetch??createHttpOnlyOfficialSourceFetch();
     const captureSignal=input.signal??new AbortController().signal;
     phase="ACQUIRE_SOURCE";const currentAttemptTracker=attemptTracker=createSourceFetchAttemptTracker();
@@ -120,25 +131,40 @@ export async function runCloudSourcePilot(input:{bootstrapPath:string;reviewedSh
     const planned=buildPendingRuntimeBatch(batchId,[plan],identity,observedFrom),pending=planned.sources[0]!;
     const tuple={releaseCandidateId:identity.releaseCandidateId,batchId,sourceId:PILOT_SOURCE,sourceResultId:pending.id};
     phase="ARCHIVE_SOURCE";const archive=await archiveSourceEvidence({workspaceRoot,...tuple,evidenceSubdirectory:EVIDENCE,captureTool:result.fetchEvidence.captureTool,artifacts:bindRuntimeEvidenceArtifactIds({...tuple,artifacts:[...result.fetchEvidence.artifacts,...(result.priorTransportAttempts??[]).flatMap(a=>a.fetchEvidence?.artifacts??[])]})});
-    const bundle=await makeArchiveBundle({workspaceRoot,...tuple,evidenceSubdirectory:EVIDENCE,artifacts:archive.artifacts});
-    const bundleBytes=JSON.stringify(bundle,null,2),bundleSha256=sha256(bundleBytes),bundlePath=join(workspaceRoot,`${batchId}.archive.json`);
-    await writeFile(bundlePath,bundleBytes,{flag:"wx",mode:0o600});
+    if(sanofiOriginal&&sanofiIndependentOriginal){
+      const independentArchive=await archiveSourceEvidence({workspaceRoot,...tuple,evidenceSubdirectory:EVIDENCE,
+        captureTool:{name:independentTraversalValidation!.validatorImplementationId,version:"2"},artifacts:bindRuntimeEvidenceArtifactIds({...tuple,artifacts:[sanofiOriginal]})});
+      const original=independentArchive.artifacts[0]!;
+      if(original.sha256!==sanofiIndependentOriginal.sha256||original.byteCount!==sanofiIndependentOriginal.byteCount)throw Error("PILOT_SANOFI_ORIGINAL_ARCHIVE_MISMATCH");
+      archive.artifacts.push(...independentArchive.artifacts);sanofiOriginal=undefined;
+    }
+    const bundlePath=join(workspaceRoot,`${batchId}.archive.json`);
+    let bundleSha256:string,bundleByteCount:number;
+    {
+      const bundle=await makeArchiveBundle({workspaceRoot,...tuple,evidenceSubdirectory:EVIDENCE,artifacts:archive.artifacts});
+      const bundleBytes=JSON.stringify(bundle,null,2);
+      bundleSha256=sha256(bundleBytes);bundleByteCount=Buffer.byteLength(bundleBytes);
+      await writeFile(bundlePath,bundleBytes,{flag:"wx",mode:0o600});
+    }
     if(result.fetchEvidence.astraZenecaDetails)await writeFile(join(workspaceRoot,`${batchId}.astrazeneca-evidence.json`),JSON.stringify({capturedAt:result.observation.crawledAt.toISOString(),paginationEvaluation:result.paginationEvaluation,evidence:{...result.fetchEvidence,artifacts:result.fetchEvidence.artifacts.map(({body,...artifact})=>({...artifact,binary:body instanceof Uint8Array}))}}),{flag:"wx",mode:0o600});
     phase="PRE_LOCK_CERTIFICATE";
-    const certificateInput={plan,transportSuccess:result.truth.transportSuccess,adapterSuccess:result.truth.adapterSuccess,evidence:result.fetchEvidence,paginationEvaluation:result.paginationEvaluation!,reconciliation:assertAdapterReconciliation(result),jobs:result.jobs,binding:{releaseCandidateId:identity.releaseCandidateId,batchId,sourceResultId:pending.id,sourceConfigSha256:pending.sourceConfigHash}};
+    const certificateInput={...(sanofiIndependentOriginal?{sanofiArchive:{artifacts:archive.artifacts,independentOriginal:sanofiIndependentOriginal}}:{}),plan,transportSuccess:result.truth.transportSuccess,adapterSuccess:result.truth.adapterSuccess,evidence:result.fetchEvidence,paginationEvaluation:result.paginationEvaluation!,reconciliation:assertAdapterReconciliation(result),jobs:result.jobs,binding:{releaseCandidateId:identity.releaseCandidateId,batchId,sourceResultId:pending.id,sourceConfigSha256:pending.sourceConfigHash}};
     const initialCertificate=bGrade?issueBGradeTraversalCertificate({...certificateInput,independentValidation:independentTraversalValidation!,validationExecution:"CURRENT_RUN",trigger:"INITIAL_QUALIFICATION",now:new Date()}):issueAGradeOfficialTotalCertificate({...certificateInput,officialArtifactSha256:archive.artifacts.find(a=>a.logicalKey===result.fetchEvidence!.declaredCompleteness?.artifactLogicalKey)?.sha256});
     if(initialCertificate.status!=="CERTIFIED")throw Error(`PILOT_CERTIFICATE_REJECTED:${initialCertificate.blockerCodes.join(",")}`);
     input.signal?.throwIfAborted();
     if(input.dbStartedControlPath){
       phase="VERIFY_LOCAL_ARCHIVE";
-      const restoredBytes=await readFile(bundlePath),bundleByteCount=Buffer.byteLength(bundleBytes);
-      if(restoredBytes.length!==bundleByteCount||sha256(restoredBytes)!==bundleSha256)throw Error("PILOT_ORIGINAL_ARCHIVE_BYTES_CHANGED");
       const restoredRoot=await mkdtemp(join(workspaceRoot,"verified-restore-"));
-      const artifacts=await restoreArchiveBundle(JSON.parse(restoredBytes.toString("utf8")),restoredRoot);
+      let artifacts:Awaited<ReturnType<typeof restoreArchiveBundle>>;
+      {
+        const restoredBytes=await readFile(bundlePath);
+        if(restoredBytes.length!==bundleByteCount||sha256(restoredBytes)!==bundleSha256)throw Error("PILOT_ORIGINAL_ARCHIVE_BYTES_CHANGED");
+        artifacts=await restoreArchiveBundle(JSON.parse(restoredBytes.toString("utf8")),restoredRoot);
+      }
       await verifyArchivedSourceEvidence({workspaceRoot:restoredRoot,evidenceSubdirectory:EVIDENCE,artifacts,...tuple});
       phase="DB_STARTED_PUBLICATION";
       const outcome=await runDbStartedCloudPublication({relay,controlPath:input.dbStartedControlPath,planned,initialCertificate:initialCertificate.certificate,overallDeadline:input.overallDeadline!,
-        source:{plan,pending,identity,batchId,result,artifacts,attemptTracker,completedAt:new Date(),publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1",
+        source:{...(sanofiIndependentOriginal?{sanofiIndependentOriginal}:{}),plan,pending,identity,batchId,result,artifacts,attemptTracker,completedAt:new Date(),publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1",
           ...(bGrade?{independentTraversalValidation:independentTraversalValidation!,independentTraversalValidationExecution:"CURRENT_RUN" as const,independentTraversalValidationTrigger:"INITIAL_QUALIFICATION" as const}:{})},
         ...(input.signal?{signal:input.signal}:{})});
       const report={...outcome,batchId,sourceResultId:pending.id,sourceId:PILOT_SOURCE,bundlePath,bundleSha256,bundleByteCount,archiveRetention:"PENDING",recoveryVerification:"PENDING",certificateGrade:bGrade?"B":"A"};
@@ -161,18 +187,21 @@ export async function runCloudSourcePilot(input:{bootstrapPath:string;reviewedSh
     if(context.trustedCompletenessBaseline&&Date.parse(context.trustedCompletenessBaseline.verifiedAt)>captureStartedAt.getTime())throw Error("PILOT_CAPTURE_PRECEDES_ACCEPTED_OBSERVATION");
     // Storage acknowledgement is separate from remote recovery verification.
     // Local replay below rechecks the exact original bytes under this live owner.
-    const bundleByteCount=Buffer.byteLength(bundleBytes);
-    phase="VERIFY_LOCAL_ARCHIVE";const restoredBytes=await readFile(bundlePath);
-    if(restoredBytes.length!==bundleByteCount||sha256(restoredBytes)!==bundleSha256)throw Error("PILOT_ORIGINAL_ARCHIVE_BYTES_CHANGED");
+    phase="VERIFY_LOCAL_ARCHIVE";
     const restoredRoot=await mkdtemp(join(workspaceRoot,"verified-restore-"));
-    const restoredArtifacts=await restoreArchiveBundle(JSON.parse(restoredBytes.toString("utf8")),restoredRoot);
+    let restoredArtifacts:Awaited<ReturnType<typeof restoreArchiveBundle>>;
+    {
+      const restoredBytes=await readFile(bundlePath);
+      if(restoredBytes.length!==bundleByteCount||sha256(restoredBytes)!==bundleSha256)throw Error("PILOT_ORIGINAL_ARCHIVE_BYTES_CHANGED");
+      restoredArtifacts=await restoreArchiveBundle(JSON.parse(restoredBytes.toString("utf8")),restoredRoot);
+    }
     bounded.throwIfAborted();
     phase="VERIFY_A_ARCHIVE";await verifyArchivedSourceEvidence({workspaceRoot:restoredRoot,evidenceSubdirectory:EVIDENCE,artifacts:restoredArtifacts,...tuple});
     if(Date.now()-captureStartedAt.getTime()>30*60*1000)throw Error("PILOT_A_CAPTURE_NOT_FRESH");
     const currentKeys=new Set(result.jobs.map(buildJobDedupeKey));
     const previousJobs=context.previousJobs.filter(job=>currentKeys.has(job.dedupeKey)||(context.acceptedVisibilityFloor!==null&&Date.parse(job.lastSeenAt)>=context.acceptedVisibilityFloor.getTime()));
-    phase="BUILD_COMMIT";const commit=buildAtomicRuntimeCommit({plan,pending,identity,batchId,result,...context,previousJobs,artifacts:restoredArtifacts,attemptTracker,completedAt:new Date(),...(bGrade?{independentTraversalValidation:independentTraversalValidation!,independentTraversalValidationExecution:"CURRENT_RUN" as const,independentTraversalValidationTrigger:"INITIAL_QUALIFICATION" as const}:{}),publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1"});
-    if(commit.sourceResult.completenessState!=="VERIFIED"||(commit.sourceResult.completenessCertificate as {schemaVersion?:string}|null)?.schemaVersion!==(bGrade?"b-grade-independent-traversal-v2":"a-grade-official-total-v2"))throw Error("PILOT_REAL_CERTIFICATE_REQUIRED");
+    phase="BUILD_COMMIT";const commit=buildAtomicRuntimeCommit({...(sanofiIndependentOriginal?{sanofiIndependentOriginal}:{}),plan,pending,identity,batchId,result,...context,previousJobs,artifacts:restoredArtifacts,attemptTracker,completedAt:new Date(),...(bGrade?{independentTraversalValidation:independentTraversalValidation!,independentTraversalValidationExecution:"CURRENT_RUN" as const,independentTraversalValidationTrigger:"INITIAL_QUALIFICATION" as const}:{}),publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1"});
+    if(commit.sourceResult.completenessState!=="VERIFIED"||!(bGrade?isCurrentBGradeCertificateSchema((commit.sourceResult.completenessCertificate as {schemaVersion?:string}|null)?.schemaVersion):(commit.sourceResult.completenessCertificate as {schemaVersion?:string}|null)?.schemaVersion==="a-grade-official-total-v2"))throw Error("PILOT_REAL_CERTIFICATE_REQUIRED");
     phase="COMPILE_SQL";const sql=await compilePortableAtomicSourceEvidenceSql(commit,owned.handle);
     phase="RENEW_LEASE";const publicationDeadline=await owned.renewOnce(bounded);
     const publicationSignal=AbortSignal.any([owned.handle.signal,AbortSignal.timeout(Math.max(1,publicationDeadline-Date.now())),...(input.signal?[input.signal]:[])]);

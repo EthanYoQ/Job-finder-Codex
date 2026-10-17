@@ -1,5 +1,5 @@
 import { getPortableCoverageScope } from "../release/portableCoveragePolicy";
-import { B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION, requiresBGradeTraversalCertificate, verifyBGradeTraversalCertificateReceipt, type BGradeTraversalCertificate } from "../crawler/traversalCertificate";
+import { B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION, SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION, isCurrentBGradeCertificateSchema, requiresBGradeTraversalCertificate, verifyBGradeTraversalCertificateReceipt, type BGradeTraversalCertificate } from "../crawler/traversalCertificate";
 import { candidateCompanies } from "../data/companyRegistry";
 import { buildStagedSourceCrawlPlans } from "../crawler/sourcePlan";
 import { supportsStrictOfficialTotalCertificate } from "../crawler/runSourceCrawl";
@@ -21,6 +21,7 @@ const A_GRADE_PUBLIC_POLICY = "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1" as co
 const A_GRADE_PUBLIC_CONFIGS: Readonly<Record<string,string>>=Object.freeze(Object.fromEntries(
   buildStagedSourceCrawlPlans(candidateCompanies).filter(plan=>getPortableCoverageScope().requiredSourceIds.includes(plan.source.id)&&supportsStrictOfficialTotalCertificate(plan))
     .map(plan=>[plan.source.id,sourcePlanConfigSha256(plan)])));
+const SANOFI_COMPACT_PUBLIC_POLICY="PRE_COMMIT_DUAL_CHAIN_ATTESTATION_V1" as const;
 const B_GRADE_PUBLIC_POLICY = "STRICT_PLAN_BOUND_INDEPENDENT_TRAVERSAL_REPLAY_V2" as const;
 // Only the two reviewed COMPLETE_PAGE_TRAVERSAL integrations are public here.
 const B_GRADE_PUBLIC_CONFIGS: Readonly<Record<string, string>> = Object.freeze(Object.fromEntries(
@@ -28,7 +29,7 @@ const B_GRADE_PUBLIC_CONFIGS: Readonly<Record<string, string>> = Object.freeze(O
     ["source-pfizer-china-social", "source-bayer-healthcare-social", "source-servier-china-social", "source-sanofi-china-social"].includes(plan.source.id) &&
     getPortableCoverageScope().requiredSourceIds.includes(plan.source.id) && requiresBGradeTraversalCertificate(plan))
     .map(plan => [plan.source.id, sourcePlanConfigSha256(plan)])));
-type PublicBReceipt = Extract<BGradeTraversalCertificate, {schemaVersion: typeof B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION}>;
+type PublicBReceipt = Extract<BGradeTraversalCertificate, {schemaVersion: typeof B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION | typeof SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION}>;
 type PublicReceipt = SourceQualityReceipt | AGradeOfficialTotalCertificate | PublicBReceipt;
 
 export interface PortableSnapshotOptions {
@@ -44,7 +45,7 @@ export interface PortableSourceStatus {
   companyId: string;
   sourceId: string;
   currentConfigSha256: string;
-  policyId: typeof SOURCE_QUALITY_POLICY_ID | typeof A_GRADE_PUBLIC_POLICY | typeof B_GRADE_PUBLIC_POLICY | null;
+  policyId: typeof SOURCE_QUALITY_POLICY_ID | typeof A_GRADE_PUBLIC_POLICY | typeof B_GRADE_PUBLIC_POLICY | typeof SANOFI_COMPACT_PUBLIC_POLICY | null;
   state: "PUBLISHING" | "HOLD" | "EXCLUDED";
   health: "HEALTHY" | "DEGRADED" | "UNVERIFIED" | "NOT_APPLICABLE";
   freshness: "FRESH" | "STALE" | "UNKNOWN";
@@ -98,7 +99,7 @@ export function supportsPublicBGrade(plan: SourceCrawlPlan): boolean {
 }
 function observedAt(receipt: PublicReceipt, row: PortableSourceResultRow): string {
   return receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? receipt.observedAt :
-    receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION ? row.observations[0]!.crawledAt.toISOString() : receipt.observation.crawledAt;
+    (receipt.schemaVersion===B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION||receipt.schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION) ? row.observations[0]!.crawledAt.toISOString() : receipt.observation.crawledAt;
 }
 function acceptedAt(selected: NonNullable<PortableSourceSelection["selected"]>): string {
   return selected.result.finishedAt!.toISOString();
@@ -107,7 +108,7 @@ function claimedReceipt(row: PortableSourceResultRow, plan: SourceCrawlPlan): bo
   const receipt = row.completenessCertificate as {schemaVersion?: unknown; policyId?: unknown} | null;
   return receipt?.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA || receipt?.policyId === SOURCE_QUALITY_POLICY_ID ||
     receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION && supportsPublicAGrade(plan) ||
-    receipt?.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION && supportsPublicBGrade(plan);
+    isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && supportsPublicBGrade(plan);
 }
 function verifyAcceptedAGrade(row: PortableSourceResultRow, plan: SourceCrawlPlan, now: Date): AGradeOfficialTotalCertificate {
   const fail = (): never => { throw new Error("PUBLIC_A_GRADE_RECEIPT_DRIFT"); };
@@ -192,7 +193,7 @@ function verifyAcceptedBGrade(row: PortableSourceResultRow, plan: SourceCrawlPla
   return receipt;
 }
 function verifyAccepted(row: PortableSourceResultRow, plan: SourceCrawlPlan, now: Date): PublicReceipt {
-  if ((row.completenessCertificate as {schemaVersion?: unknown} | null)?.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION) {
+  if (isCurrentBGradeCertificateSchema((row.completenessCertificate as {schemaVersion?: unknown} | null)?.schemaVersion)) {
     return verifyAcceptedBGrade(row, plan, now);
   }
   if ((row.completenessCertificate as {schemaVersion?: unknown} | null)?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION) {
@@ -261,7 +262,7 @@ export function selectPortableSourceSnapshots(
       try { accepted.push({result: row, receipt: verifyAccepted(row, plan, options.currentTime)}); }
       catch {
         const schema = (row.completenessCertificate as {schemaVersion?: unknown} | null)?.schemaVersion;
-        if (schema === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION || schema === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION) invalidCertifiedHistory.push(row);
+        if (schema === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION || isCurrentBGradeCertificateSchema(schema)) invalidCertifiedHistory.push(row);
         else integrityHold = true;
       }
     }
@@ -278,10 +279,10 @@ export function selectPortableSourceSnapshots(
       const {receipt, result} = selected;
       const firstSameSchema = accepted.find(entry => entry.receipt.schemaVersion === receipt.schemaVersion)!;
       Object.assign(base, {selected, visibilityFloor: acceptedAt(firstSameSchema), selectedSourceResultId: result.id,
-        policyId: receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? A_GRADE_PUBLIC_POLICY : receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION ? B_GRADE_PUBLIC_POLICY : receipt.policyId,
+        policyId: receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? A_GRADE_PUBLIC_POLICY : (receipt.schemaVersion===B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION||receipt.schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION) ? (receipt.schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION?SANOFI_COMPACT_PUBLIC_POLICY:B_GRADE_PUBLIC_POLICY) : receipt.policyId,
         lastAcceptedAt: acceptedAt(selected), lastSuccessAt: observedAt(receipt, result), lastAcceptedJobCount: receipt.counts.finalUniqueJobCount,
         state: "PUBLISHING", health: "HEALTHY", freshness: fresh(observedAt(receipt, result), options) ? "FRESH" : "STALE"});
-      if (plan.source.id === "source-servier-china-social" && receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION) {
+      if (plan.source.id === "source-servier-china-social" && (receipt.schemaVersion===B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION||receipt.schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION)) {
         base.sourceScopeSummary = {portalJobCount: result.rawCount, verifiedChinaJobCount: receipt.counts.finalUniqueJobCount,
           unknownCountryJobCount: receipt.counts.validationDiscardCount};
       }
@@ -291,7 +292,7 @@ export function selectPortableSourceSnapshots(
       if (base.freshness === "STALE") { base.state = "HOLD"; base.health = "DEGRADED"; base.reasons.push("LAST_GOOD_STALE"); }
       if (latest && latest.id !== result.id && latest.startedAt >= result.startedAt) {
         base.health = "DEGRADED";
-        if (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION) base.state = "HOLD";
+        if ((receipt.schemaVersion===B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION||receipt.schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION)) base.state = "HOLD";
         base.reasons.push(latest.finishedAt === null ? "LATEST_ATTEMPT_RUNNING" : "LATEST_ATTEMPT_FAILED");
       }
     }
@@ -320,7 +321,7 @@ function verifiedMembers(selected: NonNullable<PortableSourceSelection["selected
       sets.VISIBLE.size !== sets.CURRENT.size + sets.GRACE.size ||
       [...sets.CURRENT].some(([key, missing]) => sets.GRACE.has(key) || sets.VISIBLE.get(key) !== missing) ||
       [...sets.GRACE].some(([key, missing]) => sets.VISIBLE.get(key) !== missing)) throw new Error("PORTABLE_LIFECYCLE_SET_DRIFT");
-  if (selected.receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION) {
+  if ((selected.receipt.schemaVersion===B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION||selected.receipt.schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION)) {
     const traversal = selected.receipt.mainTraversal;
     const keys = [...sets.CURRENT.keys()].map(key => traversal.matchKeyKind === "JOB_DEDUPE_KEY" ? key :
       key.startsWith(`${result.sourceId}:`) ? key.slice(result.sourceId.length + 1) : "");

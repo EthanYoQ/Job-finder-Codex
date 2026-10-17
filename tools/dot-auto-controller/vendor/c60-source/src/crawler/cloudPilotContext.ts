@@ -10,7 +10,7 @@ import { verifyAGradeCompletenessCertificateReceipt } from "./completenessCertif
 import { requiresBGradeTraversalCertificate, verifyBGradeTraversalCertificateReceipt } from "./traversalCertificate";
 const record=z.record(z.unknown());
 const sha=z.string().regex(/^[a-f0-9]{64}$/u);
-const sanofiArtifactCommitmentSchema=z.object({releaseCandidateId:z.string().min(1),batchId:z.string().min(1),sourceResultId:z.string().min(1),sourceId:z.literal("source-sanofi-china-social"),kind:z.enum(["ORACLE_RESULT","ATS_PAGE"]),sha256:sha,extractorLocator:z.string().min(1)}).strict();
+const sanofiArtifactCommitmentSchema=z.object({releaseCandidateId:z.string().min(1),batchId:z.string().min(1),sourceResultId:z.string().min(1),sourceId:z.literal("source-sanofi-china-social"),kind:z.enum(["ORACLE_RESULT","ATS_PAGE","COMMAND_OUTPUT","PAGINATION_PAGE","OFFICIAL_COMPANY_PAGE"]),sha256:sha,extractorLocator:z.string().min(1),byteCount:z.number().int().positive().optional(),capturedAt:z.string().datetime().optional()}).strict();
 /** The raw-set commitment must come from the persisted observation, not the
  * certificate it independently checks. Never revive or rewrite certificate JSON. */
 function bGradeObservation(row:Record<string,unknown>){

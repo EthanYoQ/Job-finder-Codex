@@ -130,7 +130,7 @@ describe("Sanofi complete per-job identity proof and persisted reader anchors",(
     await bindSanofiPersistedArtifacts({evidenceArtifact:{findMany}} as unknown as PortableSnapshotTransactionDb,[r]);
     expect(findMany).toHaveBeenCalledTimes(1);
     const args=(findMany.mock.calls as unknown as Array<[any]>)[0]![0];
-    expect(args.select).toEqual({releaseCandidateId:true,batchId:true,sourceResultId:true,sourceId:true,kind:true,sha256:true,extractorLocator:true});
+    expect(args.select).toEqual({releaseCandidateId:true,batchId:true,sourceResultId:true,sourceId:true,kind:true,sha256:true,extractorLocator:true,byteCount:true,capturedAt:true});
     expect(args.where.OR).toHaveLength(1);expect(args.where.OR[0]).toMatchObject({releaseCandidateId:input.expected.releaseCandidateId,batchId:input.expected.batchId,sourceResultId:input.expected.sourceResultId,sourceId:"source-sanofi-china-social"});
     expect(args.where.OR[0].extractorLocator.in).toHaveLength(2);
     expect(verifyBGradeTraversalCertificateReceipt({...input,expected:{...input.expected,sanofiArtifacts:r.sanofiArtifacts!}}).status).toBe("PASS");

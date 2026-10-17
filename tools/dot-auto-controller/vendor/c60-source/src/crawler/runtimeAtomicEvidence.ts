@@ -1,3 +1,4 @@
+import type {SanofiIndependentArchiveBinding} from "./traversalCertificate";
 import { assertServierUnknownLifecyclePreserved } from "./servierMokaScope";
 import { hasNovartisOfficialPresencePlan, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
 import { SOURCE_QUALITY_POLICY_ID, assertIssuedSourceQualityAdmission, getSourceQualityPolicy, verifySourceQualityAtomicCommit, verifyIssuedSourceQualityArchiveForPersistence, type SourceQualityAdmission } from "./sourceQualityAdmission";
@@ -373,6 +374,7 @@ export function buildAtomicRuntimeCommit(input: {
   oracle?: AuditedSourceSurfaceOracle;
   trustedOracle?: StartupTrustedSourceSurfaceOracle;
   independentTraversalValidation?: BGradeIndependentTraversalValidation;
+  sanofiIndependentOriginal?: SanofiIndependentArchiveBinding;
   independentTraversalValidationExecution?: "CURRENT_RUN" | "REUSED";
   independentTraversalValidationTrigger?: BGradeValidationTrigger;
   independentTraversalFailureCode?: BGradeIndependentTraversalFailureCode;
@@ -442,6 +444,7 @@ export function buildAtomicRuntimeCommit(input: {
   const bGradeCertificateDecision = bGradeCertificateRequired && result.paginationEvaluation &&
       input.independentTraversalValidation
     ? issueBGradeTraversalCertificate({
+        ...(input.sanofiIndependentOriginal?{sanofiArchive:{artifacts:input.artifacts,independentOriginal:input.sanofiIndependentOriginal}}:{}),
         binding: {
           releaseCandidateId: identity.releaseCandidateId,
           batchId,

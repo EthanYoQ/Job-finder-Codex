@@ -131,7 +131,7 @@ describe("crawl lifecycle reducer", () => {
     });
 
     expect(decisionFor(decisions, job)).toMatchObject({
-      lifecycleStatus: "ACTIVE",
+      lifecycleStatus: "OFFLINE",
       missingSuccessfulCrawlCount: 1,
       isNew: false,
       firstSeenAt: FIRST_SEEN_AT,
@@ -230,15 +230,16 @@ describe("crawl lifecycle reducer", () => {
   });
 
   it.each([
-    [0, "ACTIVE", 1, "ACTIVE"], [1, "ACTIVE", 2, "SUSPECTED_OFFLINE"],
-    [2, "SUSPECTED_OFFLINE", 3, "OFFLINE"], [3, "OFFLINE", 4, "OFFLINE"]
-  ] as const)("advances trusted miss count %s with PRD status", (priorCount, priorStatus, nextCount, nextStatus) => {
+    [0, "ACTIVE", 1, "OFFLINE"], [1, "ACTIVE", 2, "OFFLINE"],
+    [2, "SUSPECTED_OFFLINE", 3, "OFFLINE"], [1, "OFFLINE", 2, "OFFLINE"],
+    [2, "OFFLINE", 3, "OFFLINE"], [3, "OFFLINE", 4, "OFFLINE"]
+  ] as const)("hides a trusted complete miss immediately from prior count %s", (priorCount, priorStatus, nextCount, nextStatus) => {
     const job=makeJob(); const decisions=applyCrawlObservation([makeSnapshot(job,{missingSuccessfulCrawlCount:priorCount,lifecycleStatus:priorStatus})],[],{
       observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:OBSERVED_AT,baselineCompletedBeforeCrawl:true});
     expect(decisionFor(decisions,job)).toMatchObject({missingSuccessfulCrawlCount:nextCount,lifecycleStatus:nextStatus,lastSeenAt:FIRST_SEEN_AT});
   });
 
-  it.each([[1,"ACTIVE"],[2,"SUSPECTED_OFFLINE"],[3,"OFFLINE"]] as const)(
+  it.each([[1,"ACTIVE"],[2,"SUSPECTED_OFFLINE"],[1,"OFFLINE"],[2,"OFFLINE"],[3,"OFFLINE"]] as const)(
     "resets reappearance from count %s %s", (count,status) => {
       const job=makeJob(); const updated=makeJob({officialTitle:"Updated"}); const decisions=applyCrawlObservation([
         makeSnapshot(job,{missingSuccessfulCrawlCount:count,lifecycleStatus:status})],[updated],{
@@ -254,7 +255,7 @@ describe("crawl lifecycle reducer", () => {
       expect(decision).toEqual({...previous,isNew:false});
     });
 
-  it.each([["ACTIVE",2],["SUSPECTED_OFFLINE",1],["OFFLINE",2],["ACTIVE",-1]] as const)(
+  it.each([["ACTIVE",2],["SUSPECTED_OFFLINE",1],["OFFLINE",0],["ACTIVE",-1]] as const)(
     "fails closed for invalid prior %s/count %s", (lifecycleStatus,count) => {
       const job=makeJob(); expect(()=>applyCrawlObservation([makeSnapshot(job,{lifecycleStatus,missingSuccessfulCrawlCount:count})],[],{
         observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:OBSERVED_AT,baselineCompletedBeforeCrawl:true})).toThrow("INVALID_PRIOR_LIFECYCLE_SNAPSHOT");

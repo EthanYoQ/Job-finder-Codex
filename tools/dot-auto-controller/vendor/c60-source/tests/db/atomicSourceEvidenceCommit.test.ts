@@ -968,6 +968,23 @@ describe("executeAtomicSourceEvidenceCommit", () => {
     expect(db.calls.transactions).toBe(0);
   });
 
+  it("writes first-miss OFFLINE history without adding GRACE or VISIBLE members", async () => {
+    const input=validCommit();
+    input.commands.push({...structuredClone(jobCommand),dedupeKey:"source-1:missing-job",
+      record:{...structuredClone(jobCommand.record),sourceJobId:"missing-job",officialUrl:"https://example.test/jobs/missing-job"},
+      lifecycleStatus:"OFFLINE",visibleInFrontend:false,missingSuccessfulCrawlCount:1,lastSeenAt:FROM.toISOString()});
+    const db=transactionalDb();
+    await executeAtomicSourceEvidenceCommit(input,db);
+    expect(db.calls.jobs).toHaveLength(2);
+    expect(db.calls.jobs[1]).toMatchObject({update:{lifecycleStatus:"OFFLINE",visibleInFrontend:false,missingSuccessCount:1}});
+    expect(db.calls.lifecycleMembers).toHaveLength(2);
+    expect(db.calls.lifecycleMembers.every((row:any)=>row.data.jobKey==="source-1:job-1"&&row.data.missingCount===0)).toBe(true);
+  });
+
+  rejectsBeforeTransaction("rejects a new verified batch that still emits first-miss grace", (x) => {
+    const job=x.commands.find(command=>command.type==="UPSERT_JOB");
+    if(job?.type==="UPSERT_JOB")job.missingSuccessfulCrawlCount=1;
+  }, /lifecycle.*status.*visibility/i);
   rejectsBeforeTransaction("rejects caller-tampered lifecycle visibility", (x) => {
     const job=x.commands.find(command=>command.type==="UPSERT_JOB"); if(job?.type==="UPSERT_JOB")job.visibleInFrontend=false;
   }, /lifecycle.*status.*visibility/i);

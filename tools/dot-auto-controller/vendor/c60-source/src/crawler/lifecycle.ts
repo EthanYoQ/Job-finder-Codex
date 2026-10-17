@@ -92,7 +92,7 @@ export function applyCrawlObservation(
 
     decisions.push({
       ...previous,
-      lifecycleStatus: lifecycleStatusForMissingCount(missingSuccessfulCrawlCount),
+      lifecycleStatus: "OFFLINE",
       missingSuccessfulCrawlCount,
       isNew: false
     });
@@ -101,20 +101,20 @@ export function applyCrawlObservation(
   return decisions;
 }
 
-function lifecycleStatusForMissingCount(missingSuccessfulCrawlCount: number): LifecycleStatus {
-  if (missingSuccessfulCrawlCount <= 1) return "ACTIVE";
-  if (missingSuccessfulCrawlCount === 2) return "SUSPECTED_OFFLINE";
-  return "OFFLINE";
-}
-
 function validatePreviousSnapshots(previousJobs: readonly JobSnapshot[]): void {
   const keys=new Set<string>();
   for (const snapshot of previousJobs) {
     const firstSeenAt=parseStrictUtcTimestamp(snapshot.firstSeenAt);
     const lastSeenAt=parseStrictUtcTimestamp(snapshot.lastSeenAt);
+    // Read old GRACE/SUSPECTED snapshots unchanged until a trusted complete observation.
+    const count = snapshot.missingSuccessfulCrawlCount;
+    const validStatus = count === 0 ? snapshot.lifecycleStatus === "ACTIVE" :
+      snapshot.lifecycleStatus === "OFFLINE" ||
+      (count === 1 && snapshot.lifecycleStatus === "ACTIVE") ||
+      (count === 2 && snapshot.lifecycleStatus === "SUSPECTED_OFFLINE");
     if (keys.has(snapshot.dedupeKey) || snapshot.dedupeKey !== buildJobDedupeKey(snapshot.record) ||
         !Number.isSafeInteger(snapshot.missingSuccessfulCrawlCount) || snapshot.missingSuccessfulCrawlCount < 0 ||
-        lifecycleStatusForMissingCount(snapshot.missingSuccessfulCrawlCount) !== snapshot.lifecycleStatus || firstSeenAt > lastSeenAt) {
+        !validStatus || firstSeenAt > lastSeenAt) {
       throw new Error("INVALID_PRIOR_LIFECYCLE_SNAPSHOT");
     }
     keys.add(snapshot.dedupeKey);

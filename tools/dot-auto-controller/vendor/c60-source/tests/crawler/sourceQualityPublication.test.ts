@@ -47,12 +47,12 @@ describe("portable quality public Job mutation boundary",()=>{
     expect(output.jobCommands).toHaveLength(1);expect(output.jobCommands[0]?.firstSeenAt).toBe(OLD);
     expect(input.previousJobs).toEqual(before);
   });
-  it("retains later accepted-policy missing rows with the existing lifecycle grace",async()=>{
+  it("hides later accepted-policy missing rows in the first complete batch",async()=>{
     const prior=await fixture(FIRST);const input=await fixture();input.firstAcceptedCurrentPolicyReceipt=priorReference(prior);
     input.previousJobs=[previous(legacyJob(input.result.jobs[0]!),FIRST)];
     const output=buildSourceQualityJobCommands(input);expect(output.visibilityFloor).toBe(FIRST);
     expect(output.jobCommands).toHaveLength(2);
-    expect(output.jobCommands.find(c=>c.record.sourceJobId==="legacy-import")).toMatchObject({lifecycleStatus:"ACTIVE",missingSuccessfulCrawlCount:1,lastSeenAt:FIRST});
+    expect(output.jobCommands.find(c=>c.record.sourceJobId==="legacy-import")).toMatchObject({lifecycleStatus:"OFFLINE",visibleInFrontend:false,missingSuccessfulCrawlCount:1,lastSeenAt:FIRST});
   });
   it("does not revive a legacy row older than the portable visibility floor",async()=>{
     const prior=await fixture(FIRST);const input=await fixture();input.firstAcceptedCurrentPolicyReceipt=priorReference(prior);

@@ -1,3 +1,4 @@
+import {isCurrentBGradeCertificateSchema,SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION} from "../crawler/traversalCertificate";
 import { buildJobProjectionDeltaReceipt } from "./jobProjectionDeltaCompiler";
 import { persistedJobProjection, hashJobPersistedProjection, JOB_SOURCE_UPDATE_FIELDS, isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
 import { hasBoundJnjDomOfficialArtifact } from "./jnjDomEvidenceAdmission";
@@ -1202,7 +1203,7 @@ export function deriveDbStartedPublicationExpiry(source:Pick<AtomicSourceResultI
  // Portable receipts already bound capture duration and issuance to the real
  // acquisition. Waiting never renews its original 30-minute publication cutoff.
  if(certificate?.schemaVersion===SOURCE_QUALITY_RECEIPT_SCHEMA)expiry=Date.parse(certificate.acquisition?.finishedAt??'')+30*60_000;
- if(certificate?.schemaVersion==='b-grade-independent-traversal-v2'){
+ if(isCurrentBGradeCertificateSchema(certificate?.schemaVersion)){
   expiry=Math.min(expiry,Date.parse(certificate.independentValidation?.expiresAt??''));
   if(certificate.validationPolicy?.execution==='CURRENT_RUN')expiry=Math.min(expiry,Date.parse(certificate.independentValidation?.observedAt??'')+B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS);
  }
@@ -1272,7 +1273,7 @@ async function compileDbStartedCloudSourcePublicationWithIds(input:DbStartedClou
   ...(completenessAnomalyTriggerCodes.length>0?{completenessAnomalyTriggerCodes}:{}),
   ...(independentTraversalValidationTrigger!==undefined?{independentTraversalValidationTrigger}:{})});
  const certificate=commit.sourceResult.completenessCertificate as {schemaVersion?:string;independentValidation?:{observedAt?:string;expiresAt?:string}}|null;
- if(commit.sourceResult.completenessState!=='VERIFIED'||!(portable?[SOURCE_QUALITY_RECEIPT_SCHEMA]:['a-grade-official-total-v2','b-grade-independent-traversal-v2']).includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
+ if(commit.sourceResult.completenessState!=='VERIFIED'||!(portable?[SOURCE_QUALITY_RECEIPT_SCHEMA]:['a-grade-official-total-v2','b-grade-independent-traversal-v2',SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION]).includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
  // Original acquisition and B validation times are preserved. No renewed local
  // lease/acknowledgement can manufacture a later deadline for this packet.
  if(input.publicationDeadline!==undefined&&!Number.isSafeInteger(input.publicationDeadline))throw Error('PILOT_PUBLICATION_DEADLINE_INVALID');
@@ -1304,7 +1305,7 @@ async function compileDbStartedCloudSourcePublicationWithIds(input:DbStartedClou
   }
   const holderId=allocateUuid(),expiresAt=new Date(deadline).toISOString();
   const originalTimesThrough=new Date(Math.max(captureStarted,commit.sourceResult.finishedAt!.getTime(),...commit.artifacts.map(a=>a.capturedAt.getTime()),
-   ...(certificate?.schemaVersion==='b-grade-independent-traversal-v2'?[Date.parse(certificate.independentValidation?.observedAt??'')]:[]))).toISOString();
+   ...(isCurrentBGradeCertificateSchema(certificate?.schemaVersion)?[Date.parse(certificate.independentValidation?.observedAt??'')]:[]))).toISOString();
   const controls=prepareCloudPilotDbStartedControl(control,{...publicationCommit.sourceResult},holderId,expiresAt,originalTimesThrough,source.sourceAdmissionPolicy);
   // One complete terminal value feeds the existing update columns and exact
   // postcondition, so large B evidence is serialized only once in this DO.
@@ -2207,7 +2208,7 @@ function validateAtomicSourceEvidenceCommit(
   }
   if(result.completenessState==="VERIFIED" && !manualPreview) {
     for(const command of jobCommands) {
-      const expectedStatus=command.missingSuccessfulCrawlCount<=1?"ACTIVE":command.missingSuccessfulCrawlCount===2?"SUSPECTED_OFFLINE":"OFFLINE";
+      const expectedStatus=command.missingSuccessfulCrawlCount===0?"ACTIVE":"OFFLINE";
       if(command.lifecycleStatus!==expectedStatus||command.visibleInFrontend!==(command.lifecycleStatus==="ACTIVE")) throw new Error("Lifecycle command status/count/visibility mismatch");
     }
     const currentKeys=jobCommands.filter(command=>command.missingSuccessfulCrawlCount===0).map(command=>command.dedupeKey);
