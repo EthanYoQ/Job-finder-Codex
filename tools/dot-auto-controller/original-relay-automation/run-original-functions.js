@@ -28,6 +28,6 @@ return await runOriginalSerial(Object.keys(sourceFolders),async sourceId=>{
  let process=started;
  return {stage,sourceId,relayDirectory:relay,deadline:Date.now()+1800000,
   pollProducer:async()=>{if(process.session_id)process=await tools.write_stdin({session_id:process.session_id,chars:'',yield_time_ms:1000,max_output_tokens:1000});return {exitCode:process.exit_code??null};},
-  reviewPublication:async request=>JSON.parse(await command(q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(D+'/review-original-publication.mjs')+' '+q(run)+' '+q(request.requestId)+' '+q(relay))),
+  reviewPublication:async request=>JSON.parse((await command('JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+' '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(D+'/review-original-publication.mjs')+' '+q(run)+' '+q(request.requestId)+' '+q(relay))).trim().split('\n').at(-1)),
   readback:async()=>JSON.parse(await command('python3 '+q(D+'/readback-original-web.py')+' '+q(run)))};
 });
