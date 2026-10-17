@@ -14,7 +14,7 @@ if(load('originalRelayReadOnly')===true)return states.map(s=>({sourceId:s.source
 return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const state=stateById[sourceId];
  if(state.crawledAt&&Date.parse(state.checkedAt)-Date.parse(state.crawledAt)<43200000)return {skip:'REAL_OBSERVATION_WITHIN_12H:'+state.crawledAt};
- if(sourceId==='source-organon-china-social')throw Error('ORGANON_MANUAL_KEYWORD_COUNTRY_APPLICATION_EVIDENCE_PENDING');
+ 
  if(!sourceFolders[sourceId])throw Error('ROUTE_NOT_CONNECTED:'+routeById[sourceId].route);
  if(state.holder||Number(state.running)||Number(state.manual))throw Error('EXISTING_WRITER_RECONCILE_ONLY');
  const active=await command("python3 -c "+q("import pathlib; print(any((p.read_bytes().split(b'\\0')[0].endswith(b'/node') and any(a.endswith(b'/run-with-http-diagnostics.mjs') or a.endswith(b'/p0-cloud-portable-source-pilot.ts') or a.endswith(b'/p0-cloud-source-pilot.ts') for a in p.read_bytes().split(b'\\0'))) for p in pathlib.Path('/proc').glob('[0-9]*/cmdline') if p.exists()))"));if(active.trim()==='True')throw Error('EXISTING_CLOUD_PRODUCER_RECONCILE_ONLY');

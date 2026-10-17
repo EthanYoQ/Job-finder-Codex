@@ -35,7 +35,8 @@ assert(entry.includes("replaceAll('__ORIGINAL_CERTIFICATE_SCHEMA__'"));assert(en
 
 const recovered=fixture({unknown:true});const originalPoll=recovered.job.pollProducer;recovered.job.pollProducer=async()=>({...await originalPoll(),outcomeState:'COMMITTED_EXACT'});assert.equal((await serviceOriginalRelay(recovered.job)).status,'WEB_VERIFIED');assert.equal(recovered.calls.filter(x=>x==='dispatch').length,1);assert(recovered.calls.includes('READ_OUTCOME'));
 
-assert(entry.includes("if(sourceId==='source-organon-china-social')throw Error('ORGANON_MANUAL_KEYWORD_COUNTRY_APPLICATION_EVIDENCE_PENDING')"));
+assert(!entry.includes("ORGANON_MANUAL_KEYWORD_COUNTRY_APPLICATION_EVIDENCE_PENDING"));
+assert.equal(folders['source-organon-china-social'],'organon');
 
 assert.equal(folders['source-johnson-innovative-medicine-social'],'jnj');
 assert(entry.includes('captureJnjManagedDom'));assert(entry.includes('prepare-jnj-dom-current-capture.ts'));assert(entry.includes('...(currentCapture?{currentCapture}:{})'));

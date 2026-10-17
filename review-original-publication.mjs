@@ -18,19 +18,16 @@ if(phase!=='packet-only'){
  process.chdir(V);
 const [file,fn]=special??['original-portable-sql-review.mts','reviewOriginalPortableSql'];const review=(await import(R+'/offline-checkers/'+file))[fn];
 // Reuse the exact original publication read, whose server digest is bound into this packet.
-const {decodeDeclarations}=await import(V+'/../../native/review-packet-envelope.mts');
-const declaration=/DECLARE affected bigint; job_data jsonb; ([\s\S]*?) current_context jsonb;/.exec(request.payload.sql);assert(declaration);
-const expectedContext=decodeDeclarations(declaration[1]).context;
 let publicationContext;
-if(expectedContext.snapshotSha256){
+if(contextRequestId){
  assert(/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(contextRequestId??''),'ORIGINAL_PUBLICATION_CONTEXT_REQUEST_ID_REQUIRED');
  const response=read(relay+'/'+contextRequestId+'.response.json'),readRequest=read(relay+'/'+contextRequestId+'.request.json');
  assert.equal(readRequest.requestId,contextRequestId);assert.equal(response.requestId,contextRequestId);
  assert.equal(readRequest.kind,'READ_PUBLICATION_CONTEXT');assert.equal(response.kind,'READ_PUBLICATION_CONTEXT');assert.equal(response.result?.status,'SUCCEEDED');
  assert.equal(readRequest.requestSha256,response.requestSha256);assert.equal(readRequest.payload.projectId,request.payload.projectId);
- assert.equal(response.result.rows?.[0]?.context?.snapshotSha256,expectedContext.snapshotSha256,'ORIGINAL_PUBLICATION_CONTEXT_RESPONSE_REQUIRED');
+ assert.match(response.result.rows?.[0]?.context?.snapshotSha256??'',/^[a-f0-9]{64}$/,'ORIGINAL_PUBLICATION_CONTEXT_RESPONSE_REQUIRED');
  publicationContext=response.result.rows[0].context;
-}else publicationContext=read(path.dirname(run)+'/READER_BEFORE.json').publicationContext;
+}
 const packet=await review(run,id,run+'/review/PACKET_REVIEW.json',{originalOuterDeadline:starts[0].outerDeadline,publicationContext});
 const {replayOriginalPortableReaders}=await import(R+'/offline-checkers/original-portable-reader-replay.mts');
 await replayOriginalPortableReaders({run,outputDirectory:run+'/review',before:read(path.dirname(run)+'/READER_BEFORE.json'),packet});

@@ -38,24 +38,39 @@ let attempted=0;assert.throws(()=>invoke(()=>{attempted++;throw Error('packet fa
 console.log('PASS: packet process completes before raw and target; packet failure stops later steps');
 
 
-const contextId='00000000-0000-0000-0000-000000000001', snapshot='bound-snapshot', project='yiopvxysxrtrnvqxwgbx';
+const contextId='00000000-0000-0000-0000-000000000001', snapshot='a'.repeat(64), project='yiopvxysxrtrnvqxwgbx';
+const expectedContext={sourceId:'source-test',sourceConfigSha256:'b'.repeat(64),snapshotSha256:snapshot};
 const contextSource=review.slice(review.indexOf('let publicationContext;'),review.indexOf('\nconst packet=await review'));
-const selectContext=new Function('contextRequestId','read','relay','expectedContext','request','path','run','assert',contextSource+';return publicationContext;');
+const selectContext=new Function('contextRequestId','read','relay','request','assert',contextSource+';return publicationContext;');
 const goodRequest={requestId:contextId,requestSha256:'bound-request',kind:'READ_PUBLICATION_CONTEXT',payload:{projectId:project}};
-const goodResponse={requestId:contextId,requestSha256:'bound-request',kind:'READ_PUBLICATION_CONTEXT',result:{status:'SUCCEEDED',rows:[{context:{snapshotSha256:snapshot,checkedAt:'original-time'}}]}};
-const select=(req=goodRequest,res=goodResponse,id=contextId,expected={snapshotSha256:snapshot},customRead)=>{
+const goodResponse={requestId:contextId,requestSha256:'bound-request',kind:'READ_PUBLICATION_CONTEXT',result:{status:'SUCCEEDED',rows:[{context:{...expectedContext,checkedAt:'original-time'}}]}};
+const select=(req=goodRequest,res=goodResponse,id=contextId,customRead)=>{
  const reads=[];const read=customRead??(file=>{reads.push(file);if(file==='/relay/'+contextId+'.request.json')return req;if(file==='/relay/'+contextId+'.response.json')return res;throw Error('unexpected read '+file);});
- return {value:selectContext(id,read,'/relay',expected,{payload:{projectId:project}},{dirname:()=>'/parent'},'/run',assert),reads};
+ return {value:selectContext(id,read,'/relay',{payload:{projectId:project}},assert),reads};
 };
 assert.deepEqual(select().value,goodResponse.result.rows[0].context);
 assert.deepEqual(select().reads,['/relay/'+contextId+'.response.json','/relay/'+contextId+'.request.json']);
-for(const id of ['',null,'../other'])assert.throws(()=>select(goodRequest,goodResponse,id));
+for(const id of ['',null])assert.deepEqual(select(goodRequest,goodResponse,id),{value:undefined,reads:[]});
+assert.throws(()=>select(goodRequest,goodResponse,'../other'));
 for(const mutate of [r=>r.requestId='other',r=>r.requestSha256='other',r=>r.kind='READ_CONTEXT',r=>r.payload.projectId='other']){const req=structuredClone(goodRequest);mutate(req);assert.throws(()=>select(req));}
-for(const mutate of [r=>r.requestId='other',r=>r.requestSha256='other',r=>r.kind='READ_CONTEXT',r=>r.result.status='FAILED',r=>r.result.rows[0].context.snapshotSha256='other',r=>r.result.rows=[]]){const res=structuredClone(goodResponse);mutate(res);assert.throws(()=>select(goodRequest,res));}
+for(const mutate of [r=>r.requestId='other',r=>r.requestSha256='other',r=>r.kind='READ_CONTEXT',r=>r.result.status='FAILED',r=>r.result.rows[0].context.snapshotSha256='other',r=>r.result.rows[0].context.snapshotSha256=[snapshot],r=>r.result.rows=[]]){const res=structuredClone(goodResponse);mutate(res);assert.throws(()=>select(goodRequest,res));}
 assert.throws(()=>select(null));assert.throws(()=>select(goodRequest,null));
-for(const error of [new Error('ENOENT'),new SyntaxError('malformed JSON')])assert.throws(()=>select(goodRequest,goodResponse,contextId,{snapshotSha256:snapshot},()=>{throw error;}),e=>e===error);
-const before={publicationContext:{legacy:true}};assert.deepEqual(select(goodRequest,goodResponse,contextId,{},file=>{assert.equal(file,'/parent/READER_BEFORE.json');return before;}).value,before.publicationContext);
-console.log('PASS: exact context ID reads only its request/response; all identity/status/snapshot failures reject; no history scan or unused before read');
+for(const error of [new Error('ENOENT'),new SyntaxError('malformed JSON')])assert.throws(()=>select(goodRequest,goodResponse,contextId,()=>{throw error;}),e=>e===error);
+// The original reviewer owns compact source/config/snapshot binding after the wrapper's ID lookup.
+const control=fs.readFileSync(new URL('../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/cloudPilotSqlControl.ts',import.meta.url),'utf8');
+const comparisonBody=control.match(/export function publicationContextComparisonValue\([^)]*\)\{\n([\s\S]*?)\n\}/);assert(comparisonBody);
+const comparison=new Function('context',comparisonBody[1]);
+for(const file of ['original-portable-sql-review.mts','biogen-packet-gate.mts','hengrui-packet-gate.mts']){
+ const reviewer=fs.readFileSync(new URL('../takeda-original-recovery-20261017T0417Z/offline-checkers/'+file,import.meta.url),'utf8');
+ const binding=reviewer.split('\n').find(line=>line.startsWith('const context=packetContext.snapshotSha256?'));assert(binding);
+ const bind=new Function('packetContext','publicationContext','publicationContextComparisonValue','assert',binding+';return context;');
+ assert.strictEqual(bind(expectedContext,select().value,comparison,assert),goodResponse.result.rows[0].context);
+ assert.throws(()=>bind(expectedContext,select(goodRequest,goodResponse,'').value,comparison,assert),/READ_CONTEXT_REQUIRED/);
+ for(const key of ['sourceId','sourceConfigSha256','snapshotSha256']){const res=structuredClone(goodResponse);res.result.rows[0].context[key]='c'.repeat(64);assert.throws(()=>bind(expectedContext,select(goodRequest,res).value,comparison,assert),/READ_CONTEXT_BINDING/);}
+ const {snapshotSha256,...legacy}=goodResponse.result.rows[0].context;
+ assert.strictEqual(bind(legacy,select(goodRequest,goodResponse,'').value,comparison,assert),legacy);
+}
+console.log('PASS: exact ID lookup keeps request/response guards; three original reviewers reject compact missing ID and wrong source/config/snapshot; legacy needs no fallback read');
 
 const callbackStart=entry.indexOf('reviewPublication:async ')+ 'reviewPublication:'.length;
 const callbackText=entry.slice(callbackStart,entry.indexOf(',\n  readback:',callbackStart));
