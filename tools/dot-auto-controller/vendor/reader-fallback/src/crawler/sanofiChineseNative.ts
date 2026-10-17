@@ -145,10 +145,11 @@ export function sanofiChineseLocation(raw:string):{locationRaw:string;cities:str
     return city.replace(/市$/u,"");
   });return {locationRaw,cities:[...new Set(cities)]};
 }
-export interface SanofiChineseNativeResult {state:"PUBLISHING"|"CLOSED";locationRaw?:string;cities?:string[];descriptionAnomaly?:SanofiDescriptionAnomaly;nativePositionId?:string;nativeDescriptionSha256?:string}
-export interface SanofiChineseDecision {id:string;reqId:string;sourceJobId:string;state:string;title:string;officialUrl:string;applyUrl:string;descriptionSha256:string;nativePositionId:string|null;nativeDescriptionSha256:string|null;nativeLocationRaw:string|null;nativeCities:string[]}
+export interface SanofiTitleConflict {chineseTitle:string;nativeTitle:string}
+export interface SanofiChineseNativeResult {titleConflict?:SanofiTitleConflict;state:"PUBLISHING"|"CLOSED";locationRaw?:string;cities?:string[];descriptionAnomaly?:SanofiDescriptionAnomaly;nativePositionId?:string;nativeDescriptionSha256?:string}
+export interface SanofiChineseDecision {titleConflict?:SanofiTitleConflict;id:string;reqId:string;sourceJobId:string;state:string;title:string;officialUrl:string;applyUrl:string;descriptionSha256:string;nativePositionId:string|null;nativeDescriptionSha256:string|null;nativeLocationRaw:string|null;nativeCities:string[]}
 export function sanofiChineseDecision(detail:SanofiChineseDetail,native?:SanofiChineseNativeResult):SanofiChineseDecision {
-  return {id:detail.id,reqId:detail.reqId,sourceJobId:sanofiPersistentJobId(detail.reqId),state:native?.state??"OUTSIDE",title:detail.title,officialUrl:detail.url,applyUrl:detail.applyUrl,descriptionSha256:sanofiHash(detail.description),
+  return {id:detail.id,reqId:detail.reqId,sourceJobId:sanofiPersistentJobId(detail.reqId),state:native?.state??"OUTSIDE",title:native?.titleConflict?.nativeTitle??detail.title,...(native?.titleConflict?{titleConflict:native.titleConflict}:{}),officialUrl:detail.url,applyUrl:detail.applyUrl,descriptionSha256:sanofiHash(detail.description),
     nativePositionId:native?.nativePositionId??null,nativeDescriptionSha256:native?.nativeDescriptionSha256??null,nativeLocationRaw:native?.locationRaw??null,nativeCities:native?.cities??[]};
 }
 export function parseSanofiChineseNative(html:string,detail:SanofiChineseDetail):SanofiChineseNativeResult {
@@ -162,9 +163,17 @@ export function parseSanofiChineseNative(html:string,detail:SanofiChineseDetail)
   requireValue($("#positionName").length===1&&$("#positionId").length===1&&/^[a-f0-9]{24}$/u.test(id??"")&&text(title)&&
     $('meta[name="description"]').length===1&&$('meta[name="description"]').attr("content")==="赛诺菲（中国）投资有限公司上海分公司");
   const aliases:Record<string,string>={"DBU Regional Manager HZ":"Regional Manager","Access Strategy Project Manager":"Market Access-(Sr.) Access Strategy Project Manager-Shanghai"};
-  requireValue(clean(title!)===detail.title||!detail.headerAnomaly&&aliases[detail.title]===clean(title!));
+  const titleAgrees=clean(title!)===detail.title||!detail.headerAnomaly&&aliases[detail.title]===clean(title!);
+  if(detail.headerAnomaly)requireValue(titleAgrees);
   requireValue($(".position-description").length===1);const nativeDescription=sanofiDescription($(".position-description").text());
   requireValue(nativeDescription.length>0);
+  let titleConflict:SanofiTitleConflict|undefined;
+  if(!titleAgrees){
+    requireValue(!detail.headerAnomaly&&!detail.anomaly&&detail.countryScope==="MAINLAND"&&status==="PUBLISHING"&&
+      detail.applyUrl===`https://careersite.tupu360.com/sanofi/position/detail?exid=${detail.reqId}`&&nativeDescription===detail.description&&
+      $(".position-header h4.name").length===1&&clean($(".position-header h4.name").text())===clean(title!),"SANOFI_CN_TITLE_CONFLICT_UNPROVEN");
+    titleConflict={chineseTitle:detail.title,nativeTitle:clean(title!)};
+  }
   if(detail.headerAnomaly){
     const nativeIds=$("script").toArray().flatMap(node=>[...($(node).html()??"").matchAll(/\bvar\s+prevPositionId\s*=\s*["']([a-f0-9]{24})["']\s*;/gu)].map(match=>match[1]));
     const location=sanofiChineseLocation($(".position-extend .city").text());
@@ -196,7 +205,7 @@ export function parseSanofiChineseNative(html:string,detail:SanofiChineseDetail)
   }
   requireValue(["SOCIALRECRUITMENT","INTERNSHIPRECRUITMENT"].includes($("#recruitmentType").attr("value")??""));
   if(status==="CLOSED")return {state:"CLOSED",nativePositionId:id!,nativeDescriptionSha256:sanofiHash(nativeDescription)};
-  return {state:"PUBLISHING",nativePositionId:id!,nativeDescriptionSha256:sanofiHash(nativeDescription),...sanofiChineseLocation($(".position-extend .city").text()),...(descriptionAnomaly?{descriptionAnomaly}:{})};
+  return {state:"PUBLISHING",nativePositionId:id!,nativeDescriptionSha256:sanofiHash(nativeDescription),...sanofiChineseLocation($(".position-extend .city").text()),...(titleConflict?{titleConflict}:{}),...(descriptionAnomaly?{descriptionAnomaly}:{})};
 }
 
 export const sanofiChineseHttp:HttpHtmlClient=async request=>{
@@ -244,10 +253,10 @@ function project(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,primary:
       native=parseSanofiChineseNative(body(t!),detail);if(native.descriptionAnomaly)anomalies.push(native.descriptionAnomaly);if(native.state==="CLOSED"){excluded="SANOFI_CN_NATIVE_CLOSED";reason="Sanofi Chinese native application explicitly closes this requisition";closedIds.add(sanofiPersistentJobId(detail.reqId));}
       else location={locationRaw:native.locationRaw!,cities:native.cities!};
     }
-    decisions.push(sanofiChineseDecision(detail,native));
+    const decision=sanofiChineseDecision(detail,native);decisions.push(decision);
     if(excluded){excludedIds.add(sanofiPersistentJobId(detail.reqId));losses.push({stage:"VALIDATION",reason:reason!,rawLocator:row.rawLocator,details:{code:excluded,pageSequence:row.pageSequence,recordIndex:row.recordIndex},recordedAt:a!.capturedAt});continue;}
     requireValue(location);included.add(row.id);jobs.push({companyId:plan.company.id,sourceId:plan.source.id,sourceKind:"SOCIAL",atsKind:"OFFICIAL_HTML",officialChineseCompanyName:plan.company.officialChineseName,
-      sourceJobId:sanofiPersistentJobId(detail.reqId),officialTitle:detail.title,officialUrl:detail.applyUrl,listUrl:SANOFI_CN_ENTRY,...location!,category:"其他",isBaseline,
+      sourceJobId:sanofiPersistentJobId(detail.reqId),officialTitle:decision.title,officialUrl:detail.applyUrl,listUrl:SANOFI_CN_ENTRY,...location!,category:"其他",isBaseline,
       evidence:{officialEntryUrl:SANOFI_CN_ENTRY,officialChainEvidenceUrl:"https://jobs.sanofi.cn/",capturedAt:start}});
   }
   requireValue(new Set(jobs.map(j=>j.sourceJobId)).size===jobs.length&&used.size===map.size&&artifacts.length===map.size);
