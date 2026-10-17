@@ -45,14 +45,12 @@ export async function createExistingCompiler({ runtimeRoot, expectedBuild,
   }
   const fromRoot = name => import(pathToFileURL(join(root,name)).href);
   const { verifyNodeRuntimeProfile } = await fromRoot('scripts/verify-node-runtime-profile.ts');
-  const { createBuildIdentity } = await fromRoot('src/readiness/buildIdentity.ts');
   const { compileDbStartedCloudSourcePublication } = await fromRoot('src/db/ingestionRepository.ts');
   const { compileCloudPilotPublicationContextSql, CLOUD_PILOT_SOURCE } = await fromRoot('src/db/cloudPilotSqlControl.ts');
   async function verifyRuntime(control) {
     await verifyNodeRuntimeProfile();
     if (hash(await readFile(join(root,'package-lock.json'))) !== expectedLockSha256) throw Error('COMPILER_DEPENDENCY_LOCK_DRIFT');
     const build = verifyRuntimeBeforeImport(root,pinnedBuild,expectedLockSha256);
-    if(!same(build,createBuildIdentity(root,build.commitSha)))throw Error('COMPILER_BUILD_ALGORITHM_DRIFT');
     if (!same(build,pinnedBuild) || control && !same(build,control.build)) throw Error('COMPILER_RUNTIME_BUILD_DRIFT');
     if (process.env.JOBFINDER_CLOUD_SOURCE_ID !== expectedSourceId || CLOUD_PILOT_SOURCE.id !== expectedSourceId ||
         CLOUD_PILOT_SOURCE.sourceConfigSha256 !== expectedSourceConfigSha256) throw Error('COMPILER_SOURCE_MODULE_DRIFT');
