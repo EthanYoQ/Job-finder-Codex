@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-10-17T07:22:00Z",
+  "entry": "run-original-functions.js",
+  "routeCount": 36,
+  "connectedSourceCount": 30,
+  "initialDueQueryCount": 1,
+  "preCommitSourceDueRecheck": true,
+  "actualSingleInvocation": {
+    "batchId": "dot-auto-hansoh-20261017T064120517Z",
+    "pages": 4,
+    "currentJobs": 302,
+    "graceJobs": 9,
+    "visibleJobs": 311,
+    "newJobs": 29,
+    "changedExistingJobs": 49,
+    "databaseOutcome": "COMMITTED",
+    "webOutcome": "VERIFIED",
+    "modelDirectedIntermediateSteps": 0,
+    "externalApprovalDuringRun": "OBSERVED_TOOL_MAPPING_UNCONFIRMED"
+  },
+  "latestCandidate": 82,
+  "latestAttempt": {
+    "sourceId": "source-amgen-china-social",
+    "phase": "BINDING_VALIDATION_BEFORE_LAUNCH",
+    "reason": "Original launcher PORTABLE-only source admission; original source fix pending",
+    "newDatabaseCommit": false,
+    "newWebPublication": false
+  },
+  "scheduledEndToEndValidated": false,
+  "full36Validated": false,
+  "remainingUnconnectedSourceCount": 6,
+  "reviewFailureUsesOriginalNotDispatched": true,
+  "Cspc": "NOT_DISPATCHED_CURRENT_NATIVE_DOM_AND_DETAIL_OBSERVATIONS_MISSING",
+  "moduleIsFullProjectBackup": false,
+  "CspcQueryPoolIsNotActiveTotal": true,
+  "configuredPortable": 19,
+  "configuredOrdinaryA": 11
+}

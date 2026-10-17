@@ -1,0 +1,257 @@
+{
+  "basis": "Existing 36-source reference cross-checked against native catalogue; not a current candidate binding",
+  "rows": [
+    {
+      "sourceId": "source-abbvie-china-social",
+      "companyId": "company-abbvie-china",
+      "companyName": "艾伯维中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "4bc13113d0ea829b7df6935081d009ac389f24c97340390f09bbb7ad5234e5a9"
+    },
+    {
+      "sourceId": "source-amgen-china-social",
+      "companyId": "company-amgen-china",
+      "companyName": "安进中国",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "1854166be2d563e3e9cc075df017d3f04e1f65e3b06186bb64c95a3c8676f6a6"
+    },
+    {
+      "sourceId": "source-astellas-china-social",
+      "companyId": "company-astellas-china",
+      "companyName": "安斯泰来中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "d3a6153703eeb204c9626e2b45e75d0d9dfcc65865c49066be6ec7a34dec88bc"
+    },
+    {
+      "sourceId": "source-astrazeneca-social",
+      "companyId": "company-astrazeneca",
+      "companyName": "阿斯利康中国",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "ed85e5a1e4798e4393003cccd6899db986a90c9ff180e95425a63e622cd8ccc5"
+    },
+    {
+      "sourceId": "source-bayer-healthcare-social",
+      "companyId": "company-bayer-healthcare",
+      "companyName": "拜耳医药保健中国",
+      "route": "TRUE_B",
+      "sourceConfigSha256": "df4b8294c45f3bcad0675d64b4211522f3265bae68a38c0825c3d99773f139e9"
+    },
+    {
+      "sourceId": "source-biogen-china-social",
+      "companyId": "company-biogen-china",
+      "companyName": "渤健中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "47107a3a1f9dbd3411a1f9244866be7c4bc52422b94a1c92204dc66ac4340348"
+    },
+    {
+      "sourceId": "source-bms-china-social",
+      "companyId": "company-bms-china",
+      "companyName": "百时美施贵宝中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "e0d783cbc8fc887e1697db6d86cb0abb8058ca6793cd32752055271c022ca137"
+    },
+    {
+      "sourceId": "source-boehringer-ingelheim-china-social",
+      "companyId": "company-boehringer-ingelheim-china",
+      "companyName": "勃林格殷格翰中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "86abb89ac25980acc5e9e3c82741a3415138f53f321f1050c4ae849efd4132de"
+    },
+    {
+      "sourceId": "source-cr-pharma-social",
+      "companyId": "company-cr-pharma",
+      "companyName": "华润医药控股有限公司",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "0c5e8c2089b14b18b5db88b63d0c809f9e216bace615fdf1c34f34e9fe83da89"
+    },
+    {
+      "sourceId": "source-csl-china-social",
+      "companyId": "company-csl-china",
+      "companyName": "杰特贝林",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "eb4583bc629171783b293f162837776c6f68e63b7e81cc40540b83aed6e06694"
+    },
+    {
+      "sourceId": "source-cspc-social",
+      "companyId": "company-cspc",
+      "companyName": "石药控股集团有限公司",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "5fbeee6e6b8d95f05d2b8771908f206ba8f45eea32a6208f21490a058332d409"
+    },
+    {
+      "sourceId": "source-cttq-social",
+      "companyId": "company-cttq",
+      "companyName": "正大天晴药业集团股份有限公司",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "ffdac7a24fcdc6aeabfc9abebfbc49fac8a3cb110a218c61fae6dc0f4e75dbb7"
+    },
+    {
+      "sourceId": "source-daiichi-sankyo-china-social",
+      "companyId": "company-daiichi-sankyo-china",
+      "companyName": "第一三共中国",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "4cfbb43973c55db406d1e10ab9aed53bc72b8ccfbb7ed9a66745fd3cbf459e03"
+    },
+    {
+      "sourceId": "source-fosun-pharma-social",
+      "companyId": "company-fosun-pharma",
+      "companyName": "上海复星医药（集团）股份有限公司",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "0227ec8d384900a48b2973f128908f7e9435d4bc991efd9a5b14ea5a3d1042b2"
+    },
+    {
+      "sourceId": "source-gilead-china-social",
+      "companyId": "company-gilead-china",
+      "companyName": "吉利德科学",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "bdb31408948240f810347b6ba217407b0b50c9327c9600b4115a2a7a0869e40c"
+    },
+    {
+      "sourceId": "source-grifols-china-social",
+      "companyId": "company-grifols-china",
+      "companyName": "基立福中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "614ac95db03986792bf1a42a856a403e747165f1b3a94d8588d49f2016c522c7"
+    },
+    {
+      "sourceId": "source-gsk-china-social",
+      "companyId": "company-gsk-china",
+      "companyName": "葛兰素史克中国",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "aa9bf82308c3b818a8c33b80561712b932389186c160ae83583a8c869eb54d74"
+    },
+    {
+      "sourceId": "source-hansoh-social",
+      "companyId": "company-hansoh",
+      "companyName": "江苏豪森药业集团有限公司",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "94d0982064af5a70386e017dec29cec1115c08480df2934e8d4cf0ddf644d740"
+    },
+    {
+      "sourceId": "source-hengrui-social",
+      "companyId": "company-hengrui",
+      "companyName": "江苏恒瑞医药股份有限公司",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "93dcadb4a572da022694b3ab3040fad541fe674107e3dc66fd2323709e374b4e"
+    },
+    {
+      "sourceId": "source-johnson-innovative-medicine-social",
+      "companyId": "company-johnson-innovative-medicine",
+      "companyName": "强生中国（集团招聘范围，含创新制药与医疗科技）",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "80d9610e77965de2e15efba070735e77227c70efedb543d110bb259f75782cf3"
+    },
+    {
+      "sourceId": "source-kelun-social",
+      "companyId": "company-kelun",
+      "companyName": "四川科伦药业股份有限公司",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "9fe0cb0d7c308567f6010aa6181f36c595b97df739ecd528cab97070f47572cb"
+    },
+    {
+      "sourceId": "source-lilly-china-social",
+      "companyId": "company-lilly-china",
+      "companyName": "礼来中国",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "34ac4d47a1b69389e567b53df64062f10ed50a1d34cb0b4876d3c9af85e68c97"
+    },
+    {
+      "sourceId": "source-merck-china-social",
+      "companyId": "company-merck-china",
+      "companyName": "默克医药健康",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38"
+    },
+    {
+      "sourceId": "source-msd-china-social",
+      "companyId": "company-msd-china",
+      "companyName": "默沙东中国",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "7772b32344c3485af4cb54e3ad17a7a78335800282682450da213c7544f6fc30"
+    },
+    {
+      "sourceId": "source-novartis-social",
+      "companyId": "company-novartis",
+      "companyName": "诺华中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "1dcb83b63182c3b496a1137678baae55201276b4e041b60b6cbe1fab30990a91"
+    },
+    {
+      "sourceId": "source-novo-nordisk-china-social",
+      "companyId": "company-novo-nordisk-china",
+      "companyName": "诺和诺德中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "40305820c3aa3f36e74f06873c0ddd1a52266cb74d277b3a36137c81fc5c604e"
+    },
+    {
+      "sourceId": "source-organon-china-social",
+      "companyId": "company-organon-china",
+      "companyName": "欧加隆中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2"
+    },
+    {
+      "sourceId": "source-pfizer-china-social",
+      "companyId": "company-pfizer-china",
+      "companyName": "辉瑞中国",
+      "route": "TRUE_B",
+      "sourceConfigSha256": "84aaab8bad3579630eec1b12d3f09236755b3a25d0b7751ca8584a9a53a83413"
+    },
+    {
+      "sourceId": "source-qilu-social",
+      "companyId": "company-qilu",
+      "companyName": "齐鲁制药集团有限公司",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "0ca38d0cd6550e9567cc3e7ca6772d3b91497f5a59530f5359f823a6c62d5773"
+    },
+    {
+      "sourceId": "source-roche-china-social",
+      "companyId": "company-roche-china",
+      "companyName": "罗氏制药中国",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "d0e8002bbc03e3da46bbb02c30b533b5b968f38ac5db2c357c009de2eb4066ed"
+    },
+    {
+      "sourceId": "source-sanofi-china-social",
+      "companyId": "company-sanofi-china",
+      "companyName": "赛诺菲中国",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "106fb80ad4e6c953d41a2dd67156f42e1bc4416766c98912a60ad59722df97c3"
+    },
+    {
+      "sourceId": "source-servier-china-social",
+      "companyId": "company-servier-china",
+      "companyName": "施维雅中国",
+      "route": "TRUE_B",
+      "sourceConfigSha256": "3c87c89d3bdc74275a0b66a9a27a9eaf76f99da8ee7aa3af835eb87e2b028e17"
+    },
+    {
+      "sourceId": "source-shanghai-pharma-social",
+      "companyId": "company-shanghai-pharma",
+      "companyName": "上海医药集团股份有限公司",
+      "route": "TRUE_A",
+      "sourceConfigSha256": "bc8041ef07df70a7c07a6a14487ee84e230a2b0d6efe1e095aded1a3f7dc7df9"
+    },
+    {
+      "sourceId": "source-takeda-china-social",
+      "companyId": "company-takeda-china",
+      "companyName": "武田中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f"
+    },
+    {
+      "sourceId": "source-ucb-china-social",
+      "companyId": "company-ucb-china",
+      "companyName": "优时比中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "0423b01f438925ad3e34e29aeda58fe6353fbd264d4472a09bcb1fba281bd146"
+    },
+    {
+      "sourceId": "source-viatris-social",
+      "companyId": "company-viatris",
+      "companyName": "晖致中国",
+      "route": "PORTABLE",
+      "sourceConfigSha256": "5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9"
+    }
+  ]
+}
