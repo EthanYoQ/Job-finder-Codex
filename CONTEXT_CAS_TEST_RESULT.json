@@ -1,0 +1,13 @@
+{
+  "status": "PASS_OFFLINE_CONTEXT_CALLER_COMPATIBILITY",
+  "readerTemplates": 3,
+  "afterCombinedToolBodyBytes": 1047227,
+  "templateBytesOtherwiseUnchanged": true,
+  "legacyContextFallback": true,
+  "fullContextUnmutated": true,
+  "oldDeclarationBytes": 1904302,
+  "newDeclarationBytes": 764728,
+  "removedDeclarationBytes": 1139574,
+  "readOnlyAssertionSqlBytes": 1143561,
+  "originalSqlBytes": 4637609
+}

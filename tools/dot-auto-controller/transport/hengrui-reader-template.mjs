@@ -12,5 +12,6 @@ export function compileReviewedReaderSql(template,candidateId){
   if(typeof template!=='string'||createHash('sha256').update(template).digest('hex')!==READER_TEMPLATE_SHA256)throw Error('COMPILER_READER_QUERY_DRIFT');
   const literal="E'"+HISTORICAL_READER_CANDIDATE+"'";
   if(template.split(literal).length!==2)throw Error('COMPILER_READER_LITERAL_COUNT');
-  return template.replace(literal,"E'"+candidateId+"'");
+  return template.replace(literal,"E'"+candidateId+"'").replace('(SELECT context FROM publication)',
+    "(SELECT context || jsonb_build_object('snapshotSha256',encode(extensions.digest(convert_to((context-'checkedAt')::text,'UTF8'),'sha256'),'hex')) FROM publication)");
 }

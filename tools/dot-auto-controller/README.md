@@ -58,3 +58,7 @@ The process captures the selector pair once, hashes the bytes read from one chec
 There is no new deployment TTL. Existing request, batch, observation, proof, and original-process deadlines remain unchanged. Read-only reconciliation keeps its original expiry behavior and must use the original run's binding digest. Never rotate or rewrite an old binding to renew a request. Control-plane claims/resolution check scope immediately before the actual query after connection setup; the supervisor checks scope again before local closure. File permissions and hashes detect owner changes; they are not an OS-enforced immutable store against same-UID malicious code.
 
 This patch does not activate collection, provision permissions or credentials, or qualify production. New source requires a new remotely verified commit, runtime build and candidate; prior v73/9a0b83a evidence does not qualify this patch. Real socket/driver protocol and multi-connection concurrency qualification remain unverified activation blockers, alongside the existing live prerequisites.
+
+## Retired fixed-host installer
+
+The optional fixed-host installer, generated launchers, and installation acceptance suites are retired. Their recoverable source remains in Git history at 9b86ef37. The retained bootstrap SQL and three UI fixtures still have callers. Normal collection uses the existing vendor/c60-source p0 scripts and relay; this removal does not establish unattended scheduling or a successful production run.

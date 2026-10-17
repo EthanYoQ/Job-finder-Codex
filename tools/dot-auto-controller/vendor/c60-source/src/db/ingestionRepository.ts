@@ -1285,9 +1285,11 @@ async function compileDbStartedCloudSourcePublicationWithIds(input:DbStartedClou
   const fullPlan=await prepareAtomicWritePlan(commit,false,next=>{stage=next;});
   let writes=fullPlan.writes;
   let publicationCommit=commit;
+  let deltaMembers:readonly {jobKey:string;setKind:string}[]|undefined;
   if(input.jobProjectionDelta){
    const delta=buildJobProjectionDeltaReceipt({sourceResult:commit.sourceResult,commands:commit.commands,previousAccepted:control.context.latestAccepted,
     projectionForCommand:command=>{const args=jobUpsertArgs(command);return {...args.create,...args.update};}});
+   deltaMembers=delta.receipt.members;
    publicationCommit={...commit,sourceResult:{...commit.sourceResult,completenessCertificate:delta.receipt,completenessCertificateSha256:delta.sha256}};
    writes=fullPlan.writes.filter(write=>{
     if(write.kind!=="job")return true;
@@ -1305,14 +1307,14 @@ async function compileDbStartedCloudSourcePublicationWithIds(input:DbStartedClou
   const controls=prepareCloudPilotDbStartedControl(control,{...publicationCommit.sourceResult},holderId,expiresAt,originalTimesThrough,source.sourceAdmissionPolicy);
   // One complete terminal value feeds the existing update columns and exact
   // postcondition, so large B evidence is serialized only once in this DO.
-  const statements=["PERFORM set_config('TimeZone', 'UTC', true);","PERFORM set_config('lock_timeout', '1000ms', true);","SET CONSTRAINTS ALL DEFERRED;",controls.before,...compileAtomicWriteStatements(writes,next=>{stage=next;},true,input.jobProjectionDelta?commit.sourceResult.finishedAt!.toISOString():undefined,allocateUuid),controls.after];
+  const statements=["PERFORM set_config('TimeZone', 'UTC', true);","PERFORM set_config('lock_timeout', '1000ms', true);","SET CONSTRAINTS ALL DEFERRED;",controls.before,...compileAtomicWriteStatements(writes,next=>{stage=next;},true,input.jobProjectionDelta?commit.sourceResult.finishedAt!.toISOString():undefined,allocateUuid,deltaMembers),controls.after];
   const body=`DECLARE affected bigint; job_data jsonb; ${compileAtomicJsonDeclarations(publicationCommit.sourceResult,controls.expectedContext)} current_context jsonb; current_count bigint; current_hash text; aggregate_hash text;\nBEGIN\n${statements.join('\n')}\nEND;`;
   let delimiter:string;do{delimiter=`$atomic_${allocateUuid().replaceAll('-','')}$`;}while(body.includes(delimiter));
   return {sql:`SET LOCAL statement_timeout = '120000ms';\nDO ${delimiter}\n${body}\n${delimiter};`,commit:publicationCommit,holderId,expiresAt};
  }catch(error){throw tagAtomicEvidencePersistenceStage(error,stage);}
 }
 
-function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(stage:AtomicEvidencePersistenceStage)=>void,sharedTerminal=false,deltaVerifiedAt?:string,allocateUuid:()=>string=randomUUID):string[]{
+function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(stage:AtomicEvidencePersistenceStage)=>void,sharedTerminal=false,deltaVerifiedAt?:string,allocateUuid:()=>string=randomUUID,deltaMembers?:readonly {jobKey:string;setKind:string}[]):string[]{
     const statements:string[]=[];
     for (let index = 0; index < writes.length;) {
       const write = writes[index++]!;
@@ -1331,8 +1333,15 @@ function compileAtomicWriteStatements(writes:readonly AtomicWrite[],onStage:(sta
           index++;
         } while (true);
         const columns = definedKeys(rows[0]!).map(sqlIdentifier).join(", ");
+        // Delta receipts already contain these exact member fields. Reuse them
+        // in this transaction; only newly allocated row IDs need transporting.
+        const memberIds = new Map(rows.map(row => [JSON.stringify([row.jobKey,row.setKind]),row.id]));
+        const records = sharedTerminal && deltaMembers && write.model === "lifecycleSetEvidenceMember"
+          ? `(SELECT jsonb_agg(member.value || jsonb_build_object('id', ${sqlJson(deltaMembers.map(member => memberIds.get(JSON.stringify([member.jobKey,member.setKind]))))}->(member.ordinality::int-1)) ORDER BY member.ordinality)
+    FROM jsonb_array_elements(source_result_data->'completenessCertificate'->'members') WITH ORDINALITY AS member(value, ordinality))`
+          : sqlRecords(rows);
         statements.push(`INSERT INTO public.${sqlIdentifier(table)} (${columns})
-          SELECT ${columns} FROM jsonb_populate_recordset(NULL::public.${sqlIdentifier(table)}, ${sqlRecords(rows)});`);
+          SELECT ${columns} FROM jsonb_populate_recordset(NULL::public.${sqlIdentifier(table)}, ${records});`);
       } else if (write.kind === "job") {
         // No REPLACE and no whole-record update: retained human/AI fields,
         // category, auxiliaryChineseTitle, companyId and firstSeenAt survive.

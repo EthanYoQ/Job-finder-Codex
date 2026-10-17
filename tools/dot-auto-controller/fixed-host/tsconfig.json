@@ -1,1 +1,0 @@
-{"extends":"../connector-gate/tsconfig.json","compilerOptions":{"noImplicitAny":false},"include":["run-one-round.mts","p0-fixture-child.mts","prepare-synthetic-build.mts"]}
