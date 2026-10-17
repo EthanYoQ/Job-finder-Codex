@@ -103,7 +103,7 @@ export async function verifyBinding(){
  const c=loadBinding();
  // Catalogue routing support does not waive known missing source-specific fixes.
  const row=nativeCatalogue().find(r=>r.sourceId===c.sourceId);
- if(row?.c60Use!=='NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE')fail('HOST_SOURCE_FIX_REQUIRED');
+ if(c.kind!==AB_MODE&&row?.c60Use!=='NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE')fail('HOST_SOURCE_FIX_REQUIRED');
  if(process.env.JOBFINDER_CLOUD_SOURCE_ID!==c.sourceId)fail('HOST_SOURCE_ENV');
  if(execFileSync('git',['status','--porcelain'],{cwd:PRODUCER_ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim())fail('HOST_RUNTIME_DIRTY');
  verifyRuntimeBeforeImport(PRODUCER_ROOT,c.control.build,c.lockSha256);
@@ -120,6 +120,8 @@ export async function verifyBinding(){
  const plans=deriveCurrentStagedScheduleExpectation(c.control.build).plans,plan=plans.find(p=>p.source.id===c.sourceId);
  if(plans.length!==41||!plan||sourcePlanConfigSha256(plan)!==c.sourceConfigSha256||CLOUD_PILOT_SOURCE.id!==c.sourceId||CLOUD_PILOT_SOURCE.sourceConfigSha256!==c.sourceConfigSha256||CLOUD_PILOT_SOURCE.ownerId!==c.ownerId)fail('HOST_SOURCE_MODULE_DRIFT');
  if(c.kind===AB_MODE){
+  const currentFix=(c.sourceId==='source-amgen-china-social'&&plan.profileBoundSource?.kind==='amgen-manual-workday-lookup')||(c.sourceId==='source-gsk-china-social'&&plan.moka?.requisitionStatusPolicy==='GSK_NATIVE_OPEN_REQUISITIONS_V1');
+  if(row?.c60Use!=='NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE'&&!currentFix)fail('HOST_SOURCE_FIX_REQUIRED');
   const {requiresBGradeTraversalCertificate}=await module('src/crawler/traversalCertificate.ts');
   if(requiresBGradeTraversalCertificate(plan)!==(c.route==='TRUE_B'))fail('HOST_SOURCE_GRADE');
  }else producer.assertPortableRefreshPlan(plan);
