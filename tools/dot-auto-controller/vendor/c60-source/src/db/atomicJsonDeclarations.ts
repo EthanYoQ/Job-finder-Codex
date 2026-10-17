@@ -40,16 +40,15 @@ export function compileAtomicJsonDeclarations(sourceResult: unknown, expectedCon
     return expressionFor(node);
   }
   function expressionFor(node: Node): string {
-    const original = originalExpressionFor(node);
     const rows = node.value;
     if (Array.isArray(rows) && rows.length > 1 && rows.every(row =>
       row !== null && typeof row === "object" && !Array.isArray(row) &&
       JSON.stringify(Object.keys(row)) === JSON.stringify(Object.keys(rows[0]! as object))) &&
       Object.keys(rows[0]! as object).length <= 50) {
       const packed = compileAtomicJsonRecords(rows as Record<string, unknown>[]);
-      if (Buffer.byteLength(packed) < Buffer.byteLength(original)) return packed;
+      if (Buffer.byteLength(packed) < Buffer.byteLength(node.literal)) return packed;
     }
-    return original;
+    return originalExpressionFor(node);
   }
   function originalExpressionFor(node: Node): string {
     if (!node.children.length) return node.literal;
