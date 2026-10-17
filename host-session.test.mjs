@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const A=Object.getPrototypeOf(async function(){}).constructor;
+const source=fs.readFileSync(new URL('../takeda-original-recovery-20261017T0417Z/transport/adapted-host-helper-functions.js',import.meta.url),'utf8');
+const config={mode:'NATIVE_PORTABLE_CONNECTOR_V1',sourceId:'source-test',bindingSha256:'a'.repeat(64),root:'/original',repo:'/repo'};
+let starts=0,waits=0;
+const tools={exec_command:async()=>{starts++;return{session_id:7,output:'first'};},write_stdin:async x=>{assert.equal(x.session_id,7);waits++;return{exit_code:0,output:'second'};}};
+const h=await new A('load','tools',source)(()=>config,tools);
+assert.equal(await h.cmd("node '/original/host-files.mts' connector-validate"),'firstsecond');
+assert.equal(starts,1);assert.equal(waits,1);
+tools.write_stdin=async()=>({exit_code:1,output:'failed'});
+await assert.rejects(h.cmd("node '/original/host-files.mts' connector-validate"),/HOST_COMMAND:firstfailed/);
+console.log('PASS: yielded original session is awaited once; failed completion stays failed');

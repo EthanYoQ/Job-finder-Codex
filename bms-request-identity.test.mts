@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {safeOfficialJsonEvidenceUrl as sanitizeEvidenceHttpUrl} from '../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/officialJsonEvidence.ts';
+const first='https://jobs.bms.com/api/pcsx/search?domain=bms.com&query=&location=china&start=0&sort_by=distance';
+const archived=sanitizeEvidenceHttpUrl(first);
+assert.equal(sanitizeEvidenceHttpUrl(first),archived);
+assert.notEqual(sanitizeEvidenceHttpUrl(first.replace('start=0','start=10')),archived);
+assert.notEqual(sanitizeEvidenceHttpUrl(first.replace('location=china','location=usa')),archived);
+assert.notEqual(new URL(first).origin+new URL(first).pathname,archived);
+const yello='https://gilead.yello.co/job_boards/example/search?query=&filters=72';
+assert.notEqual(sanitizeEvidenceHttpUrl(yello),sanitizeEvidenceHttpUrl(yello.replace('filters=72','filters=73')));
+console.log('PASS: original shared URL sanitizer preserves page, country, and filter identities');
