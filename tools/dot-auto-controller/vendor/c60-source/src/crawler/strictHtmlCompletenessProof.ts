@@ -1,3 +1,4 @@
+import { replayKelunMainlandScope } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,validateSanofiNativeQuality} from "./sanofiNativeQuality";
 import type {NormalizedJobRecord} from "./normalizedJob";
 import { validateAbbvieChinaRowScope } from "./abbvieChinaRowScope";
@@ -37,6 +38,16 @@ export function validateStrictHtmlCompletenessProof(
   plan: HtmlPlan,
   evidence: PersistentSourceFetchEvidence,
   jobs?: readonly NormalizedJobRecord[]
+): boolean {
+  if (plan.source.id === "source-kelun-social") {
+    const replay = replayKelunMainlandScope(plan, evidence, jobs);
+    return !!replay && validateBaseStrictHtmlCompletenessProof(plan, replay.rawEvidence, jobs);
+  }
+  return validateBaseStrictHtmlCompletenessProof(plan, evidence, jobs);
+}
+
+function validateBaseStrictHtmlCompletenessProof(
+  plan: HtmlPlan, evidence: PersistentSourceFetchEvidence, jobs?: readonly NormalizedJobRecord[]
 ): boolean {
   try {
     if (hasSanofiNativePolicy(plan)) return validateSanofiNativeQuality(plan,evidence,jobs);

@@ -52,7 +52,9 @@ const URL_MAINLAND_LOCATIONS = new Set([
   "China-Lang-Fang-", "China-Nan-Chang-", "China-Nan-Jing-", "China-Ning-Bo-", "China-Quan-Zhou-", "China-Shang-Hai-",
   "China-Shen-Zhen-", "China-Shi-Jia-Zhuang-", "China-Si-Ping-", "China-Suzhou-Manufacturing-", "China-Tian-Jin-",
   "China-Urumuqi-", "China-Wu-Hai-", "China-Wu-Han-", "China-Xi-An-", "China-Xia-Men-", "China-Yue-Yang-",
-  "China-Zheng-Zhou-", "China-Zhu-Hai-", "China-Zhu-Ma-Dian-"
+  "China-Zheng-Zhou-", "China-Zhu-Hai-", "China-Zhu-Ma-Dian-",
+  "China-Chang-Chun-", "China-Chang-De-", "China-Chen-Zhou-", "China-Cheng-Du-", "China-Fo-Shan-",
+  "China-Ka-Shi-", "China-Lan-Zhou-", "China-Xiao-Gan-", "China-Zhong-Shan-"
 ]);
 const RAW_FIELDS = new Set(["address", "applyUrl", "badge", "category", "city", "cityState", "cityStateCountry", "country",
   "dateCreated", "descriptionTeaser", "externalApply", "hiringManager", "isMultiCategory", "isMultiLocation", "jobId",

@@ -1,3 +1,5 @@
+import { parseNovoTimeoutReceipt, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact, type NovoTimeoutRetryStart } from "./novoNativeTimeout";
+import { NOVO_NATIVE_RETRY, novoNativeGatewayFailureArtifact, novoNativeGatewayReplayFinalUrl, novoNativeGatewayRetryArtifact, type NovoNativeGatewayRetryStart } from "./novoNativeGatewayRetry";
 import { load as loadHtml } from "cheerio";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual as same } from "node:util";
@@ -104,10 +106,62 @@ export function novoNativeDetailBase(body: string): string | undefined {
     ? new URL(path.attr("value")!, ENTRY).href : undefined;
 }
 
+/** A native link is not evidence of a usable JD. Inspect only the unique visible
+ * right column, never title/location/apply chrome or recruitment boilerplate.
+ * Unrecognised/ambiguous content stays UNKNOWN; it is not an explicit closure. */
+export function novoNativeDetailHasSubstantiveDescription(body: string): boolean {
+  const $ = loadHtml(body), root = $("#careerjobdisplay"), details = root.find(".job-display-details.right-column");
+  if (root.length !== 1 || details.length !== 1) return false;
+  const hidden = (node: Parameters<typeof $>[0]) => {
+    const element = $(node), style = element.attr("style") ?? "";
+    return element.is("[hidden], [inert], [aria-hidden=true], .hidden, .hide, .d-none, .sr-only, .visually-hidden") ||
+      /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)|content-visibility\s*:\s*hidden|opacity\s*:\s*0(?:\.0*)?)(?:\s*!important)?\s*(?:;|$)/iu.test(style);
+  };
+  if (details.parents().addBack().toArray().some(hidden)) return false;
+  const content = details.clone();
+  content.find(".job-display-info, .job-display-details-buttons, a, button, form, input, script, style, template, noscript, svg, h1, h2, h3, h4, h5, h6").remove();
+  content.find("*").toArray().filter(hidden).forEach(node => $(node).remove());
+  content.find("br").replaceWith("\n");
+  // Preserve actual paragraphs/list items (including Chinese/bilingual and
+  // heading-free narratives). Do not add unrelated blocks to meet a page length.
+  const blockSelector = "p, li, td, div, section, article";
+  const metadata = new Set(root.find("h1, .job-display-info p").toArray().map(node => clean($(node).text())));
+  const blocks = content.find(blockSelector).addBack().toArray();
+  return blocks.some(node => {
+    // Read a block's own text separately from nested blocks. A genuine direct
+    // narrative must not disappear merely because a footer div follows it.
+    const block = $(node).clone(); block.find(blockSelector).remove();
+    const value = clean(block.text().replace(/[\u200B-\u200D\uFEFF]/gu, ""));
+    if (!value || metadata.has(value)) return false;
+    // Formatting alone cannot distinguish a heading from a bold duty. Reject
+    // label-only combinations, while retaining substantive bold paragraphs.
+    const withoutLabels = value.replace(/\b(?:the|this|your|and|about|key|main|job|role|position|summary|responsibilities|duties|tasks|qualifications|requirements|education|background|professional|experience|skills|competencies|design|development|leadership|management)\b/giu, "")
+      .replace(/(?:重要职责|岗位职责|主要工作任务|任职资格|任职要求|教育背景|专业经验|职位介绍|职位描述)/gu, "");
+    if (!/\p{L}/u.test(withoutLabels)) return false;
+    if (/^(?:[\s*•\-–—.\d()]+)?(?:TBD\b|TBC\b|N\/?A\b|to be (?:defined|confirmed|completed|updated)|coming soon|no (?:job )?description|(?:please\s+)?(?:insert|enter|add|write|describe)\b|待补充|待完善|暂无|敬请期待|请(?:填写|输入|补充)|此处填写)/iu.test(value)) return false;
+    if (/\b(?:TBD|TBC)\b|\[(?:\s*(?:insert|enter|add|write|describe|TBD|TBC)\b)[^\]]*\]|\b(?:to be|will be) (?:defined|confirmed|completed|updated|specified|added)(?:\s+later)?\b|(?:待填写|待补充|此处填写|请填写)/iu.test(value)) return false;
+    if (/^(?:We commit to an inclusive recruitment process|(?:We are |Novo Nordisk is an? )?(?:an? )?equal opportunity employer|At Novo Nordisk[,，]|Working at Novo Nordisk|About Novo Nordisk|For over (?:a century|\d+ years)|When you join Novo Nordisk|在诺和诺德|关于诺和诺德|您在寻找一家)/iu.test(value)) return false;
+    if (/^(?:develop|build|grow|advance|shape|start|launch|explore|discover)\b.*\b(?:your career|career opportunities|exciting opportunities|career with us)\b/iu.test(value)) return false;
+    if (/^(?:发挥您|发展您|开启|探索|加入我们|携手).*(?:职业生涯|职业发展|精彩机会|美好未来)/u.test(value)) return false;
+    // A concise degree-plus-discipline requirement is substantive without
+    // padding, sentence punctuation or a particular heading/format.
+    if (/\b(?:ph\.?d\.?|(?:bachelor|master)[’']?s?(?: degree)?)\s+(?:in|of)\s+[a-z]{3,}/iu.test(value) ||
+      /\p{Script=Han}{2,12}(?:本科|硕士|博士|大专)(?:及以上)?学历/u.test(value)) return true;
+    // Require role-bearing content, not just a heading keyword. These are
+    // language-level duty/qualification signals, not job IDs or heading names.
+    const dutyOrQualification = /(?:负责|任职者需要|应聘者需要|承担|开展|制定|执行|设计|建立|维护|推动|分析|具备|学历|工作经验|相关.{0,8}经验)|\b(?:responsible for|accountable for|(?:you will|(?:this |the )?(?:role|position) (?:involves|includes|entails)) (?:design(?:ing)?|develop(?:ing)?|lead(?:ing)?|manag(?:e|ing)|perform(?:ing)?|analy[sz](?:e|ing)|support(?:ing)?|conduct(?:ing)?|coordinat(?:e|ing)|implement(?:ing)?|take ownership)|(?:candidate|applicant)s? (?:will|must|should|need)|(?:bachelor|master)[’']?s? degree|ph\.?d\.?|(?:professional|industrial|relevant|working|hands.on) experience|years?[’']? (?:of )?experience|experience (?:in|with))\b|^(?:[\s•●\-–—\d.)]+)?(?:design(?:ing)?|develop(?:ing)?|lead(?:ing)?|manag(?:e|ing)|coordinat(?:e|ing)|conduct(?:ing)?|perform(?:ing)?|deliver(?:ing)?|execut(?:e|ing)|support(?:ing)?|analy[sz](?:e|ing)|build(?:ing)?|driv(?:e|ing)|ensur(?:e|ing)|provid(?:e|ing)|maintain(?:ing)?|implement(?:ing)?|contribut(?:e|ing)|serv(?:e|ing)|own(?:ing)?|plan(?:ning)?)\b/iu;
+    if (!dutyOrQualification.test(value)) return false;
+    const chinese = value.match(/\p{Script=Han}/gu) ?? [], words = value.toLowerCase().match(/[a-z]+(?:['’\-][a-z]+)*/gu) ?? [];
+    return (chinese.length >= 20 && new Set(chinese).size >= 12) ||
+      (words.length >= 8 && new Set(words).size >= 6 && words.join("").length >= 40 &&
+        /\b(?:and|or|the|a|an|to|for|with|in|of|across|through|within|using|from|by|into|on)\b|[,;:]/iu.test(value));
+  });
+}
+
 /** Follow the actual native apply href, including its tenant and requisition binding. */
 export function novoNativeApplicationUrl(body: string, detailUrl: string, jobId: string): string | undefined {
   const $ = loadHtml(body);
-  if (!clean($("#careerjobdisplay h1").text()) || clean($("#careerjobdisplay").text()).length < 200) return undefined;
+  if (!clean($("#careerjobdisplay h1").text()) || !novoNativeDetailHasSubstantiveDescription(body)) return undefined;
   const links = [...new Set($("#careerjobdisplay a[href]").toArray().map(node => $(node).attr("href")!)
     .filter(href => href.includes("career_job_req_id=")))];
   if (links.length !== 1) return undefined;
@@ -164,20 +218,74 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
     createHash("sha256").update(body(artifact), "utf8").digest("hex") !== page.responseFingerprintSha256) return false;
   const parsed = parseNovoChinaResponse(body(artifact)), entry = evidence.artifacts[1];
   if (!parsed || !entry || !exact(entry, ENTRY) || entry.finalUrl !== safeOfficialJsonEvidenceUrl(ENTRY) ||
-    entry.logicalKey !== "novo-native-entry" || !novoNativeDetailBase(body(entry)) ||
-    evidence.artifacts.length !== 2 + parsed.total * 2) return false;
+    entry.logicalKey !== "novo-native-entry" || !novoNativeDetailBase(body(entry))) return false;
+  let cursor = 2, previousTime = Date.parse(entry.capturedAt);
+  let sourceDeadlineAt: string | undefined;
+  if (!Number.isFinite(previousTime) || previousTime < Date.parse(capturedAt) || previousTime < Date.parse(artifact.capturedAt)) return false;
+  const observeDeadline = (deadline: string): boolean => {
+    if (!Number.isFinite(Date.parse(deadline)) || Date.parse(deadline) > Date.parse(capturedAt) + NOVO_NATIVE_RETRY.sourceMs ||
+        (sourceDeadlineAt !== undefined && deadline !== sourceDeadlineAt)) return false;
+    sourceDeadlineAt = deadline;
+    return true;
+  };
+  const readNative = (requestedUrl: string, logicalKey: string, application: boolean): typeof artifact | undefined => {
+    const failed = evidence.artifacts[cursor];
+    let retryStartedAt: string | undefined, failedFinalUrl: string | undefined;
+    if (failed?.logicalKey === `${logicalKey}-http-error-1`) {
+      if (Date.parse(failed.capturedAt) < previousTime) return undefined;
+      const retry = evidence.artifacts[cursor + 1];
+      if (!retry || !hasUniqueJsonObjectKeys(body(retry))) return undefined;
+      try {
+        const start = JSON.parse(body(retry)) as NovoNativeGatewayRetryStart;
+        const regeneratedFailure = novoNativeGatewayFailureArtifact({ status: failed.httpStatus!, body: body(failed),
+          finalUrl: novoNativeGatewayReplayFinalUrl(failed.finalUrl, requestedUrl, application),
+          contentType: failed.contentType!, capturedAt: failed.capturedAt }, requestedUrl, logicalKey);
+        const regeneratedStart = novoNativeGatewayRetryArtifact(start, failed, requestedUrl, logicalKey, application);
+        if (!same({ ...failed, id: regeneratedFailure.id }, regeneratedFailure) ||
+            !same({ ...retry, id: regeneratedStart.id }, regeneratedStart) || !observeDeadline(start.sourceDeadlineAt)) return undefined;
+        retryStartedAt = start.startedAt; failedFinalUrl = failed.finalUrl;
+      } catch { return undefined; }
+      cursor += 2;
+    } else if (failed?.logicalKey === `${logicalKey}-request-error-1`) {
+      if (!hasUniqueJsonObjectKeys(body(failed))) return undefined;
+      try {
+        const receipt = parseNovoTimeoutReceipt(JSON.parse(body(failed)), requestedUrl);
+        const regenerated = novoNativeTimeoutArtifact(receipt, requestedUrl, logicalKey, 1);
+        const retry = evidence.artifacts[cursor + 1];
+        if (!retry || !hasUniqueJsonObjectKeys(body(retry))) return undefined;
+        const start = JSON.parse(body(retry)) as NovoTimeoutRetryStart;
+        const regeneratedStart = novoNativeTimeoutRetryArtifact(start, receipt, requestedUrl, logicalKey);
+        if (!same({ ...failed, id: regenerated.id }, regenerated) || !same({ ...retry, id: regeneratedStart.id }, regeneratedStart) ||
+            Date.parse(receipt.requestStartedAt) < previousTime || !observeDeadline(receipt.sourceDeadlineAt)) return undefined;
+        retryStartedAt = start.startedAt;
+      } catch { return undefined; }
+      cursor += 2;
+    }
+    const page = evidence.artifacts[cursor++];
+    if (!page || !exact(page, requestedUrl) || page.logicalKey !== logicalKey || page.kind !== "OFFICIAL_COMPANY_PAGE" ||
+        page.extractorLocator !== logicalKey || !Number.isFinite(Date.parse(page.capturedAt)) || Date.parse(page.capturedAt) < previousTime ||
+        (retryStartedAt !== undefined && (Date.parse(page.capturedAt) < Date.parse(retryStartedAt) ||
+          Date.parse(page.capturedAt) > Date.parse(retryStartedAt) + NOVO_NATIVE_RETRY.requestMs)) ||
+        (sourceDeadlineAt !== undefined && Date.parse(page.capturedAt) >= Date.parse(sourceDeadlineAt))) return undefined;
+    if (failedFinalUrl && new URL(failedFinalUrl).pathname.startsWith("/job/") && page.finalUrl !== failedFinalUrl) return undefined;
+    previousTime = Date.parse(page.capturedAt);
+    return page;
+  };
   const expected: Projection[] = [], losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   for (let i = 0; i < parsed.total; i++) {
-    const raw = parsed.rawJobs[i]!, projection = parsed.jobs[i]!, detail = evidence.artifacts[2 + i * 2]!, application = evidence.artifacts[3 + i * 2]!;
-    if (!exact(detail, projection.officialUrl) || detail.finalUrl !== projection.officialUrl || detail.logicalKey !== `novo-detail-${raw.jobId}` ||
-      detail.kind !== "OFFICIAL_COMPANY_PAGE" || application.kind !== "OFFICIAL_COMPANY_PAGE" || application.logicalKey !== `novo-application-${raw.jobId}`) return false;
+    const raw = parsed.rawJobs[i]!, projection = parsed.jobs[i]!;
+    const detail = readNative(projection.officialUrl, `novo-detail-${raw.jobId}`, false);
+    if (!detail || detail.finalUrl !== projection.officialUrl) return false;
     const href = novoNativeApplicationUrl(body(detail), projection.officialUrl, String(raw.jobId));
-    if (!href || !exact(application, href)) return false;
+    if (!href) return false;
+    const application = readNative(href, `novo-application-${raw.jobId}`, true);
+    if (!application) return false;
     const state = novoApplicationStatus(body(application), application.finalUrl!, String(record(raw.jobCity)!.value));
     if (!state) return false;
     if (state.status === "CLOSED") losses.push(novoClosedLoss(raw, i, application.capturedAt));
     else expected.push({ ...projection, title: state.title! });
   }
+  if (cursor !== evidence.artifacts.length) return false;
   const counts = evidence.fetchCounts;
   if (counts.rawCount !== parsed.total || counts.parsedCount !== parsed.total || counts.validCount !== expected.length ||
     counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== losses.length || !same(evidence.fetchLosses, losses) ||

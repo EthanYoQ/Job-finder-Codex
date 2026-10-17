@@ -54,7 +54,7 @@ export function createSourceFetchRouter({
       throw new Error("Transient retry policy must allow one or two retries after 1000 through 60000 milliseconds");
     }
     for (let retry = 0; retry < policy.maxRetries; retry += 1) {
-      if (result.ok || !isRetryableSourceTransportFailure(result.transportFailure)) return result;
+      if (result.ok || result.sourceRetryExhausted || !isRetryableSourceTransportFailure(result.transportFailure)) return result;
       const retryAfterMs = result.transportFailure.retryAfterMs;
       if (retryAfterMs !== undefined &&
         (!Number.isSafeInteger(retryAfterMs) || retryAfterMs < 0 || retryAfterMs > policy.backoffMs)) return result;

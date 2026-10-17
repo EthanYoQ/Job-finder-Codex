@@ -1,3 +1,5 @@
+import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
+import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFailureArtifact, novoNativeGatewayRetryStart, novoNativeGatewayRetryArtifact, delayNovoNativeRetry } from "./novoNativeGatewayRetry";
 import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl } from "./rocheChinaQuality";
 import { acquireBeisenDetailDates } from "./beisenDetailDates";
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
@@ -13,6 +15,9 @@ import type { SourceFetchFunction, SourceFetchResult, SourceTransportAttempt } f
 import {
   createAbortableClose,
   currentOfficialSourceAttemptSignal,
+  currentOfficialSourceAttemptRemainingMs,
+  currentOfficialSourceAttemptDeadlineAtMs,
+  settledOfficialHttpTimeoutEvidence,
   fetchWithOfficialTimeout,
   hcmCloudBrowserSettleMs,
   officialBrowserTimeoutMs,
@@ -71,7 +76,9 @@ import { exactGileadPublicAgePlan } from "./gileadPublicAge";
 import {
   parseYelloJobBoardResponse,
   yelloJobBoardBinding,
+  yelloScopeExclusionLoss,
   YelloPublicAgeError,
+  YelloScopeReviewError,
   type YelloJobBoardConfig
 } from "./yelloJobBoardEvidence";
 
@@ -236,6 +243,7 @@ export type OfficialJsonFetchConfig =
 
 export interface OfficialJsonHttpRequest {
   url: string;
+  retainSettledRequestTimeout?: boolean;
   method?: "GET" | "POST";
   headers: Record<string, string>;
   body?: string;
@@ -273,6 +281,8 @@ export type HcmCloudBrowserFetch = (
 ) => Promise<HcmCloudBrowserSession>;
 
 export interface OfficialJsonSourceFetchDeps {
+  /** Offline transport seam; native retry budgets remain fixed. */
+  nativeHttpRetryDelay?: (milliseconds: number) => Promise<void>;
   http?: OfficialJsonHttpClient;
   now?: () => Date;
   hcmCloudBrowserFetch?: HcmCloudBrowserFetch;
@@ -496,7 +506,8 @@ export function createOfficialJsonSourceFetch(
         entryUrl: plan.source.officialEntryUrl,
         sourceIdentity: { id: plan.source.id, companyId: plan.source.companyId },
         capturedAt,
-        now
+        now,
+        nativeHttpRetryDelay: deps.nativeHttpRetryDelay ?? delayNovoNativeRetry
       }));
     } catch (error) {
       return failed(capturedAt, error instanceof Error ? error.message : String(error));
@@ -570,8 +581,9 @@ async function fetchYelloJobBoard({
   try {
     parsed = parseYelloJobBoardResponse(response.body, config);
   } catch (error) {
-    if (error instanceof YelloPublicAgeError) {
-      // Hold the whole partition atomically; these are diagnostic losses, never age exclusions.
+    if (error instanceof YelloPublicAgeError || error instanceof YelloScopeReviewError) {
+      // Hold the whole partition atomically. Unresolved rows are diagnostic losses,
+      // never proven scope/age exclusions or authority to advance missing jobs.
       failureState.rawCount = error.rawRows.length;
       failureState.parsedCount = error.rawRows.length;
       failureState.validationDiscardCount = error.rawRows.length;
@@ -579,9 +591,12 @@ async function fetchYelloJobBoard({
       failureState.page.declaredCount = error.rawRows.length;
       for (const [index, row] of error.rawRows.entries()) {
         failureState.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([index, row]));
-        const code = index === error.rowIndex ? "GILEAD_PUBLIC_AGE_INVALID" : "GILEAD_PUBLIC_AGE_SOURCE_HELD";
+        const scopeReview = error instanceof YelloScopeReviewError;
+        const code = scopeReview
+          ? index === error.rowIndex ? "GILEAD_SCOPE_REVIEW_REQUIRED" : "GILEAD_SCOPE_SOURCE_HELD"
+          : index === error.rowIndex ? "GILEAD_PUBLIC_AGE_INVALID" : "GILEAD_PUBLIC_AGE_SOURCE_HELD";
         failureState.fetchLosses.push({stage: "VALIDATION", reason: code,
-          rawLocator: officialJsonRawLocator(row, index), details: {code, field: "publicAge", pageSequence: 0, recordIndex: index},
+          rawLocator: officialJsonRawLocator(row, index), details: {code, field: scopeReview ? "location" : "publicAge", pageSequence: 0, recordIndex: index},
           recordedAt: artifact.capturedAt});
       }
       return failedWithEvidence(capturedAt, error.message, finalizeOfficialJsonFailureEvidence(failureState));
@@ -593,11 +608,15 @@ async function fetchYelloJobBoard({
   const state = initialOfficialJsonEvidenceState({ artifact, declaredTotal: count, termination: "ABORTED" });
   state.page.declaredCount = count;
   const jobs: NormalizedOfficialJsonJob[] = [];
-  for (let index = 0; index < parsed.jobs.length; index += 1) {
-    const row = parsed.jobs[index]!;
+  for (const row of parsed.rows) {
     state.rawCount += 1;
-    state.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([index, row.rawHtml]));
+    state.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([row.rowIndex, row.rawHtml]));
     state.parsedCount += 1;
+    if (row.scopeDecision === "EXCLUDED_HONG_KONG") {
+      state.validationDiscardCount += 1;
+      state.fetchLosses.push(yelloScopeExclusionLoss(row, artifact));
+      continue;
+    }
     const sourceJobId = persistentOfficialJsonJobId(row.officialId);
     jobs.push({ sourceJobId, title: row.title, officialUrl: row.officialUrl, locationRaw: row.locationRaw,
       cities: row.cities });
@@ -639,7 +658,8 @@ function attachOfficialJsonPageCapacity(
       ...evidence,
       pages: evidence.pages.map((page) => ({
         ...page,
-        requestedPageSize,
+        requestedPageSize: config.kind === "phenom" && config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY
+          ? page.requestedPageSize ?? requestedPageSize : requestedPageSize,
         returnedPageSize: explicitOfficialReturnedPageSize(config.kind, artifacts.get(page.artifactLogicalKey)?.body)
       }))
     };
@@ -652,7 +672,7 @@ function attachOfficialJsonPageCapacity(
     const allowMissingReturnedPage = config.kind === "beisen-zhiye-2022";
     const allowPositiveOfficialTotalCountAfterAdapterReconciliation =
       config.kind === "sandoz-jsonapi" || config.kind === "yello-job-board" || config.kind === "51job-coapi";
-    const allowIndependentlyVerifiedProfileBoundExclusions = config.kind === "51job-coapi";
+    const allowIndependentlyVerifiedProfileBoundExclusions = config.kind === "51job-coapi" || config.kind === "yello-job-board";
     const allowRawIdOverlapAcrossPages = config.kind === "phenom" &&
       config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1";
     const canonical = deriveCanonicalPaginationEvidence({
@@ -730,7 +750,8 @@ async function fetchSingleResponseOfficialJson({
   entryUrl,
   sourceIdentity,
   capturedAt,
-  now
+  now,
+  nativeHttpRetryDelay
 }: {
   http: OfficialJsonHttpClient;
   config: Extract<OfficialJsonFetchConfig, { kind: "innovent" | "novo-nordisk" }>;
@@ -738,6 +759,7 @@ async function fetchSingleResponseOfficialJson({
   sourceIdentity: { id: string; companyId: string };
   capturedAt: string;
   now: () => Date;
+  nativeHttpRetryDelay: (milliseconds: number) => Promise<void>;
 }): Promise<SourceFetchResult> {
   let completenessEvidenceUrl: string;
   try {
@@ -898,24 +920,82 @@ async function fetchSingleResponseOfficialJson({
     const jobs: NormalizedOfficialJsonJob[] = [];
     const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
     let nativeHttpFailure: SourceTransportFailure | undefined;
-    // One entry and two pages per listed requisition, with no global fallback or application submission.
+    let nativeRequestStarted = false;
+    const budgetStarted = Date.now();
+    const remaining = () => Math.min(currentOfficialSourceAttemptRemainingMs() ?? NOVO_NATIVE_RETRY.sourceMs,
+      NOVO_NATIVE_RETRY.sourceMs - Math.max(0, Date.now() - budgetStarted),
+      NOVO_NATIVE_RETRY.sourceMs - Math.max(0, now().getTime() - Date.parse(capturedAt)));
+    // One entry and two pages per requisition. An owned native slot may retry
+    // once, serially, within the existing source deadline. Never restart its list.
     const html = async (url: string, logicalKey: string, allowApplicationRedirect = false) => {
-      const response = await http({ url, method: "GET", headers: { Accept: "text/html", "User-Agent": "job-search-crawler/0.1" } });
-      assertOfficialJsonEvidenceResponse(response, { requestedUrl: allowApplicationRedirect ? response.finalUrl! : url,
-        crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime() });
-      const retained = officialJsonNetworkArtifact({ id: logicalKey, logicalKey, kind: "OFFICIAL_COMPANY_PAGE",
-        requestedUrl: url, response, extractorLocator: logicalKey });
-      artifacts.push(retained);
-      if (response.status !== 200) {
-        // A temporary HTTP error never establishes job status. Preserve its raw
-        // artifact, then allow only the existing source-level transport retry.
-        if (novoHttpRetryAllowed(response, url, allowApplicationRedirect)) {
-          nativeHttpFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
+      const nativePage = /^(?:novo-detail|novo-application)-[1-9][0-9]{5}\.en_GB$/u.test(logicalKey);
+      let retried = false;
+      let failedFinalUrl: string | undefined;
+      for (;;) {
+        currentOfficialSourceAttemptSignal()?.throwIfAborted();
+        if (remaining() <= 0) throw Error("Novo original acquisition budget exhausted");
+        if (nativePage) nativeRequestStarted = true;
+        nativeHttpFailure = undefined;
+        let response: OfficialJsonHttpResponse;
+        try {
+          response = await http({ url, method: "GET", headers: { ...NOVO_NATIVE_HEADERS },
+            ...(nativePage ? { retainSettledRequestTimeout: true } : {}) });
+        } catch (error) {
+          const receipt = nativePage ? settledOfficialHttpTimeoutEvidence(error) : undefined;
+          if (receipt) {
+            artifacts.push(novoNativeTimeoutArtifact(receipt, url, logicalKey, retried ? 2 : 1));
+            if (!retried && remaining() > NOVO_NATIVE_RETRY.backoffMs + NOVO_NATIVE_RETRY.requestMs &&
+                currentOfficialSourceAttemptDeadlineAtMs() === Date.parse(receipt.sourceDeadlineAt) &&
+                Date.parse(receipt.sourceDeadlineAt) <= Date.parse(capturedAt) + NOVO_NATIVE_RETRY.sourceMs &&
+                Date.parse(receipt.settledAt) <= now().getTime() && !currentOfficialSourceAttemptSignal()?.aborted) {
+              retried = true;
+              await nativeHttpRetryDelay(NOVO_NATIVE_RETRY.backoffMs);
+              currentOfficialSourceAttemptSignal()?.throwIfAborted();
+              if (remaining() <= NOVO_NATIVE_RETRY.requestMs) throw Error("Novo original acquisition budget exhausted");
+              artifacts.push(novoNativeTimeoutRetryArtifact({ schemaVersion: 1, kind: "REQUEST_RETRY_START",
+                method: "GET", attempt: 2, requestedUrlSha256: receipt.requestedUrlSha256,
+                requestHeadersSha256: receipt.requestHeadersSha256, startedAt: now().toISOString(),
+                sourceDeadlineAt: receipt.sourceDeadlineAt }, receipt, url, logicalKey));
+              continue;
+            }
+          }
+          throw error;
         }
-        throw new Error(`Novo application status UNKNOWN: HTTP ${response.status}`);
+        assertOfficialJsonEvidenceResponse(response, { requestedUrl: allowApplicationRedirect ? response.finalUrl! : url,
+          crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime() });
+        const deadline = currentOfficialSourceAttemptDeadlineAtMs();
+        if (nativePage && !retried && deadline !== undefined &&
+            deadline <= Date.parse(capturedAt) + NOVO_NATIVE_RETRY.sourceMs &&
+            novoNativeGatewayRetryAllowed(response, url, allowApplicationRedirect) &&
+            remaining() > NOVO_NATIVE_RETRY.backoffMs + NOVO_NATIVE_RETRY.requestMs) {
+          assertOfficialHtmlMime(response);
+          const failed = novoNativeGatewayFailureArtifact(response, url, logicalKey);
+          artifacts.push(failed);
+          retried = true;
+          failedFinalUrl = response.finalUrl;
+          await nativeHttpRetryDelay(NOVO_NATIVE_RETRY.backoffMs);
+          currentOfficialSourceAttemptSignal()?.throwIfAborted();
+          if (remaining() <= NOVO_NATIVE_RETRY.requestMs) throw Error("Novo original acquisition budget exhausted");
+          artifacts.push(novoNativeGatewayRetryArtifact(novoNativeGatewayRetryStart(failed, response, url,
+            now().toISOString(), new Date(deadline).toISOString()), failed, url, logicalKey, allowApplicationRedirect));
+          continue;
+        }
+        const retained = officialJsonNetworkArtifact({ id: logicalKey, logicalKey, kind: "OFFICIAL_COMPANY_PAGE",
+          requestedUrl: url, response, extractorLocator: logicalKey });
+        artifacts.push(retained);
+        if (response.status !== 200) {
+          if (novoHttpRetryAllowed(response, url, allowApplicationRedirect))
+            nativeHttpFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
+          throw Error(`Novo application status UNKNOWN: HTTP ${response.status}`);
+        }
+        // A resolved posting cannot silently change identity while retrying.
+        if (failedFinalUrl && new URL(failedFinalUrl).pathname.startsWith("/job/") && response.finalUrl !== failedFinalUrl)
+          throw Error("Novo retried application posting identity changed");
+        currentOfficialSourceAttemptSignal()?.throwIfAborted();
+        if (remaining() <= 0) throw Error("Novo original acquisition budget exhausted");
+        assertOfficialHtmlMime(response);
+        return response;
       }
-      assertOfficialHtmlMime(response);
-      return response;
     };
     try {
       const entry = await html(entryUrl, "novo-native-entry"), base = novoNativeDetailBase(entry.body);
@@ -933,12 +1013,13 @@ async function fetchSingleResponseOfficialJson({
         else jobs.push({ ...projection, officialUrl: detailUrl, title: status.title! });
       }
     } catch (error) {
-      // Preserve the existing classifier's bounded network/deadline retry signal.
+      // Preserve failure classification, but do not restart a begun native traversal.
       // Unknown content, access blocks and source cancellation still fail closed.
       const transportFailure = nativeHttpFailure ?? retryableTransportFailureFromError(error);
-      return failedWithEvidence(capturedAt, transportFailure
+      return { ...failedWithEvidence(capturedAt, transportFailure
         ? safeSourceTransportFailureReason(transportFailure) : safeOfficialJsonFailure(error, "Novo application status UNKNOWN"),
-        finalizeOfficialJsonSupportingFailureEvidence({ artifacts, code: "NOVO_APPLICATION_STATUS_UNKNOWN" }), transportFailure);
+        finalizeOfficialJsonSupportingFailureEvidence({ artifacts, code: "NOVO_APPLICATION_STATUS_UNKNOWN" }), transportFailure),
+        ...(nativeRequestStarted ? { sourceRetryExhausted: true } : {}) };
     }
     state.page.rawJobIds = novoNestedResponse.rawJobs.map((raw, i) => irreversibleOfficialJsonEvidenceId([i, raw]));
     state.page.validJobIds = jobs.map(job => irreversibleOfficialJsonEvidenceId(job.sourceJobId));
@@ -3571,7 +3652,7 @@ async function fetchPhenomWidgets({
   const jobs: NormalizedOfficialJsonJob[] = [];
   const seenOfficialIds = new Set<string>();
   const firstRawByOfficialId = new Map<string, { pageIndex: number; serialized: string }>();
-  const pageSize = Math.max(1, Math.min(exactRocheRequestBoundOmittedOffset ? 250 : 100, config.pageSize ?? 50));
+  let pageSize = Math.max(1, Math.min(exactRocheRequestBoundOmittedOffset ? 250 : 100, config.pageSize ?? 50));
   const maxPages = Math.max(1, config.maxPages ?? 20);
   const countryFilter = config.countryFilter ?? "China";
   const facetScope = validPhenomFacetScope(config.facetScope);
@@ -3803,6 +3884,9 @@ async function fetchPhenomWidgets({
     }
   }
 
+  // Keep equal postedDate values in one official response, without weakening cardinality checks.
+  if (preserveRocheQuality) pageSize = Math.max(pageSize, structuredExpectedTotal ?? 0);
+
   for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
     const requestedOffset = pageIndex * pageSize;
     const pageRequestBody = phenomWidgetRequestBody(
@@ -3869,7 +3953,7 @@ async function fetchPhenomWidgets({
         retryableHttpTransportFailure(response.status),
         "PAGE"
       );
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
       return phenomFailure(
         capturedAt,
         transportFailure
@@ -3886,55 +3970,55 @@ async function fetchPhenomWidgets({
     try {
       assertOfficialJsonMime(response);
     } catch (error) {
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
       return phenomFailure(capturedAt, safeOfficialJsonFailure(error, "Phenom widget response has an invalid Content-Type"),
         artifacts, pages, counts, losses);
     }
 
     let root: unknown;
     try { root = JSON.parse(response.body); } catch {
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
       return phenomFailure(capturedAt, "Phenom widgets response is not valid JSON", artifacts, pages, counts, losses);
     }
     if (!hasUniqueJsonObjectKeys(response.body)) {
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
       return phenomFailure(capturedAt, "Phenom widgets response contains ambiguous duplicate JSON keys",
         artifacts, pages, counts, losses);
     }
     if (!isStrictRecord(root) || !isStrictRecord(root.refineSearch) ||
       !isStrictRecord(root.refineSearch.data) || !Array.isArray(root.refineSearch.data.jobs)) {
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
       return phenomFailure(capturedAt, "Phenom widgets response requires $.refineSearch.data.jobs array",
         artifacts, pages, counts, losses);
     }
     const refineSearch = root.refineSearch;
     const refineData = refineSearch.data as Record<string, unknown>;
     if (preserveLillyQuality && !lillyPageEnvelopeValid(refineSearch)) {
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
       return phenomFailure(capturedAt, "Lilly response status or hits contradict the returned jobs", artifacts, pages, counts, losses);
     }
     if ((exactMerckHealthcarePartition || preserveLillyQuality) &&
       !exactPhenomResponseUiSelections(refineData, formalSelectedFields)) {
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
       return phenomFailure(capturedAt,
         "Phenom Merck formal response ui_selections does not equal the requested selected_fields",
         artifacts, pages, counts, losses);
     }
     let pageTotal: number | undefined;
     if (facetScope && !hasOwn(refineSearch, "totalHits")) {
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
       return phenomFailure(capturedAt, "Phenom structured facet page requires own totalHits",
         artifacts, pages, counts, losses);
     }
     if (hasOwn(refineSearch, "totalHits")) {
       if (!isNonnegativeInteger(refineSearch.totalHits)) {
-        pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+        pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
         return phenomFailure(capturedAt, "Phenom $.refineSearch.totalHits must be a nonnegative integer",
           artifacts, pages, counts, losses);
       }
       pageTotal = refineSearch.totalHits;
       if (structuredExpectedTotal !== undefined && pageTotal !== structuredExpectedTotal) {
-        pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+        pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
         return phenomFailure(capturedAt, "Phenom filtered total does not equal the allowed exclusion partition",
           artifacts, pages, counts, losses);
       }
@@ -3947,14 +4031,14 @@ async function fetchPhenomWidgets({
       (refineData.jobs as unknown[]).length === pageTotal;
     if (requestBoundOmittedOffset && (pageTotal === undefined || requestedOffset > pageTotal ||
       (refineData.jobs as unknown[]).length !== Math.min(pageSize, pageTotal - requestedOffset))) {
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
       return phenomFailure(capturedAt,
         "Phenom Roche request-bound page cardinality does not close the requested offset",
         artifacts, pages, counts, losses);
     }
     if (facetScope && !hasOwn(refineSearch, "from") &&
       !safelyOmittedSinglePageOffset && !requestBoundOmittedOffset) {
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
       return phenomFailure(capturedAt, "Phenom structured facet page requires own from",
         artifacts, pages, counts, losses);
     }
@@ -3962,13 +4046,13 @@ async function fetchPhenomWidgets({
       returnedOffset = 0;
     } else if (hasOwn(refineSearch, "from")) {
       if (!isNonnegativeInteger(refineSearch.from)) {
-        pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, termination: "FAILED" }));
+        pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
         return phenomFailure(capturedAt, "Phenom $.refineSearch.from must be a nonnegative integer",
           artifacts, pages, counts, losses);
       }
       returnedOffset = refineSearch.from;
       if (facetScope && returnedOffset !== requestedOffset) {
-        pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, returnedOffset, termination: "FAILED" }));
+        pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, returnedOffset, termination: "FAILED" }));
         return phenomFailure(capturedAt, "Phenom structured facet page offset drifted",
           artifacts, pages, counts, losses);
       }
@@ -3976,7 +4060,7 @@ async function fetchPhenomWidgets({
     if ((preserveMerckQuality || preserveOrganonQuality || preserveLillyQuality) && (pageTotal === undefined || (declaredTotal !== undefined && declaredTotal !== pageTotal) ||
       requestedOffset > pageTotal || (refineData.jobs as unknown[]).length !== Math.min(pageSize, pageTotal - requestedOffset) ||
       (hasOwn(refineSearch, "from") && returnedOffset !== requestedOffset))) {
-      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, returnedOffset, termination: "FAILED" }));
+      pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, returnedOffset, termination: "FAILED" }));
       return phenomFailure(capturedAt, `${preserveOrganonQuality ? "Organon" : preserveLillyQuality ? "Lilly China" : "Merck China"} page cardinality or offset conflicts with its bound request`,
         artifacts, pages, counts, losses);
     }
@@ -4046,7 +4130,7 @@ async function fetchPhenomWidgets({
         locationScopeInvalid) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
         pages.push(phenomPageTrace({
-          artifact, sequence: pageIndex, requestedOffset, returnedOffset,
+          artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, returnedOffset,
           rawJobIds: rawIds, validJobIds: validIds,
           ...(pageTotal === undefined ? {} : { declaredTotal: pageTotal }),
           termination: "FAILED"
@@ -4078,7 +4162,7 @@ async function fetchPhenomWidgets({
       if (structuredScopeDrift) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
         pages.push(phenomPageTrace({
-          artifact, sequence: pageIndex, requestedOffset, returnedOffset,
+          artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, returnedOffset,
           rawJobIds: rawIds, validJobIds: validIds,
           ...(pageTotal === undefined ? {} : { declaredTotal: pageTotal }),
           termination: "FAILED"
@@ -8289,7 +8373,8 @@ function createDefaultHttpClient(now: () => Date): OfficialJsonHttpClient {
       method: request.method ?? "GET",
       ...(request.body === undefined ? {} : { body: request.body }),
       redirect: "follow"
-    }, { consumeResponse: async (response) => ({ response, body: await response.text() }) });
+    }, { retainSettledRequestTimeout: request.retainSettledRequestTimeout === true,
+      consumeResponse: async (response) => ({ response, body: await response.text() }) });
     const responseHeaders = response.headers as Headers & { getSetCookie?: () => string[] };
     const capturedAt = now().toISOString();
     const retryAfter = parseOfficialRetryAfter(response.headers.get("retry-after"), Date.parse(capturedAt));

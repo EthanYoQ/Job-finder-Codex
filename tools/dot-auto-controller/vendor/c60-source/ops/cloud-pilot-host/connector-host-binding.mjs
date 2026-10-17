@@ -24,7 +24,7 @@ export const NATIVE_MODE='NATIVE_PORTABLE_CONNECTOR_V1';
 export const AB_MODE='NATIVE_AB_CONNECTOR_V1';
 export const entrypointsFor=c=>c.kind===AB_MODE?{...ENTRYPOINTS,producer:'scripts/p0-cloud-source-pilot.ts'}:ENTRYPOINTS;
 export const CATALOG_FILE=path.resolve(PRODUCER_ROOT,'../../config/native-catalog.json');
-export const CATALOG_SHA256='3457b2f2e6aa2c8086ddc4aba39a5303c8f827e398adc3e822b5e58d8ab37503';
+export const CATALOG_SHA256='ee84807ec4cd79b8290ed7a1148ba121b143a7182091e01c33aff05cb61edc34';
 export const SOURCE='source-takeda-china-social';
 export const SOURCE_HASH='048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f';
 export const PROJECT='yiopvxysxrtrnvqxwgbx';
@@ -67,8 +67,8 @@ const freeze=o=>{if(o&&typeof o==='object'){Object.values(o).forEach(freeze);Obj
 // The producer build hashes this reviewed constant; the outer catalogue must match
 // these exact bytes. A mutable outer catalogue cannot widen the source allowlist.
 export function nativeCatalogue(){
- const r=readChecked(CATALOG_FILE,{mode:0o644,max:12274});
- if(r.bytes.length!==12274||hash(r.bytes)!==CATALOG_SHA256)fail('HOST_CATALOG_DRIFT');
+ const r=readChecked(CATALOG_FILE,{mode:0o644,max:12326});
+ if(r.bytes.length!==12326||hash(r.bytes)!==CATALOG_SHA256)fail('HOST_CATALOG_DRIFT');
  const rows=json(r.bytes).routingCatalogue;
  if(!Array.isArray(rows)||rows.length!==36||new Set(rows.map(r=>r.sourceId)).size!==36||rows.filter(r=>r.route==='PORTABLE').length!==20||rows.filter(r=>r.route==='TRUE_A').length!==13||rows.filter(r=>r.route==='TRUE_B').length!==3)fail('HOST_CATALOG_SCOPE');
  return freeze(rows);
@@ -103,7 +103,7 @@ export async function verifyBinding(){
  const c=loadBinding();
  // Catalogue routing support does not waive known missing source-specific fixes.
  const row=nativeCatalogue().find(r=>r.sourceId===c.sourceId);
- if(c.kind!==AB_MODE&&row?.c60Use!=='NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE')fail('HOST_SOURCE_FIX_REQUIRED');
+ if(c.kind!==AB_MODE&&!['NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE','KNOWN_SOURCE_FIX_RESTORED_OFFLINE_VERIFIED'].includes(row?.c60Use))fail('HOST_SOURCE_FIX_REQUIRED');
  if(process.env.JOBFINDER_CLOUD_SOURCE_ID!==c.sourceId)fail('HOST_SOURCE_ENV');
  if(execFileSync('git',['status','--porcelain'],{cwd:PRODUCER_ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim())fail('HOST_RUNTIME_DIRTY');
  verifyRuntimeBeforeImport(PRODUCER_ROOT,c.control.build,c.lockSha256);
@@ -121,7 +121,7 @@ export async function verifyBinding(){
  if(plans.length!==41||!plan||sourcePlanConfigSha256(plan)!==c.sourceConfigSha256||CLOUD_PILOT_SOURCE.id!==c.sourceId||CLOUD_PILOT_SOURCE.sourceConfigSha256!==c.sourceConfigSha256||CLOUD_PILOT_SOURCE.ownerId!==c.ownerId)fail('HOST_SOURCE_MODULE_DRIFT');
  if(c.kind===AB_MODE){
   const currentFix=(c.sourceId==='source-amgen-china-social'&&plan.profileBoundSource?.kind==='amgen-manual-workday-lookup')||(c.sourceId==='source-gsk-china-social'&&plan.moka?.requisitionStatusPolicy==='GSK_NATIVE_OPEN_REQUISITIONS_V1');
-  if(row?.c60Use!=='NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE'&&!currentFix)fail('HOST_SOURCE_FIX_REQUIRED');
+  if(!['NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE','KNOWN_SOURCE_FIX_RESTORED_OFFLINE_VERIFIED'].includes(row?.c60Use)&&!currentFix)fail('HOST_SOURCE_FIX_REQUIRED');
   const {requiresBGradeTraversalCertificate}=await module('src/crawler/traversalCertificate.ts');
   if(requiresBGradeTraversalCertificate(plan)!==(c.route==='TRUE_B'))fail('HOST_SOURCE_GRADE');
  }else producer.assertPortableRefreshPlan(plan);

@@ -5,18 +5,18 @@ import { load } from "cheerio";
 const MAINLAND_CITY_PROVINCE = new Map(Object.entries({
   Beijing: "Beijing", Changchun: "Jilin", Changsha: "Hunan", Chengdu: "Sichuan",
   Chongqing: "Chongqing", Guangzhou: "Guangdong Province", Guiyang: "Guizhou",
-  Hangzhou: "Zhejiang", Hefei: "Anhui", Hohhot: "Inner Mongolia", Jinan: "Shandong",
+  Hangzhou: "Zhejiang", Harbin: "Heilongjiang", Hefei: "Anhui", Hohhot: "Inner Mongolia", Jinan: "Shandong",
   Kunming: "Yunnan", Nanjing: "Jiangsu", Nanning: "Guangxi", Shanghai: "Shanghai",
   Shenzhen: "Guangdong Province", Shijiazhuang: "Hebei", Taiyuan: "Shanxi",
-  Tianjin: "Tianjin", Wuhan: "Hubei", "Xi'An": "Shaanxi", Xiamen: "Fujian",
+  Tianjin: "Tianjin", Wenzhou: "Zhejiang", Wuhan: "Hubei", "Xi'An": "Shaanxi", Xiamen: "Fujian",
   Yancheng: "Jiangsu", Yangzhou: "Jiangsu", Zhanjiang: "Guangdong Province",
   Zhengzhou: "Henan", "Ürümqi": "Xinjiang"
 }).map(([city, province]) => [city.toLowerCase(), province.toLowerCase()]));
 const MAINLAND_CITY_NAMES: Readonly<Record<string,string>> = Object.freeze({
   beijing:"北京",changchun:"长春",changsha:"长沙",chengdu:"成都",chongqing:"重庆",guangzhou:"广州",
-  guiyang:"贵阳",hangzhou:"杭州",hefei:"合肥",hohhot:"呼和浩特",jinan:"济南",kunming:"昆明",
+  guiyang:"贵阳",hangzhou:"杭州",harbin:"哈尔滨",hefei:"合肥",hohhot:"呼和浩特",jinan:"济南",kunming:"昆明",
   nanjing:"南京",nanning:"南宁",shanghai:"上海",shenzhen:"深圳",shijiazhuang:"石家庄",taiyuan:"太原",
-  tianjin:"天津",wuhan:"武汉","xi'an":"西安",xiamen:"厦门",yancheng:"盐城",yangzhou:"扬州",
+  tianjin:"天津",wenzhou:"温州",wuhan:"武汉","xi'an":"西安",xiamen:"厦门",yancheng:"盐城",yangzhou:"扬州",
   zhanjiang:"湛江",zhengzhou:"郑州","ürümqi":"乌鲁木齐"
 });
 /** Only a validated city/province pair can produce a city. The raw pair stays

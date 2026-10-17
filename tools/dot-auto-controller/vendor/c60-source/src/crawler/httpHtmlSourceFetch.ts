@@ -1,3 +1,4 @@
+import { projectKelunMainlandFetch } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,createSanofiNativeSourceFetch} from "./sanofiNativeQuality";
 import { acquireNovartisOfficialPresence, NOVARTIS_PRESENCE_UNKNOWN } from "./novartisOfficialPresence";
 import { load } from "cheerio";
@@ -58,6 +59,13 @@ export function createPresenceCheckedHttpHtmlSourceFetch(deps: HttpHtmlSourceFet
 }
 
 export function createHttpHtmlSourceFetch(
+  deps: HttpHtmlSourceFetchDeps = {}
+): SourceFetchFunction {
+  const fetch = createUnpartitionedHttpHtmlSourceFetch(deps);
+  return async (plan, tracker) => projectKelunMainlandFetch(plan, await fetch(plan, tracker));
+}
+
+function createUnpartitionedHttpHtmlSourceFetch(
   deps: HttpHtmlSourceFetchDeps = {}
 ): SourceFetchFunction {
   return async (plan) => {

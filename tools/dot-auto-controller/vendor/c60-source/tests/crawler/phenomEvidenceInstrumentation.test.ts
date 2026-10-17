@@ -1371,9 +1371,9 @@ describe("Phenom evidence instrumentation", () => {
   });
 
 
-  it.each([225, 251])("closes Roche's %i unique IDs with the native 250-row request", async (total) => {
+  it.each([225, 251, 303, 501])("closes Roche's %i unique IDs with the dynamically sized native request", async (total) => {
     const stagedPlan = rochePlan();
-    expect(stagedPlan.officialJsonFetch?.pageSize).toBe(250);
+    expect(stagedPlan.officialJsonFetch).toMatchObject({ kind: "phenom", pageSize: 250 });
     const jobs = Array.from({ length: total }, (_, i) => rocheJob(`ROCHE-${i}`));
     const requestedSizes: number[] = [];
     let post = 0;
@@ -1395,11 +1395,11 @@ describe("Phenom evidence instrumentation", () => {
       }
     })(stagedPlan);
     expect(requestedSizes.slice(0, 2)).toEqual([100, 100]);
-    expect(requestedSizes.slice(2).every(size => size === 250)).toBe(true);
+    expect(requestedSizes.slice(2)).toEqual([Math.max(250, total)]);
     const result = await runSourceCrawl(stagedPlan, { fetch: async () => fetched });
     expect(result.truth).toMatchObject({ transportSuccess: true, adapterSuccess: true, completenessVerified: true });
     expect(result.jobs).toHaveLength(total);
-    expect(result.fetchEvidence?.pages).toHaveLength(Math.ceil(total / 250));
+    expect(result.fetchEvidence?.pages).toHaveLength(1);
     const evidence = result.fetchEvidence!;
     const artifact = evidence.artifacts.find(a => a.logicalKey === evidence.declaredCompleteness!.artifactLogicalKey)!;
     expect(issueAGradeOfficialTotalCertificate({
@@ -1409,18 +1409,33 @@ describe("Phenom evidence instrumentation", () => {
       officialArtifactSha256: sha256Bytes(typeof artifact.body === "string" ? Buffer.from(artifact.body) : artifact.body).sha256
     })).toMatchObject({ status: "CERTIFIED", certificate: { counts: { officialTotal: total, finalUniqueJobCount: total } } });
   });
-  it("rejects Roche completeness when a byte-identical page overlap hides an official ID", async () => {
+  it("rejects Roche completeness when a repeated raw record hides an official ID", async () => {
     const stagedPlan=rochePlan();
     const jobs=Array.from({length:250},(_,i)=>rocheJob(`ROCHE-${i}`));
     const bodies=[facetPageBody([],251,0,[{field:"country",value:{中国大陆:251}}]),facetPageBody([jobs[0]],251,0,[]),
-      facetPageBodyWithoutFrom(jobs,251),facetPageBodyWithoutFrom([jobs[249]],251)];
+      facetPageBodyWithoutFrom([...jobs,jobs[249]],251)];
     let index=0;
     const fetched=await createOfficialJsonSourceFetch({now:()=>new Date(capturedAt),http:async request=>
       request.method==="POST"?response(bodies[index++]!,"https://careers.roche.com/widgets","application/json"):
       response(rocheEntryHtml(),stagedPlan.source.officialEntryUrl,"text/html")})(stagedPlan);
-    expect(fetched).toMatchObject({ok:false,fetchEvidence:{fetchCounts:{rawCount:251,parsedCount:251,validCount:251}},
+    expect(fetched).toMatchObject({ok:false,fetchEvidence:{fetchCounts:{rawCount:251,parsedCount:251,validCount:250}},
       failureReason:"Roche official identity set does not close its declared total"});
     expect((await runSourceCrawl(stagedPlan,{fetch:async()=>fetched})).truth.completenessVerified).toBe(false);
+  });
+
+  it("rejects Roche service caps instead of accepting a silently truncated full request", async () => {
+    const stagedPlan = rochePlan();
+    const jobs = Array.from({ length: 250 }, (_, i) => rocheJob(`ROCHE-${i}`));
+    const bodies = [facetPageBody([], 303, 0, [{ field: "country", value: { 中国大陆: 303 } }]),
+      facetPageBody([jobs[0]], 303, 0, []), facetPageBodyWithoutFrom(jobs, 303)];
+    let index = 0;
+    const fetched = await createOfficialJsonSourceFetch({ now: () => new Date(capturedAt), http: async request =>
+      request.method === "POST" ? response(bodies[index++]!, "https://careers.roche.com/widgets", "application/json") :
+      response(rocheEntryHtml(), stagedPlan.source.officialEntryUrl, "text/html") })(stagedPlan);
+    expect(fetched).toMatchObject({ ok: false,
+      failureReason: "Phenom Roche request-bound page cardinality does not close the requested offset",
+      fetchEvidence: { pages: [{ requestedPageSize: 303, termination: "FAILED" }] } });
+    expect(index).toBe(3);
   });
 
   it("selects an explicit mainland alternative from official multi_location values", async () => {

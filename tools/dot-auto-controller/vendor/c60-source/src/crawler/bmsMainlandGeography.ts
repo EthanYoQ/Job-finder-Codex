@@ -7,6 +7,8 @@ const GEOGRAPHY = new Map<string, readonly [string, string]>([
   ["Field - China - CN", ["CN", "中国"]],
   ["Xi'an - CN", ["Xi'An, Shaanxi, CN", "西安"]],
   ["Chongqing - CN", ["Chongqing, Chongqing, CN", "重庆"]],
+  ["Huhehaote - CN", ["Hohhot, Inner Mongolia, CN", "呼和浩特"]],
+  ["Beijing - CN", ["Beijing, Beijing, CN", "北京"]],
   ["Zhengzhou - CN", ["Zhengzhou, Henan, CN", "郑州"]],
   ["Shijiazhuang - CN", ["Shijiazhuang, Hebei, CN", "石家庄"]],
   ["Tianjin - CN", ["Tianjin, Tianjin, CN", "天津"]],

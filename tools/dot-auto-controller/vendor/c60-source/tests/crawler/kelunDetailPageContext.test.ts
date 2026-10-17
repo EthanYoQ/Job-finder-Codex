@@ -1,0 +1,39 @@
+// @vitest-environment node
+/** Invented rows only. No fixed real capture, IDs, titles or response bodies. */
+import {describe,expect,it} from "vitest";
+import {createHttpHtmlSourceFetch} from "../../src/crawler/httpHtmlSourceFetch";
+import {buildStagedSourceCrawlPlans,sourcePlanConfigSha256} from "../../src/crawler/sourcePlan";
+import {candidateCompanies} from "../../src/data/companyRegistry";
+import {classifyKelunLocation,inspectKelunScopeRows,kelunScopeCounts,KELUN_CONFIG_SHA256} from "../../src/crawler/kelunMainlandScope";
+import {runSourceCrawl} from "../../src/crawler/runSourceCrawl";
+import {validateStrictHtmlCompletenessProof} from "../../src/crawler/strictHtmlCompletenessProof";
+const at="2026-10-01T00:00:00.000Z";
+const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==="source-kelun-social")!;
+const row=(id:string,location:string,query:string)=>`<tr><td><a href="/job_show/${id}${query}">合成测试职位</a></td><td></td><td></td><td></td><td title="${location}">${location}</td></tr>`;
+const page=(rows:string)=>`<a href="/social?p=1%5E2&PageIndex=2">2</a><table class="jobsTable">${rows}</table>`;
+async function capture(query="?r=&p=1%5E2&c=&d=&k=&PageIndex=2",location="四川省-成都市-双流区") {
+ const requests:string[]=[];
+ const fetched=await createHttpHtmlSourceFetch({now:()=>new Date(at),http:async r=>{
+   requests.push(r.url);const number=Number(new URL(r.url).searchParams.get("PageIndex")??"1");
+   return {status:200,body:page(number===1?row("990100001","上海市","?r=&p=1%5E2&c=&d=&k="):row("990100002",location,query)),finalUrl:r.url,contentType:"text/html",capturedAt:at};
+ }})(plan);
+ return {requests,fetched,result:await runSourceCrawl(plan,{fetch:()=>fetched})};
+}
+describe("Kelun complete later-page URL context",()=>{
+ it("retains full empty filters plus exact current PageIndex without changing source or row URLs",async()=>{
+  const {requests,fetched,result}=await capture();expect(requests).toHaveLength(2);expect(sourcePlanConfigSha256(plan)).toBe(KELUN_CONFIG_SHA256);
+  expect(result.truth.completenessVerified).toBe(true);expect(result.jobs[1]!.officialUrl).toBe("https://kelun.zhiye.com/job_show/990100002?r=&p=1%5E2&c=&d=&k=&PageIndex=2");
+  expect(result.jobs[1]!.locationRaw).toBe("四川省-成都市-双流区");expect(fetched.fetchEvidence!.fetchCounts).toMatchObject({rawCount:2,validCount:2,validationDiscardCount:0});
+  if(plan.adapterId!=="html-table")throw Error();expect(validateStrictHtmlCompletenessProof(plan,fetched.fetchEvidence!,result.jobs)).toBe(true);
+ });
+ it.each(["?r=&p=1%5E3&c=&d=&k=&PageIndex=2","?r=&p=1%5E2&c=香港&d=&k=&PageIndex=2","?r=&p=1%5E2&c=&d=&k=foreign&PageIndex=2","?r=&p=1%5E2&c=&d=&k=&PageIndex=3","?r=&p=1%5E2&c=&d=&k=&PageIndex=02","?r=&p=1%5E2&c=&d=&k=&PageIndex=2&PageIndex=2","?r=&p=1%5E2&c=&d=&k=&PageIndex=2&x=1"])("rejects changed or duplicated query context %s",async query=>{
+  const {result}=await capture(query);expect(result.truth.completenessVerified).toBe(false);expect(result.jobs).toEqual([]);
+ });
+ it.each(["四川省-成都市-双流区","中国-四川省-成都市-双流区"])("includes exact positive district tuple %s",value=>expect(classifyKelunLocation(value)).toBe("MAINLAND"));
+ it.each(["广东省-成都市-双流区","四川省-广州市-双流区","四川省-成都市-双流区,香港","四川省-成都市-双流区-美国","双流区","全国"])("keeps ambiguous or contradictory %s unknown",value=>expect(classifyKelunLocation(value)).toBe("UNKNOWN"));
+ it("a nationwide label stays UNKNOWN after the URL fix, retaining raw evidence without complete authority",async()=>{
+  const {fetched,result}=await capture(undefined,"全国");expect(fetched.ok).toBe(false);expect(result.truth.completenessVerified).toBe(false);
+  expect(fetched.fetchEvidence!.declaredCompleteness).toBeUndefined();expect(kelunScopeCounts(inspectKelunScopeRows(plan,fetched.fetchEvidence!))).toEqual({rawCount:2,mainlandCount:1,outsideCount:0,unknownCount:1});
+  expect(fetched.fetchEvidence!.fetchLosses[0]!.details.code).toBe("KELUN_GEOGRAPHY_UNKNOWN");
+ });
+});

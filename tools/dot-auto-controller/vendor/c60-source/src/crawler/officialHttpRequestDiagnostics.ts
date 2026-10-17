@@ -67,12 +67,13 @@ export function officialHttpRequestDiagnostics(input: Parameters<typeof fetch>[0
   const path = process.env.P0_OFFICIAL_HTTP_DIAGNOSTICS_PATH;
   if (!path) return undefined;
   const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-  let url: { origin: string; endpointSha256: string; hasQuery: boolean } | undefined;
+  let url: { origin: string; endpointSha256: string; requestUrlSha256: string; hasQuery: boolean } | undefined;
   try {
     const parsed = new URL(rawUrl);
     if (parsed.protocol === "http:" || parsed.protocol === "https:") {
       url = { origin: parsed.origin,
         endpointSha256: createHash("sha256").update(parsed.origin + parsed.pathname).digest("hex"),
+        requestUrlSha256: createHash("sha256").update(rawUrl).digest("hex"),
         hasQuery: Boolean(parsed.search) };
     }
   } catch { /* Invalid inputs still get a request marker without URL content. */ }

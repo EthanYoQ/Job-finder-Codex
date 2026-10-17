@@ -54,6 +54,7 @@ async function grifols(options: {listDates?:string[];detailDates?:string[];extra
 describe("BMS Unix-seconds preservation",()=>{
   it.each([
     ["Xi'an - CN","Xi'An, Shaanxi, CN","西安"], ["Chongqing - CN","Chongqing, Chongqing, CN","重庆"],
+    ["Huhehaote - CN","Hohhot, Inner Mongolia, CN","呼和浩特"], ["Beijing - CN","Beijing, Beijing, CN","北京"],
     ["Zhengzhou - CN","Zhengzhou, Henan, CN","郑州"], ["Shijiazhuang - CN","Shijiazhuang, Hebei, CN","石家庄"],
     ["Tianjin - CN","Tianjin, Tianjin, CN","天津"], ["Nanjing - CN","Nanjing, Jiangsu, CN","南京"],
     ["Qingdao - CN","Qingdao, Shandong, CN","青岛"], ["Hangzhou - CN","Hangzhou, Zhejiang, CN","杭州"],
@@ -82,6 +83,44 @@ describe("BMS Unix-seconds preservation",()=>{
   it.each(["Field - China - HK","Field - China | Singapore","Field - China - Unknown"])("does not broaden unmatched label %s to country or nationwide",async location=>{
     const {result}=await bms([{...bmsRow(),locations:[location]}]);
     expect(result.truth.completenessVerified).toBe(false);expect(result.jobs).toEqual([]);
+  });
+  describe.each([
+    ["Huhehaote - CN","Hohhot, Inner Mongolia, CN"],
+    ["Beijing - CN","Beijing, Beijing, CN"]
+  ])("keeps the new exact pair %s fail-closed",(location,standardized)=>{
+    it.each([
+      ["missing locations", {locations:undefined}],
+      ["missing standardized locations", {standardizedLocations:undefined}],
+      ["ambiguous country-only value", {standardizedLocations:["CN"]}],
+      ["ambiguous city", {locations:["Unknown - CN"]}],
+      ["foreign country", {standardizedLocations:["Singapore, SG"]}],
+      ["Hong Kong", {standardizedLocations:["Hong Kong, Hong Kong, CN"]}],
+      ["Macau", {standardizedLocations:["Macau, Macau, CN"]}],
+      ["Taiwan", {standardizedLocations:["Taipei, Taiwan, CN"]}],
+      ["conflicting mainland city", {standardizedLocations:["Shanghai, Shanghai, CN"]}],
+      ["remote", {workLocationOption:"remote"}],
+      ["hybrid", {workLocationOption:"hybrid"}],
+      ["location flexibility", {locationFlexibility:"China"}],
+      ["unknown city field", {city:"Beijing"}],
+      ["competing country field", {country:"US"}],
+      ["added country code", {countryCode:"CN"}]
+    ])("rejects %s",async(_label,mutation)=>{
+      const {fetched,result}=await bms([{...bmsRow(),locations:[location],standardizedLocations:[standardized],...mutation}] as ReturnType<typeof bmsRow>[]);
+      expect(fetched).toMatchObject({ok:false,fetchEvidence:{fetchCounts:{rawCount:1,parsedCount:1,validCount:0,validationDiscardCount:1},fetchLosses:[{details:{code:"BMS_GEOGRAPHY_INVALID"}}]}});
+      expect(result.truth.completenessVerified).toBe(false);expect(result.jobs).toEqual([]);
+    });
+    it.each(["location alias","location suffix","location whitespace","standardized whitespace","mixed location countries","mixed standardized countries"])("rejects %s",async variant=>{
+      const row={...bmsRow(),locations:[location],standardizedLocations:[standardized]};
+      if(variant==="location alias")row.locations=[location==="Huhehaote - CN"?"Hohhot - CN":"Peking - CN"];
+      if(variant==="location suffix")row.locations=[`${location} / Singapore`];
+      if(variant==="location whitespace")row.locations=[`${location} `];
+      if(variant==="standardized whitespace")row.standardizedLocations=[`${standardized} `];
+      if(variant==="mixed location countries")row.locations=[location,"Singapore - SG"];
+      if(variant==="mixed standardized countries")row.standardizedLocations=[standardized,"Singapore, SG"];
+      const {fetched,result}=await bms([row]);
+      expect(fetched).toMatchObject({ok:false,fetchEvidence:{fetchCounts:{validCount:0,validationDiscardCount:1},fetchLosses:[{details:{code:"BMS_GEOGRAPHY_INVALID"}}]}});
+      expect(result.truth.completenessVerified).toBe(false);expect(result.jobs).toEqual([]);
+    });
   });
   it("preserves known Shanghai and requires the exact new location policy",async()=>{
     const {result}=await bms([{...bmsRow(),locations:["Shanghai - CN"],standardizedLocations:["Shanghai, Shanghai, CN"]}]);expect(result.jobs[0]!.cities).toEqual(["上海"]);

@@ -1,3 +1,4 @@
+import { exactKelunMainlandPlan, replayKelunMainlandScope } from "./kelunMainlandScope";
 import { isServierTraversalPlan, replayServierTraversal } from "./servierMokaScope";
 import { hasNovartisOfficialPresencePlan, hasNovartisPresenceArtifacts, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
 import { JNJ_DOM_CAPTURE_TOOL } from "./jnjCareersDomContract";
@@ -68,7 +69,7 @@ import {
 import type { SourceTransportFailure } from "./sourceFetchFailure";
 import type { RetryableSourceTransportFailureCode } from "./sourceFetchFailure";
 import { validateStrictHotjobLegacyEvidence } from "./hotjobLegacySourceFetch";
-import { attachYelloPublicAgeEvidence, parseYelloJobBoardResponse, yelloJobBoardBinding, yelloPublicAgeEvidence } from "./yelloJobBoardEvidence";
+import { attachYelloPublicAgeEvidence, parseYelloJobBoardResponse, yelloJobBoardBinding, yelloPublicAgeEvidence, yelloScopeExclusionLoss } from "./yelloJobBoardEvidence";
 import { exactGileadPublicAgePlan } from "./gileadPublicAge";
 import { hasBiSemanticPlan, replayBiSemanticCompleteness } from "./biSemanticCompleteness";
 import { BI_API_URL, BI_SCRIPT_URL } from "./biUiSemanticContract";
@@ -76,7 +77,7 @@ import { BI_API_URL, BI_SCRIPT_URL } from "./biUiSemanticContract";
 export type SourceFetchResult =
   | { ok: true; capturedAt: string; payload: unknown; completeness?: CompletenessEvidence; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] }
   | { ok: true; capturedAt: string; html: string; completeness?: CompletenessEvidence; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] }
-  | { ok: false; capturedAt: string; failureReason: string; transportFailure?: SourceTransportFailure; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] };
+  | { ok: false; capturedAt: string; failureReason: string; sourceRetryExhausted?: true; transportFailure?: SourceTransportFailure; fetchEvidence?: PersistentSourceFetchEvidence; paginationEvaluation?: PaginationEvaluation; priorTransportAttempts?: readonly SourceTransportAttempt[] };
 
 export interface SourceTransportAttempt {
   transport: "DIRECT_HTTP" | "BROWSER_SESSION";
@@ -574,8 +575,12 @@ function strictCompletenessGate(
     if (isServierTraversalPlan(plan) && !mokaScopeProof) return strictGateTrace(plan, "SERVIER_SCOPE_PROOF");
     if (isBayerMedicalTraversalPlan(plan) && !mokaScopeProof) return strictGateTrace(plan, "BAYER_SCOPE_PROOF");
     if (hasHengruiScopeExclusionPolicy(plan) && !mokaScopeProof) return strictGateTrace(plan, "MOKA_SCOPE_PROOF");
+    // strictPageRequestContracts above has already replayed the complete Yello
+    // partition and its exact exclusion ledger. No other source inherits this opt-in.
+    const yelloScopeProof = exactGileadPublicAgePlan(plan);
+    const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
-    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof) {
+    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !kelunScopeProof) {
       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
     }
     if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) {
@@ -629,7 +634,7 @@ function strictCompletenessGate(
       : artifactUrlBindings?.get(artifact.logicalKey);
     if (!declaredArtifactRules) return strictGateTrace(plan, "DECLARATION_URL_RULE");
     if (declared.kind === "OFFICIAL_TOTAL_COUNT") {
-      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof) &&
+      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof || yelloScopeProof) &&
         replayPolicy?.allowIndependentlyVerifiedProfileBoundExclusions === true &&
         declared.value === evidence.fetchCounts.rawCount &&
         ledger.rawInputCount === evidence.fetchCounts.validCount;
@@ -879,13 +884,16 @@ function strictYelloRequestContracts(
   const compare = (left: string, right: string) => Buffer.from(left).compare(Buffer.from(right));
   const expectedSourceIds = parsed.jobs.map(({ officialId }) => persistentOfficialJsonJobId(officialId)).sort(compare);
   const actualSourceIds = outputJobs.flatMap(({ sourceJobId }) => sourceJobId ? [sourceJobId] : []).sort(compare);
-  const rawIds = parsed.jobs.map((row, index) => irreversibleOfficialJsonEvidenceId([index, row.rawHtml])).sort(compare);
+  const rawIds = parsed.rows.map(row => irreversibleOfficialJsonEvidenceId([row.rowIndex, row.rawHtml])).sort(compare);
   const validIds = expectedSourceIds.map(id => irreversibleOfficialJsonEvidenceId(id)).sort(compare);
   if (!isDeepStrictEqual(rawIds, [...page.rawJobIds].sort(compare)) || !isDeepStrictEqual(validIds, [...page.validJobIds].sort(compare))) return false;
+  if (!isDeepStrictEqual(evidence.fetchLosses, parsed.excludedJobs.map(row => yelloScopeExclusionLoss(row, artifact))) ||
+      !isDeepStrictEqual(evidence.fetchCounts, { rawCount: parsed.rows.length, parsedCount: parsed.rows.length,
+        validCount: parsed.jobs.length, parseDiscardCount: 0, validationDiscardCount: parsed.excludedJobs.length })) return false;
   const byId = new Map(outputJobs.map(job => [job.sourceJobId, job]));
   // Match the adapter's text cleanup; exact source spelling/whitespace remains bound by the row hash.
   const normalizedText = (value: string) => value.replace(/\s+/gu, " ").trim();
-  for (const [index, row] of parsed.jobs.entries()) {
+  for (const row of parsed.jobs) {
     const job = byId.get(persistentOfficialJsonJobId(row.officialId));
     if (!job || job.companyId !== plan.company.id || job.sourceId !== plan.source.id || job.sourceKind !== "SOCIAL" ||
         job.atsKind !== "OFFICIAL_JSON" || job.officialChineseCompanyName !== plan.company.officialChineseName ||
@@ -893,10 +901,11 @@ function strictYelloRequestContracts(
         job.officialUrl !== row.officialUrl || job.listUrl !== plan.source.officialEntryUrl ||
         job.officialPublishedAt !== undefined || job.auxiliaryChineseTitle !== undefined || job.category !== "其他" ||
         job.evidence.officialEntryUrl !== plan.source.officialEntryUrl || job.evidence.officialChainEvidenceUrl !== plan.source.officialChainEvidenceUrl ||
-        job.evidence.capturedAt !== capturedAt || !isDeepStrictEqual(job.evidence.gileadPublicAge, yelloPublicAgeEvidence(row, index, artifact))) return false;
+        job.evidence.capturedAt !== capturedAt || !isDeepStrictEqual(job.evidence.gileadPublicAge, yelloPublicAgeEvidence(row, row.rowIndex, artifact))) return false;
   }
   const declaration = evidence.declaredCompleteness;
-  return parsed.declaredTotal === parsed.jobs.length && page.rawJobIds.length === parsed.jobs.length &&
+  return parsed.declaredTotal === parsed.rows.length && parsed.rows.length === parsed.jobs.length + parsed.excludedJobs.length &&
+    page.rawJobIds.length === parsed.rows.length &&
     page.validJobIds.length === parsed.jobs.length && page.declaredTotal === parsed.declaredTotal &&
     page.declaredCount === parsed.declaredTotal && page.termination === "NEXT_ABSENT" &&
     actualSourceIds.length === outputJobs.length &&
@@ -2250,7 +2259,7 @@ function strictPhenomRequestContracts(
   const exactMerckHealthcarePartition = strictExactMerckHealthcarePhenomPlan(plan, pageConfig, endpoint);
   if (config.facetScope && "partitionProofPolicy" in config.facetScope &&
     config.facetScope.partitionProofPolicy !== undefined && !exactMerckHealthcarePartition) return false;
-  const pageSize = Math.max(1, Math.min(exactRocheRequestBoundOmittedOffset ? 250 : 100, config.pageSize ?? 50));
+  let pageSize = Math.max(1, Math.min(exactRocheRequestBoundOmittedOffset ? 250 : 100, config.pageSize ?? 50));
   const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
   if (artifacts.size !== evidence.artifacts.length) return false;
   const facetScope = strictGatePhenomFacetScope(config.facetScope);
@@ -2342,6 +2351,9 @@ function strictPhenomRequestContracts(
     if (facetArtifacts.length !== 0 || config.countryFilter !== "China") return false;
     selectedFields = { country: ["China"] };
   }
+  // Keep equal postedDate values in one official response, without weakening cardinality checks.
+  if (preserveRocheQuality) pageSize = Math.max(pageSize, structuredExpectedTotal ?? 0);
+
   const rocheExpectedTotal = exactRocheRequestBoundOmittedOffset ? structuredExpectedTotal : undefined;
   const rocheExpectedPageCount = rocheExpectedTotal === undefined
     ? undefined
@@ -4770,7 +4782,8 @@ function strictPositiveOfficialTotalReplayPolicy(
     if (plan.source.atsKind !== "OFFICIAL_JSON") return undefined;
     try { yelloJobBoardBinding(plan.source.officialEntryUrl, strategy); }
     catch { return undefined; }
-    return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true };
+    return { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+      allowIndependentlyVerifiedProfileBoundExclusions: true };
   }
   return undefined;
 }

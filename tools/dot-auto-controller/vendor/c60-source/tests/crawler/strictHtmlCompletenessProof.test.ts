@@ -7,6 +7,7 @@ import { buildStagedSourceCrawlPlans, getPlanBySourceId, type SourceCrawlPlan } 
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 
+// Synthetic Kelun detail URLs use the canonical numeric identity contract.
 const capturedAt = "2026-07-15T00:00:00.000Z";
 const row = (id: string) => `<tr class="job"><td class="title">${id}</td><td class="location">上海</td><td><a href="/${id}">详情</a><button data-job-id="${id}"></button></td></tr>`;
 const response = (request: HttpHtmlRequest, body: string, contentType = "text/html; charset=utf-8"): HttpHtmlResponse => ({
@@ -43,7 +44,7 @@ describe("independent strict HTML completeness proof", () => {
     const fetch = createHttpHtmlSourceFetch({
       now: () => new Date(capturedAt),
       http: async request => response(request, `<div class="page"><a href="/social?r=&p=1%5E2&c=&d=&k=&PageIndex=1">1</a></div>
-        <table class="jobsTable"><tr><td><a href="/socialxq?jobId=one">医学经理</a></td><td></td><td></td><td></td><td title="上海">上海</td></tr></table>`)
+        <table class="jobsTable"><tr><td><a href="/job_show/990001001">医学经理</a></td><td></td><td></td><td></td><td title="上海">上海</td></tr></table>`)
     });
     const fetched = await fetch(plan);
     if (!fetched.ok || !fetched.fetchEvidence) throw new Error(fetched.ok ? "missing evidence" : fetched.failureReason);
@@ -68,7 +69,7 @@ describe("independent strict HTML completeness proof", () => {
         const pagination = `<div class="page">${linkedPages
           .map(value => `<a href="/social?r=&p=1%5E2&c=&d=&k=&PageIndex=${value}">${value}</a>`).join("")}
           <a class="now" href="javascript:void(0);">${page}</a></div>`;
-        return response(request, `${pagination}<table class="jobsTable"><tr><td><a href="/socialxq?jobId=${page}">职位 ${page}</a></td><td></td><td></td><td></td><td title="上海">上海</td></tr></table>`);
+        return response(request, `${pagination}<table class="jobsTable"><tr><td><a href="/job_show/99000100${page}">职位 ${page}</a></td><td></td><td></td><td></td><td title="上海">上海</td></tr></table>`);
       }
     });
     const fetched = await fetch(plan);

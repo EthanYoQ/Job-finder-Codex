@@ -56,3 +56,70 @@ describe('AbbVie raw-row source scope',()=>{
  it('does not infer official zero from the absence of a valid reviewed row',()=>{expect(validateAbbvieChinaRowScope('')).toBe(false);});
  it('requires the exact reviewed plan rather than a changed location selector',async()=>{const {fetched}=await execute(html());const changed=structuredClone(plan);changed.table.fields.locationRaw={value:'Shanghai'};expect(validateStrictHtmlCompletenessProof(changed,fetched.fetchEvidence!)).toBe(false);});
 });
+
+// Reviewed from the retained 2026-10-08 official listing, not from title/URL inference.
+// The original failed packet remains diagnostic evidence, never publication authority.
+for (const [raw, city, id, slug] of [
+  ['Wenzhou, Zhejiang', '温州', '34137', 'wenzhou-zhejiang'],
+  ['Harbin, Heilongjiang', '哈尔滨', '34136', 'harbin-heilongjiang']
+] as const) {
+  const cityName = raw.split(',')[0]!;
+  const newRow = row.replaceAll('Shenzhen, Guangdong Province', raw)
+    .replace('territory-supervisor-in-shenzhen-guangdong-province-jid-32148', `sr-professional-medical-representative-in-${slug}-jid-${id}`)
+    .replace('Territory Supervisor', 'Sr. Professional Medical Representative');
+  describe(`AbbVie reviewed 2026-10-08 exact pair: ${raw}`, () => {
+    it('admits the China listing with its exact raw pair and one mapped city', async () => {
+      expect(reviewedAbbvieCity(raw)).toBe(city);
+      expect(validateAbbvieChinaRowScope(newRow)).toBe(true);
+      const {fetched, result} = await execute(html(newRow));
+      expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence!, result.jobs)).toBe(true);
+      expect(result.truth).toEqual({transportSuccess:true, adapterSuccess:true, completenessVerified:true});
+      expect(result.jobs).toHaveLength(1);
+      expect(result.jobs[0]).toMatchObject({sourceJobId:id, locationRaw:raw, cities:[city]});
+      expect(result.jobs[0]?.officialPublishedAt ?? null).toBeNull();
+      expect(result.reconciliation?.adapterLosses).toEqual([]);
+      expect(fetched.fetchEvidence!.fetchCounts).toEqual({rawCount:1, parsedCount:1, validCount:1, parseDiscardCount:0, validationDiscardCount:0});
+    });
+    for (const badRaw of [
+      `${cityName}, Shanghai`, `${cityName}, ${cityName === 'Wenzhou' ? 'Heilongjiang' : 'Zhejiang'}`,
+      `${cityName}, United States`, `${cityName}, Taiwan`, `${cityName}, Hong Kong`, `${cityName}, Macau`,
+      `${raw}, China`, `${raw}; Shanghai, Shanghai`, `${cityName} City, ${raw.split(', ')[1]}`,
+      `Unknown, ${raw.split(', ')[1]}`, raw.split(', ')[1]!, cityName, 'China', '2 Locations',
+      'Taipei, Taiwan', 'Hong Kong, Hong Kong', 'Macau, Macau', 'Boston, Massachusetts'
+    ]) it(`rejects unreviewed, conflicting, or non-mainland raw pair: ${badRaw}`, async () => {
+      expect(reviewedAbbvieCity(badRaw)).toBeUndefined();
+      const changed = newRow.replace(raw, badRaw);
+      expect(validateAbbvieChinaRowScope(changed)).toBe(false);
+      const {fetched, result} = await execute(html(changed));
+      expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence!, result.jobs)).toBe(false);
+      expect(result.truth.completenessVerified).toBe(false);
+      expect(result.jobs).toHaveLength(1); // Reject proof, never silently filter the unknown row.
+      expect(result.jobs[0]?.locationRaw).toBe(badRaw);
+    });
+    for (const [name, mutate] of Object.entries(attacks).filter(([name]) => ![
+      'foreign location despite China option', 'foreign locality under a China province',
+      'mismatched Chinese province', 'opaque multi-location', 'country-only location',
+      'unknown reviewed city', 'extra location value'
+    ].includes(name))) it(`retains the field guard for ${name}`, async () => {
+      const changed = mutate(newRow);
+      expect(changed).not.toBe(newRow);
+      expect(validateAbbvieChinaRowScope(changed)).toBe(false);
+      const {fetched, result} = await execute(html(changed));
+      expect(validateStrictHtmlCompletenessProof(plan, fetched.fetchEvidence!, result.jobs)).toBe(false);
+      expect(result.truth.completenessVerified).toBe(false);
+    });
+    it('rejects a second raw location value', async () => {
+      const changed = newRow.replace(`${raw}</p>`, `${raw}</p><p class="attrax-vacancy-tile__item-value">Boston, Massachusetts</p>`);
+      expect(validateAbbvieChinaRowScope(changed)).toBe(false);
+      expect((await execute(html(changed))).result.truth.completenessVerified).toBe(false);
+    });
+    it('does not let a valid new pair certify a mixed page with an unknown row', async () => {
+      const changed = newRow + row.replace('Shenzhen, Guangdong Province', 'Unknown, Guangdong Province');
+      const page = html(changed).replace('total-results">1<', 'total-results">2<');
+      expect(validateAbbvieChinaRowScope(changed)).toBe(false);
+      const {result} = await execute(page);
+      expect(result.truth.completenessVerified).toBe(false);
+      expect(result.jobs).toHaveLength(2);
+    });
+  });
+}

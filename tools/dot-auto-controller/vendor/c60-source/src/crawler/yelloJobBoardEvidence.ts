@@ -8,7 +8,8 @@ import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import {
   explicitlyForeignOrNonMainlandLocation,
   explicitlyGenericOrAmbiguousLocation,
-  persistentOfficialJsonJobId
+  persistentOfficialJsonJobId,
+  officialJsonRawLocator
 } from "./officialJsonEvidence";
 
 export interface YelloJobBoardConfig {
@@ -19,21 +20,36 @@ export interface YelloJobBoardConfig {
   publicAgePolicy: typeof GILEAD_PUBLIC_AGE_POLICY;
 }
 
-export interface ParsedYelloJob {
+interface ParsedYelloIdentity {
+  rowIndex: number;
   officialId: string;
   title: string;
   officialUrl: string;
   locationRaw: string;
   rawHtml: string;
-  cities: string[];
   publicAgeRaw: string;
+}
+export interface ParsedYelloJob extends ParsedYelloIdentity {
+  scopeDecision: "INCLUDED_MAINLAND";
+  cities: string[];
   publicAgeClassification: GileadPublicAgeClassification;
+}
+export interface ParsedYelloExcludedJob extends ParsedYelloIdentity {
+  scopeDecision: "EXCLUDED_HONG_KONG";
+  publicAgeStatus: "NOT_EVALUATED_OUT_OF_SCOPE";
 }
 
 export class YelloPublicAgeError extends Error {
   constructor(readonly rawRows: string[], readonly rowIndex: number) {
     super(`GILEAD_PUBLIC_AGE_INVALID:row:${rowIndex}`);
     this.name = "YelloPublicAgeError";
+  }
+}
+
+export class YelloScopeReviewError extends Error {
+  constructor(readonly rawRows: string[], readonly rowIndex: number) {
+    super(`GILEAD_SCOPE_REVIEW_REQUIRED:row:${rowIndex}`);
+    this.name = "YelloScopeReviewError";
   }
 }
 
@@ -57,7 +73,9 @@ export function yelloJobBoardBinding(entryUrl: string, config: YelloJobBoardConf
 
 export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardConfig): {
   declaredTotal: number;
+  rows: Array<ParsedYelloJob | ParsedYelloExcludedJob>;
   jobs: ParsedYelloJob[];
+  excludedJobs: ParsedYelloExcludedJob[];
 } {
   yelloJobBoardBinding(`https://gilead.yello.co/job_boards/${GILEAD_YELLO_BOARD}`, config);
   if (!hasUniqueJsonObjectKeys(body)) throw new Error("Yello response is not strict JSON");
@@ -76,12 +94,21 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
   if (rows.length !== count) throw new Error("Yello result count does not match rendered rows");
   const seen = new Set<string>();
   const rawRows = rows.map(element => $.html(element));
-  const jobs = rows.map((element, rowIndex): ParsedYelloJob => {
+  const parsedRows = rows.map((element, rowIndex): ParsedYelloJob | ParsedYelloExcludedJob => {
     const row = $(element);
     const link = row.find("a.search-results__req_title");
-    const locationSpans = row.find(".search-results__jobinfo > div > span");
+    const jobInfo = row.find(".search-results__jobinfo");
+    const locationContainer = jobInfo.children("div");
+    const locationSpans = locationContainer.children("span");
     const flag = row.find(".search-results__flag img");
-    if (link.length !== 1 || locationSpans.length < 1 || flag.length !== 1) {
+    const unexpectedLocationContent = locationContainer.contents().toArray().some(node =>
+      node.type === "text" ? /\S/u.test(node.data) : node.type !== "tag" || node.name !== "span");
+    const unexpectedJobInfoContent = jobInfo.contents().toArray().some(node =>
+      node.type === "text" ? /\S/u.test(node.data) : node.type !== "tag" || !["a", "div"].includes(node.name));
+    if (link.length !== 1 || jobInfo.length !== 1 || jobInfo.children().length !== 2 ||
+        jobInfo.children("a.search-results__req_title").length !== 1 || locationContainer.length !== 1 ||
+        locationSpans.length < 1 || locationContainer.children().length !== locationSpans.length ||
+        unexpectedLocationContent || unexpectedJobInfoContent || locationSpans.first().children().length !== 0 || flag.length !== 1) {
       throw new Error("Yello result row structure is invalid");
     }
     const title = link.text().trim();
@@ -91,23 +118,77 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
     const query = [...officialUrl.searchParams.entries()];
     if (!title || !officialId || seen.has(officialId) || officialUrl.origin !== "https://gilead.yello.co" ||
         officialUrl.username || officialUrl.password || officialUrl.hash || query.length !== 1 || query[0]![0] !== "job_board_id" ||
-        query[0]![1] !== config.boardId || flag.attr("alt") !== "China flag" ||
-        flag.attr("src") !== "/assets/images/flags/cn.png" || !/^China - \S/u.test(locationRaw) ||
-        explicitlyForeignOrNonMainlandLocation(locationRaw) ||
-        explicitlyGenericOrAmbiguousLocation(locationRaw)) {
+        query[0]![1] !== config.boardId) {
       throw new Error("Yello result row identity or China scope is invalid");
     }
     seen.add(officialId);
     const age = row.find(".search-results__post-time");
     const publicAgeRaw = age.text();
+    const identity = { rowIndex, officialId, title, officialUrl: officialUrl.toString(), locationRaw,
+      rawHtml: rawRows[rowIndex]!, publicAgeRaw };
+    // Only this exact, mutually consistent location/flag pair is a proven exclusion.
+    // A China filter is not a mainland guarantee. Mixed, contradictory or unknown
+    // geography still holds the source; it cannot justify missing-job lifecycle changes.
+    if (locationRaw === "China - Hong Kong" && flag.attr("alt") === "Hong Kong flag" &&
+        flag.attr("src") === "/assets/images/flags/hk.png" && locationSpans.length === 3 &&
+        locationSpans.toArray().every(span => $(span).children().length === 0)) {
+      if (age.length !== 1 || age.children().length !== 0) throw new Error("Yello result row structure is invalid");
+      // Only the reviewed complete row shape proves Hong Kong-only geography.
+      // Unknown nodes or semantic attributes may carry another location. Hold them,
+      // without interpreting city words in ordinary titles or department text.
+      const shell = row.children("div.clearfix");
+      const flagBlock = shell.children("div.search-results__flag");
+      const onlyAttributes = (node: typeof row, names: readonly string[]) =>
+        Object.keys(node.attr() ?? {}).every(name => names.includes(name));
+      const classes = (node: typeof row, expected: string) =>
+        (node.attr("class") ?? "").trim().split(/\s+/u).sort().join(" ") === expected.split(" ").sort().join(" ");
+      const onlyElementChildren = (node: typeof row) => node.contents().toArray().every(child =>
+        child.type === "tag" || child.type === "text" && !/\S/u.test(child.data));
+      const onlyTextChildren = (node: typeof row) => node.contents().toArray().every(child => child.type === "text");
+      const expectedChildren = [flagBlock[0], jobInfo[0], age[0]];
+      const reviewedStructure = row.children().length === 1 && shell.length === 1 && shell.children().length === 3 &&
+        jobInfo.is("div") && age.is("div") &&
+        jobInfo.children()[0] === link[0] && jobInfo.children()[1] === locationContainer[0] &&
+        shell.children().toArray().every((child, index) => child === expectedChildren[index]) &&
+        flagBlock.length === 1 && flagBlock.children().length === 1 && flagBlock.children()[0] === flag[0] &&
+        onlyElementChildren(row) && onlyElementChildren(shell) && onlyElementChildren(flagBlock) &&
+        onlyTextChildren(link) && onlyTextChildren(age) && locationSpans.toArray().every(span => onlyTextChildren($(span))) &&
+        onlyAttributes(row, ["class"]) && classes(row, "search-results__item") &&
+        onlyAttributes(shell, ["class"]) && classes(shell, "clearfix") &&
+        onlyAttributes(flagBlock, ["class"]) && classes(flagBlock, "search-results__flag pull-left") &&
+        onlyAttributes(flag, ["alt", "src"]) &&
+        onlyAttributes(jobInfo, ["class"]) && classes(jobInfo, "search-results__jobinfo pull-left") &&
+        onlyAttributes(link, ["class", "href", "lang"]) && classes(link, "search-results__req_title") &&
+        onlyAttributes(locationContainer, []) && locationSpans.toArray().every(span => onlyAttributes($(span), [])) &&
+        onlyAttributes(age, ["class"]) && classes(age, "search-results__post-time pull-right");
+      if (!reviewedStructure) throw new YelloScopeReviewError(rawRows, rowIndex);
+      return { ...identity, scopeDecision: "EXCLUDED_HONG_KONG", publicAgeStatus: "NOT_EVALUATED_OUT_OF_SCOPE" };
+    }
+    if (flag.attr("alt") !== "China flag" || flag.attr("src") !== "/assets/images/flags/cn.png" ||
+        !/^China - \S/u.test(locationRaw) || explicitlyForeignOrNonMainlandLocation(locationRaw) ||
+        explicitlyGenericOrAmbiguousLocation(locationRaw)) {
+      throw new YelloScopeReviewError(rawRows, rowIndex);
+    }
     const publicAgeClassification = classifyGileadPublicAge(publicAgeRaw);
     if (age.length !== 1 || age.children().length !== 0 || !publicAgeClassification) {
       throw new YelloPublicAgeError(rawRows, rowIndex);
     }
-    return { officialId, title, officialUrl: officialUrl.toString(), locationRaw, rawHtml: rawRows[rowIndex]!,
-      cities: gileadOfficialCities(locationRaw), publicAgeRaw, publicAgeClassification };
+    return { ...identity, scopeDecision: "INCLUDED_MAINLAND", cities: gileadOfficialCities(locationRaw), publicAgeClassification };
   });
-  return { declaredTotal: count, jobs };
+  return { declaredTotal: count, rows: parsedRows,
+    jobs: parsedRows.filter((row): row is ParsedYelloJob => row.scopeDecision === "INCLUDED_MAINLAND"),
+    excludedJobs: parsedRows.filter((row): row is ParsedYelloExcludedJob => row.scopeDecision === "EXCLUDED_HONG_KONG") };
+}
+
+/** The original artifact retains the official ID, full row and unclassified age.
+ * The loss locator binds that complete row at its original position, never a compacted index. */
+export function yelloScopeExclusionLoss(row: ParsedYelloExcludedJob,
+  artifact: Pick<SourceFetchArtifactDraft, "capturedAt">): PersistentSourceFetchEvidence["fetchLosses"][number] {
+  return { stage: "VALIDATION", reason: "Yello row is explicitly outside mainland China scope",
+    rawLocator: officialJsonRawLocator(row.rawHtml, row.rowIndex),
+    details: { code: "GILEAD_VERIFIED_HONG_KONG_ONLY", field: "location", pageSequence: 0,
+      recordIndex: row.rowIndex, noteCode: "PUBLIC_AGE_NOT_EVALUATED_OUT_OF_SCOPE" },
+    recordedAt: artifact.capturedAt };
 }
 
 export function yelloPublicAgeEvidence(row: ParsedYelloJob, rowIndex: number, artifact: Pick<SourceFetchArtifactDraft, "logicalKey" | "capturedAt">): GileadPublicAgeEvidence {
@@ -122,7 +203,7 @@ export function attachYelloPublicAgeEvidence(plan: SourceCrawlPlan, evidence: Pe
   if (!exactGileadPublicAgePlan(plan) || plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "yello-job-board" || !evidence || evidence.artifacts.length !== 1) return;
   const artifact = evidence.artifacts[0]!;
   const parsed = parseYelloJobBoardResponse(typeof artifact.body === "string" ? artifact.body : Buffer.from(artifact.body).toString("utf8"), plan.officialJsonFetch);
-  const byId = new Map(parsed.jobs.map((row, index) => [persistentOfficialJsonJobId(row.officialId), yelloPublicAgeEvidence(row, index, artifact)]));
+  const byId = new Map(parsed.jobs.map(row => [persistentOfficialJsonJobId(row.officialId), yelloPublicAgeEvidence(row, row.rowIndex, artifact)]));
   for (const job of jobs) {
     const age = job.sourceJobId && byId.get(job.sourceJobId);
     if (age) job.evidence.gileadPublicAge = age;
