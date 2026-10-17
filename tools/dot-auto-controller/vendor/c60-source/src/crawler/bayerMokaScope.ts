@@ -7,6 +7,7 @@ import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./
 import { sanitizeEvidenceHttpUrl } from "./sourceFetchEvidence";
 import { requestContractV2Locator } from "./strictPageRequestContract";
 import { isHengruiMainlandLocation } from "./hengruiMainlandGeography";
+import { reviewedMainlandCityLabel } from "./reviewedMainlandCity";
 import { MOKA_RECENT_JSON_CONFIG } from "./companyRecruitmentProfiles/shared";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 
@@ -71,10 +72,9 @@ export function bayerIndependentDetailScope(dom: { id: string; title: string }, 
     : detail.status !== "open" || !!pauseStart && !pauseEnd) throw new Error("Bayer requisition status is not unambiguous");
   let locations: unknown = detail.locations;
   if (Array.isArray(locations) && locations.length === 0) {
-    const city = value("289157", "城市");
-    const aliases: Record<string, string> = { BeiJing: "北京", NanTong: "南通" };
-    if (!city || !aliases[city]) throw new Error("Bayer missing location lacks a reviewed official city field");
-    locations = [{ cityName: aliases[city], country: "中国" }];
+    const city = reviewedMainlandCityLabel(value("289157", "城市") ?? "", value("290891", "国家")!);
+    if (!city) throw new Error("Bayer missing location lacks a reviewed official city field");
+    locations = [{ cityName: city, country: "中国" }];
   }
   if (!Array.isArray(locations) || !locations.length || !locations.every(l => {
     const loc = record(l);

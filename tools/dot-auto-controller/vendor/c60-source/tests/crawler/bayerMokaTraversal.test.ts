@@ -72,8 +72,8 @@ describe("Bayer medical native-scope B traversal", () => {
     expect(result.jobs).toHaveLength(2);
     expect(result.jobs[0]).toMatchObject({ cities: ["北京"], officialPublishedAt: "2026-09-01T01:00:00.000Z" });
   });
-  it("binds independent UI raw, paused and final sets into the existing B v2 certificate", async () => {
-    const { result, plan, rows, details } = await collect();
+  it.each(["BeiJing", "NanTong", "ChengDu"])("binds independent UI raw, paused and final sets into the existing B v2 certificate using %s", async city => {
+    const { result, plan, rows, details } = await collect({ changeDetails: details => details.forEach(d => d.customFields["289157"].value = city) });
     const entryBody = `<input id="init-data" value='${JSON.stringify({ aesIv: IV, mode: "social", siteId: "148387", org: { id: "bayer" } })}'>`;
     const receipt = (url: string, body: string, requestBody?: unknown) => ({ method: requestBody ? "POST" : "GET", url,
       ...(requestBody ? { requestBody } : {}), finalUrl: url, status: 200, body, capturedAt: NOW,
@@ -145,6 +145,15 @@ describe("Bayer medical native-scope B traversal", () => {
     expect(result.truth.completenessVerified).toBe(true);
     expect(result.jobs).toHaveLength(2);
     expect(result.jobs[0]!.officialPublishedAt).toBe("2020-01-01T01:00:00.000Z");
+  });
+  it("resolves the official ChengDu city field when native locations are empty", async () => {
+    const { result } = await collect({ changeDetails: details => details[0].customFields["289157"].value = "ChengDu" });
+    expect(result.truth.completenessVerified).toBe(true);
+    expect(result.jobs[0]!.cities).toEqual(["成都"]);
+  });
+  it.each(["Unknown", "STIT", "Taizhou", "Changshu", "Beijing / Chengdu", ""])("rejects unreviewed or non-city fallback %s", async city => {
+    const { result } = await collect({ changeDetails: details => details[0].customFields["289157"].value = city });
+    expect(result.truth.completenessVerified).toBe(false);
   });
   it.each(["total", "request", "rawId", "lossIndex", "lossCode", "artifact", "title", "location", "date"])("rejects tampered %s evidence or output", async kind => {
     const { result, plan } = await collect();
