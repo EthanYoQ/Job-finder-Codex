@@ -35,6 +35,7 @@ export interface CloudPilotDbStartedInput extends Omit<CloudPilotPendingInput,"e
 }
 export interface CloudPilotPublicationContext {
   checkedAt: string; sourceId: string; sourceConfigSha256: string;
+  snapshotSha256?: string;
   jobs: Record<string,unknown>[];
   latestAccepted: Record<string,unknown>|null; firstAccepted: Record<string,unknown>|null;
   candidateRow: Record<string,unknown>; sourceRow: Record<string,unknown>; companyRow: Record<string,unknown>;
@@ -54,7 +55,7 @@ const buildSchema=z.object({schemaVersion:z.literal(2),commitSha:z.string().rege
 const commonSchema=z.object({projectId:z.literal(PROJECT),build:buildSchema,candidate:candidateSchema,expiresAt:z.string().datetime(),databaseIdentity:z.object({migrationVersion:z.enum([JOB_DELTA_MIGRATION_NAME,V75_FENCE_MIGRATION_NAME]),schemaHash:sha,dbSnapshotHash:sha}).strict().optional()}).strict();
 const pendingSchema=commonSchema.extend({holderId:z.string().uuid(),planned:z.unknown()}).strict();
 const finalizeSchema=pendingSchema.extend({outcome:z.literal("COMMITTED_EXACT"),sourceRow:z.record(z.unknown())}).strict();
-const publicationContextSchema=z.object({checkedAt:z.string().datetime({offset:true}),sourceId:z.literal(SOURCE),sourceConfigSha256:z.literal(CLOUD_PILOT_SOURCE.sourceConfigSha256),
+const publicationContextSchema=z.object({snapshotSha256:sha.optional(),checkedAt:z.string().datetime({offset:true}),sourceId:z.literal(SOURCE),sourceConfigSha256:z.literal(CLOUD_PILOT_SOURCE.sourceConfigSha256),
  jobs:z.array(z.record(z.unknown())),latestAccepted:z.record(z.unknown()).nullable(),firstAccepted:z.record(z.unknown()).nullable(),
  candidateRow:z.record(z.unknown()),sourceRow:z.record(z.unknown()),companyRow:z.record(z.unknown())}).strict();
 const digest=(s:string)=>createHash("sha256").update(s).digest("hex");
@@ -200,7 +201,16 @@ function publicationContextQuery(candidateId:string,sourceAdmissionPolicy?:typeo
 export function compileCloudPilotPublicationContextSql(input:Omit<CloudPilotControlInput,'expiresAt'>,sourceAdmissionPolicy?:typeof SOURCE_QUALITY_POLICY_ID):string {
  const checked=commonSchema.parse({...input,expiresAt:new Date(0).toISOString()});
  candidateData(checked);
- return publicationContextQuery(input.candidate.id,sourceAdmissionPolicy,input.databaseIdentity!==undefined)+';';
+ return `SELECT context || jsonb_build_object('snapshotSha256',${publicationContextDigestSql('context')}) AS context FROM (${publicationContextQuery(input.candidate.id,sourceAdmissionPolicy,input.databaseIdentity!==undefined)}) snapshot;`;
+}
+
+// PostgreSQL computes both sides from the same full jsonb projection. Only
+// the read-time clock is omitted, exactly as in the original object comparison.
+function publicationContextDigestSql(value:string):string {
+ return `encode(extensions.digest(convert_to((${value}-'checkedAt')::text,'UTF8'),'sha256'),'hex')`;
+}
+export function publicationContextComparisonValue(context:CloudPilotPublicationContext){
+ return context.snapshotSha256 ? {sourceId:context.sourceId,sourceConfigSha256:context.sourceConfigSha256,snapshotSha256:context.snapshotSha256} : context;
 }
 
 /** Fixed control fragments used only by the attested in-process publication
@@ -245,7 +255,7 @@ export function prepareCloudPilotDbStartedControl(input:CloudPilotDbStartedInput
  ${fail('NOT FOUND','PILOT_COMPANY_DRIFT')}
  ${fail(`EXISTS(SELECT 1 FROM public."CrawlBatch" WHERE id=${text(p.batch.id)}) OR EXISTS(SELECT 1 FROM public."CrawlBatchSourceResult" WHERE id=${text(p.sources[0]!.id)})`,'PILOT_REQUEST_ALREADY_APPLIED')}
  SELECT context INTO current_context FROM (${publicationContextQuery(c.id,sourceAdmissionPolicy,input.databaseIdentity!==undefined)}) snapshot_now;
- ${fail(`(current_context-'checkedAt') IS DISTINCT FROM (expected_context_data-'checkedAt')`,'PILOT_CONTEXT_CHANGED')}
+ ${fail(context.snapshotSha256 ? `${publicationContextDigestSql('current_context')} IS DISTINCT FROM (expected_context_data->>'snapshotSha256')` : `(current_context-'checkedAt') IS DISTINCT FROM (expected_context_data-'checkedAt')`,'PILOT_CONTEXT_CHANGED')}
  ${gate}
  ${insert('CrawlBatch',{...p.batch,status:'RUNNING',finishedAt:null,aggregateJobSetSha256:null,...zeroes(BATCH_COUNTERS)})}
  ${insert('CrawlBatchSourceResult',sourceData(p))}`;
@@ -270,5 +280,5 @@ export function prepareCloudPilotDbStartedControl(input:CloudPilotDbStartedInput
  UPDATE public."CrawlCoordinatorLock" SET "holderId"='',"heartbeatAt"=clock_timestamp(),metadata='portable-quality-sync-v1:released'
  WHERE id='formal-crawl' AND "holderId"=${text(holderId)};
  GET DIAGNOSTICS affected=ROW_COUNT; ${fail('affected <> 1','CRAWL_LEASE_LOST')}`;
- return {before,after,expectedContext:context};
+ return {before,after,expectedContext:publicationContextComparisonValue(context)};
 }

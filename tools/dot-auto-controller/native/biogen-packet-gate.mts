@@ -23,12 +23,12 @@ import {execFileSync} from 'node:child_process';
 import ts from 'typescript';
 import {decodeDeclarations} from './review-packet-envelope.mts';
 import {compileAtomicJsonRecords as sqlRecords} from '../vendor/c60-source/src/db/atomicJsonDeclarations.ts';
-import {prepareCloudPilotDbStartedControl,CLOUD_PILOT_SOURCE} from '../vendor/c60-source/src/db/cloudPilotSqlControl.ts';
+import {prepareCloudPilotDbStartedControl,publicationContextComparisonValue,CLOUD_PILOT_SOURCE} from '../vendor/c60-source/src/db/cloudPilotSqlControl.ts';
 import {deriveCurrentStagedScheduleExpectation} from '../vendor/c60-source/src/crawler/stagedScheduleAuthority.ts';
 import {buildPendingRuntimeBatch} from '../vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts';
 import {hashCanonicalStringSet} from '../vendor/c60-source/src/crawler/runtimeBatchIdentity.ts';
 import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection,hashProjectionJson} from '../vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts';
-export async function reviewBiogenPacket(runArg:string,requestId:string,output:string,{originalOuterDeadline}: {originalOuterDeadline:number}){
+export async function reviewBiogenPacket(runArg:string,requestId:string,output:string,{originalOuterDeadline,publicationContext}: {originalOuterDeadline:number;publicationContext?:any}){
 assert(runArg&&requestId&&output);
 assert.equal(originalOuterDeadline,readBiogenOriginalDeadline(runArg),'BIOGEN_ORIGINAL_DEADLINE_PROVENANCE');
 const R=resolve(import.meta.dirname,'../vendor'),run=resolve(runArg),host=resolve(run,'..');
@@ -44,7 +44,9 @@ assert.equal(control.build.commitSha,git('rev-parse','HEAD')); assert.deepEqual(
 const runtimeVerification=await verifyNodeRuntimeProfile();
 const {requestSha256,...requestBody}=request;assert.equal(sha(JSON.stringify(requestBody)),requestSha256);
 const declarations=/^SET LOCAL statement_timeout = '120000ms';\nDO (\$atomic_[a-f0-9]{32}\$)\nDECLARE affected bigint; job_data jsonb; ([\s\S]*?) current_context jsonb;/.exec(sql);assert(declarations);
-const {terminal,context}=decodeDeclarations(declarations[2]);const legacyCertificate=terminal.completenessCertificate.legacyCertificate;
+const {terminal,context:packetContext}=decodeDeclarations(declarations[2]);
+const context=packetContext.snapshotSha256?publicationContext:packetContext;assert(context,'READ_CONTEXT_REQUIRED');assert.deepEqual(publicationContextComparisonValue(context),packetContext,'READ_CONTEXT_BINDING');
+const legacyCertificate=terminal.completenessCertificate.legacyCertificate;
 assert.equal(legacyCertificate.schemaVersion,'plan-bound-source-quality-v1');assert.equal(legacyCertificate.policyId,'PLAN_BOUND_SOURCE_QUALITY_V1');const packet={terminal,context,legacyCertificate};
 const registered=json(join(host,'expected-candidate.json'));for(const k of ['id','goalId','status','version','commitSha','rosterHash','schemaHash','oracleVersion','dbSnapshotHash','sourcePlanHash','sourceTreeHash','runtimeTreeHash','migrationVersion','sourceConfigHash','adapterBundleHash','minimumStableCompanyCount'])assert.deepEqual(context.candidateRow[k],registered[k],'REGISTERED_16_FIELD:'+k);
 for(const[k,v]of Object.entries(control.databaseIdentity))assert.deepEqual(context.candidateRow[k],v,'DATABASE_IDENTITY:'+k);
@@ -115,7 +117,7 @@ return {decoded,through,plan};
 const {decoded,through,plan}=verifyFullBody(sql);
 const negativeCases=[
  ['arbitrary inserted SQL',sql.replace('\nINSERT INTO public."EvidenceArtifact"','\nPERFORM pg_sleep(1);\nINSERT INTO public."EvidenceArtifact"')],
- ['weakened context guard',sql.replace("IF (current_context-'checkedAt') IS DISTINCT FROM (expected_context_data-'checkedAt')",'IF false')],
+ ['weakened context guard',sql.replace(/IF [^\n]* THEN RAISE EXCEPTION 'PILOT_CONTEXT_CHANGED'; END IF;/,"IF false THEN RAISE EXCEPTION 'PILOT_CONTEXT_CHANGED'; END IF;")],
  ['removed coordinator release',sql.replace("SET \"holderId\"='',\"heartbeatAt\"=clock_timestamp(),metadata='portable-quality-sync-v1:released'","SET \"holderId\"='retained',\"heartbeatAt\"=clock_timestamp(),metadata='portable-quality-sync-v1:released'")],
  ['arbitrary trailing SQL',sql+'\nSELECT 1;'],
  ['altered update target scope',sql.replace('target."sourceId" = E\''+cfg.sourceId+'\'','target."sourceId" = E\'source-other\'')],
