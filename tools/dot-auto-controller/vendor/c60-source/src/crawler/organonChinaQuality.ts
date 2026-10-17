@@ -1,4 +1,11 @@
 import { CITY_PENDING } from "../domain/jobLocation";
+import { load } from "cheerio";
+import { parse } from "@babel/parser";
+import { isDeepStrictEqual } from "node:util";
+import { reviewedMainlandCity } from "./reviewedMainlandCity";
+import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
+import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
+import type { SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 
 // Reviewed source fields, not a requisition, title, or count allowlist. Unknown
 // fields (including shadow geography) require review before this policy expands.
@@ -80,7 +87,16 @@ export function organonOfficialCities(raw:Record<string,unknown>):string[]|undef
   for(let index=0;index<raw.multi_location.length;index++){
     const nested=raw.multi_location_array[index];
     if(!record(nested)||!exactFields(nested,["country","cityState","city","latlong","latitude","location","state","cityCountry","cityStateCountry","mapQueryLocation","stateCountry","longitude"]))return undefined;
-    const place=LOCALITIES.find(item=>nested.city===item.city && nested.state===item.state);
+    // Additional structured mainland locations reuse the shared exact province/city
+    // pairs. They do not replace the reviewed primary locality or infer a city
+    // from coordinates; the redundant coordinate representations still agree.
+    const known=LOCALITIES.find(item=>nested.city===item.city && nested.state===item.state);
+    const chinese=typeof nested.city === "string" && typeof nested.state === "string"
+      ? reviewedMainlandCity(nested.city, nested.state) : undefined;
+    const coordinate=(value:unknown,max:number)=>typeof value === "string" && /^-?\d+(?:\.\d+)?$/u.test(value) &&
+      Number.isFinite(Number(value)) && Math.abs(Number(value)) <= max;
+    const place=known ?? (chinese && coordinate(nested.latitude,90) && coordinate(nested.longitude,180)
+      ? {city:nested.city as string,state:nested.state as string,chinese,latitude:nested.latitude as string,longitude:nested.longitude as string} : undefined);
     if(!place)return undefined;
     const cityState=[place.city,place.state].filter(Boolean).join(", "),expected=`${cityState}, China`;
     if(nested.country!=="China" || nested.location!==expected || nested.cityStateCountry!==expected || nested.mapQueryLocation!==expected ||
@@ -194,4 +210,113 @@ function organonTextLocationScope(original: string): { pending: boolean; cities:
   }
   if (LOCATION_SIGNAL.test(residual.replaceAll("office-software", "software"))) pending = true;
   return { pending, cities: [...cities] };
+}
+
+/** The original keyword entry carries a server-rendered search snapshot. Only a
+ * complete, identity-unique snapshot may prove equivalence to all country pages.
+ * A partial/missing snapshot remains HOLD; equal totals alone never suffice. */
+export function organonKeywordCountryEquivalent(html: string | Uint8Array, rows: readonly Record<string,unknown>[]): boolean {
+  try {
+    const $ = load(typeof html === "string" ? html : Buffer.from(html).toString("utf8"));
+    const assignments: string[] = [];
+    let references = 0;
+    for (const node of $('script:not([src])').toArray()) {
+      const type = ($(node).attr("type") ?? "").trim().toLowerCase();
+      if (type && !["text/javascript", "application/javascript", "module"].includes(type)) continue;
+      const code = $(node).text();
+      const program = parse(code, {sourceType:type === "module" ? "module" : "script"}).program;
+      const scan = (value:unknown):void => {
+        if (!value || typeof value !== "object") return;
+        const item=value as Record<string,any>;
+        if (item.type === "MemberExpression" && item.object?.type === "Identifier" && item.object.name === "phApp" &&
+          ((!item.computed && item.property?.name === "ddo") || (item.computed && item.property?.value === "ddo"))) references++;
+        for (const nested of Object.values(item)) if (Array.isArray(nested)) nested.forEach(scan); else if (nested && typeof nested === "object") scan(nested);
+      };
+      scan(program);
+      for (const statement of program.body) {
+        if (statement.type !== "ExpressionStatement" || statement.expression.type !== "AssignmentExpression") continue;
+        const expression = statement.expression, left = expression.left;
+        if (expression.operator !== "=" || left.type !== "MemberExpression" || left.computed ||
+          left.object.type !== "Identifier" || left.object.name !== "phApp" ||
+          left.property.type !== "Identifier" || left.property.name !== "ddo" || expression.right.type !== "ObjectExpression") continue;
+        assignments.push(code.slice(expression.right.start!, expression.right.end!));
+      }
+    }
+    if (references !== 1 || assignments.length !== 1 || !hasUniqueJsonObjectKeys(assignments[0]!)) return false;
+    const search = JSON.parse(assignments[0]!).eagerLoadRefineSearch;
+    if (!record(search) || search.status !== 200 || !Number.isSafeInteger(search.totalHits) || (search.totalHits as number) < 0 ||
+      search.hits !== search.totalHits || !record(search.data) || search.data.keywords !== "China" ||
+      !Array.isArray(search.data.jobs) || search.data.jobs.length !== search.totalHits || rows.length !== search.totalHits) return false;
+    const keyword = new Map<string,Record<string,unknown>>();
+    for (const row of search.data.jobs) {
+      if (!record(row) || !organonOfficialIdentity(row) || keyword.has(row.jobSeqNo as string)) return false;
+      keyword.set(row.jobSeqNo as string,row);
+    }
+    const country = new Set<string>();
+    for (const row of rows) {
+      const id=row.jobSeqNo as string;
+      if (!organonOfficialIdentity(row) || country.has(id) || !isDeepStrictEqual(keyword.get(id),row)) return false;
+      country.add(id);
+    }
+    return country.size === keyword.size;
+  } catch { return false; }
+}
+
+/** Reuse the existing Lilly Workday HTML proof on Organon's listed native URL.
+ * Availability is observed independently from URL identity. No login or submit. */
+export function organonNativeDetail(raw: Record<string,unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt:string): boolean {
+  if (!artifact || !organonOfficialIdentity(raw) || artifact.logicalKey !== `organon-detail-${raw.reqId}` ||
+    artifact.kind !== "OFFICIAL_COMPANY_PAGE" || artifact.extractorLocator !== "organon-workday-jobposting-v1" ||
+    artifact.requestedUrl !== raw.applyUrl || artifact.finalUrl !== raw.applyUrl || artifact.httpStatus !== 200 ||
+    !/^text\/html(?:;|$)/iu.test(artifact.contentType ?? "") || artifact.bodyRepresentation === "REDACTED" || typeof artifact.body !== "string") return false;
+  const time=Date.parse(artifact.capturedAt), start=Date.parse(startedAt);
+  if (!Number.isFinite(time) || !Number.isFinite(start) || time < start || time > start + 30 * 60_000) return false;
+  try {
+    const $=load(artifact.body), clean=(text:string)=>load(text).text().replace(/\s+/gu," ").trim();
+    const jobs=$('script[type="application/ld+json"]').toArray().map(node=>{
+      const text=$(node).text(); if(!hasUniqueJsonObjectKeys(text))throw Error("Ambiguous native JSON"); return JSON.parse(text);
+    }).filter(value=>record(value) && value["@type"] === "JobPosting");
+    // Bind actual static properties, not text in comments/strings or a value
+    // later overwritten in the same script. This is the observed Workday shape.
+    const assignments: any[] = []; const topLevel=new Set<unknown>(); let overwritten=false;
+    const path=(node:any):string|undefined => node?.type === "Identifier" ? node.name : node?.type === "MemberExpression"
+      ? `${path(node.object)}.${node.computed ? node.property?.value : node.property?.name}` : undefined;
+    for (const script of $('script:not([src])').toArray()) {
+      const type=($(script).attr("type")??"").trim().toLowerCase();
+      if(type && !["text/javascript","application/javascript","module"].includes(type))continue;
+      const program=parse($(script).text(),{sourceType:type === "module" ? "module" : "script"}).program;
+      program.body.forEach(statement=>{if(statement.type === "ExpressionStatement")topLevel.add(statement.expression);});
+      const scan=(node:any):void=>{
+        if(!node || typeof node !== "object")return;
+        if(node.type === "AssignmentExpression") {
+          const target=path(node.left);
+          if(target === "window.workday" || target === "workday") assignments.push(node);
+          if(/^(?:window\.)?workday\.(?:tenant|siteId|postingAvailable)$/u.test(target??""))overwritten=true;
+        }
+        if(node.type === "CallExpression" && node.arguments.some((argument:any)=>["workday","window.workday"].includes(path(argument)??"")))overwritten=true;
+        for(const value of Object.values(node))if(Array.isArray(value))value.forEach(scan);else if(value && typeof value === "object")scan(value);
+      };scan(program);
+    }
+    const assignment=assignments.length === 1 ? assignments[0] : undefined;
+    const object=assignment?.operator === "=" && path(assignment.left) === "window.workday" &&
+      assignment.right.type === "LogicalExpression" && assignment.right.operator === "||" && path(assignment.right.left) === "window.workday"
+      ? assignment.right.right : undefined;
+    const properties=object?.type === "ObjectExpression" ? object.properties : [];
+    const keys=properties.map((property:any)=>property.key?.name??property.key?.value);
+    const literal=(key:string)=>properties.find((property:any)=>(property.key?.name??property.key?.value) === key)?.value;
+    const available=!overwritten && topLevel.has(assignment) && properties.length > 0 && properties.every((property:any)=>property.type === "ObjectProperty" && !property.computed && !property.method) &&
+      new Set(keys).size === keys.length && literal("tenant")?.type === "StringLiteral" && literal("tenant").value === "organon" &&
+      literal("siteId")?.type === "StringLiteral" && literal("siteId").value === "SearchJobs" &&
+      literal("postingAvailable")?.type === "BooleanLiteral" && literal("postingAvailable").value === true;
+    const job=jobs.length === 1 ? jobs[0] : undefined;
+    if (!available || !record(job) || !record(job.identifier) || job.identifier.value !== raw.reqId ||
+      typeof job.title !== "string" || typeof raw.title !== "string" || clean(job.title) !== clean(raw.title) ||
+      typeof job.description !== "string" || !clean(job.description) ||
+      typeof job.datePosted !== "string" || phenomOfficialPostedDate(raw.postedDate)?.slice(0,10) !== job.datePosted ||
+      !record(job.jobLocation) || !record(job.jobLocation.address)) return false;
+    const address=job.jobLocation.address;
+    // The native primary cannot erase an additional mainland list location.
+    const primary=new URL(raw.applyUrl as string).pathname.split("/")[3]!.replaceAll("---"," - ");
+    return address.addressCountry === "China" && address.addressLocality === primary;
+  } catch { return false; }
 }

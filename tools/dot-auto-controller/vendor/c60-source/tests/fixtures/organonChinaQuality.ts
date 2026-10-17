@@ -16,3 +16,16 @@ export function organonRow(index = 1, city: keyof typeof locations = "Shanghai",
     postedDate:"2026-09-24T00:00:00.000+0000",dateCreated:"2026-09-25T00:13:23.104+0000",
     descriptionTeaser:"Manage commercial teams.",ml_job_parser:{descriptionTeaser:"Manage commercial teams.",descriptionTeaser_ats:"岗位职责"},...overrides};
 }
+
+/** Synthetic fixtures only: no copied live job or response body. */
+export function organonKeywordEntry(rows: Record<string,unknown>[], options: {bootstrap?:Record<string,unknown>;total?:number;keywords?:string} = {}): string {
+  return `<script>var phApp=${JSON.stringify({...organonBootstrap,...options.bootstrap})};phApp.ddo = ${JSON.stringify({eagerLoadRefineSearch:{
+    status:200,hits:rows.length,totalHits:options.total??rows.length,data:{keywords:options.keywords??"China",jobs:rows}}})};</script>`;
+}
+export function organonNativeHtml(raw: Record<string,unknown>, changes: Record<string,unknown> = {}, available = true): string {
+  const date=new Date(String(raw.postedDate).replace(/([+-]\d{2})(\d{2})$/u,"$1:$2")).toISOString().slice(0,10);
+  return `<script type="application/ld+json">${JSON.stringify({"@type":"JobPosting",identifier:{value:raw.reqId},title:raw.title,
+    datePosted:date,description:"<p>Job Description: Manage the commercial team and deliver operational plans.</p>",
+    jobLocation:{address:{addressCountry:"China",addressLocality:new URL(raw.applyUrl as string).pathname.split("/")[3]!.replaceAll("---"," - ")}},...changes})}</script>`+
+    `<script>window.workday = window.workday || {tenant:"organon",siteId:"SearchJobs",postingAvailable:${available}};</script>`;
+}

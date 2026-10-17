@@ -1,5 +1,5 @@
 import { organonBootstrapLocator } from "../../src/crawler/organonOfficialPostedDate";
-import { organonBootstrap, organonRow } from "../fixtures/organonChinaQuality";
+import { organonBootstrap, organonRow, organonKeywordEntry, organonNativeHtml } from "../fixtures/organonChinaQuality";
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { runSourceCrawl, type SourceFetchResult } from "../../src/crawler/runSourceCrawl";
@@ -412,7 +412,10 @@ function phenomEvidence(
     ...jobOverrides
   });
 
-  if (exactOrganon) Object.assign(fixtureJob, organonRow(1,"Shanghai",jobOverrides));
+  if (exactOrganon) {
+    Object.assign(fixtureJob, organonRow(1,"Shanghai",jobOverrides));
+    if (!entryBody) artifacts[0]!.body = organonKeywordEntry([fixtureJob],{bootstrap:config});
+  }
 
   const pageBody = JSON.stringify({
     refineSearch: {
@@ -433,6 +436,8 @@ function phenomEvidence(
     logicalKey: "phenom-page-0000", kind: "PAGINATION_PAGE", url: endpoint,
     body: pageBody, locator: pageLocator
   }));
+  if (exactOrganon) artifacts.push(artifact({logicalKey:`organon-detail-${fixtureJob.reqId}`,kind:"OFFICIAL_COMPANY_PAGE",
+    url:fixtureJob.applyUrl as string,body:organonNativeHtml(fixtureJob),locator:"organon-workday-jobposting-v1",contentType:"text/html"}));
   const raw = {
     captureTool: { name: "strict-dynamic-total-test", version: "1" },
     artifacts,

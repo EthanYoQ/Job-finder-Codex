@@ -1,3 +1,4 @@
+import { organonNativeDetail } from "../../src/crawler/organonChinaQuality";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -14,21 +15,28 @@ import { bindRuntimeEvidenceArtifactIds } from "../../src/crawler/runtimeAtomicE
 import { buildSourceQualityJobCommands } from "../../src/crawler/sourceQualityPublication";
 
 const capturedAt = "2026-10-02T00:00:00.000Z";
-import { organonBootstrap as bootstrap, organonRow as row } from "../fixtures/organonChinaQuality";
+import { organonBootstrap as bootstrap, organonRow as row, organonKeywordEntry, organonNativeHtml } from "../fixtures/organonChinaQuality";
 function plan() { return getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies),"source-organon-china-social")!; }
 afterEach(()=>{vi.unstubAllGlobals();vi.useRealTimers();});
-async function capture(rows: Record<string,unknown>[] = [row()], options: {plan?:SourceCrawlPlan;owned?:boolean;pages?:Record<string,unknown>[][];totals?:number[];offsets?:unknown[];bootstrap?:Record<string,unknown>} = {}) {
+async function capture(rows: Record<string,unknown>[] = [row()], options: {plan?:SourceCrawlPlan;owned?:boolean;pages?:Record<string,unknown>[][];totals?:number[];offsets?:unknown[];bootstrap?:Record<string,unknown>;keywordRows?:Record<string,unknown>[];keywordTotal?:number;keywords?:string;nativeChanges?:Record<string,unknown>;nativeAvailable?:boolean} = {}) {
   vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(new Date(capturedAt));
   const p=options.plan??plan(),pages=options.pages??[rows];let requests=0;
   vi.stubGlobal("fetch",async(url:string,init:RequestInit)=>{
-    const index=requests++-1;if(index>=pages.length)throw Error("Unexpected fixture request; no network fallback");
+    const index=requests++-1;
+    if (String(url).startsWith("https://organon.wd5.myworkdayjobs.com/SearchJobs/job/")) {
+      const raw=pages.flat().find(row=>row.applyUrl===String(url));
+      if(!raw || init.method!=="GET")throw Error("Unexpected native fixture request; no network fallback");
+      return {status:200,url:String(url),headers:new Headers({"content-type":"text/html"}),
+        text:async()=>organonNativeHtml(raw,options.nativeChanges,options.nativeAvailable)};
+    }
+    if(index>=pages.length)throw Error("Unexpected fixture request; no network fallback");
     if(init.method==="POST"){
       expect(String(url)).toBe("https://jobs.organon.com/widgets");
       const body=JSON.parse(String(init.body));
       expect(body.from).toBe(index*50);expect(body.size).toBe(50);expect(body.selected_fields).toEqual({country:["China"]});
     }
     const body=init.method==="POST"?JSON.stringify({refineSearch:{status:200,hits:pages[index]!.length,totalHits:options.totals?.[index]??pages.flat().length,
-      ...(options.offsets?.[index]===undefined?{}:{from:options.offsets[index]}),data:{jobs:pages[index],aggregations:[]}}}):`<script>var phApp=${JSON.stringify({...bootstrap,...options.bootstrap})};</script>`;
+      ...(options.offsets?.[index]===undefined?{}:{from:options.offsets[index]}),data:{jobs:pages[index],aggregations:[]}}}):organonKeywordEntry(options.keywordRows??pages.flat(),{bootstrap:options.bootstrap,total:options.keywordTotal,keywords:options.keywords});
     return {status:200,url:String(url),headers:new Headers({"content-type":init.method==="POST"?"application/json":"text/html"}),text:async()=>body};
   });
   const result=await runSourceCrawl(p,{fetch:options.owned?createOwnedSourceQualityFetch():createOfficialJsonSourceFetch({allowBrowserFallback:false}),isBaseline:true});
@@ -45,6 +53,48 @@ async function archived(input:Awaited<ReturnType<typeof capture>>){
 }
 
 describe("Organon China exact raw source quality",()=>{
+  it("requires a complete equal original keyword set before native requests",async()=>{
+    for(const options of [{keywordRows:[]},{keywordRows:[row(2)]},{keywordTotal:2},{keywords:"Shanghai"}]) {
+      const input=await capture([row()],options);
+      expect(input.result.truth.completenessVerified).toBe(false);expect(input.result.jobs).toEqual([]);expect(input.requests).toBe(2);
+    }
+  });
+  it.each([{identifier:{value:"R999999"}},{title:"Another job"},{datePosted:"2026-01-01"},{description:"<p> </p>"},
+    {jobLocation:{address:{addressCountry:"Singapore",addressLocality:"CHN - Shanghai - Shanghai"}}}])("rejects native proof detached from the listed job %j",async nativeChanges=>{
+    const input=await capture([row()],{nativeChanges});expect(input.result.truth.completenessVerified).toBe(false);expect(input.result.jobs).toEqual([]);
+  });
+  it("rejects duplicate or overwritten native availability",()=>{
+    const raw=row(),body=organonNativeHtml(raw);
+    for(const html of [body.replace("postingAvailable:true",'postingAvailable:true,"postingAvailable":false'),
+      body.replace(";</script>",';window.workday.postingAvailable=false;</script>')]){
+      expect(organonNativeDetail(raw,{logicalKey:`organon-detail-${raw.reqId}`,kind:"OFFICIAL_COMPANY_PAGE",requestedUrl:raw.applyUrl as string,
+        finalUrl:raw.applyUrl as string,httpStatus:200,contentType:"text/html",capturedAt,body:html,extractorLocator:"organon-workday-jobposting-v1"},capturedAt)).toBe(false);
+    }
+  });
+  it("keeps unavailable native status on HOLD",async()=>{
+    const input=await capture([row()],{nativeAvailable:false});expect(input.result.truth.completenessVerified).toBe(false);expect(input.result.jobs).toEqual([]);
+  });
+  it("preserves a shared-reviewed additional mainland city as city pending",async()=>{
+    const r=row(),nested={country:"China",city:"Tianjin",state:"Tianjin",cityState:"Tianjin, Tianjin",location:"Tianjin, Tianjin, China",
+      cityCountry:"Tianjin, China",cityStateCountry:"Tianjin, Tianjin, China",mapQueryLocation:"Tianjin, Tianjin, China",stateCountry:"Tianjin, China",
+      latitude:"39.142222",longitude:"117.176667",latlong:{lat:39.142222,lon:117.176667}};
+    (r.multi_location as string[]).push(nested.location);(r.multi_location_array as unknown[]).push(nested);
+    const input=await capture([r]);expect(input.result.truth.completenessVerified).toBe(true);expect(input.result.jobs[0]!.cities).toEqual(["城市待核"]);expect(replay(input)).toBe(true);
+    for(const mutation of [{state:"Guangdong"},{country:"Taiwan"},{latitude:"91"},{latlong:{lat:0,lon:117.176667}}]){
+      const bad=structuredClone(r);Object.assign((bad.multi_location_array as Record<string,unknown>[])[1]!,mutation);
+      expect((await capture([bad])).result.truth.completenessVerified).toBe(false);
+    }
+  });
+  it("independently rejects missing native evidence and keyword/native rewrites",async()=>{
+    const input=await capture();
+    for(const field of ["missing","keyword","native"]){
+      const evidence=structuredClone(input.result.fetchEvidence!);
+      if(field==="missing")evidence.artifacts.pop();
+      if(field==="keyword")evidence.artifacts[0]!.body=String(evidence.artifacts[0]!.body).replace('"keywords":"China"','"keywords":"Shanghai"');
+      if(field==="native")evidence.artifacts[2]!.body=String(evidence.artifacts[2]!.body).replace('postingAvailable:true','postingAvailable:false');
+      expect(replay(input,input.result.jobs,evidence)).toBe(false);
+    }
+  });
   it("preserves official dates and keeps a positively mainland city conflict pending",async()=>{
     const input=await capture([row(),row(2,"Wenzhou")]);
     expect(input.result.truth.completenessVerified).toBe(true);

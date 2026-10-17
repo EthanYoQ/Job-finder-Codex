@@ -14,7 +14,7 @@ import { auditRedseaCandidateScope } from "./redseaCandidateScope";
 import { hasBeisenDetailDatePlan, replayBeisenDetailDates } from "./beisenDetailDates";
 import { replayWorkdayMainlandQuality } from "./workdayMainlandQuality";
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap, organonBootstrapLocator } from "./organonOfficialPostedDate";
-import { organonOfficialCities, organonOfficialIdentity } from "./organonChinaQuality";
+import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
@@ -2249,6 +2249,7 @@ function strictPhenomRequestContracts(
     entry.extractorLocator !== organonBootstrapLocator(pageConfig))) return false;
   let organonPreviousCapture = organonEntryTime;
   const organonOutputs = new Map<string, StrictUcbDateOutput>();
+  const organonRows: Record<string,unknown>[] = [];
   const preserveLillyQuality = requiresLillyChinaQuality(plan);
   if (preserveLillyQuality && (!exactLillyChinaQualityPlan(plan) || !exactLillyChinaBootstrap(pageConfig))) return false;
   const lillyOutputs = new Map<string, StrictUcbDateOutput>();
@@ -2440,7 +2441,7 @@ function strictPhenomRequestContracts(
       if (total === undefined || envelope.totalHits !== total || page.sequence !== pageIndex ||
         page.artifactLogicalKey !== `phenom-page-${String(pageIndex).padStart(4, "0")}` ||
         evidence.pages.length !== Math.max(1, Math.ceil(total / pageSize)) ||
-        evidence.artifacts.length !== evidence.pages.length + 1 || offset > total ||
+        evidence.artifacts.length !== evidence.pages.length + 1 + total || offset > total ||
         envelope.jobs.length !== Math.min(pageSize, total - offset) ||
         (envelope.hasOwnFrom ? envelope.from !== offset || page.returnedOffset !== offset : page.returnedOffset !== null)) return false;
       const last = pageIndex === evidence.pages.length - 1;
@@ -2453,7 +2454,9 @@ function strictPhenomRequestContracts(
         const cities = raw && organonOfficialCities(raw);
         const date = raw && phenomOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        if (!raw || !cities || !date || !title || !organonOfficialIdentity(raw)) return false;
+        if (!raw || !cities || !date || !title || !organonOfficialIdentity(raw) ||
+          !organonNativeDetail(raw, artifacts.get(`organon-detail-${raw.reqId}`), capturedAt)) return false;
+        organonRows.push(raw);
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
         if (organonOutputs.has(sourceJobId)) return false;
         organonOutputs.set(sourceJobId, {rawId, sourceJobId, cities, officialPublishedAt: date, title,
@@ -2691,7 +2694,8 @@ function strictPhenomRequestContracts(
         });
       }))) &&
     merckReplayMatches &&
-    (!preserveOrganonQuality || (organonOutputs.size === pageRawCount && outputJobs.length === pageRawCount &&
+    (!preserveOrganonQuality || (organonKeywordCountryEquivalent(entry!.body, organonRows) &&
+      organonOutputs.size === pageRawCount && outputJobs.length === pageRawCount &&
       new Set(outputJobs.map(job => job.sourceJobId)).size === pageRawCount &&
       evidence.fetchCounts.rawCount === pageRawCount && evidence.fetchCounts.parsedCount === pageRawCount &&
       evidence.fetchCounts.validCount === pageRawCount && evidence.fetchCounts.parseDiscardCount === 0 &&
@@ -4283,6 +4287,9 @@ function strictPlanUrlRules(plan: SourceCrawlPlan): StrictUrlRule[] | undefined 
       }
       if (plan.source.id === "source-roche-china-social" && strategy.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY) {
         rules.push(prefixEndpointRule("roche-native-detail", new URL("https://roche.wd3.myworkdayjobs.com/wday/cxs/roche/roche-ext/job/")));
+      }
+      if (exactOrganonPostedDatePlan(plan)) {
+        rules.push(prefixEndpointRule("organon-native-detail", new URL("https://organon.wd5.myworkdayjobs.com/SearchJobs/job/")));
       }
       if (exactLillyChinaQualityPlan(plan)) {
         rules.push(prefixEndpointRule("lilly-native-detail", new URL("https://lilly.wd115.myworkdayjobs.com/LLY/job/")));

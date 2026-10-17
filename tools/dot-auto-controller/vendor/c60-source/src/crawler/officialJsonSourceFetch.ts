@@ -3,7 +3,7 @@ import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFail
 import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl } from "./rocheChinaQuality";
 import { acquireBeisenDetailDates } from "./beisenDetailDates";
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
-import { organonOfficialCities, organonOfficialIdentity } from "./organonChinaQuality";
+import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
@@ -4301,6 +4301,26 @@ async function fetchPhenomWidgets({
   if (preserveUcbPostedDate && losses.some(loss => loss.details?.code === "UCB_POSTED_DATE_INVALID")) {
     return phenomFailure(capturedAt, "UCB official posted-date validation failed",
       artifacts, pages, counts, losses, declaredCompleteness);
+  }
+  if (preserveOrganonQuality) {
+    const rows = [...firstRawByOfficialId.values()].map(value => JSON.parse(value.serialized) as Record<string, unknown>);
+    if (!organonKeywordCountryEquivalent(entry.body, rows)) return phenomFailure(capturedAt,
+      "ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD", artifacts, pages, counts, losses, declaredCompleteness);
+    try {
+      // The original listed native URLs use the same public Workday HTML proof as Lilly.
+      for (const raw of rows) {
+        const requestedUrl = raw.applyUrl as string;
+        const response = await http({url: requestedUrl, method: "GET", headers: {Accept: "text/html", "User-Agent": "job-search-crawler/0.1"}});
+        assertOfficialJsonEvidenceResponse(response, {requestedUrl, crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime()});
+        assertOfficialHtmlMime(response);
+        const detail = phenomArtifact({id: `organon-detail-${raw.reqId}`, kind: "OFFICIAL_COMPANY_PAGE",
+          requestedUrl, response, extractorLocator: "organon-workday-jobposting-v1"});
+        artifacts.push(detail);
+        if (!organonNativeDetail(raw, detail, capturedAt)) throw Error("ORGANON_NATIVE_DETAIL_UNKNOWN");
+      }
+    } catch {
+      return phenomFailure(capturedAt, "ORGANON_NATIVE_DETAIL_UNKNOWN_PRESERVE_LAST_GOOD", artifacts, pages, counts, losses, declaredCompleteness);
+    }
   }
   if (preserveRocheQuality) {
     for (const artifact of artifacts) artifact.bodyRepresentation = "EXACT";
