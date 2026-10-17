@@ -42,3 +42,8 @@ assert(entry.includes('captureJnjManagedDom'));assert(entry.includes('prepare-jn
 
 for(const [id,folder] of [['source-bayer-healthcare-social','bayer'],['source-servier-china-social','servier']])assert.equal(folders[id],folder);
 assert(entry.includes('captureMokaBDom'));assert(entry.includes("'/scripts/capture-'+source+'-b-source.ts'"));
+
+const transport=fixture({unknown:true});transport.job.pollProducer=async()=>{if(transport.calls.includes('dispatch'))throw Error('exec-server transport disconnected');return {exitCode:null};};
+let startsAfterTransport=0;const transportResult=await runOriginalSerial(['uncertain','next'],async()=>{startsAfterTransport++;return transport.job;});
+assert.equal(startsAfterTransport,1);assert.equal(transportResult[0].reason,'UNKNOWN_PUBLICATION');assert.equal(transportResult[0].requestId,'1');assert.match(transportResult[0].diagnostic,/transport disconnected/);assert.equal(transport.calls.filter(x=>x==='dispatch').length,1);
+console.log('PASS: post-dispatch transport failure remains UNKNOWN and prevents another source launch');

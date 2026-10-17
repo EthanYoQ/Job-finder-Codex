@@ -24,7 +24,8 @@ async function serviceOriginalRelay(job) {
   throw Error('SOURCE_SCOPE_MISMATCH');
  if (!Number.isFinite(deadline) || deadline <= Date.now()) throw Error('SOURCE_DEADLINE');
  const handled = new Set();
- let publication, publicationRequestId, outcomeSeen = false;
+ let publication, publicationRequestId, outcomeSeen = false, committedExact = false;
+ try {
  while (Date.now() < deadline) {
   const request = await h.next(relayDirectory);
   if (request) {
@@ -62,10 +63,15 @@ async function serviceOriginalRelay(job) {
    if (publication?.outcome === 'UNKNOWN' && !(outcomeSeen && producer.exitCode===0 && producer.outcomeState==='COMMITTED_EXACT')) return {status:'HELD',reason:'UNKNOWN_PUBLICATION',requestId:publicationRequestId,outcomeSeen,exitCode:producer.exitCode};
    if (producer.exitCode !== 0 || (publication?.status !== 'SUCCEEDED' && producer.outcomeState!=='COMMITTED_EXACT') || !outcomeSeen)
     return {status: 'HELD', reason: 'PRODUCER_OR_OUTCOME_INCOMPLETE', exitCode: producer.exitCode, diagnostic:publication?.reviewFailure??producer.diagnostic};
+   committedExact = producer.outcomeState==='COMMITTED_EXACT';
    return await readback();
   }
   if (!request) await new Promise(resolve => setTimeout(resolve, 1000));
  }
  return {status: 'HELD', reason: publication?.outcome === 'UNKNOWN' ? 'UNKNOWN_PUBLICATION' : 'SOURCE_DEADLINE', requestId:publicationRequestId, outcomeSeen};
+ } catch(error) {
+  if(publicationRequestId&&!committedExact)return {status:'HELD',reason:'UNKNOWN_PUBLICATION',requestId:publicationRequestId,outcomeSeen,diagnostic:String(error)};
+  throw error;
+ }
 }
 return {runOriginalSerial, serviceOriginalRelay};
