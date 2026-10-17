@@ -81,11 +81,14 @@ function identity(html: string, row: Row) {
   const $ = load(html), scripts = $("script[type='application/ld+json']");
   assert(scripts.length === 1 && $("link[rel='canonical']").length === 1 && $("link[rel='canonical']").attr("href") === row.url);
   const schema = json(scripts.text());
-  assert(schema["@type"] === "JobPosting" && schema.url === row.url && schema.title === row.title && typeof schema.identifier === "string" && /^R-[1-9]\d*$/u.test(schema.identifier) &&
+  const identifier = typeof schema.identifier === "string" ? schema.identifier : object(schema.identifier);
+  if (typeof identifier !== "string") assert(identifier["@type"] === "PropertyValue" && identifier.name === "Job ID" && same(Object.keys(identifier).sort(), ["@type", "name", "value"]));
+  const req = typeof identifier === "string" ? identifier : identifier.value;
+  assert(schema["@type"] === "JobPosting" && schema.url === row.url && schema.title === row.title && typeof req === "string" && /^R-[1-9]\d*$/u.test(req) &&
     object(schema.hiringOrganization).name === "Amgen" && nonempty(schema.description) && load(schema.description).text().trim().length > 20 && Array.isArray(schema.jobLocation) && schema.jobLocation.length > 0);
   const locations = schema.jobLocation.map(v => object(object(v).address));
   assert(locations.every(a => a.addressCountry === "China" && nonempty(a.addressLocality) && nonempty(a.addressRegion) && !/Hong Kong|Macau|Macao|Taiwan|香港|澳门|台湾/iu.test(`${a.addressLocality} ${a.addressRegion}`)));
-  return { req: schema.identifier, description: schema.description, locations };
+  return { req, description: schema.description, locations };
 }
 function project(row: Row, html: string, lookup: LookupRow, body: string) {
   const id = identity(html, row), root = json(body), info = object(root.jobPostingInfo), country = object(info.country), requisition = object(info.jobRequisitionLocation), reqCountry = object(requisition.country);

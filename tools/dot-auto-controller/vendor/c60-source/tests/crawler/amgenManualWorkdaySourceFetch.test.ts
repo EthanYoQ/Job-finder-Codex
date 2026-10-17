@@ -67,6 +67,29 @@ it("certifies all 13 manual jobs with a 15-job lookup catalogue without counting
   if (decision.status === "CERTIFIED") expect(decision.certificate.counts).toMatchObject({ officialTotal: 13, rawObservationCount: 13, rawUniqueOfficialRecordCount: 13, parsedCount: 13, validCount: 13, normalizedCount: 13, finalUniqueJobCount: 13, parseDiscardCount: 0, validationDiscardCount: 0 });
 });
 
+it("binds a PropertyValue Job ID through unchanged Workday and strict replay checks", async () => {
+  const fixture = amgenManualWorkdayFixture(1), p = plan();
+  editSchema(fixture, s => { s.identifier = { "@type": "PropertyValue", name: "Job ID", value: s.identifier }; });
+  const result = await runSourceCrawl(p, { fetch: createAmgenManualWorkdaySourceFetch({ http: fixture.http, now }) });
+  expect(result.status).toBe("SUCCESS");
+  expect(result.jobs[0]!.officialUrl).toBe(fixture.rows[0]!.externalUrl);
+  expect(validateStrictAmgenManualWorkdayEvidence(p, result.fetchEvidence!, result.jobs)).toBe(true);
+});
+
+it.each([
+  { "@type": "WrongType", name: "Job ID", value: "R-20000" },
+  { "@type": "PropertyValue", name: "Other ID", value: "R-20000" },
+  { "@type": "PropertyValue", name: "Job ID", value: 10001 },
+  { "@type": "PropertyValue", name: "Job ID", value: "not-a-requisition" },
+  { "@type": "PropertyValue", name: "Job ID", value: "R-99999" },
+  { "@type": "PropertyValue", name: "Job ID" },
+  { "@type": "PropertyValue", name: "Job ID", value: "R-20000", extra: "ambiguous" }
+])("rejects malformed or unbound PropertyValue identifier %j", async identifier => {
+  const fixture = amgenManualWorkdayFixture(1);
+  editSchema(fixture, s => { s.identifier = identifier; });
+  expect((await createAmgenManualWorkdaySourceFetch({ http: fixture.http, now })(plan())).ok).toBe(false);
+});
+
 it("fully traverses lookup offsets with first-page total and later-page zero totals", async () => {
   const { fixture, p, result } = await acquire(21);
   expect(result.status).toBe("SUCCESS");
