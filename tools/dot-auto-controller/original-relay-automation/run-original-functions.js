@@ -21,7 +21,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const stage=await new A(load('cloudPilotHostStages'))();await stage.h.binding();if(await stage.h.next(relay))throw Error('EXISTING_RELAY_RECONCILE_ONLY'); // Existing identity validator rejects stale source/build bindings.
  const template=await read(R+'/transport/viatris-reader-before-original.sql');
  const query=template.replaceAll('source-viatris-social',sourceId).replaceAll('company-viatris',routeById[sourceId].companyId).replaceAll('5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9',config.sourceConfigSha256).replaceAll('dot-cloud-native-c2b39d9-20261016',control.candidate.id).replaceAll('viatris-reader-before-v1',sourceFolders[sourceId]+'-reader-before-v1');
- const before=(await sql(query))[0].reader_before;await save(S+'/READER_BEFORE.json',before);
+ const before=(await sql(query))[0].reader_before;await save(S+'/READER_BEFORE.json',before);await save(S+'/expected-candidate.json',before.publicationContext.candidateRow);
  await command('python3 '+q(D+'/readback-original-web.py')+' '+q(S)+' '+q(routeById[sourceId].companyId));
  const batchId='dot-auto-'+sourceFolders[sourceId]+'-'+new Date().toISOString().replace(/[-:.]/g,''),run=S+'/'+batchId;
  await command('mkdir -p '+q(run+'/artifacts'));
