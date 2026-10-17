@@ -1,3 +1,4 @@
+import { isHengruiMainlandLocation } from "./hengruiMainlandGeography";
 import { CITY_PENDING } from "../domain/jobLocation";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import { ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
@@ -71,11 +72,13 @@ function exactFields(value: Record<string, unknown>, fields: string[]): boolean 
  * Coordinates corroborate the retained named locality; they never infer another city. */
 export function merckOfficialCities(raw: Record<string, unknown>): string[] | undefined {
   if (Object.keys(raw).some(field => !RAW_FIELDS.has(field)) || raw.country !== "China" || raw.isMultiLocation !== false) return undefined;
-  const pair = MAINLAND_LOCATIONS.find(([city, state]) => raw.city === city && raw.state === state);
+  // Official municipality-only Shanghai evidence proves China, not an exact job city.
+  const municipalityOnly = raw.city === "" && raw.state === "Shanghai";
+  const pair = MAINLAND_LOCATIONS.find(([city, state]) => (municipalityOnly ? city === "Shanghai" : raw.city === city) && raw.state === state);
   if (!pair) return undefined;
   const [city, state, chineseCity, latitude, longitude] = pair;
-  const location = `${city}, ${state}, China`;
-  if (raw.location !== location || raw.cityStateCountry !== location || raw.cityState !== `${city}, ${state}` ||
+  const location = municipalityOnly ? `${state}, China` : `${city}, ${state}, China`;
+  if (raw.location !== location || raw.cityStateCountry !== location || raw.cityState !== (municipalityOnly ? state : `${city}, ${state}`) ||
     raw.latitude !== latitude || raw.longitude !== longitude || !Array.isArray(raw.multi_location) ||
     raw.multi_location.length !== 1 || raw.multi_location[0] !== location || !Array.isArray(raw.multi_location_array) ||
     raw.multi_location_array.length !== 1) return undefined;
@@ -83,7 +86,7 @@ export function merckOfficialCities(raw: Record<string, unknown>): string[] | un
   if (!record(alternative) || !exactFields(alternative, ["location", "latlong"]) || alternative.location !== location ||
     !record(alternative.latlong) || !exactFields(alternative.latlong, ["lat", "lon"]) ||
     alternative.latlong.lat !== Number(latitude) || alternative.latlong.lon !== Number(longitude)) return undefined;
-  return merckTitleCityScope(raw, chineseCity);
+  return merckTitleCityScope(raw, municipalityOnly ? CITY_PENDING : chineseCity);
 }
 
 /** The retained feed derives its detail URL from the exact official requisition identity. */
@@ -105,12 +108,9 @@ function merckPublicVisibility(raw: Record<string, unknown>): boolean {
 
 // Only observed, positively identified mainland city labels; no city is inferred
 // from a role title. A conflicting/extra label retains the job with city pending.
-const TITLE_MAINLAND_CITIES = new Set([
-  "北京", "上海", "广州", "深圳", "苏州", "南通", "济南", "青岛", "郑州", "天津", "中山", "柳州"
-]);
 const REVIEWED_NON_LOCATION_SUFFIXES = new Set([
   "客户服务AI及数字化解决方案", "Data & AI Solution Enablement", "上游", "Protein and Cell Biology",
-  "生物安全检测", "生物工艺解决方案", "Upstream"
+  "生物安全检测", "生物工艺解决方案", "Upstream", "下游工艺", "零售"
 ]);
 // These are explicit location-bearing syntaxes, but not the reviewed final city
 // suffix grammar. Hold them even when a recognized city appears; never silently
@@ -122,7 +122,7 @@ const DESCRIPTION_TEXT_FIELDS = new Set([
   "descriptionTeaser", "descriptionTeaser_first200", "descriptionTeaser_keyword", "descriptionTeaser_ats"
 ]);
 function mainlandTitleCity(value: string): string | undefined {
-  return TITLE_MAINLAND_CITIES.has(value) ? value : TITLE_ENGLISH_CITIES.get(value);
+  return isHengruiMainlandLocation({ country: "China", cityName: value }) ? value.replace(/市$/u, "") : TITLE_ENGLISH_CITIES.get(value);
 }
 function knownCityLabels(value: string): string[] | undefined {
   const labels = value.split("/").map(mainlandTitleCity);
@@ -161,7 +161,7 @@ function merckTitleCityScope(raw: Record<string, unknown>, structuredCity: strin
       // Titles were reviewed with Chinese suffix labels. English city aliases
       // are supported only inside the explicit Location: ..., China. sentence.
       const labels = suffix.split("/");
-      if (labels.some(label => !TITLE_MAINLAND_CITIES.has(label)) || new Set(labels).size !== labels.length) return undefined;
+      if (labels.some(label => !isHengruiMainlandLocation({ country: "China", cityName: label })) || new Set(labels).size !== labels.length) return undefined;
       labels.forEach(city => mentionedCities.add(city));
     }
   }
