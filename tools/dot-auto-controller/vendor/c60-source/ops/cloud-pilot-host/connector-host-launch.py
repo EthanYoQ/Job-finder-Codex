@@ -53,7 +53,7 @@ try:
     before = os.fstat(fd)
     if not stat.S_ISREG(before.st_mode) or before.st_uid != uid or before.st_nlink != 1 or stat.S_IMODE(before.st_mode) != 0o644 or before.st_size != 12326:
         fail('HOST_CATALOG_FILE')
-    data = os.read(fd, 12275)
+    data = os.read(fd, before.st_size + 1)
     if identity(before) != identity(os.fstat(fd)) or identity(before) != identity(CATALOG.lstat()) or hashlib.sha256(data).hexdigest() != CATALOG_SHA:
         fail('HOST_CATALOG_DRIFT')
 finally:
