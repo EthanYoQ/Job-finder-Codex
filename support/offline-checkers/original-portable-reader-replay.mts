@@ -30,7 +30,7 @@ for(const [name,rel,commit] of [['main','baseline','6510baecc784ec87999cb5ea546b
 }
 assert.deepEqual(results[0].after,results[1].after);
 const result={status:'PASS',classification:'ORIGINAL_PORTABLE_PACKET_REPLAY_THROUGH_PINNED_PORTABLE_FUNCTIONS',checkedAt:now.toISOString(),beforeCheckedAt:before.checkedAt,beforeRawSha256:sha(beforeRaw),actualPacketRequestSha256:request.requestSha256,sqlSha256:review.sqlSha256,atomicPacketEntireByteRecompile:true,beforePublicationContextMatchesPacket:true,currentJobContentsUnchanged:get('Job').length===0,jobUpserts:get('Job').length,newJobs,updatedJobs,detailEvidenceState:d.receipt.detailEvidenceState,sourceId:SOURCE,counts,results,prospectiveSuccessOnly:true,dbWrite:false,network:false,activation:false,sqlExecutionAllowed:false,finalSynchronousOwnerGateStillRequired:true};
-fs.writeFileSync(path.join(OUT,'ORIGINAL_DEPLOYED_READER_REPLAY.json'),JSON.stringify(result,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify(result));
+fs.writeFileSync(path.join(OUT,'ORIGINAL_DEPLOYED_READER_REPLAY.json'),JSON.stringify(result,null,2)+'\n',{flag:'wx'});
 
 const main=read(path.join(OUT,'reader-diagnostic-main.json')),fallback=read(path.join(OUT,'reader-diagnostic-fallback.json'));assert.deepEqual(main,fallback,'COMPLETE_MAIN_FALLBACK_JOBS_AND_SOURCE_FIELDS');return {result,main,fallback};
 }

@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import {stripTypeScriptTypes} from 'node:module';
 const source=fs.readFileSync(new URL('./replay-original-json-archive.mts',import.meta.url),'utf8');
 const block=source.slice(source.indexOf('const completionArtifacts='),source.indexOf('let i=0, replayNow='));
-const factory=new Function('assert','httpArtifacts','sanitizeEvidenceHttpUrl','msd','roche',stripTypeScriptTypes(block)+';return completionArtifact;');
-const artifacts=[347,512,378,288,353,373].map((ms,i)=>({logicalKey:`roche-detail-${i}`,requestedUrl:`https://example.com/detail/${i}`,capturedAt:`2026-10-17T09:47:54.${ms}Z`}));
+const factory=new Function('assert','httpArtifacts','sanitizeEvidenceHttpUrl','msd','phenomDetails',stripTypeScriptTypes(block)+';return completionArtifact;');
+const artifacts=[495,499,460,451,419,491].map((ms,i)=>({logicalKey:`lilly-detail-${i}`,requestedUrl:`https://example.com/detail/${i}`,capturedAt:`2026-10-17T09:47:54.${ms}Z`}));
 let now=0;
 const check=async(request,completed=[])=>Promise.all(artifacts.map(async artifact=>{
  const response=await request(artifact.requestedUrl);
@@ -18,6 +18,10 @@ const results=await check(async url=>{const a=await request(url);now=Date.parse(
 assert.deepEqual(results,artifacts,'Promise.all and artifact input order preserved');
 assert.deepEqual(completed,[...artifacts].sort((a,b)=>Date.parse(a.capturedAt)-Date.parse(b.capturedAt)).map(a=>a.requestedUrl));
 await assert.rejects(request(artifacts[0].requestedUrl),/ARCHIVED_EXACT_REQUEST_IDENTITY/);
+const rocheArtifacts=artifacts.map(a=>({...a,logicalKey:a.logicalKey.replace('lilly-','roche-')}));
+const roche=factory(assert,rocheArtifacts,x=>x,false,true),rocheOrder=[];
+await Promise.all(rocheArtifacts.map(a=>roche(a.requestedUrl).then(r=>rocheOrder.push(r.requestedUrl))));
+assert.deepEqual(rocheOrder,[...rocheArtifacts].sort((a,b)=>Date.parse(a.capturedAt)-Date.parse(b.capturedAt)).map(a=>a.requestedUrl));
 const msd=factory(assert,[{requestedUrl:'second'},{requestedUrl:'first'}],x=>x,true,false),msdOrder=[];
 await Promise.all(['first','second'].map(url=>msd(url).then(a=>msdOrder.push(a.requestedUrl))));
 assert.deepEqual(msdOrder,['second','first']);
@@ -26,4 +30,4 @@ await assert.rejects(factory(assert,[{requestedUrl:'first'},{requestedUrl:'secon
 await assert.rejects(factory(assert,[{requestedUrl:'same'},{requestedUrl:'same'}],x=>x,true,false)('same'),/ARCHIVED_EXACT_REQUEST_IDENTITY/);
 const duplicate=factory(assert,[{requestedUrl:'same'}],x=>x,true,false),first=duplicate('same');
 await assert.rejects(duplicate('same'),/ARCHIVED_DUPLICATE_REQUEST/);await first;
-console.log('PASS: old clock failure reproduced; Roche completion time/order and input artifact order; MSD original order; consumed, absent, incomplete, ambiguous, and duplicate requests rejected');
+console.log('PASS: old clock failure reproduced; Phenom detail completion time/order and input artifact order; MSD original order; consumed, absent, incomplete, ambiguous, and duplicate requests rejected');
