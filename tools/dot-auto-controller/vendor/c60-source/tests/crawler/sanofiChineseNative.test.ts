@@ -58,6 +58,23 @@ function encodingNative(){return native(1).replace(description(1),encodingNative
 const canonicalTestJson=(value:unknown):string=>value===null||typeof value!=="object"?JSON.stringify(value):Array.isArray(value)?`[${value.map(canonicalTestJson).join(",")}]`:`{${Object.entries(value).sort(([a],[b])=>Buffer.compare(Buffer.from(a),Buffer.from(b))).map(([k,v])=>`${JSON.stringify(k)}:${canonicalTestJson(v)}`).join(",")}}`;
 const encodingResponse=(url:string,body:string)=>url.endsWith("/101")?encodingDetail():url.endsWith("exid=R9000001")?encodingNative():body;
 describe("Sanofi Chinese-only native source contract",()=>{
+  it("accepts literal and escaped JSON-LD TABs without changing description values or raw bodies",()=>{
+    const original=detail(1),expected=parseSanofiChineseDetail(original,row(1));
+    for(const encoded of ["\t","\\t"]){
+      const raw=original.replace(`"description":"${description(1)}"`,`"description":"中文职责${encoded}和要求1"`);
+      expect(parseSanofiChineseDetail(raw,row(1))).toEqual(expected);
+      expect(raw).toContain(`"description":"中文职责${encoded}和要求1"`);
+    }
+  });
+  it.each(["\\\t","\n","\r","\u0000"])("rejects malformed JSON-LD string control %j",control=>{
+    const raw=detail(1).replace(`"description":"${description(1)}"`,`"description":"中文职责${control}和要求1"`);
+    expect(()=>parseSanofiChineseDetail(raw,row(1))).toThrow();
+  });
+  it("retains duplicate-key and title guards after TAB compatibility",()=>{
+    const raw=detail(1).replace(`"description":"${description(1)}"`,`"description":"中文职责\t和要求1"`);
+    expect(()=>parseSanofiChineseDetail(raw.replace('"@type":"JobPosting"','"@type":"JobPosting","@type":"JobPosting"'),row(1))).toThrow();
+    expect(()=>parseSanofiChineseDetail(raw.replace(`"title":"${title(1)}"`,'"title":"其他岗位"'),row(1))).toThrow();
+  });
   it("replays a single Chinese display replacement triplet using the unchanged same-Req native authority through the B reader",async()=>{
     const {p,result,http}=await collect(encodingResponse);
     expect(result.status).toBe("SUCCESS");expect(result.truth.completenessVerified).toBe(true);
