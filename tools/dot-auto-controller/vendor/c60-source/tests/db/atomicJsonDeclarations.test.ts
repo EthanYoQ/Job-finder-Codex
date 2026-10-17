@@ -4,6 +4,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { decodeDeclarations } from "../../../../native/review-packet-envelope.mts";
 import { compileAtomicJsonDeclarations } from "../../src/db/atomicJsonDeclarations";
 
 function fixture() {
@@ -45,3 +46,14 @@ it.skipIf(!process.env.PGLITE_MODULE)("round-trips complete values through Postg
     expect(result.status, result.stderr || result.signal || "PGlite check failed").toBe(0);
   } finally { await rm(root, { recursive: true, force: true }); }
 }, 30000);
+
+// Reuse the existing typed-record encoding for large declaration arrays too.
+it("losslessly packs uniform records and rejects an invalid tuple index", () => {
+  const rows = Array.from({length: 12}, (_,n) => ({common: "repeat".repeat(40), n,
+    duplicate: n, explicitNull: null, detail: {quote: "O\'Brien\\path", ok: true}}));
+  const sourceResult = {rows}, expectedContext = {oldRows: rows.slice(0, 8)};
+  const declarations = compileAtomicJsonDeclarations(sourceResult, expectedContext);
+  expect(declarations).toContain("WITH ORDINALITY AS tuple");
+  expect(decodeDeclarations(declarations)).toEqual({terminal: sourceResult, context: expectedContext});
+  expect(() => decodeDeclarations(declarations.replace("tuple.value->0", "tuple.value->999999"))).toThrow();
+});

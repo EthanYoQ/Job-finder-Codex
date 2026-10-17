@@ -1,7 +1,7 @@
 import { buildJobProjectionDeltaReceipt } from "./jobProjectionDeltaCompiler";
 import { persistedJobProjection, hashJobPersistedProjection, JOB_SOURCE_UPDATE_FIELDS, isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
 import { hasBoundJnjDomOfficialArtifact } from "./jnjDomEvidenceAdmission";
-import { compileAtomicJsonDeclarations } from "./atomicJsonDeclarations";
+import { compileAtomicJsonDeclarations, compileAtomicJsonRecords as sqlRecords } from "./atomicJsonDeclarations";
 import type { CloudPilotDbStartedInput } from "./cloudPilotSqlControl";
 import { portableSourceResultSelect, type PortableSourceResultRow } from "./portablePublicSnapshotRepository";
 import { SOURCE_QUALITY_POLICY_ID, SOURCE_QUALITY_RECEIPT_SCHEMA, verifySourceQualityReceipt, verifySourceQualityAtomicCommit } from "../crawler/sourceQualityAdmission";
@@ -1395,23 +1395,6 @@ function sqlRecordData(table: string, data: Record<string, unknown>): Record<str
   return data;
 }
 
-function sqlRecords(rows: Record<string, unknown>[]): string {
-  if (rows.length === 1) return sqlJson(rows);
-  const keys = definedKeys(rows[0]!);
-  const equal = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
-  const common = Object.fromEntries(keys.filter(key => rows.every(row => equal(row[key], rows[0]![key])))
-    .map(key => [key, rows[0]![key]]));
-  const tupleKeys: string[] = [];
-  const fields = keys.filter(key => !(key in common)).map(key => {
-    let index = tupleKeys.findIndex(other => rows.every(row => equal(row[key], row[other])));
-    if (index === -1) index = tupleKeys.push(key) - 1;
-    return `${sqlText(key)}, tuple.value->${index}`;
-  });
-  // Visible typed JSON tuples factor repeated values and column names. Restore
-  // the exact records in order; explicit INSERT columns retain database defaults.
-  return `(SELECT jsonb_agg(${sqlJson(common)} || jsonb_build_object(${fields.join(", ")}) ORDER BY tuple.ordinality)
-    FROM jsonb_array_elements(${sqlJson(rows.map(row => tupleKeys.map(key => row[key])))}) WITH ORDINALITY AS tuple(value, ordinality))`;
-}
 
 const LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL = `
 SELECT "id" FROM "ManualCrawlRequest"

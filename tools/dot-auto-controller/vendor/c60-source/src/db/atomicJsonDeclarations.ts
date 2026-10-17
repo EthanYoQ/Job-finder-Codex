@@ -1,7 +1,7 @@
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 interface Node { value: Json; literal: string; uses: number; children: Node[]; keys: string[] }
 const text = (value: string) => `E'${value.replaceAll("\\", "\\\\").replaceAll("'", "''")}'`;
-const literal = (value: Json) => `${text(JSON.stringify(value))}::jsonb`;
+const literal = (value: unknown) => `${text(JSON.stringify(value))}::jsonb`;
 
 /** Lossless, local SQL literals for the two large inputs to the existing DO.
  * Only identical serialized subtrees are shared. A shared parent's descendants
@@ -40,6 +40,18 @@ export function compileAtomicJsonDeclarations(sourceResult: unknown, expectedCon
     return expressionFor(node);
   }
   function expressionFor(node: Node): string {
+    const original = originalExpressionFor(node);
+    const rows = node.value;
+    if (Array.isArray(rows) && rows.length > 1 && rows.every(row =>
+      row !== null && typeof row === "object" && !Array.isArray(row) &&
+      JSON.stringify(Object.keys(row)) === JSON.stringify(Object.keys(rows[0]! as object))) &&
+      Object.keys(rows[0]! as object).length <= 50) {
+      const packed = compileAtomicJsonRecords(rows as Record<string, unknown>[]);
+      if (Buffer.byteLength(packed) < Buffer.byteLength(original)) return packed;
+    }
+    return original;
+  }
+  function originalExpressionFor(node: Node): string {
     if (!node.children.length) return node.literal;
     const rendered = node.children.map(render);
     if (rendered.every((value, index) => value === node.children[index]!.literal)) return node.literal;
@@ -65,4 +77,22 @@ export function compileAtomicJsonDeclarations(sourceResult: unknown, expectedCon
   }
   const source = render(roots[0]!), context = render(roots[1]!);
   return [...declarations, `source_result_data jsonb := ${source};`, `expected_context_data jsonb := ${context};`].join("\n");
+}
+
+export function compileAtomicJsonRecords(rows: Record<string, unknown>[]): string {
+  if (rows.length === 1) return literal(rows);
+  const keys = Object.keys(rows[0]! as object).filter(key => rows[0]![key] !== undefined);
+  const equal = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+  const common = Object.fromEntries(keys.filter(key => rows.every(row => equal(row[key], rows[0]![key])))
+    .map(key => [key, rows[0]![key]]));
+  const tupleKeys: string[] = [];
+  const fields = keys.filter(key => !(key in common)).map(key => {
+    let index = tupleKeys.findIndex(other => rows.every(row => equal(row[key], row[other])));
+    if (index === -1) index = tupleKeys.push(key) - 1;
+    return `${text(key)}, tuple.value->${index}`;
+  });
+  // Visible typed JSON tuples factor repeated values and column names. Restore
+  // the exact records in order; explicit INSERT columns retain database defaults.
+  return `(SELECT jsonb_agg(${literal(common)} || jsonb_build_object(${fields.join(", ")}) ORDER BY tuple.ordinality)
+    FROM jsonb_array_elements(${literal(rows.map(row => tupleKeys.map(key => row[key])))}) WITH ORDINALITY AS tuple(value, ordinality))`;
 }

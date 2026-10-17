@@ -12,7 +12,26 @@ export function decodeDeclarations(source:string) {
   let offset=0;const variables=new Map<string,unknown>();
   const requireText=(text:string)=>{if(!source.startsWith(text,offset))throw Error('HOST_JSON_DECLARATION_SYNTAX');offset+=text.length;};
   const literal=()=>{requireText("E'");let text='';while(offset<source.length){const c=source[offset++]!;if(c==='\\'){const n=source[offset++]!;if(n!=='\\')throw Error('HOST_JSON_ESCAPE');text+=n;}else if(c==="'"){if(source[offset]==="'"){offset++;text+="'";}else return text;}else text+=c;}throw Error('HOST_JSON_UNTERMINATED');};
+  const packedRecords=():unknown=>{
+    requireText('(SELECT jsonb_agg(');const common=expression();
+    if(!common||typeof common!=='object'||Array.isArray(common))throw Error('HOST_JSON_COMMON');
+    requireText(' || jsonb_build_object(');const fields:{key:string,index:number}[]=[];
+    while(source[offset]!==')'){
+      if(fields.length)requireText(', ');const key=literal();requireText(', tuple.value->');
+      const match=/^[0-9]+/.exec(source.slice(offset));if(!match)throw Error('HOST_JSON_TUPLE_INDEX');
+      offset+=match[0].length;fields.push({key,index:Number(match[0])});
+    }
+    requireText(') ORDER BY tuple.ordinality)\n    FROM jsonb_array_elements(');const rows=expression();
+    requireText(') WITH ORDINALITY AS tuple(value, ordinality))');
+    if(!Array.isArray(rows))throw Error('HOST_JSON_TUPLE_ROWS');
+    return rows.map(row=>{
+      if(!Array.isArray(row))throw Error('HOST_JSON_TUPLE_ROW');const result={...common};
+      for(const {key,index} of fields){if(index>=row.length||Object.hasOwn(result,key))throw Error('HOST_JSON_TUPLE_FIELD');Object.defineProperty(result,key,{value:row[index],enumerable:true,writable:true,configurable:true});}
+      return result;
+    });
+  };
   const expression=():unknown=>{
+    if(source.startsWith('(SELECT jsonb_agg(',offset))return packedRecords();
     if(source.startsWith("E'",offset)){const text=literal();requireText('::jsonb');return JSON.parse(text);}
     for(const kind of ['jsonb_build_array','jsonb_build_object'])if(source.startsWith(kind+'(',offset)){
       requireText(kind+'(');const values:unknown[]=[];
