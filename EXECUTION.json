@@ -1,8 +1,8 @@
 {
-  "checkedAt": "2026-10-17T07:22:00Z",
+  "checkedAt": "2026-10-17T07:32:00Z",
   "entry": "run-original-functions.js",
   "routeCount": 36,
-  "connectedSourceCount": 30,
+  "connectedSourceCount": 31,
   "initialDueQueryCount": 1,
   "preCommitSourceDueRecheck": true,
   "actualSingleInvocation": {
@@ -18,21 +18,28 @@
     "modelDirectedIntermediateSteps": 0,
     "externalApprovalDuringRun": "OBSERVED_TOOL_MAPPING_UNCONFIRMED"
   },
-  "latestCandidate": 82,
+  "latestCandidate": 83,
   "latestAttempt": {
     "sourceId": "source-amgen-china-social",
-    "phase": "BINDING_VALIDATION_BEFORE_LAUNCH",
-    "reason": "Original launcher PORTABLE-only source admission; original source fix pending",
+    "batchId": "dot-auto-amgen-20261017T073229420Z",
+    "phase": "CHECK_SOURCE_RESULT",
+    "reason": "AMGEN_MANUAL_WORKDAY_INVALID",
     "newDatabaseCommit": false,
     "newWebPublication": false
   },
   "scheduledEndToEndValidated": false,
   "full36Validated": false,
-  "remainingUnconnectedSourceCount": 6,
+  "remainingUnconnectedSourceCount": 5,
   "reviewFailureUsesOriginalNotDispatched": true,
   "Cspc": "NOT_DISPATCHED_CURRENT_NATIVE_DOM_AND_DETAIL_OBSERVATIONS_MISSING",
   "moduleIsFullProjectBackup": false,
   "CspcQueryPoolIsNotActiveTotal": true,
-  "configuredPortable": 19,
-  "configuredOrdinaryA": 11
+  "configuredPortable": 20,
+  "configuredOrdinaryA": 11,
+  "actualLauncherPreflight": {
+    "candidate": 83,
+    "mode": "NATIVE_AB_CONNECTOR_V1",
+    "sourceId": "source-amgen-china-social",
+    "status": "PASS"
+  }
 }

@@ -19,8 +19,8 @@ console.log('PASS: serial relay, single dispatch, unknown/expiry hold, failed so
 const entry=readFileSync(new URL('./run-original-functions.js',import.meta.url),'utf8');
 const folders=JSON.parse(entry.match(/const sourceFolders=(\{[^\n]+\});/)[1].replaceAll("'",'"'));
 const routes=JSON.parse(readFileSync(new URL('./sources.json',import.meta.url),'utf8')).rows;
-assert.equal(routes.length,36);assert.equal(Object.keys(folders).length,30);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='PORTABLE').length,19);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='TRUE_A').length,11);for(const id of ['source-astrazeneca-social','source-johnson-innovative-medicine-social','source-pfizer-china-social'])assert(!folders[id]);
-console.log('PASS: 36 original routes, 19 portable and 11 original A configurations; browser/detail gaps excluded');
+assert.equal(routes.length,36);assert.equal(Object.keys(folders).length,31);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='PORTABLE').length,20);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='TRUE_A').length,11);for(const id of ['source-astrazeneca-social','source-johnson-innovative-medicine-social','source-pfizer-china-social'])assert(!folders[id]);
+console.log('PASS: 36 original routes, 20 portable and 11 original A configurations; browser/detail gaps excluded');
 
 assert(entry.includes("mode:config.mode"));assert(entry.includes("config.route==='PORTABLE'?'p0-cloud-portable-source-pilot.ts':'p0-cloud-source-pilot.ts'"));
 const prepare=readFileSync(new URL('./prepare-original-source.py',import.meta.url),'utf8');assert(prepare.includes("kind=mode,route=row['route']"));assert(prepare.includes("'mode':mode,'route':row['route']"));
