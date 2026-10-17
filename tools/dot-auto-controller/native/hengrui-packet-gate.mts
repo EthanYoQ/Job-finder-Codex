@@ -22,6 +22,7 @@ import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import ts from 'typescript';
 import {decodeDeclarations} from './review-packet-envelope.mts';
+import {compileAtomicJsonRecords as sqlRecords} from '../vendor/c60-source/src/db/atomicJsonDeclarations.ts';
 import {prepareCloudPilotDbStartedControl,CLOUD_PILOT_SOURCE} from '../vendor/c60-source/src/db/cloudPilotSqlControl.ts';
 import {deriveCurrentStagedScheduleExpectation} from '../vendor/c60-source/src/crawler/stagedScheduleAuthority.ts';
 import {buildPendingRuntimeBatch} from '../vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts';
@@ -50,17 +51,24 @@ for(const[k,v]of Object.entries(control.databaseIdentity))assert.deepEqual(conte
 assert.equal(terminal.sourceId,cfg.sourceId);assert.equal(terminal.batchId,run.split('/').at(-1));assert.equal(terminal.releaseCandidateId,control.candidate.id);assert.equal(terminal.id,terminal.batchId+'--'+cfg.sourceId);
 const compilerPath=join(R,'c60-source/src/db/ingestionRepository.ts'),compilerSource=readFileSync(compilerPath,'utf8');
 const snip=compilerSource.slice(compilerSource.indexOf('function compileAtomicWriteStatements('),compilerSource.indexOf('const LOCK_MANUAL_REQUEST_FOR_COMMIT_SQL'));
-assert(snip.startsWith('function compileAtomicWriteStatements(')&&snip.includes('function sqlRecords('));
+assert(snip.startsWith('function compileAtomicWriteStatements('));
 const terminalSnip=compilerSource.slice(compilerSource.indexOf('function sourceResultTerminalData('),compilerSource.indexOf('const ATOMIC_SOURCE_RESULT_FIELDS'));
 let uuidQueue:string[]=[];
 const transpiled=ts.transpileModule(snip+'\n'+terminalSnip+'\nreturn {compileAtomicWriteStatements,sqlRecords,sourceResultTerminalData};',{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;
-const original=new Function('randomUUID','JOB_SOURCE_UPDATE_FIELDS','fromPrismaJobCategory','fromPrismaRequiredJobField',transpiled)(()=>{assert(uuidQueue.length,'unexpected original compiler UUID');return uuidQueue.shift();},JOB_SOURCE_UPDATE_FIELDS,(v:any)=>v,(v:any)=>v);
+const original=new Function('sqlRecords','randomUUID','JOB_SOURCE_UPDATE_FIELDS','fromPrismaJobCategory','fromPrismaRequiredJobField',transpiled)(sqlRecords,()=>{assert(uuidQueue.length,'unexpected original compiler UUID');return uuidQueue.shift();},JOB_SOURCE_UPDATE_FIELDS,(v:any)=>v,(v:any)=>v);
 // Parse only the literal/tuple JSON forms emitted by original sqlRecords. No eval.
 function parseRows(s:string,start:number){let i=start;
  const take=(x:string)=>{assert.equal(s.slice(i,i+x.length),x,'SQL_GRAMMAR '+i);i+=x.length;};
  const literal=()=>{take("E'");let value='';while(i<s.length){let c=s[i++];if(c==='\\'){assert.equal(s[i++],'\\');value+='\\';}else if(c==="'"){if(s[i]==="'"){i++;value+="'";}else return value;}else value+=c;}throw Error('unclosed SQL literal');};
  const jsonLiteral=()=>{const v=JSON.parse(literal());take('::jsonb');return v;};
  if(s.startsWith("E'",i)){const rows=jsonLiteral();assert(Array.isArray(rows));return {rows,end:i};}
+ if(s.startsWith("(SELECT jsonb_agg(member.value || jsonb_build_object('id', ",i)){
+  take("(SELECT jsonb_agg(member.value || jsonb_build_object('id', ");const ids=jsonLiteral();
+  take("->(member.ordinality::int-1)) ORDER BY member.ordinality)\n    FROM jsonb_array_elements(source_result_data->'completenessCertificate'->'members') WITH ORDINALITY AS member(value, ordinality))");
+  const members=terminal.completenessCertificate.members;assert(Array.isArray(ids));assert.equal(ids.length,members.length);
+  const keys=['releaseCandidateId','batchId','sourceId','sourceResultId','setKind','jobKey','jobKeySha256','lifecycleStatus','missingCount'];
+  return {rows:members.map((member:any,n:number)=>({id:ids[n],...Object.fromEntries(keys.map(k=>[k,member[k]]))})),end:i};
+ }
  take('(SELECT jsonb_agg(');const common=jsonLiteral();assert(common&&!Array.isArray(common));take(' || jsonb_build_object(');const fields:any[]=[];
  while(!s.startsWith(') ORDER BY tuple.ordinality)',i)){if(fields.length)take(', ');const key=literal();take(', tuple.value->');const m=/^\d+/.exec(s.slice(i));assert(m);i+=m[0].length;assert(!fields.some(x=>x[0]===key));assert(!Object.hasOwn(common,key));fields.push([key,Number(m[0])]);}
  take(') ORDER BY tuple.ordinality)\n    FROM jsonb_array_elements(');const tuples=jsonLiteral();take(') WITH ORDINALITY AS tuple(value, ordinality))');assert(Array.isArray(tuples));
@@ -99,7 +107,7 @@ while(offset<middle.length){const s=middle.slice(offset);let stmt:string;let wri
  }else if(s.startsWith('UPDATE public."CrawlBatchSourceResult" AS target')){
   stmt=s;const where={id:terminal.id,releaseCandidateId:terminal.releaseCandidateId,batchId:terminal.batchId,sourceId:terminal.sourceId,atomicCommitState:'PENDING'};writes=[{kind:'terminal',stage:'REVIEW',where,data:original.sourceResultTerminalData(originalOrderedTerminal)}];uuidQueue=[];decoded.push({table:'CrawlBatchSourceResult',rows:[terminal]});
  }else throw Error('UNCONSUMED_BODY_AT_'+offset+':'+s.slice(0,120));
- const compiled=original.compileAtomicWriteStatements(writes,()=>{},true,terminal.finishedAt).join('\n');assert.equal(uuidQueue.length,0,'UUID queue mismatch');assert.equal(compiled,stmt,'ORIGINAL_MUTATION_TEMPLATE_MISMATCH');regenerated.push(compiled);offset+=stmt.length;if(offset<middle.length){assert.equal(middle[offset],'\n');offset++;}
+ const compiled=original.compileAtomicWriteStatements(writes,()=>{},true,terminal.finishedAt,undefined,terminal.completenessCertificate.members).join('\n');assert.equal(uuidQueue.length,0,'UUID queue mismatch');assert.equal(compiled,stmt,'ORIGINAL_MUTATION_TEMPLATE_MISMATCH');regenerated.push(compiled);offset+=stmt.length;if(offset<middle.length){assert.equal(middle[offset],'\n');offset++;}
 }
 assert.equal(regenerated.join('\n'),middle,'BODY_NOT_FULLY_RECONSTRUCTED');
 return {decoded,through,plan};

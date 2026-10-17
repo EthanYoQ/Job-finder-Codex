@@ -1,0 +1,11 @@
+{
+  "status": "PASS_OFFLINE_FULL_HENGRUI_EQUIVALENCE",
+  "memberRows": 2116,
+  "allMemberValuesAndIdsEqual": true,
+  "allThreeReviewersRoundtrip": true,
+  "otherTransactionBytesUnchanged": true,
+  "oldMemberStatementBytes": 457907,
+  "newMemberStatementBytes": 83207,
+  "beforeToolBodyBytes": 2620787,
+  "afterToolBodyBytes": 2233371
+}
