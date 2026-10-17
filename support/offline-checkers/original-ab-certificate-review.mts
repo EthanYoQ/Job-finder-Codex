@@ -10,7 +10,7 @@ export async function reviewOriginalABCertificate(V:string,d:any,native:any,inde
  const input={plan:d.plan,binding:{releaseCandidateId:expected.releaseCandidateId,batchId:expected.batchId,sourceResultId:expected.sourceResultId,sourceConfigSha256:expected.sourceConfigSha256},transportSuccess:native.truth.transportSuccess,adapterSuccess:native.truth.adapterSuccess,evidence:native.fetchEvidence,paginationEvaluation:native.paginationEvaluation,reconciliation:native.reconciliation,jobs:native.jobs};
  let issued;
  if(requiresBGradeTraversalCertificate(d.plan)){
-  assert.equal(expected.sourceId,'source-pfizer-china-social','UNIMPLEMENTED_B_UI_ROUTE');
+  assert(['source-pfizer-china-social','source-bayer-healthcare-social','source-servier-china-social'].includes(expected.sourceId),'UNIMPLEMENTED_B_UI_ROUTE');
   assert.equal(certificate.schemaVersion,'b-grade-independent-traversal-v2');
   assert.deepEqual(certificate.validationPolicy,{trigger:'INITIAL_QUALIFICATION',execution:'CURRENT_RUN'});
   assert.deepEqual(independentValidation,certificate.independentValidation,'CURRENT_UI_ORIGINAL_BINDING');

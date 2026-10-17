@@ -20,9 +20,9 @@ console.log('PASS: serial relay, single dispatch, unknown/expiry hold, failed so
 const entry=readFileSync(new URL('./run-original-functions.js',import.meta.url),'utf8');
 const folders=JSON.parse(entry.match(/const sourceFolders=(\{[^\n]+\});/)[1].replaceAll("'",'"'));
 const routes=JSON.parse(readFileSync(new URL('./sources.json',import.meta.url),'utf8')).rows;
-assert.equal(routes.length,36);assert.equal(Object.keys(folders).length,32);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='PORTABLE').length,20);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='TRUE_A').length,11);for(const id of ['source-astrazeneca-social','source-johnson-innovative-medicine-social'])assert(!folders[id]);
+assert.equal(routes.length,36);assert.equal(Object.keys(folders).length,35);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='PORTABLE').length,20);assert.equal(Object.keys(folders).filter(id=>routes.find(r=>r.sourceId===id)?.route==='TRUE_A').length,12);for(const id of ['source-astrazeneca-social'])assert(!folders[id]);
 assert.equal(folders['source-pfizer-china-social'],'pfizer');
-console.log('PASS: 36 original routes, 20 portable, 11 original A and Pfizer B configurations; remaining detail gaps excluded');
+console.log('PASS: 36 original routes, 20 portable, 12 original A and three original B configurations; remaining detail gaps excluded');
 
 assert(entry.includes("mode:config.mode"));assert(entry.includes("config.route==='PORTABLE'?'p0-cloud-portable-source-pilot.ts':'p0-cloud-source-pilot.ts'"));
 const prepare=readFileSync(new URL('./prepare-original-source.py',import.meta.url),'utf8');assert(prepare.includes("kind=mode,route=row['route']"));assert(prepare.includes("'mode':mode,'route':row['route']"));
@@ -36,3 +36,9 @@ assert(entry.includes("replaceAll('__ORIGINAL_CERTIFICATE_SCHEMA__'"));assert(en
 const recovered=fixture({unknown:true});const originalPoll=recovered.job.pollProducer;recovered.job.pollProducer=async()=>({...await originalPoll(),outcomeState:'COMMITTED_EXACT'});assert.equal((await serviceOriginalRelay(recovered.job)).status,'WEB_VERIFIED');assert.equal(recovered.calls.filter(x=>x==='dispatch').length,1);assert(recovered.calls.includes('READ_OUTCOME'));
 
 assert(entry.includes("if(sourceId==='source-organon-china-social')throw Error('ORGANON_MANUAL_KEYWORD_COUNTRY_APPLICATION_EVIDENCE_PENDING')"));
+
+assert.equal(folders['source-johnson-innovative-medicine-social'],'jnj');
+assert(entry.includes('captureJnjManagedDom'));assert(entry.includes('prepare-jnj-dom-current-capture.ts'));assert(entry.includes('...(currentCapture?{currentCapture}:{})'));
+
+for(const [id,folder] of [['source-bayer-healthcare-social','bayer'],['source-servier-china-social','servier']])assert.equal(folders[id],folder);
+assert(entry.includes('captureMokaBDom'));assert(entry.includes("'/scripts/capture-'+source+'-b-source.ts'"));

@@ -4,7 +4,7 @@ const run=process.argv[2],d=JSON.parse(fs.readFileSync(run+'/review/PACKET_REVIE
 const sha=(x:any)=>createHash('sha256').update(x).digest('hex');
 const {createOfficialJsonSourceFetch}=await import(V+'/src/crawler/officialJsonSourceFetch.ts');
 const {createPresenceCheckedHttpHtmlSourceFetch}=await import(V+'/src/crawler/httpHtmlSourceFetch.ts');
-const astellas=d.terminal.sourceId==='source-astellas-china-social';
+const astellas=d.terminal.sourceId==='source-astellas-china-social',jnj=d.terminal.sourceId==='source-johnson-innovative-medicine-social';
 const ab=['a-grade-official-total-v2','b-grade-independent-traversal-v2'].includes(d.receipt.legacyCertificate.schemaVersion);
 if(!ab&&!astellas)assert(['source-ucb-china-social','source-viatris-social','source-hansoh-social','source-takeda-china-social','source-merck-china-social','source-fosun-pharma-social','source-cspc-social','source-abbvie-china-social','source-bms-china-social','source-boehringer-ingelheim-china-social','source-gilead-china-social','source-kelun-social','source-novartis-social','source-novo-nordisk-china-social','source-organon-china-social','source-qilu-social','source-grifols-china-social'].includes(d.terminal.sourceId));let originalFetch:any=d.plan.adapterId==='html-table'?createPresenceCheckedHttpHtmlSourceFetch:createOfficialJsonSourceFetch;
 if(!ab&&d.plan.profileBoundSource){
@@ -25,12 +25,23 @@ if(ab){
  const {createAmgenManualWorkdaySourceFetch}=await import(V+'/src/crawler/amgenManualWorkdaySourceFetch.ts');
  const {createMsdAjingaSourceFetch}=await import(V+'/src/crawler/msdAjingaSourceFetch.ts');
  const rows=JSON.parse(fs.readFileSync(path.resolve(V,'../../config/native-catalog.json'),'utf8')).routingCatalogue;
- assert(rows.some((r:any)=>r.sourceId===d.plan.source.id&&(r.route==='TRUE_A'&&r.sourceId!=='source-johnson-innovative-medicine-social'||r.route==='TRUE_B'&&r.sourceId==='source-pfizer-china-social')),'UNIMPLEMENTED_AB_ROUTE');
+ assert(rows.some((r:any)=>r.sourceId===d.plan.source.id&&(r.route==='TRUE_A'||r.route==='TRUE_B'&&['source-pfizer-china-social','source-bayer-healthcare-social','source-servier-china-social'].includes(r.sourceId))),'UNIMPLEMENTED_AB_ROUTE');
  assert.notEqual(d.plan.source.id,'source-astrazeneca-social','ASTRAZENECA_OWNED_DETAIL_REPLAY_NOT_WIRED');
  originalFetch=(deps:any)=>{const fail=()=>{throw Error('UNIMPLEMENTED_OFFLINE_SOURCE');};
   const profiles:any={'amgen-manual-workday-lookup':createAmgenManualWorkdaySourceFetch(deps),'msd-ajinga':createMsdAjingaSourceFetch({...deps,http:(url:string)=>deps.http({url,method:'GET'})})};
   return createSourceFetchRouter({html:createPresenceCheckedHttpHtmlSourceFetch(deps),moka:createMokaSourceFetch(deps),officialJson:createOfficialJsonSourceFetch(deps),workday:createWorkdaySourceFetch({...deps,detailHttp:deps.http}),hotjobLegacy:createHotjobLegacySourceFetch(deps),profileBoundSource:(plan:any)=>(profiles[plan.profileBoundSource?.kind]??fail)(plan),fallback:fail,delay:async()=>{throw Error('OFFLINE_REPLAY_RETRY_REQUIRES_EXACT_ATTEMPT_EVIDENCE');}});
  };
+}
+if(jnj){
+ assert(ab&&d.receipt.legacyCertificate.schemaVersion==='a-grade-official-total-v2','JNJ_ORIGINAL_A_REQUIRED');
+ const {createJnjCareersDomSourceFetch}=await import(V+'/src/crawler/jnjCareersDomEvidence.ts');
+ const {JNJ_DOM_CAPTURE_TOOL,JNJ_DOM_LIST_LOCATOR,JNJ_DOM_DETAIL_LOCATOR}=await import(V+'/src/crawler/jnjCareersDomContract.ts');
+ for(const artifact of a.sidecar.artifacts){
+  assert.equal(artifact.kind,'COMMAND_OUTPUT');assert.equal(artifact.bodyRepresentation,'EXACT');assert.equal(artifact.captureToolName,JNJ_DOM_CAPTURE_TOOL.name);assert.equal(artifact.captureToolVersion,JNJ_DOM_CAPTURE_TOOL.version);
+  for(const field of ['requestedUrl','finalUrl','httpStatus','contentType','channelId','rawBodySha256','redactionDescriptors'])assert.equal(artifact[field],undefined,'JNJ_NOT_HTTP');
+  assert.equal(artifact.extractorLocator,artifact.logicalKey.startsWith('jnj-dom-list-')?JNJ_DOM_LIST_LOCATOR:JNJ_DOM_DETAIL_LOCATOR);
+ }
+ originalFetch=()=>createJnjCareersDomSourceFetch({lists:a.sidecar.artifacts.filter((x:any)=>/^jnj-dom-list-\d{4}$/.test(x.logicalKey)).map((x:any)=>bodies.get(x.path)),details:a.sidecar.artifacts.filter((x:any)=>/^jnj-dom-detail-r-\d+$/.test(x.logicalKey)).map((x:any)=>bodies.get(x.path))});
 }
 const {sanitizeEvidenceHttpUrl}=await import(V+'/src/crawler/sourceFetchEvidence.ts');
 const {safeOfficialJsonEvidenceUrl}=await import(V+'/src/crawler/officialJsonEvidence.ts');
@@ -51,6 +62,7 @@ let i=0, replayNow=Date.parse(d.receipt.observedAt);const requests:any[]=[];cons
 if(astellas)requests.push(...a.sidecar.artifacts.filter((x:any)=>x.requestedUrl).map((x:any)=>({url:x.requestedUrl,method:'GET',body:null,capturedAt:x.capturedAt})));
 assert(replay.ok,replay.failureReason);if(!astellas)assert.equal(i,httpArtifacts.length);assert(replay.fetchEvidence&&replay.paginationEvaluation);
 if(ab){assert.equal(replay.fetchEvidence.artifacts.length,a.sidecar.artifacts.length,'EXACT_RAW_ARTIFACT_SET');for(const [index,artifact] of replay.fetchEvidence.artifacts.entries()){const saved=a.sidecar.artifacts[index];assert.equal(artifact.logicalKey,saved.logicalKey);assert.equal(sha(artifact.body),saved.sha256,'EXACT_RAW_OR_DERIVED_BODY');assert.equal(artifact.requestedUrl,saved.requestedUrl);assert.equal(artifact.capturedAt,saved.capturedAt);}}const ctx=await loadPilotContext(d.context,d.plan,ab);const native=await runSourceCrawl(d.plan,{fetch:async()=>replay,isBaseline:!ctx.baselineCompletedBeforeCrawl});assert.deepEqual(native.truth,{transportSuccess:true,adapterSuccess:true,completenessVerified:true});
+if(jnj)assert(await replayStrictSourceQualityEvidenceAsync({plan:d.plan,evidence:replay.fetchEvidence,paginationEvaluation:replay.paginationEvaluation,reconciliation:native.reconciliation,jobs:native.jobs,capturedAt:replay.capturedAt}),'JNJ_ORIGINAL_STRICT_DOM_REPLAY');
 let certificateReplay:any;
 if(ab){
  const {reviewOriginalABCertificate}=await import('./original-ab-certificate-review.mts');
@@ -77,4 +89,4 @@ if(d.terminal.sourceId==='source-cspc-social'){
  const read=(p:string)=>JSON.parse(fs.readFileSync(p,'utf8'));
  independentDomReview=reviewCspcDomHttp({dom:read(run+'/independent-dom/navigation-evidence.json'),applications:read(run+'/independent-dom/application-observations.json'),plan:d.plan,replayedEvidence:replay.fetchEvidence,runStartedAt:read(run+'/run-start.json').runStartedAt,dispatchBefore:read(run+'/review/PACKET_REVIEW.json').dispatchBefore,now:new Date().toISOString()});
 }
-const report={status:'PASS',classification:'ORIGINAL_NATIVE_ARCHIVE_EXACT_REPLAY',...(independentDomReview?{independentDomReview}:{}),sourceId:d.terminal.sourceId,capturedAt:capture,requests,jobCount:native.jobs.length,allRawHashesVerified:true,exactNativeEvidenceAndJobsDigests:!ab,originalStrictQualityReplay:!ab,...(certificateReplay?{certificateReplay}:{}),networkUsed:false};fs.writeFileSync(run+'/review/NATIVE_RAW_REPLAY.json',JSON.stringify(report,null,2),{flag:'wx'});console.log(JSON.stringify(report));
+const report={status:'PASS',classification:'ORIGINAL_NATIVE_ARCHIVE_EXACT_REPLAY',...(independentDomReview?{independentDomReview}:{}),sourceId:d.terminal.sourceId,capturedAt:capture,requests,jobCount:native.jobs.length,allRawHashesVerified:true,exactNativeEvidenceAndJobsDigests:!ab,originalStrictQualityReplay:!ab||jnj,...(certificateReplay?{certificateReplay}:{}),networkUsed:false};fs.writeFileSync(run+'/review/NATIVE_RAW_REPLAY.json',JSON.stringify(report,null,2),{flag:'wx'});console.log(JSON.stringify(report));
