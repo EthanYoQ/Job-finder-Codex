@@ -14,6 +14,7 @@ if(load('originalRelayReadOnly')===true)return states.map(s=>({sourceId:s.source
 return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const state=stateById[sourceId];
  if(state.crawledAt&&Date.parse(state.checkedAt)-Date.parse(state.crawledAt)<43200000)return {skip:'REAL_OBSERVATION_WITHIN_12H:'+state.crawledAt};
+ if(sourceId==='source-organon-china-social')throw Error('ORGANON_MANUAL_KEYWORD_COUNTRY_APPLICATION_EVIDENCE_PENDING');
  if(sourceId==='source-sanofi-china-social')throw Error('SANOFI_CHINESE_ENTRY_READER_PAIR_PENDING'); // Original recovery hold: EN_CN_V1 producer does not match required CN_NATIVE_APPLICATION_V2.
  if(!sourceFolders[sourceId])throw Error('ROUTE_NOT_CONNECTED:'+routeById[sourceId].route);
  if(state.holder||Number(state.running)||Number(state.manual))throw Error('EXISTING_WRITER_RECONCILE_ONLY');

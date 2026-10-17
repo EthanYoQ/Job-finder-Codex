@@ -34,3 +34,5 @@ const unresolved=fixture({unknown:true});let preparedCount=0;const heldSequence=
 assert(entry.includes("replaceAll('__ORIGINAL_CERTIFICATE_SCHEMA__'"));assert(entry.includes("replaceAll('__ORIGINAL_REQUIRES_PORTABLE_POLICY__'"));
 
 const recovered=fixture({unknown:true});const originalPoll=recovered.job.pollProducer;recovered.job.pollProducer=async()=>({...await originalPoll(),outcomeState:'COMMITTED_EXACT'});assert.equal((await serviceOriginalRelay(recovered.job)).status,'WEB_VERIFIED');assert.equal(recovered.calls.filter(x=>x==='dispatch').length,1);assert(recovered.calls.includes('READ_OUTCOME'));
+
+assert(entry.includes("if(sourceId==='source-organon-china-social')throw Error('ORGANON_MANUAL_KEYWORD_COUNTRY_APPLICATION_EVIDENCE_PENDING')"));
