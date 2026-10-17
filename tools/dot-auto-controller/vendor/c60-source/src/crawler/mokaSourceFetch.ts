@@ -1419,7 +1419,8 @@ function mokaPublishedAtIso(value: unknown): string | undefined {
   if (!text) return undefined;
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return `${text}T00:00:00+08:00`;
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)) return `${text}+08:00`;
-  return Number.isNaN(Date.parse(text)) ? undefined : text;
+  const zoned = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text) ? `${text}:00+08:00` : text;
+  return Number.isNaN(Date.parse(zoned)) ? undefined : zoned;
 }
 
 function buildMokaJobUrl(officialEntryUrl: string, sourceJobId: string): string {

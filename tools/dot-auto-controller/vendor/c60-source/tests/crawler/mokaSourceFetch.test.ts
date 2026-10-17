@@ -191,6 +191,39 @@ describe("Moka source fetch", () => {
     });
   });
 
+  it.each([
+    ["2026-10-16T15:18", "2026-10-16T15:18:00+08:00"],
+    ["2026-10-13T15:18", "2026-10-13T15:18:00+08:00"],
+    ["2026-07-01T09:30:00", "2026-07-01T09:30:00+08:00"],
+    ["2026-07-01T09:30:00.123", "2026-07-01T09:30:00.123+08:00"],
+    ["2026-07-01", "2026-07-01T00:00:00+08:00"],
+    ["2026-07-01T09:30:00Z", "2026-07-01T09:30:00Z"],
+    ["2026-07-01T09:30:00+09:00", "2026-07-01T09:30:00+09:00"],
+    ["2026-07-01T09:30:00-04:00", "2026-07-01T09:30:00-04:00"],
+    ["2026-07-01T09:30+09:00", "2026-07-01T09:30+09:00"],
+    ["2026-13-01T15:18", undefined],
+    ["2026-10-16T25:18", undefined],
+    ["2026-10-16T15:61", undefined],
+    ["not-a-date", undefined],
+    ["", undefined],
+    [null, undefined]
+  ])("normalizes no-zone Moka minute time and preserves existing date behavior: %s", async (publishedAt, expected) => {
+    const http: MokaHttpClient = async request => request.method === "GET"
+      ? evidenceResponse(htmlWithInitData({
+          aesIv, mode: "social", siteId: "98934", org: { id: "beigene", siteId: 98934 }
+        }), "entry")
+      : evidenceResponse(JSON.stringify(encryptedResponse({
+          success: true,
+          data: { jobStats: { total: 1 }, jobs: [{ id: "date-1", title: "医学专员", publishedAt,
+            locations: [{ cityName: "上海市", country: "中国" }] }] }
+        })), "api");
+    const result = await createMokaSourceFetch({ http, now: () => new Date(capturedAt) })(plan);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error(result.failureReason);
+    if (!("payload" in result)) throw new Error("Expected Moka JSON payload");
+    expect((result.payload as { data: { jobs: Array<{ officialPublishedAt?: string }> } }).data.jobs[0]!.officialPublishedAt).toBe(expected);
+  });
+
   it("filters Moka jobs by the configured China-calendar recent window and preserves the official date", async () => {
     const recentPlan: SourceCrawlPlan = {
       ...plan,

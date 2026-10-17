@@ -144,6 +144,19 @@ describe("Bayer medical native-scope B traversal", () => {
     await expect(captureBayerIndependentDetails({ dom: missing, http, now: () => new Date(NOW) })).rejects.toThrow();
     expect(requests).toHaveLength(requestCount);
   });
+  it.each(["2026-09-01T15:18", "2026-09-02T15:18"])("replays minute-only official timestamps in China time regardless of process TZ: %s", async publishedAt => {
+    const { result, plan } = await collect({ changeList: rows => rows[0].publishedAt = publishedAt,
+      changeDetails: rows => rows[0].publishedAt = publishedAt });
+    expect(result.truth.completenessVerified).toBe(true);
+    expect(result.jobs).toHaveLength(2);
+    expect(result.jobs[0]!.officialPublishedAt).toBe(`${publishedAt.slice(0, 10)}T07:18:00.000Z`);
+    expect(replayBayerMedicalTraversal(plan, result.fetchEvidence!, result.jobs)).toEqual({ excludedCount: 1 });
+  });
+  it.each(["2026-13-01T15:18", "2026-09-01T25:18", "2026-09-01T15:61", "not-a-date"])("fails closed on invalid minute timestamps: %s", async publishedAt => {
+    const { result } = await collect({ changeList: rows => rows[0].publishedAt = publishedAt,
+      changeDetails: rows => rows[0].publishedAt = publishedAt });
+    expect(result.truth.completenessVerified).toBe(false);
+  });
   it("preserves an old but explicitly open official posting without adding a date exclusion", async () => {
     const { result } = await collect({ changeList: rows => rows[0].publishedAt = "2020-01-01T09:00:00",
       changeDetails: rows => rows[0].publishedAt = "2020-01-01T09:00:00" });
