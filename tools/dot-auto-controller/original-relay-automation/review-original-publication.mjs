@@ -4,9 +4,11 @@ const [run,id,relay]=process.argv.slice(2),read=p=>JSON.parse(fs.readFileSync(p,
 fs.mkdirSync(run+'/relay',{recursive:true});fs.mkdirSync(run+'/review',{recursive:true});
 const request=read(relay+'/'+id+'.request.json');fs.copyFileSync(relay+'/'+id+'.request.json',run+'/relay/'+id+'.request.json');fs.writeFileSync(run+'/relay/'+id+'.request.json.sql',request.payload.sql,{flag:'wx'});
 const starts=fs.readFileSync(run+'/diagnostics/process.jsonl','utf8').trim().split('\n').map(JSON.parse).filter(x=>x.event==='WRAPPER_START');assert.equal(starts.length,1);
-process.chdir(V);const {reviewOriginalPortableSql}=await import(R+'/offline-checkers/original-portable-sql-review.mts');
-const packet=await reviewOriginalPortableSql(run,id,run+'/review/PACKET_REVIEW.json',{originalOuterDeadline:starts[0].outerDeadline});
+process.chdir(V);const source=request.payload.sourceId??JSON.parse(fs.readFileSync(path.dirname(run)+'/host-config.json','utf8')).sourceId;
+const special={'source-biogen-china-social':['biogen-packet-gate.mts','reviewBiogenPacket'],'source-hengrui-social':['hengrui-packet-gate.mts','reviewHengruiPacket']}[source];
+const [file,fn]=special??['original-portable-sql-review.mts','reviewOriginalPortableSql'];const review=(await import(R+'/offline-checkers/'+file))[fn];
+const packet=await review(run,id,run+'/review/PACKET_REVIEW.json',{originalOuterDeadline:starts[0].outerDeadline});
 const {replayOriginalPortableReaders}=await import(R+'/offline-checkers/original-portable-reader-replay.mts');
 await replayOriginalPortableReaders({run,outputDirectory:run+'/review',before:read(path.dirname(run)+'/READER_BEFORE.json'),packet});
-for(const script of ['replay-original-json-archive.mts','project-original-target-api.mts'])execFileSync(process.execPath,['--import',V+'/node_modules/tsx/dist/loader.mjs',R+'/offline-checkers/'+script,run],{stdio:['ignore','ignore','pipe'],timeout:120000});
+for(const script of [...(special?[]:['replay-original-json-archive.mts']),'project-original-target-api.mts'])execFileSync(process.execPath,['--import',V+'/node_modules/tsx/dist/loader.mjs',R+'/offline-checkers/'+script,run],{stdio:['ignore','ignore','pipe'],timeout:120000});
 console.log(JSON.stringify({requestId:id,requestSha256:request.requestSha256}));
