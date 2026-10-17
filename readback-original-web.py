@@ -7,6 +7,10 @@ query={'city':'全部城市','companyIds':sys.argv[2] if expected is None else e
 first=get('/api/search',query);headers['x-job-snapshot-check']=first['snapshotRefresh']['check']
 actual=get('/api/search',query);deadline=time.monotonic()+120
 while actual['snapshotRefresh']['state']=='UPDATING' and time.monotonic()<deadline:time.sleep(2);actual=get('/api/search',query)
+if actual['snapshotRefresh']['state']=='FAILED':
+ (run/'WEB_REFRESH_INITIAL_FAILURE.json').write_text(json.dumps({k:v for k,v in actual['snapshotRefresh'].items() if k!='check'}))
+ headers.pop('x-job-snapshot-check',None);first=get('/api/search',query);headers['x-job-snapshot-check']=first['snapshotRefresh']['check'];actual=get('/api/search',query)
+ while actual['snapshotRefresh']['state']=='UPDATING' and time.monotonic()<deadline:time.sleep(2);actual=get('/api/search',query)
 assert actual['snapshotRefresh']['state']=='CURRENT',actual['snapshotRefresh']['state']
 if expected is None:(run/'PUBLIC_BEFORE.json').write_text(json.dumps(actual,ensure_ascii=False));print(json.dumps({'baselineSaved':True}));sys.exit(0)
 assert actual['companies']==[expected['after']]

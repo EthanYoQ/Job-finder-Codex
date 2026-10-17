@@ -14,7 +14,13 @@ export async function reviewOriginalABCertificate(V:string,d:any,native:any,inde
   assert.equal(certificate.schemaVersion,'b-grade-independent-traversal-v2');
   assert.deepEqual(certificate.validationPolicy,{trigger:'INITIAL_QUALIFICATION',execution:'CURRENT_RUN'});
   assert.deepEqual(independentValidation,certificate.independentValidation,'CURRENT_UI_ORIGINAL_BINDING');
-  verifyBGradeTraversalCertificateReceipt({certificate,certificateSha256,expected,now});
+  const {canonicalStringSetSha256}=await import(V+'/src/crawler/sourceFetchEvidence.ts');
+  const canonicalRawEvidenceIdSetSha256=canonicalStringSetSha256(native.fetchEvidence.pages.flatMap((p:any)=>p.rawJobIds));
+  verifyBGradeTraversalCertificateReceipt({certificate,certificateSha256,expected:{...expected,
+   surfaceIds:d.terminal.officialSurfaceIds,channelIds:d.terminal.officialChannelIds,
+   canonicalJobSetSha256:d.terminal.canonicalOutputSetSha256,
+   adapterReconciliationSha256:d.terminal.adapterReconciliationSha256,
+   collisionLedgerSha256:d.terminal.collisionLedgerSha256,canonicalRawEvidenceIdSetSha256},now});
   issued=issueBGradeTraversalCertificate({...input,independentValidation,validationExecution:'CURRENT_RUN',trigger:'INITIAL_QUALIFICATION',now:new Date(certificate.issuedAt)});
  }else{
   assert.equal(certificate.schemaVersion,'a-grade-official-total-v2');
