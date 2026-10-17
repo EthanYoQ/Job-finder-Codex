@@ -43,7 +43,7 @@ finally:
 # A fixed, reviewed catalogue, never a JSON-selected path or executable. Node's
 # binding loader independently verifies the same bytes, closed keys and source.
 CATALOG = PRODUCER.parent.parent / 'config/native-catalog.json'
-CATALOG_SHA = '88a131892a7760df77c1c3310d61e1a2eccee14b1d21646c7915dee60b1d0973'
+CATALOG_SHA = 'adb1005c61597e75261462595cb2c74e7bc46cda2c03e16134b46a1d048df61a'
 for p in CATALOG.parents:
     st = p.lstat()
     if not stat.S_ISDIR(st.st_mode) or st.st_mode & 0o022 or st.st_uid not in [uid, 0]:
@@ -51,7 +51,7 @@ for p in CATALOG.parents:
 fd = os.open(CATALOG, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 try:
     before = os.fstat(fd)
-    if not stat.S_ISREG(before.st_mode) or before.st_uid != uid or before.st_nlink != 1 or stat.S_IMODE(before.st_mode) != 0o644 or before.st_size != 12311:
+    if not stat.S_ISREG(before.st_mode) or before.st_uid != uid or before.st_nlink != 1 or stat.S_IMODE(before.st_mode) != 0o644 or before.st_size != 12308:
         fail('HOST_CATALOG_FILE')
     data = os.read(fd, before.st_size + 1)
     if identity(before) != identity(os.fstat(fd)) or identity(before) != identity(CATALOG.lstat()) or hashlib.sha256(data).hexdigest() != CATALOG_SHA:

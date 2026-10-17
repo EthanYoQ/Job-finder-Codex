@@ -24,7 +24,7 @@ export const NATIVE_MODE='NATIVE_PORTABLE_CONNECTOR_V1';
 export const AB_MODE='NATIVE_AB_CONNECTOR_V1';
 export const entrypointsFor=c=>c.kind===AB_MODE?{...ENTRYPOINTS,producer:'scripts/p0-cloud-source-pilot.ts'}:ENTRYPOINTS;
 export const CATALOG_FILE=path.resolve(PRODUCER_ROOT,'../../config/native-catalog.json');
-export const CATALOG_SHA256='88a131892a7760df77c1c3310d61e1a2eccee14b1d21646c7915dee60b1d0973';
+export const CATALOG_SHA256='adb1005c61597e75261462595cb2c74e7bc46cda2c03e16134b46a1d048df61a';
 export const SOURCE='source-takeda-china-social';
 export const SOURCE_HASH='048f616f00b5ed016f075f4204a2ad749457d68a3f078a9e7bde0fae2186b61f';
 export const PROJECT='yiopvxysxrtrnvqxwgbx';
