@@ -29,3 +29,10 @@ assert.equal(remainingTime(req,[{outerDeadline:now+1000}],{parse:Date.parse,now:
 assert(remainingTime(req,[{outerDeadline:now-1}],{parse:Date.parse,now:()=>now})<0);
 assert(!review.includes('timeout:120000'));
 console.log('PASS: review uses earliest original deadline, without arbitrary 120-second sublimit');
+const outer=review.slice(review.indexOf(" const loader=V+"),review.indexOf("\n}else{"));
+const executeReviewSteps=new Function('V','R','run','id','relay','special','process','request','starts','Date','assert','execFileSync',outer);
+const calls=[];const invoke=exec=>executeReviewSteps('/v','/r','/run','req','/relay',false,{argv:['node','/review.mjs'],execPath:'/node'},req,[{outerDeadline:now+1800000}],{parse:Date.parse,now:()=>now},assert,exec);
+invoke((node,args,options)=>{assert.equal(node,'/node');assert.equal(options.timeout,1020000);calls.push(args);});
+assert.equal(calls.length,3);assert.equal(calls[0].at(-1),'packet-only');assert(calls[1].includes('/r/offline-checkers/replay-original-json-archive.mts'));assert(calls[2].includes('/r/offline-checkers/project-original-target-api.mts'));
+let attempted=0;assert.throws(()=>invoke(()=>{attempted++;throw Error('packet failed');}),/packet failed/);assert.equal(attempted,1);
+console.log('PASS: packet process completes before raw and target; packet failure stops later steps');
