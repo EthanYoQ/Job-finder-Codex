@@ -65,7 +65,7 @@ if(op?.startsWith('connector-')){
    const {CLOUD_PILOT_SOURCE,compileCloudPilotPublicationContextSql}=await import(pathToFileURL(PRODUCER_ROOT+'/src/db/cloudPilotSqlControl.ts').href);
    const {SOURCE_QUALITY_POLICY_ID}=await import(pathToFileURL(PRODUCER_ROOT+'/src/crawler/sourceQualityAdmission.ts').href);
    if(CLOUD_PILOT_SOURCE.id!==cfg.sourceId||CLOUD_PILOT_SOURCE.sourceConfigSha256!==cfg.sourceConfigSha256||CLOUD_PILOT_SOURCE.ownerId!==cfg.ownerId)throw Error('HOST_SOURCE_MODULE_DRIFT');
-   const sql=compileCloudPilotPublicationContextSql(cfg.control,SOURCE_QUALITY_POLICY_ID);
+   const sql=compileCloudPilotPublicationContextSql(cfg.control,cfg.kind==='NATIVE_AB_CONNECTOR_V1'?undefined:SOURCE_QUALITY_POLICY_ID);
    if(r.kind==='READ_PUBLICATION_CONTEXT'&&sql!==r.payload.sql)throw Error('HOST_CONTEXT_SQL_BINDING');
    console.log(JSON.stringify({sql,sha256:sha(sql),requestId:r.requestId,requestSha256:r.requestSha256,candidateId:cfg.control.candidate.id,buildContentSha256:cfg.control.build.contentSha256}));
   }else if(op==='connector-publish'){

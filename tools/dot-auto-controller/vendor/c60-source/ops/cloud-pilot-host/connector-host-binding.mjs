@@ -21,6 +21,8 @@ export const RELAY_ROOT=path.join(TASK_ROOT,'relay');
 export const SELECTOR='JOBFINDER_CONNECTOR_HOST_SHA256';
 export const MODE='TAKEDA_PORTABLE_CONNECTOR_V1';
 export const NATIVE_MODE='NATIVE_PORTABLE_CONNECTOR_V1';
+export const AB_MODE='NATIVE_AB_CONNECTOR_V1';
+export const entrypointsFor=c=>c.kind===AB_MODE?{...ENTRYPOINTS,producer:'scripts/p0-cloud-source-pilot.ts'}:ENTRYPOINTS;
 export const CATALOG_FILE=path.resolve(PRODUCER_ROOT,'../../config/native-catalog.json');
 export const CATALOG_SHA256='3457b2f2e6aa2c8086ddc4aba39a5303c8f827e398adc3e822b5e58d8ab37503';
 export const SOURCE='source-takeda-china-social';
@@ -64,12 +66,16 @@ function json(bytes){
 const freeze=o=>{if(o&&typeof o==='object'){Object.values(o).forEach(freeze);Object.freeze(o);}return o;};
 // The producer build hashes this reviewed constant; the outer catalogue must match
 // these exact bytes. A mutable outer catalogue cannot widen the source allowlist.
-export function portableCatalogue(){
+export function nativeCatalogue(){
  const r=readChecked(CATALOG_FILE,{mode:0o644,max:12274});
  if(r.bytes.length!==12274||hash(r.bytes)!==CATALOG_SHA256)fail('HOST_CATALOG_DRIFT');
  const rows=json(r.bytes).routingCatalogue;
  if(!Array.isArray(rows)||rows.length!==36||new Set(rows.map(r=>r.sourceId)).size!==36||rows.filter(r=>r.route==='PORTABLE').length!==20||rows.filter(r=>r.route==='TRUE_A').length!==13||rows.filter(r=>r.route==='TRUE_B').length!==3)fail('HOST_CATALOG_SCOPE');
- return freeze(rows.filter(r=>r.route==='PORTABLE'));
+ return freeze(rows);
+}
+export function portableCatalogue(){return nativeCatalogue().filter(r=>r.route==='PORTABLE');}
+export const isSupportedABRoute=r=>r.route==='TRUE_A'&&r.sourceId!=='source-johnson-innovative-medicine-social'||r.route==='TRUE_B'&&r.sourceId==='source-pfizer-china-social';
+export function abCatalogue(){return nativeCatalogue().filter(isSupportedABRoute);
 }
 let captured,snapshot,fileIdentity;
 export function loadBinding(){
@@ -78,8 +84,8 @@ export function loadBinding(){
  const r=readChecked(path.join(BINDING_ROOT,selector+'.json'),{mode:0o400,max:1024*1024});if(hash(r.bytes)!==selector)fail('HOST_CONFIG_HASH');
  const portable=portableCatalogue();
  if(snapshot){if(r.identity!==fileIdentity)fail('HOST_CONFIG_CHANGED');if(process.env.JOBFINDER_CLOUD_SOURCE_ID!==snapshot.sourceId)fail('HOST_SOURCE_ENV');return snapshot;}
- const c=json(r.bytes);
- if(!keys(c,['schemaVersion','kind','enabled','projectId','sourceId','sourceConfigSha256','route','publicationMode','ownerId','control','lockSha256','entrypointHashes'])||c.schemaVersion!==1||![MODE,NATIVE_MODE].includes(c.kind)||c.enabled!==true||c.projectId!==PROJECT||!portable.some(r=>r.sourceId===c.sourceId&&r.sourceConfigSha256===c.sourceConfigSha256)||c.kind===MODE&&(c.sourceId!==SOURCE||c.sourceConfigSha256!==SOURCE_HASH)||c.route!=='PORTABLE'||c.publicationMode!=='DB_STARTED_JOB_PROJECTION_DELTA_V1'||c.ownerId!==`dot-cloud-${c.sourceId.slice(7)}-pilot`)fail('HOST_CONFIG_SCOPE');
+ const c=json(r.bytes),ab=c.kind===AB_MODE,allowed=ab?abCatalogue():portable;
+ if(!keys(c,['schemaVersion','kind','enabled','projectId','sourceId','sourceConfigSha256','route','publicationMode','ownerId','control','lockSha256','entrypointHashes'])||c.schemaVersion!==1||![MODE,NATIVE_MODE,AB_MODE].includes(c.kind)||c.enabled!==true||c.projectId!==PROJECT||!allowed.some(r=>r.sourceId===c.sourceId&&r.sourceConfigSha256===c.sourceConfigSha256&&r.route===c.route)||c.kind===MODE&&(c.sourceId!==SOURCE||c.sourceConfigSha256!==SOURCE_HASH)||!ab&&c.route!=='PORTABLE'||c.publicationMode!=='DB_STARTED_JOB_PROJECTION_DELTA_V1'||c.ownerId!==`dot-cloud-${c.sourceId.slice(7)}-pilot`)fail('HOST_CONFIG_SCOPE');
  const control=c.control,b=control?.build,ca=control?.candidate,db=control?.databaseIdentity;
  if(!keys(control,['projectId','build','candidate','databaseIdentity'])||control.projectId!==PROJECT||!keys(b,['schemaVersion','commitSha','sourceTreeSha256','runtimeTreeSha256','contentSha256'])||b.schemaVersion!==2||!/^[a-f0-9]{40}$/.test(b.commitSha??'')||['sourceTreeSha256','runtimeTreeSha256','contentSha256'].some(k=>!sha.test(b[k]??''))||b.contentSha256!==hash(JSON.stringify({schemaVersion:2,commitSha:b.commitSha,sourceTreeSha256:b.sourceTreeSha256,runtimeTreeSha256:b.runtimeTreeSha256})))fail('HOST_CONFIG_BUILD');
  if(!keys(ca,['id','goalId','version'])||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(ca.id??'')||ca.goalId!=='jobfinder-portable-required-40'||!Number.isSafeInteger(ca.version)||ca.version<=49||ca.version>2147483647)fail('HOST_CONFIG_CANDIDATE');
@@ -96,23 +102,28 @@ export function relayDirectory(dir){if(dir!==RELAY_ROOT)fail('RELAY_DIRECTORY_OU
 export async function verifyBinding(){
  const c=loadBinding();
  // Catalogue routing support does not waive known missing source-specific fixes.
- const row=portableCatalogue().find(r=>r.sourceId===c.sourceId);
- if(row?.c60Use!=='NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE')fail('HOST_SOURCE_FIX_REQUIRED');
+ const row=nativeCatalogue().find(r=>r.sourceId===c.sourceId);
+ if(c.kind!==AB_MODE&&row?.c60Use!=='NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE')fail('HOST_SOURCE_FIX_REQUIRED');
  if(process.env.JOBFINDER_CLOUD_SOURCE_ID!==c.sourceId)fail('HOST_SOURCE_ENV');
  if(execFileSync('git',['status','--porcelain'],{cwd:PRODUCER_ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim())fail('HOST_RUNTIME_DIRTY');
  verifyRuntimeBeforeImport(PRODUCER_ROOT,c.control.build,c.lockSha256);
- for(const [name,p] of Object.entries(ENTRYPOINTS)){const file=path.join(PRODUCER_ROOT,p);directories(file);const s=fs.lstatSync(file);if(!s.isFile()||s.isSymbolicLink()||s.nlink!==1||hash(fs.readFileSync(file))!==c.entrypointHashes[name])fail('HOST_ENTRYPOINT_DRIFT');}
+ for(const [name,p] of Object.entries(entrypointsFor(c))){const file=path.join(PRODUCER_ROOT,p);directories(file);const s=fs.lstatSync(file);if(!s.isFile()||s.isSymbolicLink()||s.nlink!==1||hash(fs.readFileSync(file))!==c.entrypointHashes[name])fail('HOST_ENTRYPOINT_DRIFT');}
  // Load original modules only after exact Node, clean Git, dependency and byte checks.
  const module=p=>import(pathToFileURL(path.join(PRODUCER_ROOT,p)).href);
  const {register}=await module('node_modules/tsx/dist/esm/api/index.mjs');register({tsconfig:PRODUCER_ROOT+'/tsconfig.json'});
  const {CLOUD_PILOT_SOURCE}=await module('src/db/cloudPilotSqlControl.ts');
- const {PORTABLE_REFRESH_SOURCE_IDS,assertPortableRefreshPlan}=await module(ENTRYPOINTS.producer);
+ const producer=await module(entrypointsFor(c).producer);
  const {deriveCurrentStagedScheduleExpectation}=await module('src/crawler/stagedScheduleAuthority.ts');
  const {sourcePlanConfigSha256}=await module('src/crawler/sourcePlan.ts');
  const rows=portableCatalogue(),ids=rows.map(r=>r.sourceId).sort();
- if(!same([...PORTABLE_REFRESH_SOURCE_IDS].sort(),ids))fail('HOST_PRODUCER_ALLOWLIST_DRIFT');
+ if(c.kind!==AB_MODE&&!same([...producer.PORTABLE_REFRESH_SOURCE_IDS].sort(),ids))fail('HOST_PRODUCER_ALLOWLIST_DRIFT');
  const plans=deriveCurrentStagedScheduleExpectation(c.control.build).plans,plan=plans.find(p=>p.source.id===c.sourceId);
  if(plans.length!==41||!plan||sourcePlanConfigSha256(plan)!==c.sourceConfigSha256||CLOUD_PILOT_SOURCE.id!==c.sourceId||CLOUD_PILOT_SOURCE.sourceConfigSha256!==c.sourceConfigSha256||CLOUD_PILOT_SOURCE.ownerId!==c.ownerId)fail('HOST_SOURCE_MODULE_DRIFT');
- assertPortableRefreshPlan(plan);
+ if(c.kind===AB_MODE){
+  const currentFix=(c.sourceId==='source-amgen-china-social'&&plan.profileBoundSource?.kind==='amgen-manual-workday-lookup')||(c.sourceId==='source-gsk-china-social'&&plan.moka?.requisitionStatusPolicy==='GSK_NATIVE_OPEN_REQUISITIONS_V1');
+  if(row?.c60Use!=='NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE'&&!currentFix)fail('HOST_SOURCE_FIX_REQUIRED');
+  const {requiresBGradeTraversalCertificate}=await module('src/crawler/traversalCertificate.ts');
+  if(requiresBGradeTraversalCertificate(plan)!==(c.route==='TRUE_B'))fail('HOST_SOURCE_GRADE');
+ }else producer.assertPortableRefreshPlan(plan);
  return c;
 }
