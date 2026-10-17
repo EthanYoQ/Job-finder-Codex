@@ -11,6 +11,8 @@ async function runOriginalSerial(sources, prepareSource) {
   } catch (error) {
    results.push({sourceId, status: 'HELD', reason: String(error)});
   }
+  if(typeof notify==='function')notify({sourceId,status:results.at(-1).status,reason:results.at(-1).reason});
+  if (['UNKNOWN_PUBLICATION','EXPIRED_OR_UNKNOWN_DISPATCH'].includes(results.at(-1).reason)) break;
  }
  return results;
 }
@@ -22,7 +24,7 @@ async function serviceOriginalRelay(job) {
   throw Error('SOURCE_SCOPE_MISMATCH');
  if (!Number.isFinite(deadline) || deadline <= Date.now()) throw Error('SOURCE_DEADLINE');
  const handled = new Set();
- let publication, outcomeSeen = false;
+ let publication, publicationRequestId, outcomeSeen = false;
  while (Date.now() < deadline) {
   const request = await h.next(relayDirectory);
   if (request) {
@@ -41,27 +43,29 @@ async function serviceOriginalRelay(job) {
     catch (error) {
      // Original relay outcome: this request has not reached sqlDispatch. Let the producer reconcile and exit.
      await h.respond(request, relayDirectory, {status:'FAILED', outcome:'NOT_DISPATCHED', code:'ORIGINAL_REVIEW_FAILED'});
-     publication={status:'FAILED',outcome:'NOT_DISPATCHED',reviewFailure:String(error)};
+     publication={status:'FAILED',outcome:'NOT_DISPATCHED',reviewFailure:String(error).slice(0,1800)};
      continue;
     }
     if (reviewed?.requestId !== request.requestId || reviewed?.requestSha256 !== request.requestSha256)
      throw Error('REVIEW_REQUEST_MISMATCH');
     if (Date.now() >= Date.parse(request.payload.dispatchBefore) || Date.now() >= Date.parse(request.expiresAt))
      return {status: 'HELD', reason: 'PUBLICATION_EXPIRED', requestId: request.requestId};
+    publicationRequestId = request.requestId;
     publication = await h.sqlDispatch(request, relayDirectory, request.payload.sql);
-    if (publication?.outcome === 'UNKNOWN') return {status: 'HELD', reason: 'UNKNOWN_PUBLICATION', requestId: request.requestId};
+    // UNKNOWN is never replayed; keep serving the original read-only outcome request.
    }
    if (request.kind === 'READ_OUTCOME') outcomeSeen = true;
   }
   // Poll the original process handle; no second launcher, PID discovery or supervisor.
   const producer = await pollProducer();
   if (producer.exitCode !== null) {
-   if (producer.exitCode !== 0 || publication?.status !== 'SUCCEEDED' || !outcomeSeen)
+   if (publication?.outcome === 'UNKNOWN' && !(outcomeSeen && producer.exitCode===0 && producer.outcomeState==='COMMITTED_EXACT')) return {status:'HELD',reason:'UNKNOWN_PUBLICATION',requestId:publicationRequestId,outcomeSeen,exitCode:producer.exitCode};
+   if (producer.exitCode !== 0 || (publication?.status !== 'SUCCEEDED' && producer.outcomeState!=='COMMITTED_EXACT') || !outcomeSeen)
     return {status: 'HELD', reason: 'PRODUCER_OR_OUTCOME_INCOMPLETE', exitCode: producer.exitCode, diagnostic:publication?.reviewFailure??producer.diagnostic};
    return await readback();
   }
   if (!request) await new Promise(resolve => setTimeout(resolve, 1000));
  }
- return {status: 'HELD', reason: 'SOURCE_DEADLINE'};
+ return {status: 'HELD', reason: publication?.outcome === 'UNKNOWN' ? 'UNKNOWN_PUBLICATION' : 'SOURCE_DEADLINE', requestId:publicationRequestId, outcomeSeen};
 }
 return {runOriginalSerial, serviceOriginalRelay};

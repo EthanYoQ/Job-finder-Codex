@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-17T07:32:00Z",
+  "checkedAt": "2026-10-17T08:17:45Z",
   "entry": "run-original-functions.js",
   "routeCount": 36,
   "connectedSourceCount": 31,
@@ -18,14 +18,20 @@
     "modelDirectedIntermediateSteps": 0,
     "externalApprovalDuringRun": "OBSERVED_TOOL_MAPPING_UNCONFIRMED"
   },
-  "latestCandidate": 83,
+  "latestCandidate": 84,
   "latestAttempt": {
-    "sourceId": "source-amgen-china-social",
-    "batchId": "dot-auto-amgen-20261017T073229420Z",
-    "phase": "CHECK_SOURCE_RESULT",
-    "reason": "AMGEN_MANUAL_WORKDAY_INVALID",
-    "newDatabaseCommit": false,
-    "newWebPublication": false
+    "sourceId": "source-cr-pharma-social",
+    "batchId": "dot-auto-cr-pharma-20261017T081508707Z",
+    "databaseOutcome": "COMMITTED_EXACT",
+    "webOutcome": "WEB_VERIFIED",
+    "currentJobs": 25,
+    "graceJobs": 5,
+    "visibleJobs": 30,
+    "newJobs": 0,
+    "changedExistingJobs": 9,
+    "crawledAt": "2026-10-17T08:15:38.943Z",
+    "webVerifiedAt": "2026-10-17T08:16:46.033Z",
+    "modelDirectedIntermediateSteps": 0
   },
   "scheduledEndToEndValidated": false,
   "full36Validated": false,
@@ -37,9 +43,26 @@
   "configuredPortable": 20,
   "configuredOrdinaryA": 11,
   "actualLauncherPreflight": {
-    "candidate": 83,
+    "candidate": 84,
     "mode": "NATIVE_AB_CONNECTOR_V1",
-    "sourceId": "source-amgen-china-social",
+    "sourceIds": [
+      "source-csl-china-social",
+      "source-lilly-china-social",
+      "source-cr-pharma-social"
+    ],
     "status": "PASS"
+  },
+  "unknownDispatchHandling": "ORIGINAL_READ_OUTCOME_AND_PRODUCER_COMMITTED_EXACT; UNRESOLVED_STOPS_SERIAL_WRITES",
+  "capacityGuard": "REAL_DISK_FREE_RESERVE_ONLY",
+  "connectorOnlySimplification": {
+    "removedLines": 56,
+    "removedBytes": 6058,
+    "differentialCasesPassed": 192,
+    "removedUnusedBranches": [
+      "legacy CREATE_PENDING",
+      "legacy ARCHIVE_STORE",
+      "legacy Library upload"
+    ],
+    "actualProductionRunAfterChange": "CR_PHARMA_A_COMMITTED_EXACT_AND_WEB_VERIFIED"
   }
 }

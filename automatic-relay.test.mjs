@@ -11,7 +11,8 @@ function fixture({unknown=false, expired=false, reviewFails=false}={}) {
 }
 const ok=fixture();assert.equal((await serviceOriginalRelay(ok.job)).status,'WEB_VERIFIED');
 assert.deepEqual(ok.calls,['READ_CONTEXT','PUBLISH','review','dispatch','READ_OUTCOME','readback']);
-const unknown=fixture({unknown:true});assert.equal((await serviceOriginalRelay(unknown.job)).reason,'UNKNOWN_PUBLICATION');assert.equal(unknown.calls.filter(x=>x==='dispatch').length,1);assert(!unknown.calls.includes('readback'));
+const unknown=fixture({unknown:true});assert.equal((await serviceOriginalRelay(unknown.job)).reason,'UNKNOWN_PUBLICATION');assert.equal(unknown.calls.filter(x=>x==='dispatch').length,1);assert(!unknown.calls.includes('readback'));assert(unknown.calls.includes('READ_OUTCOME'));
+const stopped=fixture({unknown:true});stopped.job.pollProducer=async()=>({exitCode:stopped.calls.includes('dispatch')?99:null});const stoppedResult=await serviceOriginalRelay(stopped.job);assert.equal(stoppedResult.reason,'UNKNOWN_PUBLICATION');assert.equal(stoppedResult.outcomeSeen,false);assert.equal(stopped.calls.filter(x=>x==='dispatch').length,1);
 const stale=fixture({expired:true});assert.equal((await serviceOriginalRelay(stale.job)).reason,'EXPIRED_OR_UNKNOWN_DISPATCH');assert(!stale.calls.includes('dispatch'));
 const bad=fixture({reviewFails:true}), next=fixture();const result=await runOriginalSerial(['bad','recent','next'],async id=>id==='bad'?bad.job:id==='recent'?{skip:'REAL_OBSERVATION_WITHIN_12H'}:next.job);
 assert.deepEqual(result.map(r=>r.status),['HELD','SKIPPED','WEB_VERIFIED']);assert(!bad.calls.includes('dispatch'));assert(bad.calls.includes('reject:NOT_DISPATCHED'));assert(bad.calls.includes('READ_OUTCOME'));assert.match(result[0].diagnostic,/raw mismatch/);
@@ -24,3 +25,11 @@ console.log('PASS: 36 original routes, 20 portable and 11 original A configurati
 
 assert(entry.includes("mode:config.mode"));assert(entry.includes("config.route==='PORTABLE'?'p0-cloud-portable-source-pilot.ts':'p0-cloud-source-pilot.ts'"));
 const prepare=readFileSync(new URL('./prepare-original-source.py',import.meta.url),'utf8');assert(prepare.includes("kind=mode,route=row['route']"));assert(prepare.includes("'mode':mode,'route':row['route']"));
+
+assert(prepare.includes("'source-csl-china-social':'dot-cloud-csl-pilot'"));assert(prepare.includes("'source-lilly-china-social':'dot-cloud-lilly-pilot'"));
+
+const unresolved=fixture({unknown:true});let preparedCount=0;const heldSequence=await runOriginalSerial(['unknown','next'],async()=>{preparedCount++;return unresolved.job;});assert.equal(preparedCount,1);assert.equal(heldSequence[0].reason,'UNKNOWN_PUBLICATION');
+
+assert(entry.includes("replaceAll('__ORIGINAL_CERTIFICATE_SCHEMA__'"));assert(entry.includes("replaceAll('__ORIGINAL_REQUIRES_PORTABLE_POLICY__'"));
+
+const recovered=fixture({unknown:true});const originalPoll=recovered.job.pollProducer;recovered.job.pollProducer=async()=>({...await originalPoll(),outcomeState:'COMMITTED_EXACT'});assert.equal((await serviceOriginalRelay(recovered.job)).status,'WEB_VERIFIED');assert.equal(recovered.calls.filter(x=>x==='dispatch').length,1);assert(recovered.calls.includes('READ_OUTCOME'));

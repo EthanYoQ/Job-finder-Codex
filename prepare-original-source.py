@@ -9,7 +9,7 @@ assert binding['projectId']=='yiopvxysxrtrnvqxwgbx' and binding['route']=='PORTA
 mode='NATIVE_PORTABLE_CONNECTOR_V1' if row['route']=='PORTABLE' else 'NATIVE_AB_CONNECTOR_V1'
 if row['route']=='TRUE_A':
  binding['entrypointHashes']['producer']=hashlib.sha256((B/'five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/scripts/p0-cloud-source-pilot.ts').read_bytes()).hexdigest()
-binding.update(kind=mode,route=row['route'],sourceId=source,sourceConfigSha256=row['sourceConfigSha256'],ownerId='dot-cloud-'+source[7:]+'-pilot')
+binding.update(kind=mode,route=row['route'],sourceId=source,sourceConfigSha256=row['sourceConfigSha256'],ownerId={'source-csl-china-social':'dot-cloud-csl-pilot','source-lilly-china-social':'dot-cloud-lilly-pilot'}.get(source,'dot-cloud-'+source[7:]+'-pilot'))
 data=json.dumps(binding,separators=(',',':')).encode(); digest=hashlib.sha256(data).hexdigest(); target=B/'connector-host-bindings'/f'{digest}.json'
 if target.exists(): assert target.read_bytes()==data
 else:
