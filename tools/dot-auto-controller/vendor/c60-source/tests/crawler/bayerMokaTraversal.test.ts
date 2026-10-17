@@ -72,8 +72,13 @@ describe("Bayer medical native-scope B traversal", () => {
     expect(result.jobs).toHaveLength(2);
     expect(result.jobs[0]).toMatchObject({ cities: ["北京"], officialPublishedAt: "2026-09-01T01:00:00.000Z" });
   });
-  it.each(["BeiJing", "NanTong", "ChengDu"])("binds independent UI raw, paused and final sets into the existing B v2 certificate using %s", async city => {
-    const { result, plan, rows, details } = await collect({ changeDetails: details => details.forEach(d => d.customFields["289157"].value = city) });
+  it.each(["BeiJing", "NanTong", "ChengDu", "ChongQing", "ShangHai"])("binds independent UI raw, paused and final sets into the existing B v2 certificate using %s", async city => {
+    const { result, plan, rows, details } = await collect({ changeDetails: details => details.forEach(d => {
+      d.customFields["289157"].value = city;
+      if (city === "ChongQing") d.locations = [{ country: "中国", countryDescription: "中国", provinceName: "重庆市", cityName: "开州区", cityId: 500154 }];
+      if (city === "ShangHai") d.locations = [{ country: "中国", countryDescription: "中国", provinceName: "上海市", cityName: "浦东新区", cityId: 310115 }];
+    }) });
+    if (city === "ChongQing" || city === "ShangHai") expect(result.jobs.every(j => j.cities.join() === (city === "ChongQing" ? "开州区" : "浦东新区"))).toBe(true);
     const entryBody = `<input id="init-data" value='${JSON.stringify({ aesIv: IV, mode: "social", siteId: "148387", org: { id: "bayer" } })}'>`;
     const receipt = (url: string, body: string, requestBody?: unknown) => ({ method: requestBody ? "POST" : "GET", url,
       ...(requestBody ? { requestBody } : {}), finalUrl: url, status: 200, body, capturedAt: NOW,
@@ -153,6 +158,17 @@ describe("Bayer medical native-scope B traversal", () => {
   });
   it.each(["Unknown", "STIT", "Taizhou", "Changshu", "Beijing / Chengdu", ""])("rejects unreviewed or non-city fallback %s", async city => {
     const { result } = await collect({ changeDetails: details => details[0].customFields["289157"].value = city });
+    expect(result.truth.completenessVerified).toBe(false);
+  });
+  it.each(["country", "description", "province", "cityId"])("rejects conflicting district %s evidence", async kind => {
+    const { result } = await collect({ changeDetails: details => {
+      const location: Record<string, unknown> = { country: "中国", countryDescription: "中国", provinceName: "重庆市", cityName: "开州区", cityId: 500154 };
+      if (kind === "country") location.country = "Germany";
+      if (kind === "description") location.countryDescription = "德国";
+      if (kind === "province") location.provinceName = "上海市";
+      if (kind === "cityId") location.cityId = 500155;
+      details[0].locations = [location];
+    } });
     expect(result.truth.completenessVerified).toBe(false);
   });
   it.each(["total", "request", "rawId", "lossIndex", "lossCode", "artifact", "title", "location", "date"])("rejects tampered %s evidence or output", async kind => {
