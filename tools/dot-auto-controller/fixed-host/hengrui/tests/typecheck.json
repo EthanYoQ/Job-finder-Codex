@@ -1,1 +1,0 @@
-{"extends":"../../../connector-gate/hengrui.tsconfig.json","include":["../test-sidecar-producer.mts","../build-full-composition-fixture.mts"]}

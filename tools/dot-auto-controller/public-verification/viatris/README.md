@@ -18,7 +18,7 @@ Viatris does not use Phenom IDs, URL-derived IDs, the preceding source's E6 coor
 
 ## Receipt authority and public observation
 
-The seven-field expected interface is unchanged. The fixed host must first verify the committed READ_OUTCOME row's original receipt hash, receipt tuple, observedAt, VISIBLE membership and every full `job-persisted-projection-v1` hash. It also checks each projection's source and company. No replacement receipt protocol or summary hash is introduced. `test/receipt-adapter.test.mjs` executes only that actual host adapter against synthetic data and checks rejection before any UI creation on binding/hash failures.
+The seven-field expected interface is unchanged. The publishing caller must first verify the committed READ_OUTCOME row's original receipt hash, receipt tuple, observedAt, VISIBLE membership and every full `job-persisted-projection-v1` hash. It also checks each projection's source and company. No replacement receipt protocol or summary hash is introduced. The retired fixed-host adapter and its installation-specific test remain available in Git history.
 
 Only after that admission, `createCuaBrowserPort({enabled:true,expected,toolCall})` validates expected data, copies and freezes it, and builds an unambiguous exact public href → original raw positionId map. The machine checks that its expected batch/source/company/time/evidence hash/jobs/removals match that frozen admission. Mutating caller data cannot retarget the map. The public verifier cannot itself establish receipt authenticity; direct synthetic invocation is not publication evidence.
 
