@@ -139,7 +139,9 @@ export function sanofiChineseLocation(raw:string):{locationRaw:string;cities:str
     if(["中国","中国大陆","全国"].includes(part))return CITY_PENDING;
     const tokens=part.split("-").map(clean);if(tokens[0]==="中国")tokens.shift();requireValue(tokens.length>0&&tokens.length<=2,"SANOFI_CN_GEOGRAPHY_UNKNOWN");
     const city=tokens.at(-1)!,province=tokens.length===2?tokens[0]:undefined;
-    requireValue(isHengruiMainlandLocation({country:"中国",cityName:city,...(province?{provinceName:province}:{})}),"SANOFI_CN_GEOGRAPHY_UNKNOWN");
+    const location={country:"中国",cityName:city,...(province?{provinceName:province}:{})};
+    // Native labels may append 州 to an existing shared prefecture name; keep province validation and the original label.
+    requireValue(isHengruiMainlandLocation(location)||city.endsWith("州")&&isHengruiMainlandLocation({...location,cityName:city.slice(0,-1)}),"SANOFI_CN_GEOGRAPHY_UNKNOWN");
     return city.replace(/市$/u,"");
   });return {locationRaw,cities:[...new Set(cities)]};
 }

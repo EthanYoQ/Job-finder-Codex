@@ -201,6 +201,13 @@ describe("Sanofi Chinese-only native source contract",()=>{
     const rows=applyCrawlObservation([prior],[record],{observedAt:LATER,baselineCompletedBeforeCrawl:true,observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true}});
     expect(rows).toHaveLength(1);expect(rows[0]).toMatchObject({firstSeenAt:prior.firstSeenAt,lastSeenAt:LATER,dedupeKey:key,isNew:false});expect(prior.lastSeenAt).toBe("2026-10-03T04:47:14.374Z");
   });
+  it.each(["贵州省-黔南州","贵州省-黔东南州","贵州省-黔西南州","青海省-海南州","广东省-广州市","江苏省-苏州"])("accepts reviewed same-province native label %s without losing its raw spelling",raw=>{
+    const city=raw.split("-").at(-1)!.replace(/市$/u,"");
+    expect(sanofiChineseLocation(raw)).toEqual({locationRaw:raw,cities:[city]});
+  });
+  it.each(["广东省-黔南州","贵州省-神秘州","贵州省-黔南州州","香港-九龙州","台湾-台北州","日本-东京州"])("rejects unknown or conflicting native label %s",raw=>{
+    expect(()=>sanofiChineseLocation(raw)).toThrow("SANOFI_CN_GEOGRAPHY_UNKNOWN");
+  });
   it("does not infer mainland scope from an unfamiliar Chinese locality",()=>{expect(()=>sanofiChineseLocation("神秘市")).toThrow();expect(sanofiChineseLocation("中国")).toEqual({locationRaw:"中国",cities:["城市待核"]});});
   it("admits a Chinese B atomic bundle and rejects one missing, changed or extra persisted loss in both SQL routes",async()=>{
     const {p,result,http}=await collect(),batchId="synthetic-sanofi-cn-atomic",sourceIds=[p.source.id];
