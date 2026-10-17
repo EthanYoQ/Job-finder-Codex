@@ -1,6 +1,6 @@
 // Functions runtime only. Existing source preparation owns fresh controls, locks and 12h dedup.
 // shortcut: source launch/review/readback use existing callbacks; no standalone connector daemon.
-async function runOriginalSerial(sources, prepareSource) {
+async function runOriginalSerial(sources, prepareSource, afterSource) {
  const results = [];
  for (const sourceId of sources) {
   let job;
@@ -13,6 +13,11 @@ async function runOriginalSerial(sources, prepareSource) {
   }
   if(typeof notify==='function')notify({sourceId,status:results.at(-1).status,reason:results.at(-1).reason});
   if (results.at(-1).producerStateUnconfirmed || ['UNKNOWN_PUBLICATION','EXPIRED_OR_UNKNOWN_DISPATCH','SOURCE_DEADLINE','PUBLICATION_EXPIRED'].includes(results.at(-1).reason)) break;
+  if(afterSource && job){
+   try { results.at(-1).jobVerification=await afterSource(sourceId,results.at(-1),job); }
+   catch(error){results.at(-1).jobVerification={status:'HELD',reason:String(error)};break;}
+   if(results.at(-1).jobVerification?.outcome==='UNKNOWN')break;
+  }
  }
  return results;
 }

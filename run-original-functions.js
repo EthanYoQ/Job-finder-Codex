@@ -80,4 +80,9 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
   reviewPublication:async (request,prepared,publicationContextRequestId)=>{const reviewed=JSON.parse((await command('JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+' '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(D+'/review-original-publication.mjs')+' '+q(run)+' '+q(request.requestId)+' '+q(relay)+' '+q(publicationContextRequestId??'')+' > '+q(run+'/review-command.log')+' 2>&1; code=$?; printf \"%s\\n\" \"$code\" > '+q(run+'/review-command.exit')+'; cat '+q(run+'/review-command.log')+'; exit \"$code\"')).trim().split('\n').at(-1));
    const [recent]=await sql(`SELECT EXISTS(SELECT 1 FROM public."CrawlObservation" o JOIN public."CrawlBatchSourceResult" r ON r.id=o."sourceResultId" JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE o."sourceId"='${sourceId}' AND o.successful AND r."atomicCommitState"='COMMITTED' AND b.status::text='SUCCESS' AND o."crawledAt">clock_timestamp()-interval '12 hours') AS fresh;`);if(recent.fresh)throw Error('NEW_SUCCESS_BEFORE_DISPATCH');return reviewed;},
   readback:async()=>JSON.parse(await command('python3 '+q(D+'/readback-original-web.py')+' '+q(run)))};
+},async sourceId=>{
+ if(sourceId!=='source-novo-nordisk-china-social')return undefined;
+ const {verifyNovoPublishedJobs}=await new A(await read(D+'/novo-job-verification-functions.js'))();
+ return verifyNovoPublishedJobs({command,read,save,q,N,V,P,D,R,rows,
+  official:query=>tools.mcp__codex_apps__supabase_execute_sql({project_id:'yiopvxysxrtrnvqxwgbx',query})});
 });
