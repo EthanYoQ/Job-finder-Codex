@@ -56,3 +56,34 @@ const failedContext=fixture(), originalHandle=failedContext.job.stage.handle;
 failedContext.job.stage.handle=async request=>{const prepared=await originalHandle(request);return request.kind==='READ_PUBLICATION_CONTEXT'?{status:'FAILED'}:prepared;};
 assert.equal((await serviceOriginalRelay(failedContext.job)).status,'HELD');assert(!failedContext.calls.includes('dispatch'));assert(failedContext.calls.includes('reject:NOT_DISPATCHED'));
 console.log('PASS: only the same job successful publication-context request is passed to review; missing/failed read cannot dispatch');
+
+// Exercise the actual launcher catch, not an invented pre-launch error classification.
+const launchStart=entry.indexOf(' let started;'),launchEnd=entry.indexOf('\n let process=started;',launchStart);assert(launchStart>=0&&launchEnd>launchStart);
+const launch=new AsyncFunction('tools','q','sourceId','R','N','V','run','digest','config','S','relay',entry.slice(launchStart,launchEnd)+';return started;');
+for(const phase of ['launch-response-lost','prepublish-session-lost']){
+ let secondPrepareCount=0;
+ const lost=fixture();lost.job.pollProducer=async()=>{throw Error('original producer session unavailable');};
+ const result=await runOriginalSerial(['first','second'],async source=>{
+  if(source==='second'){secondPrepareCount++;return {skip:'unexpected second source'};}
+  if(phase==='launch-response-lost')return await launch({exec_command:async()=>{throw Error('exec transport disconnected during launcher response');}},s=>s,'source-test','/r','/node','/v','/run','digest',{route:'PORTABLE'},'/host','/relay');
+  return lost.job;
+ });
+ assert.equal(secondPrepareCount,0);assert.equal(result.length,1);assert.equal(result[0].status,'HELD');assert.equal(result[0].producerStateUnconfirmed,true);
+ assert.match(result[0].reason,/transport disconnected|session unavailable/);assert.notEqual(result[0].reason,'UNKNOWN_PUBLICATION');assert(!lost.calls.includes('dispatch'));
+}
+let secondPrepareCount=0;
+const prelaunch=await runOriginalSerial(['first','second'],async source=>{if(source==='first')throw Error('SOURCE_SCOPE_REJECTED_BEFORE_LAUNCH');secondPrepareCount++;return {skip:'known safe next source'};});
+assert.equal(secondPrepareCount,1);assert.equal(prelaunch[0].producerStateUnconfirmed,undefined);assert.equal(prelaunch[0].reason,'Error: SOURCE_SCOPE_REJECTED_BEFORE_LAUNCH');
+// A live owned handle at the source deadline cannot allow the next source to start.
+let mockNow=0;secondPrepareCount=0;
+const timed=await new AsyncFunction('Date',readFileSync(new URL('./automatic-relay-functions.js',import.meta.url),'utf8'))({now:()=>mockNow,parse:Date.parse});
+const pending=fixture();pending.job.deadline=100;pending.job.pollProducer=async()=>{mockNow=101;return {exitCode:null};};
+const deadlineResult=await timed.runOriginalSerial(['first','second'],async source=>{if(source==='second'){secondPrepareCount++;return {skip:'unexpected second source'};}return pending.job;});
+assert.equal(secondPrepareCount,0);assert.equal(deadlineResult[0].reason,'SOURCE_DEADLINE');assert(!pending.calls.includes('dispatch'));
+// The same stop rule covers an expired, reviewed request that has not dispatched.
+mockNow=0;secondPrepareCount=0;const expiredReview=fixture();expiredReview.job.deadline=100;
+const nextRequest=expiredReview.job.stage.h.next;expiredReview.job.stage.h.next=async()=>{const request=await nextRequest();if(request)request.payload.dispatchBefore=new Date(50).toISOString();return request;};
+expiredReview.job.reviewPublication=async request=>{mockNow=60;return request;};
+const expiredResult=await timed.runOriginalSerial(['first','second'],async source=>{if(source==='second'){secondPrepareCount++;return {skip:'unexpected second source'};}return expiredReview.job;});
+assert.equal(secondPrepareCount,0);assert.equal(expiredResult[0].reason,'PUBLICATION_EXPIRED');assert(!expiredReview.calls.includes('dispatch'));
+console.log('PASS: actual launch/session uncertainty and unterminated deadlines stop; known prelaunch refusal continues; reasons do not invent a DB dispatch');
