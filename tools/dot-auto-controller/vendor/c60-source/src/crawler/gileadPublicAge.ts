@@ -7,6 +7,8 @@ export const GILEAD_PUBLIC_AGE_POLICY = "GILEAD_PUBLIC_AGE_PRESERVATION_V1" as c
 export const GILEAD_YELLO_BOARD = "v42vD4vKxb3AkKvV93YsrQ";
 
 const ageClassificationSchema = z.discriminatedUnion("kind", [
+  z.object({kind: z.literal("NEW_MARKER")}).strict(),
+  z.object({kind: z.literal("RELATIVE_DAYS"), amount: z.number().int().positive().safe()}).strict(),
   z.object({kind: z.literal("RELATIVE_WEEKS"), amount: z.number().int().positive().safe()}).strict(),
   z.object({kind: z.literal("RELATIVE_YEARS"), amount: z.number().int().positive().safe()}).strict(),
   z.object({kind: z.literal("YEARLESS_MONTH_DAY"), month: z.number().int().min(1).max(12), day: z.number().int().min(1).max(31)}).strict()
@@ -29,11 +31,13 @@ export type GileadPublicAgeEvidence = z.infer<typeof gileadPublicAgeEvidenceSche
  * February 29 is plausible in an unknown year. Observation month/day never supplies that year. */
 export function classifyGileadPublicAge(rawLabel: string): GileadPublicAgeClassification | undefined {
   const label = rawLabel.trim();
-  const relative = /^([1-9]\d*)(w|y)$/u.exec(label);
+  // NEW is an official display marker, not proof of publication today.
+  if (label === "NEW") return {kind: "NEW_MARKER"};
+  const relative = /^([1-9]\d*)(d|w|y)$/u.exec(label);
   if (relative) {
     const amount = Number(relative[1]);
     return Number.isSafeInteger(amount)
-      ? {kind: relative[2] === "w" ? "RELATIVE_WEEKS" : "RELATIVE_YEARS", amount} : undefined;
+      ? {kind: relative[2] === "d" ? "RELATIVE_DAYS" : relative[2] === "w" ? "RELATIVE_WEEKS" : "RELATIVE_YEARS", amount} : undefined;
   }
   const date = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) ([1-9]|[12]\d|3[01])$/u.exec(label);
   if (!date) return undefined;

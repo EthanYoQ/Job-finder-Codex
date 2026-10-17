@@ -93,7 +93,7 @@ describe("Gilead original China result set with explicit mainland partition", ()
     expect(admission.receipt.counts).toMatchObject({ rawCount: 1, validCount: 0, finalUniqueJobCount: 0, validationDiscardCount: 1 });
   });
 
-  it.each(["duplicatesAcrossPartitions", "duplicateExcluded", "wrongFlag", "wrongCountry", "mixedLocation", "secondaryLocationContainer", "additionalLocationSpan", "unwrappedLocationText", "unwrappedJobInfoLocation", "nestedLocationInDepartment", "crossOrigin", "missingId", "unsupportedMacau", "unknownCountry", "ambiguousLocation", "inScopeNew", "countMismatch", "canContinue"])("holds %s without converting an unknown or invalid row into an exclusion", async mutation => {
+  it.each(["duplicatesAcrossPartitions", "duplicateExcluded", "wrongFlag", "wrongCountry", "mixedLocation", "secondaryLocationContainer", "additionalLocationSpan", "unwrappedLocationText", "unwrappedJobInfoLocation", "nestedLocationInDepartment", "crossOrigin", "missingId", "unsupportedMacau", "unknownCountry", "ambiguousLocation", "inScopeUnreviewedAge", "countMismatch", "canContinue"])("holds %s without converting an unknown or invalid row into an exclusion", async mutation => {
     let hk = hongKong(); let rows = mainland(); const overrides: Record<string, unknown> = {};
     if (mutation === "duplicatesAcrossPartitions") hk = hongKong(1);
     if (mutation === "duplicateExcluded") rows.push(hongKong());
@@ -110,7 +110,7 @@ describe("Gilead original China result set with explicit mainland partition", ()
     if (mutation === "unsupportedMacau") hk = hk.replaceAll("Hong Kong", "Macau").replace("hk.png", "mo.png");
     if (mutation === "unknownCountry") hk = hk.replace("China - Hong Kong", "Unverified country - Unknown");
     if (mutation === "ambiguousLocation") hk = syntheticGileadRow(0, "1w", "China - Remote");
-    if (mutation === "inScopeNew") rows[0] = syntheticGileadRow(1, "NEW", "China - Beijing");
+    if (mutation === "inScopeUnreviewedAge") rows[0] = syntheticGileadRow(1, "NEW Today", "China - Beijing");
     if (mutation === "countMismatch") { overrides.count_on_page = 10; overrides.display_count_text = "10 Results"; }
     if (mutation === "canContinue") overrides.more_requisitions = true;
     const input = await capture(syntheticGileadBody([hk, ...rows], overrides));

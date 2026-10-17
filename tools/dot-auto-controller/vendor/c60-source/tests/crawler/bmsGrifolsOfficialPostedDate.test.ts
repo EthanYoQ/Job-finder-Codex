@@ -52,6 +52,35 @@ async function grifols(options: {listDates?:string[];detailDates?:string[];extra
 }
 
 describe("BMS Unix-seconds preservation",()=>{
+  it("preserves the three observed BMS locality shapes from 2026-10-17",async()=>{
+    const {fetched,result}=await bms([
+      {...bmsRow("bare"),locations:["Beijing"],standardizedLocations:["Beijing, Beijing, CN"]},
+      {...bmsRow("multiple"),locations:["Beijing - CN","Shenyang - CN"],standardizedLocations:["Beijing, Beijing, CN","Shenyang, Liaoning, CN"]},
+      {...bmsRow("zibo"),locations:["Zibo - CN"],standardizedLocations:["Zibo, Shandong, CN"]}
+    ]);
+    expect(fetched).toMatchObject({ok:true,fetchEvidence:{fetchCounts:{rawCount:3,validCount:3,validationDiscardCount:0},fetchLosses:[]}});
+    expect(result).toMatchObject({truth:{completenessVerified:true},jobs:[
+      {locationRaw:"Beijing",cities:["北京"]},
+      {locationRaw:"Beijing - CN | Shenyang - CN",cities:["北京","沈阳"]},
+      {locationRaw:"Zibo - CN",cities:["淄博"]}
+    ]});
+  });
+  it.each([
+    ["unknown city", ["Beijing - CN","Unknown - CN"], ["Beijing, Beijing, CN","Unknown, Liaoning, CN"]],
+    ["conflicting province", ["Beijing - CN","Shenyang - CN"], ["Beijing, Beijing, CN","Shenyang, Shandong, CN"]],
+    ["foreign country", ["Beijing - CN","Singapore - SG"], ["Beijing, Beijing, CN","Singapore, Singapore, SG"]],
+    ["Hong Kong", ["Beijing - CN","Hong Kong - CN"], ["Beijing, Beijing, CN","Hong Kong, Hong Kong, CN"]],
+    ["Macau", ["Beijing - CN","Macau - CN"], ["Beijing, Beijing, CN","Macau, Macau, CN"]],
+    ["Taiwan", ["Beijing - CN","Taipei - CN"], ["Beijing, Beijing, CN","Taipei, Taiwan, CN"]],
+    ["reversed pairs", ["Beijing - CN","Shenyang - CN"], ["Shenyang, Liaoning, CN","Beijing, Beijing, CN"]],
+    ["missing pair", ["Beijing - CN","Shenyang - CN"], ["Beijing, Beijing, CN"]],
+    ["mixed country-only", ["Beijing - CN","Field - China"], ["Beijing, Beijing, CN","CN"]]
+  ])("rejects multi-location %s without publishing a partial row",async(_case,locations,standardizedLocations)=>{
+    const {fetched,result}=await bms([{...bmsRow(),locations,standardizedLocations}]);
+    expect(fetched).toMatchObject({ok:false,fetchEvidence:{fetchCounts:{validCount:0,validationDiscardCount:1},fetchLosses:[{details:{code:"BMS_GEOGRAPHY_INVALID"}}]}});
+    expect(result.truth.completenessVerified).toBe(false);expect(result.jobs).toEqual([]);
+  });
+
   it.each([
     ["Xi'an - CN","Xi'An, Shaanxi, CN","西安"], ["Chongqing - CN","Chongqing, Chongqing, CN","重庆"],
     ["Huhehaote - CN","Hohhot, Inner Mongolia, CN","呼和浩特"], ["Beijing - CN","Beijing, Beijing, CN","北京"],

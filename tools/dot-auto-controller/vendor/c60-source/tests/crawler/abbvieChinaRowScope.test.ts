@@ -123,3 +123,19 @@ for (const [raw, city, id, slug] of [
     });
   });
 }
+
+// Synthetic geography regressions: no retained recruitment content.
+describe("shared reviewed mainland city pairs", () => {
+  it.each([["Qingdao, Shandong", "青岛"], ["Zhongshan, Guangdong Province", "中山"]])("accepts %s only with the original China row contract", async (location, city) => {
+    const body = html(row.replace("Shenzhen, Guangdong Province", location));
+    expect(reviewedAbbvieCity(location)).toBe(city);
+    expect(validateAbbvieChinaRowScope(body)).toBe(true);
+    const {result} = await execute(body);
+    expect(result.observation.completenessStatus).toBe("VERIFIED");
+    expect(result.jobs[0]?.cities).toEqual([city]);
+  });
+  it.each(["Qingdao, Guangdong Province", "Zhongshan, Shandong", "Unknown, Shandong", "Paris, France"])("rejects unknown or mismatched pair %s", location => {
+    expect(reviewedAbbvieCity(location)).toBeUndefined();
+    expect(validateAbbvieChinaRowScope(html(row.replace("Shenzhen, Guangdong Province", location)))).toBe(false);
+  });
+});

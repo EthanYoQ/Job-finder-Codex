@@ -56,7 +56,18 @@ describe("Gilead source-local public age preservation", () => {
     expect(c.result.jobs[0]!.evidence).toMatchObject({gileadPublicAge: {rawLabel: label, classification: {kind: "YEARLESS_MONTH_DAY"}}});
   });
 
-  it.each(["", "-1w", "in 2w", "tomorrow", "Feb 30", "Sep 31", "Jan 0", "Sep 3, 2026", "1.5w", "999999999999999999999w", "nonsense"])("holds malformed or unsupported label %j with archived raw evidence", async label => {
+  it.each([
+    {label: "NEW", classification: {kind: "NEW_MARKER"}},
+    {label: "4d", classification: {kind: "RELATIVE_DAYS", amount: 4}}
+  ])("preserves $label without inferring publication time", async ({label, classification}) => {
+    const c = await capture(syntheticGileadBody([syntheticGileadRow(0, label)]));
+    expect(replay(c)).toBe(true);
+    expect(c.result.jobs[0]!.officialPublishedAt).toBeUndefined();
+    expect(c.result.jobs[0]!.evidence.gileadPublicAge).toMatchObject({rawLabel: label, classification,
+      exactDateStatus: "UNKNOWN", timeWindowStatus: "TIME_WINDOW_UNAVAILABLE"});
+  });
+
+  it.each(["", "new", "NEW Today", "0d", "-1d", "4.5d", "-1w", "in 2w", "tomorrow", "Feb 30", "Sep 31", "Jan 0", "Sep 3, 2026", "1.5w", "999999999999999999999w", "nonsense"])("holds malformed or unsupported label %j with archived raw evidence", async label => {
     const body = syntheticGileadBody([syntheticGileadRow(0, label)]);
     const c = await capture(body);
     expect(c.fetched.ok).toBe(false);

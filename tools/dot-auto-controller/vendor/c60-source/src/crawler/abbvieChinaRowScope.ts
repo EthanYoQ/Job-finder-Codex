@@ -1,3 +1,4 @@
+import { reviewedMainlandCity } from "./reviewedMainlandCity";
 import { load } from "cheerio";
 
 // Source-specific reviewed spelling, not a title/URL-to-location lookup. New
@@ -23,7 +24,8 @@ const MAINLAND_CITY_NAMES: Readonly<Record<string,string>> = Object.freeze({
  * intact on the record; province labels are never appended to cities. */
 export function reviewedAbbvieCity(locationRaw:string):string|undefined {
   const parts=normalized(locationRaw).split(",").map(part=>part.trim());
-  return parts.length===2&&MAINLAND_CITY_PROVINCE.get(parts[0]!)===parts[1]?MAINLAND_CITY_NAMES[parts[0]!]:undefined;
+  return parts.length !== 2 ? undefined : MAINLAND_CITY_PROVINCE.get(parts[0]!) === parts[1]
+    ? MAINLAND_CITY_NAMES[parts[0]!] : reviewedMainlandCity(parts[0]!, parts[1]!);
 }
 const GEO_CLASS = /^attrax-vacancy-tile__(?:.*-)?(?:location|country|city|province|region|address)(?:-|$)/u;
 const KNOWN_GEO_CLASS = /^attrax-vacancy-tile__(?:location-freetext|option-location(?:--[^ ]+|-label|-valueset)?|option-work-location-type(?:--(?:remote|onsite)|-label|-valueset)?)$/u;
@@ -51,7 +53,7 @@ export function validateAbbvieChinaRowScope(html: string): boolean {
     const expiry = $row.find(".attrax-vacancy-tile__expiry-value");
     if (location.length !== 1 || option.length !== 1 || optionValues.length !== 1 || workType.length !== 1 || expiry.length !== 1) return false;
     const parts = normalized(location.text()).split(",").map(part => part.trim());
-    if (parts.length !== 2 || MAINLAND_CITY_PROVINCE.get(parts[0]!) !== parts[1]) return false;
+    if (parts.length !== 2 || !reviewedAbbvieCity(location.text())) return false;
     const declaredLocation = normalized(optionValues.text());
     if (declaredLocation !== "china" && declaredLocation !== parts[0]) return false;
     const locationClasses = (option.attr("class") ?? "").split(/\s+/u)

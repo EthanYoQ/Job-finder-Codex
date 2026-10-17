@@ -30,6 +30,17 @@ async function capture(mutation:Record<string,unknown>={}){
  return {plan,result,binding,identity,pending,archive:{workspaceRoot,evidenceSubdirectory,artifacts:archive.artifacts}};
 }
 describe("BMS reviewed mainland geography admission",()=>{
+ it.each([
+  [["Beijing"],["Beijing, Beijing, CN"],["北京"]],
+  [["Beijing - CN","Shenyang - CN"],["Beijing, Beijing, CN","Shenyang, Liaoning, CN"],["北京","沈阳"]],
+  [["Zibo - CN"],["Zibo, Shandong, CN"],["淄博"]]
+ ])("admits observed aligned locality fields %j",async(locations,standardizedLocations,cities)=>{
+  const input=await capture({locations,standardizedLocations}),admission=await issueSourceQualityAdmission(input);
+  expect(admission.status).toBe("ACCEPTED");
+  const commands=buildSourceQualityJobCommands({...input,admission,previousJobs:[],firstAcceptedCurrentPolicyReceipt:null,baselineCompletedBeforeCrawl:true}).jobCommands;
+  expect(commands).toHaveLength(3);expect(commands[0]!.record.cities).toEqual(cities);
+ });
+
  it("registers only the exact location-pair configuration",()=>{const p=structuredClone(sourcePlan());expect(getSourceQualityPolicy(p)).toBe("PLAN_BOUND_SOURCE_QUALITY_V1");if(p.adapterId!=="official-json"||p.officialJsonFetch?.kind!=="eightfold-pcsx")throw Error("BMS plan");delete p.officialJsonFetch.cityScopePolicy;expect(getSourceQualityPolicy(p)).toBeNull();});
  it("issues an archive-bound receipt and preserves country-only rows without city matches",async()=>{
   const input=await capture(),admission=await issueSourceQualityAdmission(input);expect(admission.status).toBe("ACCEPTED");
@@ -38,7 +49,7 @@ describe("BMS reviewed mainland geography admission",()=>{
   const commit=buildAtomicRuntimeCommit({...input,batchId:input.binding.batchId,previousJobs:[],baselineCompletedBeforeCrawl:true,artifacts:input.archive.artifacts,sourceAdmissionPolicy:"PLAN_BOUND_SOURCE_QUALITY_V1",sourceQualityAdmission:admission,firstAcceptedCurrentPolicyReceipt:null});
   await expect(verifyAtomicRuntimeCommitForPersistence(commit)).resolves.toBeUndefined();
   const jobs=jobCommands.map(c=>({...c.record,id:c.record.sourceJobId!,city:c.record.cities[0]!,title:c.record.officialTitle,isNew:false}));
-  const snapshot={lastUpdatedAt:null,coverage:{requiredCompanyCount:40,excludedCompanyCount:1},companies:[{id:input.plan.company.id,companyName:input.plan.company.officialChineseName,pinyin:"bms",required:true,publishingSourceIds:[input.plan.source.id],health:"HEALTHY",jobs}]} as unknown as PortablePublicSnapshot;
+  const snapshot={lastUpdatedAt:null,sources:[],coverage:{requiredCompanyCount:40,excludedCompanyCount:1},companies:[{id:input.plan.company.id,companyName:input.plan.company.officialChineseName,pinyin:"bms",required:true,publishingSourceIds:[input.plan.source.id],health:"HEALTHY",jobs}]} as unknown as PortablePublicSnapshot;
   expect(searchPortableSnapshot({city:"上海"},snapshot).totalJobs).toBe(1);for(const city of ["北京","广州"])expect(searchPortableSnapshot({city},snapshot).totalJobs).toBe(0);expect(jobs).toHaveLength(3);
  });
  it.each([{standardizedLocations:["US"]},{city:"Beijing"},{locations:["Field - China - HK"]},{standardizedLocations:["CN","US"]}])("rejects owned raw geography %j with no publication commands",async mutation=>{const input=await capture(mutation),admission=await issueSourceQualityAdmission(input);expect(admission.status).toBe("REJECTED");expect(buildSourceQualityJobCommands({...input,admission,previousJobs:[],firstAcceptedCurrentPolicyReceipt:null,baselineCompletedBeforeCrawl:true}).jobCommands).toEqual([]);});

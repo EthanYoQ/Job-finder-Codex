@@ -1,3 +1,4 @@
+import { reviewedAbbvieCity } from "./abbvieChinaRowScope";
 import { exactKelunMainlandPlan, replayKelunMainlandScope } from "./kelunMainlandScope";
 import { isServierTraversalPlan, replayServierTraversal } from "./servierMokaScope";
 import { hasNovartisOfficialPresencePlan, hasNovartisPresenceArtifacts, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
@@ -391,6 +392,10 @@ async function finalizeTruth(
   if (!completenessVerified && hasAstraZenecaDetailPlan(plan) && !fetchResult.fetchEvidence?.astraZenecaDetails) {
     observation.completenessStatus = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
     observation.completenessBlockerReason = "ASTRAZENECA_DETAIL_EVIDENCE_REQUIRED";
+  }
+  if (!completenessVerified && plan.source.id === "source-abbvie-china-social" &&
+      result.jobs.some(job => !reviewedAbbvieCity(job.locationRaw))) {
+    observation.completenessBlockerReason = "ABBVIE_UNRECOGNIZED_CITY_PROVINCE_PAIR";
   }
   if (!completenessVerified && hasAstellasPdfCityPlan(plan)) {
     if (fetchResult.fetchEvidence?.astellasPdfLocations?.runtimeCapability.available === false) {

@@ -1,3 +1,5 @@
+import { reviewedMainlandCity } from "./reviewedMainlandCity";
+
 /** Exact, source-local location pairs observed in BMS's China PCSx responses.
  * A Field-China row establishes country only, never nationwide city coverage. */
 export const BMS_GEOGRAPHY_POLICY = "BMS_LOCATIONS_STANDARDIZED_MAINLAND_V1" as const;
@@ -14,6 +16,7 @@ const GEOGRAPHY = new Map<string, readonly [string, string]>([
   ["Tianjin - CN", ["Tianjin, Tianjin, CN", "天津"]],
   ["Nanjing - CN", ["Nanjing, Jiangsu, CN", "南京"]],
   ["Qingdao - CN", ["Qingdao, Shandong, CN", "青岛"]],
+  ["Zibo - CN", ["Zibo, Shandong, CN", "淄博"]],
   ["Hangzhou - CN", ["Hangzhou, Zhejiang, CN", "杭州"]],
   ["Shanghai - CN", ["Shanghai, Shanghai, CN", "上海"]]
 ]);
@@ -27,10 +30,23 @@ const POSITION_FIELDS = new Set([
 
 export function bmsMainlandCities(raw: Record<string, unknown>): string[] | undefined {
   if (Object.keys(raw).some(key => !POSITION_FIELDS.has(key)) ||
-    !Array.isArray(raw.locations) || raw.locations.length !== 1 || typeof raw.locations[0] !== "string" ||
-    !Array.isArray(raw.standardizedLocations) || raw.standardizedLocations.length !== 1 ||
-    typeof raw.standardizedLocations[0] !== "string" || raw.workLocationOption !== "onsite" ||
-    raw.locationFlexibility !== null) return undefined;
-  const reviewed = GEOGRAPHY.get(raw.locations[0]);
-  return reviewed && raw.standardizedLocations[0] === reviewed[0] ? [reviewed[1]] : undefined;
+    !Array.isArray(raw.locations) || raw.locations.length === 0 ||
+    !Array.isArray(raw.standardizedLocations) || raw.standardizedLocations.length !== raw.locations.length ||
+    raw.workLocationOption !== "onsite" || raw.locationFlexibility !== null) return undefined;
+  const cities: string[] = [];
+  for (let index = 0; index < raw.locations.length; index += 1) {
+    const location = raw.locations[index], standardized = raw.standardizedLocations[index];
+    if (typeof location !== "string" || typeof standardized !== "string") return undefined;
+    const reviewed = GEOGRAPHY.get(location);
+    let city = reviewed && standardized === reviewed[0] ? reviewed[1] : undefined;
+    if (!city) {
+      const parts = standardized.split(", ");
+      if (parts.length !== 3 || parts[2] !== "CN" ||
+        (location !== parts[0] && location !== `${parts[0]} - CN`)) return undefined;
+      city = reviewedMainlandCity(parts[0]!, parts[1]!);
+    }
+    if (!city || (city === "中国" && raw.locations.length !== 1)) return undefined;
+    cities.push(city);
+  }
+  return [...new Set(cities)];
 }
