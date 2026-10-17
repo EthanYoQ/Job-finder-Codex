@@ -63,7 +63,7 @@ function parseList(body: string, page: number) {
   assert([first, last, total].every(Number.isSafeInteger) && total > 0 && total <= 400 && page <= Math.ceil(total / 20));
   const $ = load(original.fragment.html);
   assert($("#js-job-search-results").length === 1 && $("#js-job-search-results").attr("data-results") === String(total));
-  const jobs = parseJnjCareersChinaCards(original.fragment.html);
+  const jobs = parseJnjCareersChinaCards(original.fragment.html, "China");
   assert(jobs && jobs.length === Math.min(20, total - (page - 1) * 20) && jobs.every(job => job.cities.length > 0));
   assert(first === (page - 1) * 20 + 1 && last === first + jobs.length - 1 && original.fragment.items.length === jobs.length);
   for (let i = 0; i < jobs.length; i++) {

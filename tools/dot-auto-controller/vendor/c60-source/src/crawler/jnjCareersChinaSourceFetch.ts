@@ -1,4 +1,5 @@
 import { load } from "cheerio";
+import { reviewedMainlandCityLabel } from "./reviewedMainlandCity";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 import {
   currentOfficialSourceAttemptSignal,
@@ -391,7 +392,7 @@ export function parseJnjCareersChinaPage(
   const total = Number(count[3]);
   if (![first, last, total].every(Number.isSafeInteger) || total < 0) return undefined;
 
-  const jobs = parseJnjCareersChinaCards(html);
+  const jobs = parseJnjCareersChinaCards(html, "China");
   if (!jobs) return undefined;
   const expectedFirst = total === 0 ? 0 : ((page - 1) * pageSize) + 1;
   const expectedCount = total === 0 ? 0 : Math.min(pageSize, total - expectedFirst + 1);
@@ -401,7 +402,7 @@ export function parseJnjCareersChinaPage(
 }
 
 /** Parse the same real cards from an HTTP document or a captured UI fragment. */
-export function parseJnjCareersChinaCards(html: string): JnjCareersChinaJobSummary[] | undefined {
+export function parseJnjCareersChinaCards(html: string, countryScope?: "China"): JnjCareersChinaJobSummary[] | undefined {
   const $ = load(html);
   const jobs: JnjCareersChinaJobSummary[] = [];
   const ids = new Set<string>();
@@ -418,7 +419,7 @@ export function parseJnjCareersChinaCards(html: string): JnjCareersChinaJobSumma
     if (!id || card.attr("data-id")?.toLowerCase() !== id || !title || !functionRaw || !locationRaw || ids.has(id)) return;
     ids.add(id);
     jobs.push({ officialId: id, title, officialUrl: url!, functionRaw, locationRaw,
-      cities: citiesFromJnjLocation(locationRaw) });
+      cities: citiesFromJnjLocation(locationRaw, countryScope) });
   });
   if (jobs.length !== $(".PageList-items-item.card-job").length) return undefined;
   return jobs;
@@ -576,10 +577,14 @@ const JNJ_CITY_NAMES: ReadonlyArray<readonly [string, string]> = [
   ["Nanchang", "南昌"], ["Guiyang", "贵阳"]
 ];
 
-function citiesFromJnjLocation(locationRaw: string): string[] {
-  const normalized = locationRaw.toLowerCase();
-  return [...new Set(JNJ_CITY_NAMES.flatMap(([english, chinese]) =>
-    normalized.includes(english.toLowerCase()) || locationRaw.includes(chinese) ? [chinese] : []))];
+function citiesFromJnjLocation(locationRaw: string, countryScope?: "China"): string[] {
+  const labels = locationRaw.split(" / ").map(value => value.trim());
+  const retained = JNJ_CITY_NAMES.flatMap(([english, chinese]) =>
+    labels.some(label => label.toLowerCase() === english.toLowerCase() || label === chinese) ? [chinese] : []);
+  const shared = countryScope === "China" ? labels.flatMap(label => {
+    const city = reviewedMainlandCityLabel(label, countryScope); return city ? [city] : [];
+  }) : [];
+  return [...new Set([...retained, ...shared])];
 }
 
 function evidenceId(officialId: string): string {

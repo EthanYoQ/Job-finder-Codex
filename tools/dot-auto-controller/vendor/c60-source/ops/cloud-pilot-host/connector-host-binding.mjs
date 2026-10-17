@@ -74,7 +74,7 @@ export function nativeCatalogue(){
  return freeze(rows);
 }
 export function portableCatalogue(){return nativeCatalogue().filter(r=>r.route==='PORTABLE');}
-export const isSupportedABRoute=r=>r.route==='TRUE_A'&&r.sourceId!=='source-johnson-innovative-medicine-social'||r.route==='TRUE_B'&&r.sourceId==='source-pfizer-china-social';
+export const isSupportedABRoute=r=>r.route==='TRUE_A'||r.route==='TRUE_B'&&['source-pfizer-china-social','source-bayer-healthcare-social','source-servier-china-social'].includes(r.sourceId);
 export function abCatalogue(){return nativeCatalogue().filter(isSupportedABRoute);
 }
 let captured,snapshot,fileIdentity;
@@ -120,7 +120,8 @@ export async function verifyBinding(){
  const plans=deriveCurrentStagedScheduleExpectation(c.control.build).plans,plan=plans.find(p=>p.source.id===c.sourceId);
  if(plans.length!==41||!plan||sourcePlanConfigSha256(plan)!==c.sourceConfigSha256||CLOUD_PILOT_SOURCE.id!==c.sourceId||CLOUD_PILOT_SOURCE.sourceConfigSha256!==c.sourceConfigSha256||CLOUD_PILOT_SOURCE.ownerId!==c.ownerId)fail('HOST_SOURCE_MODULE_DRIFT');
  if(c.kind===AB_MODE){
-  const currentFix=(c.sourceId==='source-amgen-china-social'&&plan.profileBoundSource?.kind==='amgen-manual-workday-lookup')||(c.sourceId==='source-gsk-china-social'&&plan.moka?.requisitionStatusPolicy==='GSK_NATIVE_OPEN_REQUISITIONS_V1');
+  const {isJnjDomPlan}=await module('src/crawler/jnjCareersDomEvidence.ts');
+  const currentFix=isJnjDomPlan(plan)||(c.sourceId==='source-amgen-china-social'&&plan.profileBoundSource?.kind==='amgen-manual-workday-lookup')||(c.sourceId==='source-gsk-china-social'&&plan.moka?.requisitionStatusPolicy==='GSK_NATIVE_OPEN_REQUISITIONS_V1');
   if(!['NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE','KNOWN_SOURCE_FIX_RESTORED_OFFLINE_VERIFIED'].includes(row?.c60Use)&&!currentFix)fail('HOST_SOURCE_FIX_REQUIRED');
   const {requiresBGradeTraversalCertificate}=await module('src/crawler/traversalCertificate.ts');
   if(requiresBGradeTraversalCertificate(plan)!==(c.route==='TRUE_B'))fail('HOST_SOURCE_GRADE');

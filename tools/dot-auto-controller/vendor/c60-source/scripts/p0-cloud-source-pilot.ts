@@ -1,6 +1,7 @@
 import { loadPilotContext } from "../src/crawler/cloudPilotContext";
 import {runDbStartedCloudPublication,requireDbStartedOuterDeadline} from "../src/crawler/cloudDbStartedPilot";
 import {readCurrentWorkerCapture} from "../src/crawler/currentWorkerCapture";
+import {JNJ_DOM_SOURCE,JNJ_DOM_CAPTURE_TOOL} from "../src/crawler/jnjCareersDomContract";
 /** REVIEW-ONLY PROTOTYPE. Do not launch before the documented bootstrap/live review. */
 import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
@@ -92,6 +93,7 @@ export async function runCloudSourcePilot(input:{bootstrapPath:string;reviewedSh
     await writeFile(join(resolve(input.workspaceRoot),`${bootstrap.batchId}.independent-validation.json`),raw,{flag:"wx",mode:0o600});
     if(independentTraversalValidation.sourceId!==PILOT_SOURCE||independentTraversalValidation.companyId!==plan.company.id||independentTraversalValidation.sourceConfigSha256!==sourcePlanConfigSha256(plan))throw Error("PILOT_B_INDEPENDENT_INPUT_SCOPE");
   }
+  if(PILOT_SOURCE===JNJ_DOM_SOURCE&&!bootstrap.currentCapture)throw Error("PILOT_JNJ_CURRENT_DOM_CAPTURE_REQUIRED");
   const currentCapture=bootstrap.currentCapture?await readCurrentWorkerCapture(bootstrap.currentCapture,plan):undefined;
   const batchId=bootstrap.batchId;
   const workspaceRoot=resolve(input.workspaceRoot),relay=new FilePilotRelay(resolve(input.relayDirectory));
@@ -111,6 +113,7 @@ export async function runCloudSourcePilot(input:{bootstrapPath:string;reviewedSh
     const result=crawlResult=await runWithOfficialSourceAttemptTimeout(()=>runWithOfficialSourceCancellation(captureSignal,()=>runSourceCrawl(plan,{fetch:sourceFetch,isBaseline:!preContext.baselineCompletedBeforeCrawl,attemptTracker:currentAttemptTracker})),20*60*1000);
     phase="CHECK_SOURCE_RESULT";
     if(!result.truth.transportSuccess||!result.truth.adapterSuccess||!result.fetchEvidence)throw Error("PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED");
+    if(PILOT_SOURCE===JNJ_DOM_SOURCE&&(result.fetchEvidence.captureTool.name!==JNJ_DOM_CAPTURE_TOOL.name||result.fetchEvidence.captureTool.version!==JNJ_DOM_CAPTURE_TOOL.version))throw Error("PILOT_JNJ_NATIVE_DOM_EVIDENCE_REQUIRED");
     const observedFrom=captureStartedAt;
     const planned=buildPendingRuntimeBatch(batchId,[plan],identity,observedFrom),pending=planned.sources[0]!;
     const tuple={releaseCandidateId:identity.releaseCandidateId,batchId,sourceId:PILOT_SOURCE,sourceResultId:pending.id};

@@ -17,10 +17,10 @@ async function fixture(route='TRUE_A'){
  const request=kind=>({kind,requestId:'request',requestSha256:'request-sha',payload:{projectId:'yiopvxysxrtrnvqxwgbx',sourceId,sourceConfigSha256:'config',sql:'SELECT outcome'}});
  return {handle,request,calls,h};
 }
-test('only 12 original A and Pfizer B are enabled; original producer retained',()=>{
- const supported=catalogue.filter(isSupportedABRoute);assert.equal(supported.filter(x=>x.route==='TRUE_A').length,12);assert.equal(supported.filter(x=>x.route==='TRUE_B').length,1);
+test('all 13 original A and the three original B sources are enabled; original producer retained',()=>{
+ const supported=catalogue.filter(isSupportedABRoute);assert.equal(supported.filter(x=>x.route==='TRUE_A').length,13);assert.equal(supported.filter(x=>x.route==='TRUE_B').length,3);
  assert.equal(entrypointsFor({kind:AB_MODE}).producer,'scripts/p0-cloud-source-pilot.ts');
- for(const id of ['source-johnson-innovative-medicine-social','source-bayer-healthcare-social','source-servier-china-social'])assert(!supported.some(x=>x.sourceId===id));
+ for(const id of ['source-johnson-innovative-medicine-social','source-bayer-healthcare-social','source-servier-china-social'])assert(supported.some(x=>x.sourceId===id));
 });
 for(const route of ['TRUE_A','TRUE_B'])test(route+' uses existing four requests and never dispatches PUBLISH before review',async()=>{
  const f=await fixture(route);

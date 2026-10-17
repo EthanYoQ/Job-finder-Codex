@@ -60,7 +60,7 @@ finally:
     os.close(fd)
 rows = json.loads(data)['routingCatalogue']
 source = os.environ.get('JOBFINDER_CLOUD_SOURCE_ID', '')
-supported = lambda r: r['route'] == 'PORTABLE' or (r['route'] == 'TRUE_A' and r['sourceId'] != 'source-johnson-innovative-medicine-social') or (r['route'] == 'TRUE_B' and r['sourceId'] == 'source-pfizer-china-social')
+supported = lambda r: r['route'] == 'PORTABLE' or r['route'] == 'TRUE_A' or (r['route'] == 'TRUE_B' and r['sourceId'] in ['source-pfizer-china-social', 'source-bayer-healthcare-social', 'source-servier-china-social'])
 if len(rows) != 36 or sum(r['route'] == 'PORTABLE' for r in rows) != 20 or source not in {r['sourceId'] for r in rows if supported(r)}:
     fail('HOST_SOURCE_ENV')
 # No inherited NODE_OPTIONS/NODE_PATH/preload or alternate source/loader escapes.
