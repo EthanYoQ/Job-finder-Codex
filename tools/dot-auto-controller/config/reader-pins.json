@@ -16,12 +16,15 @@
       "src/release/portableCoveragePolicy.ts": "2ce257bddb3e09fdbcc7abd9f7d8838ac04a61dff8959c0022c436d25283d9ae",
       "src/release/portableSourceCoverageHolds.ts": "b5ff9f97e9a7e40171b7af6dd47ec914028f76a07d706cb2c71559e8f568c90b",
       "package.json": "6a08adb18651704b67541c9cc6593de3f232909b39aedf6902d7481f8e06c134",
-      "package-lock.json": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9"
+      "package-lock.json": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9",
+      "src/crawler/bayerMokaScope.ts": "dd1224c79985e59caf634fd6c846b783231c70d48a4ad8662936a52cee65592e",
+      "src/crawler/hengruiMainlandGeography.ts": "134cbbcf98ab80003d567f2a77b19491d837ec26adfd920f28511c41d1fae4a1",
+      "src/crawler/reviewedMainlandCity.ts": "a9e555b60879a90d96e0ee228316130586e4d87e420b90be340c44609d706ae1"
     },
     "originCommit": "6510baecc784ec87999cb5ea546b0995afe9222f",
     "capsuleClassification": "PRIVACY_SANITIZED_DERIVATIVE",
     "originCommitIsProvenanceOnly": true,
-    "readerFileHashScope": "LIMITED_16_FILES_NOT_WHOLE_TREE",
+    "readerFileHashScope": "LIMITED_19_FILES_NOT_WHOLE_TREE",
     "localDerivativeFileHashes": {
       "src/crawler/officialJsonSourceFetch.ts": "db476adb54180526d9b1c42857106a2bc4ed4dc237548ff7c9aafbfd2a226162",
       "src/crawler/biSemanticCompleteness.ts": "53e749c99ba1afee373e75f5107bb99975b5f52e25113198e7ce7ad1d2e708be"
@@ -45,12 +48,15 @@
       "src/release/portableCoveragePolicy.ts": "2ce257bddb3e09fdbcc7abd9f7d8838ac04a61dff8959c0022c436d25283d9ae",
       "src/release/portableSourceCoverageHolds.ts": "b5ff9f97e9a7e40171b7af6dd47ec914028f76a07d706cb2c71559e8f568c90b",
       "package.json": "6a08adb18651704b67541c9cc6593de3f232909b39aedf6902d7481f8e06c134",
-      "package-lock.json": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9"
+      "package-lock.json": "3f45f2db3f910be83bb57630db121a175b0375fe216a2fa110cab99ec149fae9",
+      "src/crawler/bayerMokaScope.ts": "dd1224c79985e59caf634fd6c846b783231c70d48a4ad8662936a52cee65592e",
+      "src/crawler/hengruiMainlandGeography.ts": "134cbbcf98ab80003d567f2a77b19491d837ec26adfd920f28511c41d1fae4a1",
+      "src/crawler/reviewedMainlandCity.ts": "a9e555b60879a90d96e0ee228316130586e4d87e420b90be340c44609d706ae1"
     },
     "originCommit": "600ad0ab23e886ae9ac429d3d1b076e00af76e88",
     "capsuleClassification": "PRIVACY_SANITIZED_DERIVATIVE",
     "originCommitIsProvenanceOnly": true,
-    "readerFileHashScope": "LIMITED_16_FILES_NOT_WHOLE_TREE",
+    "readerFileHashScope": "LIMITED_19_FILES_NOT_WHOLE_TREE",
     "localDerivativeFileHashes": {
       "src/crawler/officialJsonSourceFetch.ts": "db476adb54180526d9b1c42857106a2bc4ed4dc237548ff7c9aafbfd2a226162",
       "src/crawler/biSemanticCompleteness.ts": "53e749c99ba1afee373e75f5107bb99975b5f52e25113198e7ce7ad1d2e708be"
