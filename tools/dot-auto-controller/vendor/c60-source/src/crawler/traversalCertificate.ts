@@ -418,6 +418,7 @@ const legacyCertificateSchema = z.object({
 const sanofiDecisionSchema = z.object({
   id: z.string().regex(/^\d+$/u), reqId: z.string().regex(/^R\d+$/u), sourceJobId: NONBLANK,
   state: z.enum(["PUBLISHING", "CLOSED", "OUTSIDE"]), title: NONBLANK,
+  titleConflict: z.object({chineseTitle: NONBLANK,nativeTitle: NONBLANK}).strict().optional(),
   officialUrl: z.string().url(), applyUrl: z.string().url(), descriptionSha256: SHA256,
   nativePositionId: NONBLANK.nullable(), nativeDescriptionSha256: SHA256.nullable(),
   nativeLocationRaw: NONBLANK.nullable(), nativeCities: z.array(NONBLANK)
@@ -1491,7 +1492,7 @@ function assertSanofiIdentityReplay(
       own.nativeDescriptionSha256!==own.descriptionSha256 ||
       own.officialUrl!==anomaly.officialUrl || own.title!==anomaly.title || own.applyUrl!==anomaly.applyUrl ||
       own.descriptionSha256!==anomaly.chineseDescriptionSha256 ||
-      foreign.reqId!==anomaly.foreignReq || foreign.title!==anomaly.foreignTitle ||
+      foreign.reqId!==anomaly.foreignReq || (foreign.titleConflict?.chineseTitle??foreign.title)!==anomaly.foreignTitle ||
       foreign.applyUrl!==anomaly.foreignApplyUrl || foreign.descriptionSha256!==anomaly.foreignDescriptionSha256)
       throw new Error("SANOFI_CN_FOREIGN_HEADER_INDEPENDENT_MISMATCH");
     // The fallback requires a stronger native identity than the ordinary
