@@ -23,7 +23,7 @@ function descriptionAgrees(schema:string,dom:string):boolean{
 const fail=(code:AstraZenecaFailure):never=>{throw Error(code);};
 const postingSchema=z.object({
   '@context':z.enum(['http://schema.org','https://schema.org']), '@type':z.literal('JobPosting'),
-  identifier:z.string().regex(/^TP\d+$/u),title:z.string().min(1),url:z.string().url(),datePosted:z.string().min(1),description:z.string().min(1),
+  identifier:z.union([z.string().regex(/^TP\d+$/u),z.object({'@type':z.literal('PropertyValue'),name:z.literal('Job ID'),value:z.string().regex(/^TP\d+$/u)}).strict().transform(value=>value.value)]),title:z.string().min(1),url:z.string().url(),datePosted:z.string().min(1),description:z.string().min(1),
   hiringOrganization:z.object({'@type':z.literal('Organization'),name:z.string().min(1)}),
   employmentType:z.union([z.string().min(1),z.array(z.string().min(1)).min(1)]).optional(),
   occupationalCategory:z.union([z.string().min(1),z.array(z.string().min(1)).min(1)]).optional(),
@@ -68,7 +68,9 @@ export function parseAstraZenecaDetail(body:string,row:AstraZenecaListRow,applic
   if(isAstraZenecaBotBody(body))return fail('DETAIL_BOT_BLOCKED');
   const $=load(body);const postings:unknown[]=[];
   for(const script of $('script[type="application/ld+json"]').toArray()){
-    const raw=$(script).text();if(!hasUniqueJsonObjectKeys(raw))return fail('DETAIL_PARSE_INVALID');
+    // Like Sanofi, escape literal tabs inside JSON-LD strings without changing their values.
+    // Preserve invalid backslash-TAB escapes so malformed JSON still fails closed.
+    const raw=$(script).text().replace(/"(?:[^"\\]|\\.)*"/gu,token=>token.replace(/(\\*)\t/gu,(tab,slashes:string)=>slashes.length%2?tab:slashes+'\\t'));if(!hasUniqueJsonObjectKeys(raw))return fail('DETAIL_PARSE_INVALID');
     let value:unknown;try{value=JSON.parse(raw);}catch{return fail('DETAIL_PARSE_INVALID');}
     if(value&&typeof value==='object'&&!Array.isArray(value)&&'@type' in value&&value['@type']==='JobPosting')postings.push(value);
   }
