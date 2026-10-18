@@ -1,0 +1,101 @@
+// Existing Functions runtime entry. Concrete source adapters reuse their original packet and raw-review functions.
+const B='/workspace/scratch/5e9614251709',R=B+'/takeda-original-recovery-20261017T0417Z',D=B+'/original-relay-automation-20261017T0609Z',P=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller',V=P+'/vendor/c60-source',N=B+'/connector-host-runtime/node',relay=B+'/connector-host-task/relay';
+const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'",A=Object.getPrototypeOf(async function(){}).constructor;
+async function command(cmd){let r=await tools.exec_command({cmd,max_output_tokens:200000}),output=r.output;while(r.session_id){r=await tools.write_stdin({session_id:r.session_id,chars:'',yield_time_ms:1000,max_output_tokens:200000});output+=r.output;}if(r.exit_code!==0)throw Error('LOCAL_STEP:exit='+String(r.exit_code)+'; '+output);return output;}
+const read=p=>command('cat '+q(p)),save=async(p,x)=>{const r=await tools.apply_patch('*** Begin Patch\n*** Add File: '+p+'\n'+JSON.stringify(x).split('\n').map(s=>'+'+s).join('\n')+'\n*** End Patch');if(r?.isError)throw Error('SAVE_FAILED');};
+function rows(raw){if(raw.isError)throw Error('OFFICIAL_SQL_FAILED: '+(raw.content?.filter(x=>x.type==='text').map(x=>x.text).join('\n')||JSON.stringify(raw.structuredContent??raw)));const t=raw.structuredContent?.result??JSON.parse(raw.content.find(x=>x.type==='text').text).result;return JSON.parse(t.match(/\n<untrusted-data-[^>]+>\n([\s\S]*?)\n<\/untrusted-data-/)[1]);}
+const sql=async query=>rows(await tools.mcp__codex_apps__supabase_execute_sql({project_id:'yiopvxysxrtrnvqxwgbx',query}));
+store('cloudPilotHostHelpers',await read(R+'/transport/adapted-host-helper-functions.js'));store('cloudPilotHostStages',await read(R+'/transport/original-host-stage-functions.js'));
+const {runOriginalSerial}=await new A(await read(D+'/automatic-relay-functions.js'))();
+const sourceFolders={'source-bayer-healthcare-social':'bayer','source-servier-china-social':'servier','source-pfizer-china-social':'pfizer','source-ucb-china-social':'ucb','source-viatris-social':'viatris','source-biogen-china-social':'biogen','source-hengrui-social':'hengrui','source-hansoh-social':'hansoh','source-takeda-china-social':'takeda','source-merck-china-social':'merck','source-fosun-pharma-social':'fosun','source-cspc-social':'cspc','source-abbvie-china-social':'abbvie','source-bms-china-social':'bms','source-boehringer-ingelheim-china-social':'boehringer-ingelheim','source-gilead-china-social':'gilead','source-kelun-social':'kelun','source-novartis-social':'novartis','source-novo-nordisk-china-social':'novo-nordisk','source-organon-china-social':'organon','source-amgen-china-social':'amgen','source-cr-pharma-social':'cr-pharma','source-csl-china-social':'csl','source-cttq-social':'cttq','source-daiichi-sankyo-china-social':'daiichi-sankyo','source-gsk-china-social':'gsk','source-lilly-china-social':'lilly','source-msd-china-social':'msd','source-roche-china-social':'roche','source-sanofi-china-social':'sanofi','source-shanghai-pharma-social':'shanghai-pharma','source-qilu-social':'qilu','source-grifols-china-social':'grifols','source-astellas-china-social':'astellas','source-johnson-innovative-medicine-social':'jnj','source-astrazeneca-social':'astrazeneca'};
+const routes=JSON.parse(await read(D+'/sources.json')).rows,routeById=Object.fromEntries(routes.map(row=>[row.sourceId,row]));
+const states=await sql(`SELECT requested.id AS "sourceId",clock_timestamp() AS "checkedAt",(SELECT max(o."crawledAt") FROM public."CrawlObservation" o JOIN public."CrawlBatchSourceResult" r ON r.id=o."sourceResultId" JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE o."sourceId"=requested.id AND o.successful AND r."atomicCommitState"='COMMITTED' AND b.status::text='SUCCESS') AS "crawledAt",(SELECT CASE WHEN "heartbeatAt">clock_timestamp()-interval '300 seconds' THEN "holderId" ELSE '' END FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS holder,(SELECT count(*) FROM public."CrawlBatch" WHERE status::text='RUNNING' AND "heartbeatAt">clock_timestamp()-interval '300 seconds') AS running,(SELECT count(*) FROM public."ManualCrawlRequest" WHERE status::text='RUNNING' AND ("leaseExpiresAt" IS NULL OR "leaseExpiresAt">clock_timestamp())) AS manual FROM unnest(ARRAY[${routes.map(row=>"'"+row.sourceId.replaceAll("'","''")+"'").join(",")} ]::text[]) requested(id);`),stateById=Object.fromEntries(states.map(row=>[row.sourceId,row]));
+if(load('originalRelayReadOnly')===true)return states.map(s=>({sourceId:s.sourceId,checkedAt:s.checkedAt,crawledAt:s.crawledAt,status:s.crawledAt&&Date.parse(s.checkedAt)-Date.parse(s.crawledAt)<43200000?'SKIPPED_RECENT':'DUE_READ_ONLY'}));
+return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
+ const state=stateById[sourceId];
+ if(state.crawledAt&&Date.parse(state.checkedAt)-Date.parse(state.crawledAt)<43200000)return {skip:'REAL_OBSERVATION_WITHIN_12H:'+state.crawledAt};
+ 
+ if(!sourceFolders[sourceId])throw Error('ROUTE_NOT_CONNECTED:'+routeById[sourceId].route);
+ if(state.holder||Number(state.running)||Number(state.manual))throw Error('EXISTING_WRITER_RECONCILE_ONLY');
+ const active=await command("python3 -c "+q("import pathlib; print(any((p.read_bytes().split(b'\\0')[0].endswith(b'/node') and any(a.endswith(b'/run-with-http-diagnostics.mjs') or a.endswith(b'/p0-cloud-portable-source-pilot.ts') or a.endswith(b'/p0-cloud-source-pilot.ts') for a in p.read_bytes().split(b'\\0'))) for p in pathlib.Path('/proc').glob('[0-9]*/cmdline') if p.exists()))"));if(active.trim()==='True')throw Error('EXISTING_CLOUD_PRODUCER_RECONCILE_ONLY');
+ await command('python3 '+q(D+'/prepare-original-source.py')+' '+q(sourceId)+' '+q(sourceFolders[sourceId]));
+ const S=R+'/'+sourceFolders[sourceId],config=JSON.parse(await read(S+'/host-config.json')),control=JSON.parse(await read(S+'/control-base.json')),binding=JSON.parse(await read(S+'/binding-selector.json'));
+ store('cloudPilotHostConfig',{mode:config.mode,bindingSha256:binding.sha256,root:V+'/ops/cloud-pilot-host',repo:V,project:'yiopvxysxrtrnvqxwgbx',sourceId});
+ const stage=await new A(load('cloudPilotHostStages'))();await stage.h.binding();if(await stage.h.next(relay))throw Error('EXISTING_RELAY_RECONCILE_ONLY'); // Existing identity validator rejects stale source/build bindings.
+ const template=await read(R+'/transport/'+(sourceId==='source-sanofi-china-social'?'sanofi-reader-before-original.sql':'viatris-reader-before-original.sql'));
+ const query=template.replaceAll('__ORIGINAL_CERTIFICATE_SCHEMA__',routeById[sourceId].route==='PORTABLE'?'plan-bound-source-quality-v1':routeById[sourceId].route==='TRUE_A'?'a-grade-official-total-v2':'b-grade-independent-traversal-v2').replaceAll('__ORIGINAL_REQUIRES_PORTABLE_POLICY__',String(routeById[sourceId].route==='PORTABLE')).replaceAll('source-viatris-social',sourceId).replaceAll('company-viatris',routeById[sourceId].companyId).replaceAll('5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9',config.sourceConfigSha256).replaceAll('dot-cloud-native-c2b39d9-20261016',control.candidate.id).replaceAll('viatris-reader-before-v1',sourceFolders[sourceId]+'-reader-before-v1');
+ let before;
+ if(['source-servier-china-social','source-sanofi-china-social','source-bayer-healthcare-social','source-hengrui-social'].includes(sourceId)){
+  const {readOriginalReaderBefore}=await new A(await read(D+'/reader-before-functions.js'))();
+  before=await readOriginalReaderBefore(query,sql,['source-bayer-healthcare-social','source-hengrui-social'].includes(sourceId)?'15s':'8s');
+ }else before=(await sql(query))[0].reader_before;
+ await save(S+'/READER_BEFORE.json',before);await save(S+'/expected-candidate.json',before.publicationContext.candidateRow);
+ await command('python3 '+q(D+'/readback-original-web.py')+' '+q(S)+' '+q(routeById[sourceId].companyId));
+ const batchId='dot-auto-'+sourceFolders[sourceId]+'-'+new Date().toISOString().replace(/[-:.]/g,''),run=S+'/'+batchId;
+ await command('mkdir -p '+q(run+'/artifacts'));
+ if(sourceId==='source-cspc-social'){
+  const runStartedAt=new Date().toISOString(),directory=run+'/independent-dom';await command('mkdir -p '+q(directory));await save(run+'/run-start.json',{runStartedAt});
+  const {captureCspcDomObservation}=await new A(await read(D+'/cspc-functions.js'))();
+  await captureCspcDomObservation({directory,browserSource:await read(D+'/cspc-dom-runtime-functions.js')+'\n'+await read(D+'/cspc-browser-runtime.js'),runStartedAt,dispatchBefore:new Date(Date.now()+1800000).toISOString()});
+ }
+ let independentValidation,currentCapture;
+ if(sourceId==='source-johnson-innovative-medicine-social'){
+  const directory=run+'/native-dom';await command('mkdir -p '+q(directory));
+  const {captureJnjManagedDom}=await new A(await read(D+'/jnj-functions.js'))();
+  await captureJnjManagedDom({directory,browserSource:await read(D+'/jnj-browser-runtime.js'),deadline:Date.now()+1200000});
+  const manifest=directory+'/manifest.json',manifestSha=(await command('sha256sum '+q(manifest))).split(' ')[0];
+  const prepared=run+'/current-capture';await command(q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/prepare-jnj-dom-current-capture.ts')+' '+q(directory)+' '+q(manifestSha)+' '+q(prepared));
+  const path=prepared+'/current-capture.json';currentCapture={path,sha256:(await command('sha256sum '+q(path))).split(' ')[0]};
+ }
+ if(sourceId==='source-sanofi-china-social'){
+  const directory=run+'/independent-dom';await command('mkdir -p '+q(directory));
+  const {captureSanofiDom}=await new A(await read(D+'/sanofi-functions.js'))();
+  await captureSanofiDom({directory,browserSource:await read(D+'/sanofi-browser-runtime.js'),deadline:Date.now()+1200000});
+  const validationDirectory=run+'/independent-validation';await command(q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/capture-sanofi-cn-b-source.ts')+' independent '+q(validationDirectory)+' '+q(directory+'/dom-capture.json'));
+  const path=validationDirectory+'/independent-validation.json';independentValidation={path,sha256:(await command('sha256sum '+q(path))).split(' ')[0]};
+ }
+ if(['source-bayer-healthcare-social','source-servier-china-social'].includes(sourceId)){
+  const source=sourceFolders[sourceId],directory=run+'/independent-dom';await command('mkdir -p '+q(directory));
+  const {captureMokaBDom}=await new A(await read(D+'/moka-b-functions.js'))();
+  await captureMokaBDom({source,directory,browserSource:await read(D+'/moka-b-browser-runtime.js'),deadline:Date.now()+1200000});
+  const validationDirectory=run+'/independent-validation';await command(q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/capture-'+source+'-b-source.ts')+' independent '+q(validationDirectory)+' '+q(directory+'/dom-capture.json'));
+  const path=validationDirectory+'/independent-validation.json';independentValidation={path,sha256:(await command('sha256sum '+q(path))).split(' ')[0]};
+ }
+ if(sourceId==='source-pfizer-china-social'){
+  const directory=run+'/independent-dom';await command('mkdir -p '+q(directory));
+  const {capturePfizerManagedDom}=await new A(await read(D+'/pfizer-functions.js'))();
+  await capturePfizerManagedDom({directory,browserSource:await read(D+'/pfizer-browser-runtime.js'),deadline:Date.now()+1200000});
+  const validationDirectory=run+'/independent-validation';await command(q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/capture-pfizer-b-source.ts')+' dom '+q(validationDirectory)+' '+q(directory+'/managed-browser-capture.json'));
+  const path=validationDirectory+'/independent-validation.json';independentValidation={path,sha256:(await command('sha256sum '+q(path))).split(' ')[0]};
+ }
+ const [fresh]=await sql(`SELECT clock_timestamp() AS "checkedAt",to_jsonb(r) AS candidate FROM public."ReleaseCandidate" r WHERE id='${control.candidate.id}';`);if(!fresh?.candidate)throw Error('CANDIDATE_MISSING');
+ await save(run+'/bootstrap.json',{schemaVersion:1,checkedAt:new Date(fresh.checkedAt).toISOString(),candidateRows:[fresh.candidate],batchId,...(currentCapture?{currentCapture}:{}),...(independentValidation?{independentValidation}:{})});
+ const digest=(await command('sha256sum '+q(run+'/bootstrap.json'))).split(' ')[0];
+ let started;
+ try{started=await tools.exec_command({cmd:'PYTHONDONTWRITEBYTECODE=1 TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+' python3 '+q(R+'/capture-simple-guard.py')+' -- '+q(N)+' '+q(V+'/scripts/run-with-http-diagnostics.mjs')+' '+q(run+'/diagnostics')+' 1800000 -- '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/'+(config.route==='PORTABLE'?'p0-cloud-portable-source-pilot.ts':'p0-cloud-source-pilot.ts'))+' '+q(run+'/bootstrap.json')+' '+digest+' '+q(run+'/artifacts')+' '+q(relay)+' --db-started-control '+q(S+'/control-base.json'),yield_time_ms:1000,max_output_tokens:1000});await save(run+'/producer-session.json',{sessionId:started.session_id??null,exitCode:started.exit_code??null,recordedAt:new Date().toISOString()});}
+ catch(error){error.producerStateUnconfirmed=true;throw error;}
+ let process=started;
+ return {stage,sourceId,runDirectory:run,relayDirectory:relay,deadline:Date.now()+1800000,
+  pollProducer:async()=>{if(process.session_id)process=await tools.write_stdin({session_id:process.session_id,chars:'',yield_time_ms:1000,max_output_tokens:1000});const outcome=process.exit_code===0?JSON.parse(await read(run+'/artifacts/'+batchId+'.outcome.json')):null;return {exitCode:process.exit_code??null,outcomeState:outcome?.state,diagnostic:process.exit_code?process.output?.trim()||await command('python3 '+q(D+'/failure-summary.py')+' '+q(run)):process.output?.slice(-1200)};},
+  reviewPublication:async (request,prepared,publicationContextRequestId)=>{const reviewed=JSON.parse((await command('JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+' '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(D+'/review-original-publication.mjs')+' '+q(run)+' '+q(request.requestId)+' '+q(relay)+' '+q(publicationContextRequestId??'')+' > '+q(run+'/review-command.log')+' 2>&1; code=$?; printf \"%s\\n\" \"$code\" > '+q(run+'/review-command.exit')+'; cat '+q(run+'/review-command.log')+'; exit \"$code\"')).trim().split('\n').at(-1));
+   const [recent]=await sql(`SELECT EXISTS(SELECT 1 FROM public."CrawlObservation" o JOIN public."CrawlBatchSourceResult" r ON r.id=o."sourceResultId" JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE o."sourceId"='${sourceId}' AND o.successful AND r."atomicCommitState"='COMMITTED' AND b.status::text='SUCCESS' AND o."crawledAt">clock_timestamp()-interval '12 hours') AS fresh;`);if(recent.fresh)throw Error('NEW_SUCCESS_BEFORE_DISPATCH');
+   let captureTimes={firstHttpObservedAt:null,lastHttpObservedAt:null}; try {captureTimes=JSON.parse(await command('python3 -c '+q("import json,pathlib,sys; p=pathlib.Path(sys.argv[1])/'diagnostics/http-requests.jsonl'; rows=[json.loads(s) for s in p.read_text().splitlines() if s.strip()] if p.exists() else []; times=[r['recordedAt'] for r in rows if r.get('event') in ['REQUEST_START','HEADERS_RECEIVED'] and r.get('recordedAt')]; print(json.dumps({'firstHttpObservedAt':min(times) if times else None,'lastHttpObservedAt':max(times) if times else None}))")+' '+q(run)));} catch(error) {captureTimes.captureNoticeError=String(error).slice(0,240);}
+   if(typeof notify==='function')notify({sourceId,batchId,publicationRequestId:request.requestId,...captureTimes,dispatchBefore:request.payload.dispatchBefore,rawReviewMeaning:'Local revalidation of freshly captured responses from this same batch; not replay of a prior publication.'});
+   return reviewed;},
+  readback:async()=>JSON.parse(await command('python3 '+q(D+'/readback-original-web.py')+' '+q(run)))};
+},async (sourceId,result,job)=>{
+ if(result.status==='WEB_VERIFIED'||result.committedExact===true){
+  if(result.status!=='WEB_VERIFIED')await save(job.runDirectory+'/WEB_READBACK_PENDING.json',{status:'WEB_PENDING',reason:result.reason,diagnostic:result.diagnostic});
+  try{
+   const {backupSuccessfulSource}=await new A(await read(D+'/evidence-backup-functions.js'))();
+   result.evidenceBackup=await backupSuccessfulSource({command,save,q,D,run:job.runDirectory,relay});
+  }catch(error){
+   result.evidenceBackup={status:'PENDING',stage:'BACKUP_HELPER',reason:String(error).slice(0,300)};
+   try{await save(job.runDirectory+'/EVIDENCE_BACKUP_PENDING.json',result.evidenceBackup);}catch{}
+  }
+ }
+ if(sourceId!=='source-novo-nordisk-china-social')return undefined;
+ const {verifyNovoPublishedJobs}=await new A(await read(D+'/novo-job-verification-functions.js'))();
+ return verifyNovoPublishedJobs({command,read,save,q,N,V,P,D,R,rows,
+  official:query=>tools.mcp__codex_apps__supabase_execute_sql({project_id:'yiopvxysxrtrnvqxwgbx',query})});
+});
