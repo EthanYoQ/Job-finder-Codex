@@ -1,0 +1,12 @@
+[
+  {
+    "path": "support/transport/viatris-reader-before-original.sql",
+    "beforeSha256": "9a61edc2f8cd13c2d9d6c1d52dfcf9daaafdd301459567c58fc710b25732cda0",
+    "afterSha256": "ccc4a02d1fa456fe329402f14774b7a442f8073d628724bf9e29112a2f5b3a3e"
+  },
+  {
+    "path": "support/offline-checkers/original-portable-reader-replay.mts",
+    "beforeSha256": "49e522b21e7bcc369489caefb6a9c72bc6fb50016e161943193d693456ffa76c",
+    "afterSha256": "2359d326f227c80643f011a1b96383ff3e8139c779f77c08485bc2b2a5062c6c"
+  }
+]
