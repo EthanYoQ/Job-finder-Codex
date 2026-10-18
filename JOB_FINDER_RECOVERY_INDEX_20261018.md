@@ -160,3 +160,10 @@ Native110/ac70 remains unchanged. External1205/65cae6f882ecf7e186d044a08fd99e9ea
 Restore verified0838 full module, then1145 delta, then1205 delta Drive1zSuYDEIXVWMu_d1Kkvf1tlxIGEkmN6zM (11859 bytes, SHA25640f5c5f5f5d4e8d4425286850b63f6f56de9bdd7dcf2b48b2645d056ba822f03). This downloaded chain restored all61 files exactly. Current compact reader-before inputs retain publisher context and row/final-snapshot checks. Reduced stored packets retain current certificate once; raw reader accepts old/new forms and rejects conflicting legacy duplicates.
 
 The20:00 Asia/Shanghai scheduled round skipped34 recent sources, held existingBI/Novartis cases, had0 new successful sources and0 unknown submissions. This is not full-source acceptance. Novartis partition work was authorized12:14UTC and remains isolated development. FixedLATEST99 and historical evidence gaps remain. See TASK_RECOVERY_REFS_110_1205.json and recovery/module/ACTIVE_VERIFIED_1205.json.
+
+
+## Current recovery refs — 2026-10-18 12:36 UTC
+
+Native111/c44ff2790fa9e5e9edd51d04be116b2da356eca2 was officially registered12:34:35.142Z with independent checks passed and activated; external1205/65cae6f882ecf7e186d044a08fd99e9ea0634547 remains unchanged. Task update12:36:02.524496Z succeeded, preserving daily08:00/20:00 Asia/Shanghai and recording the approved Novartis partition route. Fresh original entry started12:36UTC; no new production success is established. Diagnostic169 jobs must not be reported as published.
+
+Restore verified native110 then the six-code-path111 delta Drive1Qz5z9PbN-N2h53Ruiz1meTzGicL0Uw2V (12425 bytes, SHA256e7abf3b4236e9d2dc4dd160aa2921546e882dec2a9c8631c99bc88bdf2f61d1a). Downloaded patch rebuilt exact tree92fb4fce57b29a449b93e77e66da633c9ef72b81 and downloaded raw commit reproduced its canonical SHA. Pair with the unchanged0838→1145→1205 external restore chain. FixedLATEST99 and prior scheduled/full-source acceptance limitations remain. See TASK_RECOVERY_REFS_111_1205.json.
