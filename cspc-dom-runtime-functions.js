@@ -41,15 +41,13 @@ async function captureCspcDomBatch(listTab, indices) {
     const added = after.filter(tab => !before.some(previous => previous.id === tab.id));
     if (added.length !== 1) throw Error('Expected exactly one new detail tab');
     const tab = await cua.getTab(added[0].id, {browser: 'cdp'});
-    const initialSnapshot = await tab.playwright.domSnapshot();
     const url = await tab.url();
     captures.push({
       row: rows[index],
       tabId: tab.id,
       clickStartedAt,
       navigationReadCompletedAt: new Date().toISOString(),
-      url,
-      initialSnapshot
+      url
     });
   }
   return captures;
