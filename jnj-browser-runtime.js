@@ -2,7 +2,7 @@
 var jnjDomRuntime = (() => {
   const origin = 'https://www.careers.jnj.com';
   const listUrl = page => origin+'/en/jobs/?'+(page===1?'':'page='+page+'&')+'country=China&origin=global#results';
-  let list, detail, deadline, total, current, page = 1;
+  let list, detail, deadline, total, current = [], page = 1;
   const seen = new Set();
   const checkTime = () => { if (Date.now() >= deadline) throw Error('JNJ_ORIGINAL_30_MINUTE_CAPTURE_DEADLINE'); };
   const raw = value => JSON.stringify(value,null,2)+'\n';
@@ -36,7 +36,6 @@ var jnjDomRuntime = (() => {
     }
     const names=['team','subteam','country','state','location','type','pattern'];
     if(JSON.stringify(value.filters.map(f=>f.name))!==JSON.stringify(names) || value.filters.some(f=>JSON.stringify(f.selectedOptions)!==JSON.stringify(f.name==='country'?[{text:'China',value:'China'}]:[]))) throw Error('JNJ_DOM_SCOPE');
-    current = [];
     for (const [index,item] of fragment.items.entries()) {
       if(item.links.length!==1) throw Error('JNJ_DOM_CARD_IDENTITY');
       const card=item.links[0],url=new URL(card.url),id=/^\/en\/jobs\/(r-\d+)\/[^/?#]+\/$/.exec(url.pathname)?.[1];
@@ -49,7 +48,7 @@ var jnjDomRuntime = (() => {
     const next=value.pagination.filter(a=>a.label==='Next page');
     if(next.length!==(page<Math.ceil(total/20)?1:0) || next.length && next[0].url!==listUrl(page+1)) throw Error('JNJ_DOM_PAGINATION');
     checkTime();
-    return {file:'jnj-list-page-'+page+'.json',raw:raw(value),rowCount:current.length,total,next:next.length===1};
+    return {file:'jnj-list-page-'+page+'.json',raw:raw(value),rowCount:fragment.items.length,total,next:next.length===1};
   }
   async function readDetail(index) {
     checkTime();

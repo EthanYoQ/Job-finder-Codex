@@ -31,10 +31,14 @@ async function runJnjManagedDom({directory,browserSource,deadline,sampleOnly}) {
       if(Date.now()>=started.deadline) throw Error('JNJ_ORIGINAL_30_MINUTE_CAPTURE_DEADLINE');
       const list=await call(emit('await jnjDomRuntime.readList()'));await put(list);
       if(list.failure) throw Error(list.failure);
-      for(let index=0;index<(sampleOnly?1:list.rowCount);index++) await put(await call(emit('await jnjDomRuntime.readDetail('+index+')')));
       if(sampleOnly || !list.next) {
         // Samples have no manifest and cannot enter the original prepare/currentCapture path.
-        if(sampleOnly) return {sampleOnly:true,total:list.total,listCount:1,detailCount:1,directory};
+        if(sampleOnly) {
+          await put(await call(emit('await jnjDomRuntime.readDetail(0)')));
+          return {sampleOnly:true,total:list.total,listCount:1,detailCount:1,directory};
+        }
+        // Finish the original list traversal before details can widen the pagination window.
+        for(let index=0;index<list.total;index++) await put(await call(emit('await jnjDomRuntime.readDetail('+index+')')));
         const script='import pathlib,hashlib,json,sys; p=pathlib.Path(sys.argv[1]); files=[{"file":f.name,"bytes":len(f.read_bytes()),"sha256":hashlib.sha256(f.read_bytes()).hexdigest()} for f in sorted(p.glob("*.json"))]; raw=json.dumps({"kind":"BROWSER_UI_DOM_EVIDENCE_NOT_HTTP","files":files},indent=2)+"\\n"; f=p/"manifest.json"; f.write_text(raw); print(json.dumps({"path":str(f),"sha256":hashlib.sha256(f.read_bytes()).hexdigest()}))';
         return {sampleOnly:false,total:list.total,listCount:page,detailCount:list.total,directory,manifest:JSON.parse(await command('python3 -c '+quote(script)+' '+quote(directory)))};
       }
