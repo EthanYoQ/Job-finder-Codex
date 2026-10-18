@@ -1,0 +1,45 @@
+{
+  "status": "PASS",
+  "sampleRun": "/workspace/scratch/5e9614251709/takeda-original-recovery-20261017T0417Z/novartis/dot-auto-novartis-20261018T123719665Z",
+  "archiveBytes": 8959100,
+  "scope": "Generic SQL archive header/count checks moved into existing raw owner; all other source bytes unchanged",
+  "syntaxDiagnostics": 0,
+  "oldNewRawReportsByteEqual": true,
+  "savedRawReportByteEqual": true,
+  "rawReportSha256": "2eaf236e876cf4f8b6ef8020741af81afb40f231b040d2a235ae117bbf0979d5",
+  "jobs": 169,
+  "negativeBoundaries": [
+    {
+      "name": "wrong schema",
+      "oldRejected": true,
+      "newRejected": true
+    },
+    {
+      "name": "wrong source tuple",
+      "oldRejected": true,
+      "newRejected": true
+    },
+    {
+      "name": "wrong file count",
+      "oldRejected": true,
+      "newRejected": true
+    }
+  ],
+  "normalArchiveFullReads": {
+    "before": 2,
+    "after": 1
+  },
+  "packetOnlyBehavior": "Archive existence/schema/tuple/count are now deferred to raw phase; packet-only and packet-only-sql-selftest do not check the archive",
+  "publicationWrapperUnchanged": true,
+  "fullCurrentSqlIdentityOrDeadlineReexecuted": false,
+  "dbWrite": false,
+  "network": false,
+  "activation": false,
+  "activeFilesUnchanged": true,
+  "diffWhitespaceCheck": "PASS: no whitespace diagnostics; no-index exits 1 for differences",
+  "sourceSpecificBranchesModified": false,
+  "nonGenericPacketGatesUnchanged": true,
+  "afterRawProcessExit": 0,
+  "beforeRawProcessExitCaptured": false,
+  "beforeRawReportWrittenAndMatchesSaved": true
+}
