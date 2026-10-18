@@ -30,6 +30,7 @@ async function runJnjManagedDom({directory,browserSource,deadline,sampleOnly}) {
     for(let page=1;page<=20;page++) {
       if(Date.now()>=started.deadline) throw Error('JNJ_ORIGINAL_30_MINUTE_CAPTURE_DEADLINE');
       const list=await call(emit('await jnjDomRuntime.readList()'));await put(list);
+      if(list.failure) throw Error(list.failure);
       for(let index=0;index<(sampleOnly?1:list.rowCount);index++) await put(await call(emit('await jnjDomRuntime.readDetail('+index+')')));
       if(sampleOnly || !list.next) {
         // Samples have no manifest and cannot enter the original prepare/currentCapture path.

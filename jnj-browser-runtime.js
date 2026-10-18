@@ -32,12 +32,16 @@ var jnjDomRuntime = (() => {
        fragment.items.length!==Math.min(20,total-(page-1)*20)) throw Error('JNJ_DOM_PAGE_DRIFT');
     const names=['team','subteam','country','state','location','type','pattern'];
     if(JSON.stringify(value.filters.map(f=>f.name))!==JSON.stringify(names) || value.filters.some(f=>JSON.stringify(f.selectedOptions)!==JSON.stringify(f.name==='country'?[{text:'China',value:'China'}]:[]))) throw Error('JNJ_DOM_SCOPE');
-    current = fragment.items.map(item=>{
+    current = [];
+    for (const [index,item] of fragment.items.entries()) {
       if(item.links.length!==1) throw Error('JNJ_DOM_CARD_IDENTITY');
       const card=item.links[0],url=new URL(card.url),id=/^\/en\/jobs\/(r-\d+)\/[^/?#]+\/$/.exec(url.pathname)?.[1];
-      if(!id || url.origin!==origin || url.username || url.password || url.search || url.hash || seen.has(id)) throw Error('JNJ_DOM_DUPLICATE_OR_INVALID_ID');
-      seen.add(id);return {...card,id};
-    });
+      if(!id || url.origin!==origin || url.username || url.password || url.search || url.hash || seen.has(id)) {
+        // Preserve this real failed page before the Functions caller holds the source.
+        return {file:'jnj-list-page-'+page+'.json',raw:raw(value),failure:'JNJ_DOM_DUPLICATE_OR_INVALID_ID:'+JSON.stringify({page,index,id:id??null,url:card.url,alreadySeen:seen.has(id)})};
+      }
+      seen.add(id);current.push({...card,id});
+    }
     const next=value.pagination.filter(a=>a.label==='Next page');
     if(next.length!==(page<Math.ceil(total/20)?1:0) || next.length && next[0].url!==listUrl(page+1)) throw Error('JNJ_DOM_PAGINATION');
     checkTime();
