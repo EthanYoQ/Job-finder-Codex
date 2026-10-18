@@ -1,6 +1,6 @@
 {
   "taskTitle": "采集并核验招聘岗位",
-  "updateSucceededAt": "2026-10-18T15:38:32.011373Z",
+  "updateSucceededAt": "2026-10-18T15:47:19.372729Z",
   "enabled": true,
   "schedule": {
     "timezone": "Asia/Shanghai",
@@ -27,8 +27,15 @@
   "moduleAppliedAt": "2026-10-18T15:38:14.855017Z",
   "runtimeFiles": 63,
   "readOnly36": {
-    "recent": 35,
-    "due": 1
+    "checkedAt": "2026-10-18T15:48:19.615421Z",
+    "recent": 36,
+    "due": 0,
+    "formalHolder": "",
+    "liveRunning": 0,
+    "manualRunning": 0,
+    "localRequestCount": 154,
+    "unansweredRequests": 0,
+    "producerProcesses": 0
   },
   "evidenceBackup": {
     "jnj159": "AUTOMATIC_REMOTE_RESTORE_VERIFIED",
@@ -128,15 +135,14 @@
     }
   },
   "latestExecution": {
-    "newSuccessfulSources": 1,
-    "skippedRecent": 34,
-    "heldSources": [
-      "BI"
-    ],
+    "execution": 280,
+    "newSuccessfulSources": 3,
+    "skippedRecent": 33,
+    "heldSources": [],
     "liveRunning": 0,
     "unknownSubmissions": 0,
     "fullAcceptance": false,
-    "officialCheckedAt": "2026-10-18T13:30:58.4659Z"
+    "officialCheckedAt": "2026-10-18T15:48:00.690716Z"
   },
   "moduleDeltaChain": [
     {
@@ -507,5 +513,109 @@
     ],
     "skippedRecent": 30,
     "fullAcceptance": false
+  },
+  "execution280": {
+    "sources": [
+      {
+        "sourceId": "source-boehringer-ingelheim-china-social",
+        "status": "WEB_VERIFIED",
+        "allFieldsMatch": true,
+        "lastSuccessAt": "2026-10-18T15:39:21.484Z",
+        "uniqueJobs": 50,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1_JD10GECYQLBwZafwr8_ulbZFIw-pRGc",
+          "bytes": 111793,
+          "sha256": "caf2b5f2114f5c8f04d80d9ae402c30ea61037dd7d05a9f03c25a745623dcb2d",
+          "members": 21,
+          "sources": [
+            {
+              "source": "boehringer-ingelheim",
+              "batch": "dot-auto-boehringer-ingelheim-20261018T153849742Z",
+              "rawFiles": 2,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 50
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:41:21.555Z"
+        },
+        "webVerifiedAt": "2026-10-18T15:40:48.544Z"
+      },
+      {
+        "sourceId": "source-qilu-social",
+        "status": "WEB_VERIFIED",
+        "allFieldsMatch": true,
+        "lastSuccessAt": "2026-10-18T15:41:51.907Z",
+        "uniqueJobs": 232,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1jmtQI6XHOCEMK5v2xEh6AawuZTIe_LUg",
+          "bytes": 638522,
+          "sha256": "1e10dc01a6965c5abebeed15c6b04709d8a937346116d8471ae3bc63e1b7bc75",
+          "members": 20,
+          "sources": [
+            {
+              "source": "qilu",
+              "batch": "dot-auto-qilu-20261018T154132660Z",
+              "rawFiles": 19,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 232
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:43:56.257Z"
+        },
+        "webVerifiedAt": "2026-10-18T15:43:16.755Z"
+      },
+      {
+        "sourceId": "source-roche-china-social",
+        "status": "WEB_VERIFIED",
+        "allFieldsMatch": true,
+        "lastSuccessAt": "2026-10-18T15:44:34.705Z",
+        "uniqueJobs": 301,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1-D39WOD81aGxH-DRT7_ZPoJ-oplBbq2u",
+          "bytes": 1599093,
+          "sha256": "c6f8596333d4f9f72659c97b269431c9f24fd7b74519ccf0a63497cf774a8d42",
+          "members": 20,
+          "sources": [
+            {
+              "source": "roche",
+              "batch": "dot-auto-roche-20261018T154406848Z",
+              "rawFiles": 305,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 301
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:47:05.386Z"
+        },
+        "webVerifiedAt": "2026-10-18T15:46:29.737Z"
+      }
+    ],
+    "allThreeOfficialSuccessCommitted": true,
+    "automaticExactIdBackup": true,
+    "officialCrawledAt": {
+      "source-boehringer-ingelheim-china-social": "2026-10-18T15:39:21.484Z",
+      "source-qilu-social": "2026-10-18T15:41:51.907Z",
+      "source-roche-china-social": "2026-10-18T15:44:33.412Z"
+    },
+    "rocheTimeNote": "Official committed crawledAt is 15:44:33.412Z; web result lastSuccessAt reports 15:44:34.705Z. Both values retained without conflating fields.",
+    "biSigningMaterialCheck": {
+      "checkedAt": "2026-10-18T15:44:11.041061Z",
+      "officialTotal": 50,
+      "apiUnique": 50,
+      "uiUnique": 50,
+      "exactIdsTitlesLocations": true,
+      "artifactApiUrlUnsigned": true,
+      "publicSigningScriptNotArchived": true,
+      "apiDiagnosticQueryRemoved": true,
+      "checkedRunTextFiles": 25,
+      "signingMaterialPatternFindings": 0
+    },
+    "cumulativeSourceCoverage": {
+      "sourcesWithSuccessfulHistory": 36,
+      "sameRoundAllSources": false,
+      "longTermUnattendedAcceptance": false
+    }
   }
 }

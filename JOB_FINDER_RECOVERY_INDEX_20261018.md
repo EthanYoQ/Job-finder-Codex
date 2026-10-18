@@ -238,3 +238,13 @@ Module1526/15c7dc23810ce421f83ccb8a3170de9718be8baa applied15:38:14.855017Z, all
 Append1526 delta Drive1fcI1OZEwLxua6HTqOa5otanhG-xlHjGS (1768 bytes,SHA256c5b27125f22ec1b7061b1fb866456841f856ff4c263d8277ee7f9458e06c5d70) to the existing verified chain through1517. Downloaded restoration matched63 files. Only BI DOM URL handling changed to native anchor fields and string ID parsing; wrong origin/ID rejection remains.
 
 Prior execution277 completed five automatic full chains: Biogen7, CTTQ623, Fosun81, Lilly95, MSD121. Official SUCCESS/COMMITTED, full-field web readbacks and exact-ID automatic private evidence restore passed for all five; individual Drive IDs/hashes are in TASK_RECOVERY_REFS_112_1526.json. BI failed before producer/database write;30 recent skips are not new successes. This establishes fresh Biogen route success after1514 but not all36 or long-term unattended acceptance. FixedLATEST99 and earlier historical limitations remain.
+
+## Execution 280 completed — 2026-10-18 15:48 UTC
+
+Native112/module1526 remain current. BI50, Qilu232 and Roche301 completed official SUCCESS/COMMITTED, full-field CURRENT web readback and automatic exact-request-ID private backup with downloaded restoration. The three Drive IDs, byte counts, SHA256 and verification times are recorded in TASK_RECOVERY_REFS_112_1526.json. Official terminal reconciliation at15:48:00 found no holder/live/manual work. The other33 sources were recent skips, not new successes.
+
+BI API/UI IDs, titles and locations matched50 jobs; unsigned artifact URLs, absent archived signing script and removed diagnostic query were checked across25 run text files, with no signing-material pattern findings. No original data or signing values are included here. Roche official crawledAt15:44:33.412 differs from the web result lastSuccessAt15:44:34.705; retain both distinct fields.
+
+Task updated15:47:19.372729Z, daily08:00/20:00 Asia/Shanghai unchanged. All36 sources now have successful records across runs; this is not same-round full coverage or long-term unattended acceptance. FixedLATEST99 and prior recovery limitations remain unchanged.
+
+Final read-only check15:48:19.615421Z confirmed36 recent/0 due,154 local requests all answered, no producer processes and no formal/live/manual holder. This is a point-in-time status, not a promise that no source will become due later.
