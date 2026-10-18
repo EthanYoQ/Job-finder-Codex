@@ -254,7 +254,7 @@ export async function readPortablePublicSnapshotWithStatus(
       jobs = rawJobs as PortableJobRow[];
     }
     return {results, members, jobs, version, novoClosed};
-  }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 10_000});
+  }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 30_000});
   timing?.record("tx", performance.now() - transactionStartedAt);
   if (data.cached) {
     const state = data.refreshRequired ? onRefreshRequired!() ?? "UPDATING" : "CURRENT";

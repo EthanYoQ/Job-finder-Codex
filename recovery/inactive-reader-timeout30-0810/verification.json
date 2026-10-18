@@ -1,0 +1,12 @@
+{
+  "scope": "Inactive reader main/fallback only",
+  "beforeSha256": "0be7dbba023882a9558186b0bd742eb300b5bff3b3d751858e5afe96a0c76edb",
+  "afterSha256": "7c65318a78b4a77c76c974c883fde5640e4ce98597ea27a1b52ac4730b495d2c",
+  "singleExactReplacement": true,
+  "transactionOptions": {
+    "isolationLevel": "RepeatableRead",
+    "maxWait": 5000,
+    "timeout": 30000
+  },
+  "limits": "Only read-only snapshot transaction cap; does not alter write transactions/retries/native105/pins/live files. 25s refresh includes CPU outside transaction; no promise of eliminating P2028."
+}
