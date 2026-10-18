@@ -271,8 +271,10 @@ export async function runSourceCrawl(
       }};
       return finalizeTruth(withFetchEvidence(result,fetchResult),fetchResult,plan);
     }
+    const html = hasNovartisOfficialPresencePlan(plan) && fetchResult.fetchEvidence && hasNovartisPresenceArtifacts(fetchResult.fetchEvidence)
+      ? replayNovartisOfficialPresence(plan,fetchResult.fetchEvidence).unionHtml : fetchResult.html;
     const htmlResult = reconcileResult(htmlTableAdapter.extract({
-      ...baseInput, html: fetchResult.html, table: plan.table
+      ...baseInput, html, table: plan.table
     }), fetchResult);
     if (hasAstellasPdfCityPlan(plan) && fetchResult.fetchEvidence?.astellasPdfLocations) {
       const replay = await replayAstellasPdfCities(plan, fetchResult.fetchEvidence, fetchResult.capturedAt, deps.isBaseline ?? true);
@@ -487,8 +489,14 @@ export function replayStrictSourceQualityEvidence(input: {
   if (hasNovartisOfficialPresencePlan(input.plan) && hasNovartisPresenceArtifacts(input.evidence)) {
     try {
       const replay = replayNovartisOfficialPresence(input.plan,input.evidence);
+      if (input.plan.adapterId !== "html-table") return false;
+      const normalize = (html:string) => htmlTableAdapter.extract({company:input.plan.company,source:safeSourceClone(input.plan.source)!,
+        capturedAt:input.capturedAt,isBaseline:input.jobs[0]?.isBaseline ?? true,html,table:input.plan.table});
+      const primary = normalize(replay.primaryHtml), union = normalize(replay.unionHtml);
+      if (primary.status !== "SUCCESS" || union.status !== "SUCCESS" || !isDeepStrictEqual(union.jobs,input.jobs) ||
+          !isDeepStrictEqual(union.reconciliation,input.reconciliation)) return false;
       return strictCompletenessGate({ok:true,capturedAt:input.capturedAt,payload:null,fetchEvidence:replay.listEvidence,
-        paginationEvaluation:input.paginationEvaluation},input.reconciliation,input.plan,input.jobs);
+        paginationEvaluation:input.paginationEvaluation},assertAdapterReconciliation(primary),input.plan,primary.jobs);
     } catch { return false; }
   }
   if (hasBeisenDetailDatePlan(input.plan)) {

@@ -85,7 +85,8 @@ describe("Novartis real official-presence lifecycle boundary",()=>{
         ? detail() : new URL(requested).searchParams.has("sort") ? page(current,1,1,2,true) : page([...current,extra])};
     }));
     const result=await runSourceCrawl(plan,{fetch:createOwnedSourceQualityFetch(),isBaseline:false});
-    expect(result).toMatchObject({status:"FAILED",failureReason:NOVARTIS_PRESENCE_UNKNOWN,jobs:[]});
+    expect(result.status).toBe("SUCCESS");
+    expect(result.jobs).toHaveLength(3);
     expect(requests).toEqual([plan.source.officialEntryUrl,NOVARTIS_DEFAULT_ENTRY,url(extra)]);
   });
   it("keeps sorted counts and accepts a default subset despite duplicate pages and reported total drift",async()=>{
@@ -101,18 +102,22 @@ describe("Novartis real official-presence lifecycle boundary",()=>{
     await verifyAtomicRuntimeCommitForPersistence(commit);
     expect(commit.commands.filter(c=>c.type==="UPSERT_JOB")).toHaveLength(2);
   });
-  it("blocks any newly observed default-only identity with a readable same-ID detail and never fetches its apply link",async()=>{
+  it("adds a same-scope default-only identity with matching detail and apply without fetching its apply link",async()=>{
     const f=await capture({defaultPages:[page([...current,extra])]});
-    expect(f.fetched).toMatchObject({ok:false,failureReason:NOVARTIS_PRESENCE_UNKNOWN});
+    expect(f.fetched).toMatchObject({ok:true});
+    expect(f.admission?.status).toBe("ACCEPTED");
+    expect(f.input?.result.jobs).toHaveLength(3);
     expect(isSafeHtmlFailureCode(NOVARTIS_PRESENCE_UNKNOWN)).toBe(true);
     const audit=JSON.parse(String(f.fetched.fetchEvidence?.artifacts.find(a=>a.logicalKey==="novartis-presence-audit")?.body));
-    expect(audit.differences).toEqual([{officialId:extra,officialUrl:url(extra),status:"UNKNOWN"}]);
+    expect(audit.differences).toEqual([{officialId:extra,officialUrl:url(extra),status:"OBSERVED_PRESENT"}]);
     expect(f.requests).toContain(url(extra));expect(f.requests.some(u=>u.includes("moseeker"))).toBe(false);
     const result=await runSourceCrawl(plan,{fetch:async()=>f.fetched,isBaseline:false});
-    expect(result).toMatchObject({status:"FAILED",jobs:[],truth:{transportSuccess:false,completenessVerified:false}});
+    expect(result).toMatchObject({status:"SUCCESS",truth:{transportSuccess:true,completenessVerified:true}});
+    expect(result.jobs).toHaveLength(3);
   });
   it.each([
     {status:404,detail:"404!Ta在地球上消失了"},
+    {detail:detail().replace(`job_number=${extra}`,"job_number=REQ-99999999")},
     {detail:"<article>Maintenance: temporarily unavailable</article>"},
     {detail:detail("REQ-99999999","This job is no longer available",false)},
     {detail:detail(extra,"This job is no longer available",true)},
@@ -141,7 +146,7 @@ describe("Novartis real official-presence lifecycle boundary",()=>{
     expect(buildSourceQualityJobCommands({...args,admission:{status:"REJECTED",codes:[NOVARTIS_PRESENCE_UNKNOWN]}})).toEqual({jobCommands:[],visibilityFloor:EARLIER});
     expect(previousJobs).toEqual(before);
     const recovered=buildSourceQualityJobCommands({...args,admission:f.admission!});
-    expect(recovered.jobCommands.find(c=>c.record.officialUrl===url(extra))).toMatchObject({missingSuccessfulCrawlCount:2,lifecycleStatus:"SUSPECTED_OFFLINE"});
+    expect(recovered.jobCommands.find(c=>c.record.officialUrl===url(extra))).toMatchObject({missingSuccessfulCrawlCount:2,lifecycleStatus:"OFFLINE"});
   });
   it("rejects old sorted-only retained captures at the issuer and the atomic lifecycle boundary",async()=>{
     const f=await capture({checked:false});expect(f.input?.result.status).toBe("SUCCESS");

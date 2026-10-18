@@ -73,11 +73,11 @@ function defaultPage(artifact: SourceFetchArtifactDraft, page: number) {
   return {rows:rows(body(artifact)), nextUrl, reportedTotal:Number(totals[0]!.match(/\d+/u)![0])};
 }
 
-// Only a same-REQ official detail can establish explicit closure. A missing page,
-// stale job body, apply button or downstream 404 cannot establish recruitment status.
-function explicitlyClosed(artifact: SourceFetchArtifactDraft, id: string, url: string): boolean {
+// Closure needs an explicit same-REQ statement. Positive status also requires the
+// current same-scope default-list observation; a detail or apply button alone cannot establish it.
+function detailStatus(artifact: SourceFetchArtifactDraft, id: string, url: string): "EXPLICITLY_CLOSED" | "OBSERVED_PRESENT" | "UNKNOWN" {
   if (artifact.requestedUrl !== sanitizeEvidenceHttpUrl(url) || artifact.finalUrl !== sanitizeEvidenceHttpUrl(url) ||
-      artifact.httpStatus !== 200 || !/^text\/html(?:;|$)/iu.test(artifact.contentType ?? "")) return false;
+      artifact.httpStatus !== 200 || !/^text\/html(?:;|$)/iu.test(artifact.contentType ?? "")) return "UNKNOWN";
   const $ = load(body(artifact));
   $("script,style,noscript,[hidden],[aria-hidden=true],.hidden,.d-none,.sr-only").remove();
   $("[style]").filter((_index,node)=>/(?:display\s*:\s*none|visibility\s*:\s*hidden)/iu.test($(node).attr("style") ?? "")).remove();
@@ -88,7 +88,17 @@ function explicitlyClosed(artifact: SourceFetchArtifactDraft, id: string, url: s
   const closed = /\b(?:this (?:job|position) is no longer available|we are no longer accepting applications for this (?:job|position))\b/iu.test(text) ||
     /(?:该|此|本)职位(?:已关闭|已停止招聘|已结束招聘)/u.test(text);
   const hasApply = article.find("a[href]").toArray().some(node => /^(?:Apply(?: to Job| now)?|立即申请|申请职位)$/iu.test(clean($(node).text())));
-  return article.length === 1 && ids.length === 1 && ids[0] === id && closed && !hasApply;
+  if (article.length !== 1 || ids.length !== 1 || ids[0] !== id) return "UNKNOWN";
+  if (closed) return hasApply ? "UNKNOWN" : "EXPLICITLY_CLOSED";
+  const apply = article.find("a[href]").toArray().filter(node => /^(?:Apply(?: to Job| now)?|立即申请|申请职位)$/iu.test(clean($(node).text())));
+  const sameIdApply = apply.length > 0 && apply.every(node => {
+    try {
+      const target = new URL($(node).attr("href")!);
+      return target.origin === "https://platform.moseeker.com" && target.pathname === "/m/customize/page/novartis" &&
+        !target.username && !target.password && !target.hash && [...target.searchParams].length === 1 && target.searchParams.get("job_number") === id;
+    } catch { return false; }
+  });
+  return clean($("h1").text()) && article.find("p").toArray().some(node => clean($(node).text()).length > 0) && sameIdApply ? "OBSERVED_PRESENT" : "UNKNOWN";
 }
 
 function auditEvidence(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence) {
@@ -123,7 +133,7 @@ function auditEvidence(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvi
     if (!artifact || artifact.kind !== "ATS_PAGE" || artifact.requestedUrl !== sanitizeEvidenceHttpUrl(url) ||
         artifact.extractorLocator !== "novartis-same-id-official-detail-v1") throw Error(NOVARTIS_PRESENCE_UNKNOWN);
     used.push(artifact.logicalKey);
-    return {officialId:id, officialUrl:url, status:explicitlyClosed(artifact,id,url) ? "EXPLICITLY_CLOSED" : "UNKNOWN"};
+    return {officialId:id, officialUrl:url, status:detailStatus(artifact,id,url)};
   });
   if (used.length !== supplements.length || supplements.some(a => a.bodyRepresentation === "REDACTED" || a.rawBodySha256 || a.redactionDescriptors) ||
       supplements.some(a => Date.parse(a.capturedAt) < Math.max(...primary.map(a => Date.parse(a.capturedAt))))) throw Error(NOVARTIS_PRESENCE_UNKNOWN);
@@ -133,6 +143,29 @@ function auditEvidence(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvi
     originals:supplements.map(a => ({logicalKey:a.logicalKey,sha256:sha256Bytes(Buffer.from(body(a))).sha256}))};
 }
 
+// Supplemental rows remain bound to the same filtered default traversal and detail identities.
+function supplementalRows(evidence: PersistentSourceFetchEvidence, audit: ReturnType<typeof auditEvidence>): string[] {
+  const pending = new Set(audit.differences.filter(d => d.status === "OBSERVED_PRESENT").map(d => d.officialId));
+  const result: string[] = [];
+  for (const artifact of evidence.artifacts.filter(a => a.logicalKey.startsWith(`${PREFIX}default-`))) {
+    const $ = load(body(artifact));
+    for (const node of $("table.views-table tbody tr").toArray()) {
+      const id = detailIdentity(new URL($(node).find("td.views-field-field-job-title a").attr("href")!, ORIGIN).href);
+      if (!pending.delete(id)) continue;
+      const country = $(node).find("td.views-field-field-job-country").clone();
+      country.find(".alternative-locations").remove();
+      if (clean(country.text()) !== "China") throw Error(NOVARTIS_PRESENCE_UNKNOWN);
+      result.push($.html(node));
+    }
+  }
+  if (pending.size) throw Error(NOVARTIS_PRESENCE_UNKNOWN);
+  return result;
+}
+
+function tableHtml(rows: string[]): string {
+  return `<table class="views-table"><tbody>${rows.join("")}</tbody></table>`;
+}
+
 /** Replay original bodies, never trust a precomputed allow-list or the ledger alone. */
 export function replayNovartisOfficialPresence(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence) {
   const audit = auditEvidence(plan,evidence), ledger = evidence.artifacts.filter(a => a.logicalKey === AUDIT);
@@ -140,7 +173,17 @@ export function replayNovartisOfficialPresence(plan: SourceCrawlPlan, evidence: 
       ledger[0]!.extractorLocator !== "novartis-official-presence-v1" || !isDeepStrictEqual(JSON.parse(body(ledger[0]!)),audit) || audit.status !== "CONSISTENT") {
     throw Error(NOVARTIS_PRESENCE_UNKNOWN);
   }
-  return {listEvidence:{...evidence,artifacts:evidence.artifacts.filter(a => !a.logicalKey.startsWith(PREFIX))},
+  const extra = supplementalRows(evidence,audit);
+  const primary = evidence.pages.flatMap(page => {
+    const artifact = evidence.artifacts.find(a => a.logicalKey === page.artifactLogicalKey)!;
+    const $ = load(body(artifact));
+    return $("table.views-table tbody tr").toArray().map(node => $.html(node));
+  });
+  if (evidence.fetchCounts.rawCount !== primary.length + extra.length || evidence.fetchCounts.parsedCount !== evidence.fetchCounts.rawCount ||
+      evidence.fetchCounts.validCount !== evidence.fetchCounts.rawCount) throw Error(NOVARTIS_PRESENCE_UNKNOWN);
+  return {listEvidence:{...evidence,artifacts:evidence.artifacts.filter(a => !a.logicalKey.startsWith(PREFIX)),
+      fetchCounts:{...evidence.fetchCounts,rawCount:primary.length,parsedCount:primary.length,validCount:primary.length}},
+    primaryHtml:tableHtml(primary), unionHtml:tableHtml([...primary,...extra]),
     closedUrls:new Set(audit.differences.filter(d => d.status === "EXPLICITLY_CLOSED").map(d => d.officialUrl))};
 }
 
@@ -148,8 +191,8 @@ export function hasNovartisPresenceArtifacts(evidence: PersistentSourceFetchEvid
   return evidence.artifacts.some(a => a.logicalKey.startsWith(PREFIX));
 }
 
-/** Bounded positive-presence check. Default pagination never replaces or changes
- * the sorted list, its total, primary traces, normalization or lifecycle counts. */
+/** Default-only positive observations supplement the current set without changing
+ * the sorted pagination declaration or primary traces. */
 export async function acquireNovartisOfficialPresence(plan: SourceCrawlPlan, fetched: SourceFetchResult, http: HttpHtmlClient): Promise<SourceFetchResult> {
   if (!hasNovartisOfficialPresencePlan(plan) || !fetched.ok || !fetched.fetchEvidence) return fetched;
   const evidence = structuredClone(fetched.fetchEvidence);
@@ -180,7 +223,8 @@ export async function acquireNovartisOfficialPresence(plan: SourceCrawlPlan, fet
     const audit = auditEvidence(plan,evidence);
     evidence.artifacts.push({id:AUDIT,logicalKey:AUDIT,kind:"COMMAND_OUTPUT",capturedAt:at,body:JSON.stringify(audit),extractorLocator:"novartis-official-presence-v1"});
     if (audit.status !== "CONSISTENT") throw Error(NOVARTIS_PRESENCE_UNKNOWN);
-    replayNovartisOfficialPresence(plan,evidence);
+    const extra = supplementalRows(evidence,audit);
+    for (const field of ["rawCount","parsedCount","validCount"] as const) evidence.fetchCounts[field] += extra.length;
     return {...fetched,fetchEvidence:parsePersistentSourceFetchEvidence(evidence)};
   } catch {
     // Retain every obtained raw response and the conflict ledger. No accepted
