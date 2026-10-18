@@ -1,7 +1,8 @@
+import { acquireNovartisNativePartitions } from "./novartisNativePartitions";
 import {isSanofiChinesePlan,createSanofiChineseSourceFetch} from "./sanofiChineseNative";
 import { projectKelunMainlandFetch } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,createSanofiNativeSourceFetch} from "./sanofiNativeQuality";
-import { acquireNovartisOfficialPresence, NOVARTIS_PRESENCE_UNKNOWN } from "./novartisOfficialPresence";
+import { hasNovartisOfficialPresencePlan, NOVARTIS_PRESENCE_UNKNOWN } from "./novartisOfficialPresence";
 import { load } from "cheerio";
 import { parseExpression } from "@babel/parser";
 import { getCACertificates, setDefaultCACertificates } from "node:tls";
@@ -58,7 +59,9 @@ const TEVA_EMBEDDED_ZERO_LOCATOR =
 
 export function createPresenceCheckedHttpHtmlSourceFetch(deps: HttpHtmlSourceFetchDeps = {}): SourceFetchFunction {
   const fetch = createHttpHtmlSourceFetch(deps);
-  return async (plan, tracker) => acquireNovartisOfficialPresence(plan, await fetch(plan, tracker), deps.http ?? defaultHttpHtmlClient);
+  return async (plan, tracker) => hasNovartisOfficialPresencePlan(plan)
+    ? acquireNovartisNativePartitions(plan, deps.http ?? defaultHttpHtmlClient)
+    : fetch(plan, tracker);
 }
 
 export function createHttpHtmlSourceFetch(
@@ -1434,6 +1437,7 @@ function safeHtmlFailureCode(error: unknown): string {
 
 const SAFE_HTML_FAILURE_CODES = new Set([
   NOVARTIS_PRESENCE_UNKNOWN,
+  "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE",
   "HTML_FETCH_FAILED", "HTML_RESPONSE_METADATA_MISSING", "HTML_RESPONSE_REDIRECT_MISMATCH",
   "HTML_RESPONSE_METADATA_INVALID",
   "HTML_RESPONSE_MIME_INVALID", "HTML_RESPONSE_TIME_INVALID", "HTML_REQUEST_UNSAFE",

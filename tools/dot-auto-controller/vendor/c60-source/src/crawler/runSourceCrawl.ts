@@ -1,3 +1,4 @@
+import { hasNovartisPartitionEvidence, replayNovartisNativePartitions, NOVARTIS_PARTITION_PAGINATION } from "./novartisNativePartitions";
 import {isSanofiChinesePlan,replaySanofiChineseNative,SANOFI_CN_PAGINATION_POLICY} from "./sanofiChineseNative";
 import { reviewedAbbvieCity } from "./abbvieChinaRowScope";
 import { exactKelunMainlandPlan, replayKelunMainlandScope } from "./kelunMainlandScope";
@@ -484,6 +485,10 @@ export function replayStrictSourceQualityEvidence(input: {
   jobs: readonly NormalizedJobRecord[];
   capturedAt: string;
 }): boolean {
+  if (hasNovartisPartitionEvidence(input.evidence)) {
+    return strictCompletenessGate({ok:true,capturedAt:input.capturedAt,payload:null,fetchEvidence:input.evidence,
+      paginationEvaluation:input.paginationEvaluation},input.reconciliation,input.plan,input.jobs);
+  }
   if (hasNovartisOfficialPresencePlan(input.plan) && hasNovartisPresenceArtifacts(input.evidence)) {
     try {
       const replay = replayNovartisOfficialPresence(input.plan,input.evidence);
@@ -535,6 +540,15 @@ function strictCompletenessGate(
     const evidence = parsePersistentSourceFetchEvidence(fetchResult.fetchEvidence);
     if (plan.executionAuthority !== "STAGED") return strictGateTrace(plan, "EXECUTION_AUTHORITY");
     validateExecutablePlanChannelBinding(plan);
+    if (hasNovartisPartitionEvidence(evidence)) {
+      if(plan.adapterId!=="html-table")return false;
+      const checked=replayNovartisNativePartitions(plan,evidence);
+      const extracted=htmlTableAdapter.extract({company:plan.company,source:safeSourceClone(plan.source)!,html:checked.html,
+        table:plan.table,capturedAt:fetchResult.capturedAt,isBaseline:outputJobs[0]?.isBaseline ?? true});
+      const replay=evaluatePaginationEvidence({evidence,expectedChannelIds:[...new Set(checked.pages.map(p=>p.channelId!))],filteredOutput:true,...NOVARTIS_PARTITION_PAGINATION});
+      return extracted.status==="SUCCESS"&&isDeepStrictEqual(assertAdapterReconciliation(extracted),ledger)&&ledger.adapterLosses.length===0&&ledger.collisionGroups.length===0&&isDeepStrictEqual(extracted.jobs,outputJobs)&&
+        replay.safeCompleteness&&replay.verifiedEligible&&isDeepStrictEqual(replay,fetchResult.paginationEvaluation);
+    }
     if (isSanofiChinesePlan(plan)) {
       const checked=replaySanofiChineseNative(plan,evidence,outputJobs[0]?.isBaseline ?? true);
       const replay=evaluatePaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,...SANOFI_CN_PAGINATION_POLICY});

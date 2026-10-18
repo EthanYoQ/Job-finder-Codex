@@ -1,3 +1,4 @@
+import { hasNovartisPartitionEvidence, replayNovartisNativePartitions } from "./novartisNativePartitions";
 import { load } from "cheerio";
 import { isDeepStrictEqual } from "node:util";
 import type { HttpHtmlClient } from "./httpHtmlSourceFetch";
@@ -135,6 +136,7 @@ function auditEvidence(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvi
 
 /** Replay original bodies, never trust a precomputed allow-list or the ledger alone. */
 export function replayNovartisOfficialPresence(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence) {
+  if (hasNovartisPartitionEvidence(evidence)) return {listEvidence:evidence,closedUrls:replayNovartisNativePartitions(plan,evidence).closedUrls};
   const audit = auditEvidence(plan,evidence), ledger = evidence.artifacts.filter(a => a.logicalKey === AUDIT);
   if (ledger.length !== 1 || ledger[0]!.kind !== "COMMAND_OUTPUT" ||
       ledger[0]!.extractorLocator !== "novartis-official-presence-v1" || !isDeepStrictEqual(JSON.parse(body(ledger[0]!)),audit) || audit.status !== "CONSISTENT") {

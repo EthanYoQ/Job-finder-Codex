@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { serialize } from "node:v8";
-import { createHttpHtmlSourceFetch, createPresenceCheckedHttpHtmlSourceFetch, isSafeHtmlFailureCode, type HttpHtmlRequest } from "../../src/crawler/httpHtmlSourceFetch";
-import { NOVARTIS_DEFAULT_ENTRY, NOVARTIS_PRESENCE_UNKNOWN, replayNovartisOfficialPresence } from "../../src/crawler/novartisOfficialPresence";
+import { createHttpHtmlSourceFetch, isSafeHtmlFailureCode, type HttpHtmlRequest } from "../../src/crawler/httpHtmlSourceFetch";
+import { NOVARTIS_DEFAULT_ENTRY, NOVARTIS_PRESENCE_UNKNOWN, replayNovartisOfficialPresence, acquireNovartisOfficialPresence } from "../../src/crawler/novartisOfficialPresence";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
@@ -49,7 +49,8 @@ async function capture(options:{defaultPages?:string[];detail?:string;status?:nu
       capturedAt:at,contentType:"text/html",body:isDetail ? options.detail??detail() : sorted ? page(current,1,1,2,true)
       : (options.defaultPages??[page(current)])[index]!};
   };
-  const fetched=await (options.checked===false ? createHttpHtmlSourceFetch({http,now:()=>new Date(at)}) : createPresenceCheckedHttpHtmlSourceFetch({http,now:()=>new Date(at)}))(plan);
+  const primary=await createHttpHtmlSourceFetch({http,now:()=>new Date(at)})(plan);
+  const fetched=options.checked===false?primary:await acquireNovartisOfficialPresence(plan,primary,http);
   const root=await mkdtemp(join(tmpdir(),"novartis-presence-test-"));directories.push(root);
   if (!fetched.ok) return {fetched,requests,root};
   const bytes=serialize(fetched),path=join(root,"original.v8");await writeFile(path,bytes);
@@ -76,7 +77,7 @@ function previous(record:NonNullable<Awaited<ReturnType<typeof capture>>["input"
 }
 
 describe("Novartis real official-presence lifecycle boundary",()=>{
-  it("automatically checks the default view through the normal owned portable fetch route",async()=>{
+  it("requires the native partition form through the normal owned portable fetch route",async()=>{
     vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(new Date(NOW));
     const requests:string[]=[];
     vi.stubGlobal("fetch",vi.fn(async(value:string)=>{
@@ -85,8 +86,8 @@ describe("Novartis real official-presence lifecycle boundary",()=>{
         ? detail() : new URL(requested).searchParams.has("sort") ? page(current,1,1,2,true) : page([...current,extra])};
     }));
     const result=await runSourceCrawl(plan,{fetch:createOwnedSourceQualityFetch(),isBaseline:false});
-    expect(result).toMatchObject({status:"FAILED",failureReason:NOVARTIS_PRESENCE_UNKNOWN,jobs:[]});
-    expect(requests).toEqual([plan.source.officialEntryUrl,NOVARTIS_DEFAULT_ENTRY,url(extra)]);
+    expect(result).toMatchObject({status:"FAILED",failureReason:"NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE",jobs:[]});
+    expect(requests).toEqual([plan.source.officialEntryUrl]);
   });
   it("keeps sorted counts and accepts a default subset despite duplicate pages and reported total drift",async()=>{
     const f=await capture({defaultPages:[page([current[0]!],1,2,2),page([current[0]!],2,2,3)]});
@@ -141,7 +142,7 @@ describe("Novartis real official-presence lifecycle boundary",()=>{
     expect(buildSourceQualityJobCommands({...args,admission:{status:"REJECTED",codes:[NOVARTIS_PRESENCE_UNKNOWN]}})).toEqual({jobCommands:[],visibilityFloor:EARLIER});
     expect(previousJobs).toEqual(before);
     const recovered=buildSourceQualityJobCommands({...args,admission:f.admission!});
-    expect(recovered.jobCommands.find(c=>c.record.officialUrl===url(extra))).toMatchObject({missingSuccessfulCrawlCount:2,lifecycleStatus:"SUSPECTED_OFFLINE"});
+    expect(recovered.jobCommands.find(c=>c.record.officialUrl===url(extra))).toMatchObject({missingSuccessfulCrawlCount:2,lifecycleStatus:"OFFLINE"});
   });
   it("rejects old sorted-only retained captures at the issuer and the atomic lifecycle boundary",async()=>{
     const f=await capture({checked:false});expect(f.input?.result.status).toBe("SUCCESS");
