@@ -11,9 +11,12 @@ function readerBeforeQueries(query, snapshotTimeout='8s') {
  const stable="(reader_before-'checkedAt') || jsonb_build_object('publicationContext',(reader_before->'publicationContext')-'checkedAt')";
  const reference=value=>`CASE WHEN ${value} IS NULL OR ${value}='null'::jsonb THEN 'null'::jsonb ELSE jsonb_build_object('id',${value}->>'id','sha256',${digest(value)}) END`;
  const wrap=select=>prefix+select+';\nROLLBACK;';
- const snapshot=select=>wrap(`WITH snapshot AS (${body}) ${select} FROM snapshot`).replace("statement_timeout='8s'","statement_timeout='"+snapshotTimeout+"'");
+ const resultRows="jsonb_agg(row ORDER BY row->>'id') FROM writers";
+ if(body.split(resultRows).length!==2)throw Error('READER_QUERY_SHAPE');
+ const compactBody=body.replace(resultRows,`jsonb_agg(${reference('row')} ORDER BY row->>'id') FROM writers`);
+ const snapshot=select=>wrap(`WITH snapshot AS (${compactBody}) ${select} FROM snapshot`).replace("statement_timeout='8s'","statement_timeout='"+snapshotTimeout+"'");
  return {
-  header:snapshot(`SELECT reader_before || jsonb_build_object('results',coalesce((SELECT jsonb_agg(${reference('value')} ORDER BY ordinality) FROM jsonb_array_elements(reader_before->'results') WITH ORDINALITY),'[]'::jsonb),'publicationContext',(reader_before->'publicationContext') || jsonb_build_object('firstAccepted',${reference("reader_before->'publicationContext'->'firstAccepted'")},'latestAccepted',${reference("reader_before->'publicationContext'->'latestAccepted'")})) AS reader_before,${digest(stable)} AS snapshot_sha256`),
+  header:snapshot(`SELECT reader_before || jsonb_build_object('publicationContext',(reader_before->'publicationContext') || jsonb_build_object('firstAccepted',${reference("reader_before->'publicationContext'->'firstAccepted'")},'latestAccepted',${reference("reader_before->'publicationContext'->'latestAccepted'")})) AS reader_before,${digest(stable)} AS snapshot_sha256`),
   final:snapshot(`SELECT ${digest(stable)} AS snapshot_sha256`),
   writer:id=>wrap(`WITH writers AS (${writers} AND r.id=${text(id)}) SELECT row,${digest('row')} AS sha256,${digest("row-'batch'-'_count'")} AS publication_sha256 FROM writers`),
   publication:id=>wrap(`WITH matching AS (${matching} AND r.id=${text(id)}) SELECT to_jsonb(r) AS row,${digest('to_jsonb(r)')} AS sha256 FROM matching r`)

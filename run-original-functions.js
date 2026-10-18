@@ -25,9 +25,9 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const template=await read(R+'/transport/'+(sourceId==='source-sanofi-china-social'?'sanofi-reader-before-original.sql':'viatris-reader-before-original.sql'));
  const query=template.replaceAll('__ORIGINAL_CERTIFICATE_SCHEMA__',routeById[sourceId].route==='PORTABLE'?'plan-bound-source-quality-v1':routeById[sourceId].route==='TRUE_A'?'a-grade-official-total-v2':'b-grade-independent-traversal-v2').replaceAll('__ORIGINAL_REQUIRES_PORTABLE_POLICY__',String(routeById[sourceId].route==='PORTABLE')).replaceAll('source-viatris-social',sourceId).replaceAll('company-viatris',routeById[sourceId].companyId).replaceAll('5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9',config.sourceConfigSha256).replaceAll('dot-cloud-native-c2b39d9-20261016',control.candidate.id).replaceAll('viatris-reader-before-v1',sourceFolders[sourceId]+'-reader-before-v1');
  let before;
- if(['source-servier-china-social','source-sanofi-china-social','source-bayer-healthcare-social'].includes(sourceId)){
+ if(['source-servier-china-social','source-sanofi-china-social','source-bayer-healthcare-social','source-hengrui-social'].includes(sourceId)){
   const {readOriginalReaderBefore}=await new A(await read(D+'/reader-before-functions.js'))();
-  before=await readOriginalReaderBefore(query,sql,sourceId==='source-bayer-healthcare-social'?'15s':'8s');
+  before=await readOriginalReaderBefore(query,sql,['source-bayer-healthcare-social','source-hengrui-social'].includes(sourceId)?'15s':'8s');
  }else before=(await sql(query))[0].reader_before;
  await save(S+'/READER_BEFORE.json',before);await save(S+'/expected-candidate.json',before.publicationContext.candidateRow);
  await command('python3 '+q(D+'/readback-original-web.py')+' '+q(S)+' '+q(routeById[sourceId].companyId));
