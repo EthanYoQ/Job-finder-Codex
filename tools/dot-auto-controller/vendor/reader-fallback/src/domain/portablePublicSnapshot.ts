@@ -1,21 +1,20 @@
-import { isJobProjectionDeltaReceipt, verifyJobProjectionDeltaReceipt, hashJobPersistedProjection, type JobProjectionDeltaReceipt, type JobProjectionMember } from "./jobProjectionDeltaReceipt";
-import { SANOFI_HISTORICAL_PUBLIC_PLAN } from "./sanofiHistoricalPublicPlan";
+import { isJobProjectionDeltaReceipt, hashJobPersistedProjection, jobProjectionMemberSchema, type JobProjectionDeltaReceipt, type JobProjectionMember } from "./jobProjectionDeltaReceipt";
 import { isSanofiPublicTransitionPlan, isSanofiHistoricalPublicCandidate, assertSanofiHistoricalPublicRow } from "./sanofiPublicTransition";
 import { getPortableCoverageScope } from "../release/portableCoveragePolicy";
-import { B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION, SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION, isCurrentBGradeCertificateSchema, requiresBGradeTraversalCertificate, verifyBGradeTraversalCertificateReceipt, type BGradeTraversalCertificate } from "../crawler/traversalCertificate";
+import { B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION, SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION, isCurrentBGradeCertificateSchema, requiresBGradeTraversalCertificate } from "../crawler/traversalCertificate";
 import { candidateCompanies } from "../data/companyRegistry";
 import { buildStagedSourceCrawlPlans } from "../crawler/sourcePlan";
 import { supportsStrictOfficialTotalCertificate } from "../crawler/runSourceCrawl";
 import { isProvenUnstartedBatchAbort } from "./unstartedBatchAbort";
 import { getPortableSourceCoverageHold } from "../release/portableSourceCoverageHolds";
 import { createHash } from "node:crypto";
-import { getSourceQualityPolicy, SOURCE_QUALITY_POLICY_ID, SOURCE_QUALITY_RECEIPT_SCHEMA, verifySourceQualityReceipt, type SourceQualityReceipt } from "../crawler/sourceQualityAdmission";
+import { getSourceQualityPolicy, SOURCE_QUALITY_POLICY_ID, SOURCE_QUALITY_RECEIPT_SCHEMA } from "../crawler/sourceQualityAdmission";
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from "../crawler/sourcePlan";
 import { hashCanonicalStringSet } from "../crawler/runtimeBatchIdentity";
 import { fromPrismaJobCategory } from "../db/prismaMappers";
 import type { PortableSourceResultRow, PortableLifecycleMemberRow, PortableJobRow } from "../db/portablePublicSnapshotRepository";
 import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "./publicationEligibility";
-import { A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION, verifyAGradeCompletenessCertificateReceipt, verifySanofiHistoricalPublicReceipt, type AGradeOfficialTotalCertificate } from "../crawler/completenessCertificate";
+import { A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION } from "../crawler/completenessCertificate";
 import type { DatabaseSearchJobResult } from "../server/jobSearchService";
 
 const A_GRADE_PUBLIC_POLICY = "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1" as const;
@@ -32,8 +31,29 @@ const B_GRADE_PUBLIC_CONFIGS: Readonly<Record<string, string>> = Object.freeze(O
     ["source-pfizer-china-social", "source-bayer-healthcare-social", "source-servier-china-social", "source-sanofi-china-social"].includes(plan.source.id) &&
     getPortableCoverageScope().requiredSourceIds.includes(plan.source.id) && requiresBGradeTraversalCertificate(plan))
     .map(plan => [plan.source.id, sourcePlanConfigSha256(plan)])));
-type PublicBReceipt = Extract<BGradeTraversalCertificate, {schemaVersion: typeof B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION | typeof SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION}>;
-type PublicReceipt = SourceQualityReceipt | AGradeOfficialTotalCertificate | PublicBReceipt;
+interface PublicReceipt {
+  schemaVersion: string;
+  policyId?: typeof SOURCE_QUALITY_POLICY_ID;
+  observedAt?: string;
+  observation?: {crawledAt: string};
+  counts: {finalUniqueJobCount: number; validationDiscardCount: number};
+  mainTraversal?: {matchKeyKind: string; canonicalMatchKeySetSha256: string};
+}
+type CommittedDelta = Pick<JobProjectionDeltaReceipt, "binding" | "verifiedAt" | "observedAt" | "members">;
+
+/** Same projection for database JSON and existing in-memory review adapters.
+ * Raw evidence is validated at atomic publication, never replayed by the web reader. */
+export function compactCommittedCertificate(value: unknown, includeMembers = true): unknown {
+  if (value === null || typeof value !== "object") return value;
+  const c = value as Record<string, any>;
+  if (isJobProjectionDeltaReceipt(c)) return {schemaVersion: c.schemaVersion, binding: c.binding,
+    verifiedAt: c.verifiedAt, observedAt: c.observedAt, members: includeMembers ? c.members : [],
+    legacyCertificate: compactCommittedCertificate(c.legacyCertificate)};
+  return {schemaVersion: c.schemaVersion, policyId: c.policyId, observedAt: c.observedAt,
+    observation: c.observation && {crawledAt: c.observation.crawledAt},
+    counts: c.counts && {finalUniqueJobCount: c.counts.finalUniqueJobCount, validationDiscardCount: c.counts.validationDiscardCount},
+    mainTraversal: c.mainTraversal && {matchKeyKind: c.mainTraversal.matchKeyKind, canonicalMatchKeySetSha256: c.mainTraversal.canonicalMatchKeySetSha256}};
+}
 
 export interface PortableSnapshotOptions {
   currentTime: Date;
@@ -70,8 +90,8 @@ export interface PortableSourceSelection extends PortableSourceStatus {
 interface AcceptedPortableSource {
   result: PortableSourceResultRow;
   receipt: PublicReceipt;
-  deltaReceipt?: JobProjectionDeltaReceipt;
-  /** Original receipt validation at its acceptance time, never a new observation. */
+  deltaReceipt?: CommittedDelta;
+  /** Original committed sighting metadata, never a new observation. */
   historicalObservations?: Map<string, AcceptedPortableSource>;
 }
 export interface PortablePublicJob extends DatabaseSearchJobResult {
@@ -109,8 +129,8 @@ export function supportsPublicBGrade(plan: SourceCrawlPlan): boolean {
   return B_GRADE_PUBLIC_CONFIGS[plan.source.id] === sourcePlanConfigSha256(plan);
 }
 function observedAt(receipt: PublicReceipt, row: PortableSourceResultRow): string {
-  return receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? receipt.observedAt :
-    (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION) ? row.observations[0]!.crawledAt.toISOString() : receipt.observation.crawledAt;
+  return receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? receipt.observedAt! :
+    (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION) ? row.observations[0]!.crawledAt.toISOString() : receipt.observation!.crawledAt;
 }
 /** Delta manifests commit the original crawl observation, which can precede
  * an A certificate's independent official-total observation. Keep the latter
@@ -143,149 +163,37 @@ function claimedReceipt(row: PortableSourceResultRow, plan: SourceCrawlPlan): bo
     receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION && supportsPublicAGrade(plan) ||
     isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && supportsPublicBGrade(plan);
 }
-function verifyAcceptedAGrade(row: PortableSourceResultRow, plan: SourceCrawlPlan, now: Date): AGradeOfficialTotalCertificate {
-  const fail = (): never => { throw new Error("PUBLIC_A_GRADE_RECEIPT_DRIFT"); };
+function readCommittedSource(row: PortableSourceResultRow, plan: SourceCrawlPlan, now: Date): AcceptedPortableSource {
+  const certificate = compactCommittedCertificate(row.completenessCertificate) as PublicReceipt & CommittedDelta & {legacyCertificate?: PublicReceipt};
+  const deltaReceipt = isJobProjectionDeltaReceipt(certificate) ? certificate : undefined;
+  const receipt = deltaReceipt ? certificate.legacyCertificate! : certificate;
   const historicalSanofi = isSanofiPublicTransitionPlan(plan) && isSanofiHistoricalPublicCandidate(row);
   if (historicalSanofi) assertSanofiHistoricalPublicRow(row, plan);
-  else if (!supportsPublicAGrade(plan)) fail();
-  const receiptPlan = historicalSanofi ? SANOFI_HISTORICAL_PUBLIC_PLAN : plan;
-  const verifyReceipt = historicalSanofi ? verifySanofiHistoricalPublicReceipt : verifyAGradeCompletenessCertificateReceipt;
-  verifyReceipt({certificate: row.completenessCertificate, certificateSha256: row.completenessCertificateSha256 ?? "", expected: {
-    releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceResultId: row.id,
-    sourceId: plan.source.id, companyId: plan.company.id, sourceConfigSha256: sourcePlanConfigSha256(receiptPlan),
-    surfaceIds: [receiptPlan.source.surfaceId!], channelIds: receiptPlan.expectedChannels!.map(channel => channel.channelId),
-    canonicalJobSetSha256: row.canonicalOutputSetSha256 ?? "", adapterReconciliationSha256: row.adapterReconciliationSha256 ?? "",
-    collisionLedgerSha256: row.collisionLedgerSha256 ?? ""
-  }});
-  // Keep the original verified certificate, without manufacturing a portable receipt.
-  const receipt = row.completenessCertificate as AGradeOfficialTotalCertificate;
-  const observationTime = Date.parse(receipt.observedAt);
-  if (row.sourceId !== plan.source.id || row.sourceConfigHash !== receipt.binding.sourceConfigSha256 ||
+  const supported = receipt?.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA ? receipt.policyId === getSourceQualityPolicy(plan) :
+    receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? historicalSanofi || supportsPublicAGrade(plan) :
+    isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && supportsPublicBGrade(plan);
+  // Keep the read boundary and current publication rules; COMMITTED owns evidence admission.
+  if (!supported || row.sourceId !== plan.source.id || (!historicalSanofi && row.sourceConfigHash !== sourcePlanConfigSha256(plan)) ||
       row.batch.id !== row.batchId || row.batch.releaseCandidateId !== row.releaseCandidateId || row.batch.kind !== "SCHEDULED" ||
       row.transportState !== "SUCCEEDED" || row.adapterState !== "SUCCEEDED" || row.completenessState !== "VERIFIED" || row.atomicCommitState !== "COMMITTED" ||
       row.failureCode || row.failureReason || row.blockerCode || row.blockerReason ||
-      !validDate(row.startedAt) || !validDate(row.finishedAt) || row.finishedAt.getTime() > now.getTime() ||
-      observationTime < row.startedAt.getTime() || observationTime > row.finishedAt.getTime()) fail();
-  const count = receipt.counts, collisions = receipt.legalDedupeLedger.length;
-  const counts = {rawCount: count.rawObservationCount, parsedCount: count.parsedCount, validCount: count.validCount,
-    normalizedCount: count.normalizedCount, dedupeInputCount: count.dedupeInputCount, dedupeOutputCount: count.finalUniqueJobCount,
-    parseDiscardCount: count.parseDiscardCount, validationDiscardCount: count.validationDiscardCount, normalizationDiscardCount: count.normalizationDiscardCount,
-    dedupeDiscardCount: count.legalDedupeCount, collisionCount: collisions, discardCount: count.validationDiscardCount + count.legalDedupeCount,
-    adapterInputCount: count.validCount, adapterOutputCount: count.finalUniqueJobCount, adapterLossCount: count.legalDedupeCount, adapterCollisionGroupCount: collisions};
-  const surfaceHash = hashCanonicalStringSet(receipt.scope.surfaceIds), channelHash = hashCanonicalStringSet(receipt.scope.channelIds);
-  if (Object.entries(counts).some(([key, value]) => row[key as keyof typeof counts] !== value) ||
-      row.expectedJobCount !== count.officialTotal || row.expectedEvidenceKind !== receipt.declaration.kind ||
-      row.canonicalCurrentJobSetSha256 !== receipt.output.canonicalJobSetSha256 ||
-      row.officialSurfaceIds.length !== receipt.scope.surfaceIds.length || hashCanonicalStringSet(row.officialSurfaceIds) !== surfaceHash ||
-      row.officialChannelIds.length !== receipt.scope.channelIds.length || hashCanonicalStringSet(row.officialChannelIds) !== channelHash ||
-      row.expectedSurfaceSha256 !== surfaceHash || row.visitedSurfaceSha256 !== surfaceHash ||
-      row.expectedChannelSha256 !== channelHash || row.visitedChannelSha256 !== channelHash) fail();
-  return receipt;
-}
-function verifyAcceptedBGrade(row: PortableSourceResultRow, plan: SourceCrawlPlan, now: Date): PublicBReceipt {
-  const fail = (): never => { throw new Error("PUBLIC_B_GRADE_RECEIPT_DRIFT"); };
-  if (!supportsPublicBGrade(plan) || row.observations?.length !== 1) fail();
-  const observation = row.observations[0]!;
-  // A committed Sanofi compact attestation proves acceptance at its recorded finish time; current freshness remains diagnostic.
-  const receiptTime = row.sourceId === "source-sanofi-china-social" &&
-    (row.completenessCertificate as {schemaVersion?: unknown} | null)?.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION &&
-    row.atomicCommitState === "COMMITTED" && row.completenessState === "VERIFIED" && validDate(row.finishedAt) && row.finishedAt <= now ? row.finishedAt : now;
-  verifyBGradeTraversalCertificateReceipt({certificate: row.completenessCertificate, certificateSha256: row.completenessCertificateSha256 ?? "", now: receiptTime, expected: {
-    releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceResultId: row.id,
-    sourceId: plan.source.id, companyId: plan.company.id, sourceConfigSha256: sourcePlanConfigSha256(plan),
-    surfaceIds: [plan.source.surfaceId!], channelIds: plan.expectedChannels!.map(channel => channel.channelId),
-    canonicalJobSetSha256: row.canonicalOutputSetSha256 ?? "", adapterReconciliationSha256: row.adapterReconciliationSha256 ?? "",
-    collisionLedgerSha256: row.collisionLedgerSha256 ?? "", canonicalRawEvidenceIdSetSha256: observation.canonicalRawSha256 ?? "",
-    ...(plan.source.id==="source-sanofi-china-social" && row.sanofiArtifacts ? {sanofiArtifacts:row.sanofiArtifacts} : {})
-  }});
-  const receipt = row.completenessCertificate as PublicBReceipt;
-  const count = receipt.counts, normalized = count.finalUniqueJobCount + count.dedupeDiscardCount;
-  const counts = {rawCount: normalized + count.validationDiscardCount, parsedCount: normalized + count.validationDiscardCount,
-    validCount: normalized, normalizedCount: normalized, dedupeInputCount: normalized, dedupeOutputCount: count.finalUniqueJobCount,
-    parseDiscardCount: count.parseDiscardCount, validationDiscardCount: count.validationDiscardCount, normalizationDiscardCount: count.normalizationDiscardCount,
-    dedupeDiscardCount: count.dedupeDiscardCount, collisionCount: receipt.output.collisionGroups?.length ?? 0,
-    discardCount: count.validationDiscardCount + count.dedupeDiscardCount, adapterInputCount: normalized,
-    adapterOutputCount: count.finalUniqueJobCount, adapterLossCount: count.dedupeDiscardCount, adapterCollisionGroupCount: receipt.output.collisionGroups?.length ?? 0};
-  const surfaces = hashCanonicalStringSet(receipt.scope.surfaceIds), channels = hashCanonicalStringSet(receipt.scope.channelIds);
-  if (row.sourceId !== plan.source.id || row.sourceConfigHash !== receipt.binding.sourceConfigSha256 ||
-      receipt.independentValidation.sourceConfigSha256 !== row.sourceConfigHash ||
-      row.batch.id !== row.batchId || row.batch.releaseCandidateId !== row.releaseCandidateId || row.batch.kind !== "SCHEDULED" ||
-      row.transportState !== "SUCCEEDED" || row.adapterState !== "SUCCEEDED" || row.completenessState !== "VERIFIED" || row.atomicCommitState !== "COMMITTED" ||
-      row.failureCode || row.failureReason || row.blockerCode || row.blockerReason ||
-      !validDate(row.startedAt) || !validDate(row.finishedAt) || row.finishedAt.toISOString() !== receipt.issuedAt || row.finishedAt > now ||
-      !validDate(observation.observedFrom) || !validDate(observation.observedTo) || !validDate(observation.crawledAt) ||
-      observation.observedFrom.getTime() !== row.startedAt.getTime() || observation.observedTo.getTime() !== row.finishedAt.getTime() ||
-      observation.crawledAt < row.startedAt || observation.crawledAt > row.finishedAt ||
-      observation.sourceId !== row.sourceId || observation.sourceResultId !== row.id || observation.batchId !== row.batchId ||
-      observation.releaseCandidateId !== row.releaseCandidateId || observation.sourceConfigSha256 !== row.sourceConfigHash || observation.adapterVersion !== row.adapterVersion ||
-      observation.successful !== true || observation.transportSucceeded !== true || observation.adapterSucceeded !== true ||
-      observation.completenessVerified !== true || observation.atomicCommitSucceeded !== true ||
-      row.canonicalOutputSetSha256 !== receipt.output.canonicalJobSetSha256 ||
-      row.adapterReconciliationSha256 !== receipt.output.adapterReconciliationSha256 || row.collisionLedgerSha256 !== receipt.output.collisionLedgerSha256 ||
-      observation.canonicalOutputSha256 !== receipt.output.canonicalJobSetSha256 || observation.paginationTraceSha256 !== receipt.mainTraversal.paginationTraceSha256 ||
-      Object.entries(counts).some(([key, value]) => row[key as keyof typeof counts] !== value) ||
-      row.expectedEvidenceKind !== "COMPLETE_PAGE_TRAVERSAL" || row.expectedJobCount !== null ||
-      row.canonicalCurrentJobSetSha256 !== receipt.output.canonicalJobSetSha256 ||
-      row.officialSurfaceIds.length !== receipt.scope.surfaceIds.length || hashCanonicalStringSet(row.officialSurfaceIds) !== surfaces ||
-      row.officialChannelIds.length !== receipt.scope.channelIds.length || hashCanonicalStringSet(row.officialChannelIds) !== channels ||
-      receipt.independentValidation.surfaceIds.length !== receipt.scope.surfaceIds.length || hashCanonicalStringSet(receipt.independentValidation.surfaceIds) !== surfaces ||
-      receipt.independentValidation.channelIds.length !== receipt.scope.channelIds.length || hashCanonicalStringSet(receipt.independentValidation.channelIds) !== channels ||
-      row.expectedSurfaceSha256 !== surfaces || row.visitedSurfaceSha256 !== surfaces || row.expectedChannelSha256 !== channels || row.visitedChannelSha256 !== channels) fail();
-  return receipt;
-}
-function verifyLegacyAccepted(row: PortableSourceResultRow, plan: SourceCrawlPlan, now: Date): PublicReceipt {
-  if (isCurrentBGradeCertificateSchema((row.completenessCertificate as {schemaVersion?: unknown} | null)?.schemaVersion)) {
-    return verifyAcceptedBGrade(row, plan, now);
+      !/^[a-f0-9]{64}$/.test(row.completenessCertificateSha256 ?? "") ||
+      !validDate(row.startedAt) || !validDate(row.finishedAt) || row.startedAt > row.finishedAt || row.finishedAt > now ||
+      !receipt.counts || receipt.counts.finalUniqueJobCount !== row.dedupeOutputCount) throw Error("PORTABLE_COMMITTED_RESULT_DRIFT");
+  const observationTime = Date.parse(observedAt(receipt, row));
+  if (!Number.isFinite(observationTime) || observationTime < row.startedAt.getTime() || observationTime > row.finishedAt.getTime()) throw Error("PORTABLE_COMMITTED_OBSERVATION_DRIFT");
+  // Proof TTL belongs to atomic admission. An accepted observation can become
+  // stale, but its age alone does not revoke the published snapshot.
+  if (deltaReceipt) {
+    if (["releaseCandidateId", "batchId", "sourceId"].some(key => deltaReceipt.binding?.[key as keyof typeof deltaReceipt.binding] !== row[key as keyof PortableSourceResultRow]) ||
+        deltaReceipt.binding?.sourceResultId !== row.id || deltaReceipt.verifiedAt !== row.finishedAt.toISOString() ||
+        deltaReceipt.observedAt !== deltaObservationAt(receipt, row)) throw Error("PORTABLE_DELTA_OBSERVATION_DRIFT");
+    deltaReceipt.members = jobProjectionMemberSchema.array().parse(deltaReceipt.members);
   }
-  if ((row.completenessCertificate as {schemaVersion?: unknown} | null)?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION) {
-    return verifyAcceptedAGrade(row, plan, now);
-  }
-  const receipt = verifySourceQualityReceipt({receipt: row.completenessCertificate, receiptSha256: row.completenessCertificateSha256 ?? "", expected: {
-    releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceResultId: row.id,
-    sourceId: row.sourceId, sourceConfigSha256: row.sourceConfigHash, adapterVersion: row.adapterVersion
-  }});
-  const fail = (): never => { throw new Error("PORTABLE_ACCEPTED_RECEIPT_DRIFT"); };
-  if (row.batch.id !== row.batchId || row.batch.releaseCandidateId !== row.releaseCandidateId || row.batch.kind !== "SCHEDULED" ||
-      row.transportState !== "SUCCEEDED" || row.adapterState !== "SUCCEEDED" || row.completenessState !== "VERIFIED" || row.atomicCommitState !== "COMMITTED" ||
-      row.failureCode || row.failureReason || row.blockerCode || row.blockerReason ||
-      !validDate(row.startedAt) || !validDate(row.finishedAt) || row.finishedAt.toISOString() !== receipt.issuedAt ||
-      row.startedAt.getTime() > Date.parse(receipt.acquisition.startedAt) || row.finishedAt.getTime() > now.getTime() ||
-      Date.parse(receipt.observation.crawledAt) < Date.parse(receipt.acquisition.startedAt) ||
-      Date.parse(receipt.observation.crawledAt) > Date.parse(receipt.acquisition.finishedAt) ||
-      receipt.companyId !== plan.company.id || receipt.binding.sourceId !== plan.source.id ||
-      receipt.binding.sourceConfigSha256 !== sourcePlanConfigSha256(plan) || receipt.policyId !== getSourceQualityPolicy(plan)) fail();
-  const count = receipt.counts;
-  const counts = {rawCount: count.rawCount, parsedCount: count.parsedCount, validCount: count.validCount, normalizedCount: count.validCount,
-    dedupeInputCount: count.dedupeInputCount, dedupeOutputCount: count.finalUniqueJobCount, parseDiscardCount: count.parseDiscardCount,
-    validationDiscardCount: count.validationDiscardCount, normalizationDiscardCount: count.normalizationDiscardCount,
-    dedupeDiscardCount: count.dedupeDiscardCount, collisionCount: count.collisionCount, discardCount: count.validationDiscardCount + count.dedupeDiscardCount,
-    adapterInputCount: count.validCount, adapterOutputCount: count.finalUniqueJobCount, adapterLossCount: count.dedupeDiscardCount, adapterCollisionGroupCount: count.collisionCount};
-  if (Object.entries(counts).some(([key, value]) => row[key as keyof typeof counts] !== value) ||
-      row.expectedJobCount !== receipt.observation.expectedJobCount || row.expectedEvidenceKind !== receipt.observation.expectedEvidenceKind ||
-      row.canonicalCurrentJobSetSha256 !== receipt.output.canonicalJobKeySetSha256 || row.canonicalOutputSetSha256 !== receipt.output.canonicalJobKeySetSha256 ||
-      row.adapterReconciliationSha256 !== receipt.ledger.adapterReconciliationSha256 || row.collisionLedgerSha256 !== receipt.ledger.collisionLedgerSha256 ||
-      hashCanonicalStringSet(row.officialSurfaceIds) !== hashCanonicalStringSet(receipt.surfaceIds) ||
-      hashCanonicalStringSet(row.officialChannelIds) !== hashCanonicalStringSet(receipt.channelIds) ||
-      hashCanonicalStringSet(receipt.surfaceIds) !== hashCanonicalStringSet([plan.source.surfaceId!]) ||
-      hashCanonicalStringSet(receipt.channelIds) !== hashCanonicalStringSet(plan.expectedChannels!.map(channel => channel.channelId))) fail();
-  return receipt;
-}
-function verifyAccepted(row: PortableSourceResultRow, plan: SourceCrawlPlan, now: Date): AcceptedPortableSource {
-  if (!isJobProjectionDeltaReceipt(row.completenessCertificate)) {
-    return {result: row, receipt: verifyLegacyAccepted(row, plan, now)};
-  }
-  const deltaReceipt = verifyJobProjectionDeltaReceipt(row.completenessCertificate, row.completenessCertificateSha256 ?? "", {
-    releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceId: row.sourceId, sourceResultId: row.id
-  });
-  const receipt = verifyLegacyAccepted({...row, completenessCertificate: deltaReceipt.legacyCertificate as PortableSourceResultRow["completenessCertificate"],
-    completenessCertificateSha256: deltaReceipt.legacyCertificateSha256}, plan, now);
-  if (!validDate(row.finishedAt) || deltaReceipt.verifiedAt !== row.finishedAt.toISOString() ||
-      deltaReceipt.observedAt !== deltaObservationAt(receipt, row)) throw new Error("PORTABLE_DELTA_OBSERVATION_DRIFT");
-  return {result: row, receipt, deltaReceipt};
+  return {result: row, receipt, ...(deltaReceipt ? {deltaReceipt} : {})};
 }
 
-/** Historical presence is proved at its original acceptance time. An expired old
- * B validation cannot grant present publication, but may prove a prior sighting. */
+/** GRACE retains its original committed CURRENT sighting and observation time. */
 function bindHistoricalObservations(selected: AcceptedPortableSource, attempts: readonly PortableSourceResultRow[], plan: SourceCrawlPlan): void {
   if (!selected.deltaReceipt) return;
   const references = [...new Set(selected.deltaReceipt.members.filter(member => member.missingCount === 1).map(member => member.lastPresentResultId))];
@@ -296,7 +204,7 @@ function bindHistoricalObservations(selected: AcceptedPortableSource, attempts: 
     if (rows.length !== 1 || !row || !validDate(row.finishedAt) || row.finishedAt >= selected.result.finishedAt!) {
       throw new Error("PORTABLE_DELTA_LAST_PRESENT_DRIFT");
     }
-    history.set(id, verifyAccepted(row, plan, row.finishedAt));
+    history.set(id, readCommittedSource(row, plan, row.finishedAt));
   }
   selected.historicalObservations = history;
 }
@@ -335,7 +243,7 @@ export function selectPortableSourceSnapshots(
     for (const row of attempts) {
       if (!validDate(row.startedAt) || row.startedAt > options.currentTime || (row.finishedAt !== null && (!validDate(row.finishedAt) || row.finishedAt > options.currentTime))) integrityHold = true;
       if (row.atomicCommitState !== "COMMITTED" || row.completenessState !== "VERIFIED" || !claimedReceipt(row, plan)) continue;
-      try { accepted.push(verifyAccepted(row, plan, options.currentTime)); }
+      try { accepted.push(readCommittedSource(row, plan, options.currentTime)); }
       catch {
         const certificate = row.completenessCertificate as {schemaVersion?: unknown; legacyCertificate?: {schemaVersion?: unknown}} | null;
         const schema = isJobProjectionDeltaReceipt(certificate) ? certificate?.legacyCertificate?.schemaVersion : certificate?.schemaVersion;
@@ -345,8 +253,8 @@ export function selectPortableSourceSnapshots(
     }
     accepted.sort((a, b) => compare(acceptedAt(a), acceptedAt(b)) || compare(a.result.id, b.result.id));
     const selected = accepted.at(-1) ?? null;
-    // A later complete source snapshot is independent of malformed earlier certificate history.
-    // A latest/overlapping invalid receipt still prevents fallback to older data.
+    // A later complete snapshot supersedes earlier malformed A/B metadata.
+    // A latest/overlapping invalid commitment still prevents fallback.
     if (invalidCertifiedHistory.some(row=>!selected||!validDate(row.finishedAt)||row.finishedAt>=selected.result.startedAt)) integrityHold=true;
     const meaningful = attempts.filter(row => !neutralNotDue(row) && !isProvenUnstartedBatchAbort(row, options.currentTime)).sort((a, b) =>
       a.startedAt.getTime() - b.startedAt.getTime() || compare(a.id, b.id));
@@ -357,7 +265,7 @@ export function selectPortableSourceSnapshots(
       try { bindHistoricalObservations(selected, attempts, plan); } catch { integrityHold = true; }
       const firstSameSchema = accepted.find(entry => entry.receipt.schemaVersion === receipt.schemaVersion)!;
       Object.assign(base, {selected, visibilityFloor: acceptedAt(firstSameSchema), selectedSourceResultId: result.id,
-        policyId: receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? A_GRADE_PUBLIC_POLICY : (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION) ? (receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION ? SANOFI_COMPACT_PUBLIC_POLICY : B_GRADE_PUBLIC_POLICY) : receipt.policyId,
+        policyId: receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? A_GRADE_PUBLIC_POLICY : (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION) ? (receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION ? SANOFI_COMPACT_PUBLIC_POLICY : B_GRADE_PUBLIC_POLICY) : receipt.policyId!,
         lastAcceptedAt: acceptedAt(selected), lastSuccessAt: observedAt(receipt, result), lastAcceptedJobCount: receipt.counts.finalUniqueJobCount,
         state: "PUBLISHING", health: "HEALTHY", freshness: fresh(observedAt(receipt, result), options) ? "FRESH" : "STALE"});
       if (plan.source.id === "source-servier-china-social" && receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION) {
@@ -409,7 +317,7 @@ export function verifiedMembers(selected: NonNullable<PortableSourceSelection["s
       [...sets.CURRENT].some(([key, missing]) => sets.GRACE.has(key) || sets.VISIBLE.get(key) !== missing) ||
       [...sets.GRACE].some(([key, missing]) => sets.VISIBLE.get(key) !== missing)) throw new Error("PORTABLE_LIFECYCLE_SET_DRIFT");
   if (selected.receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || selected.receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION) {
-    const traversal = selected.receipt.mainTraversal;
+    const traversal = selected.receipt.mainTraversal!;
     const keys = [...sets.CURRENT.keys()].map(key => traversal.matchKeyKind === "JOB_DEDUPE_KEY" ? key :
       key.startsWith(`${result.sourceId}:`) ? key.slice(result.sourceId.length + 1) : "");
     if (keys.some(key => !key) || hashCanonicalStringSet(keys) !== traversal.canonicalMatchKeySetSha256) throw new Error("PUBLIC_B_GRADE_FINAL_MEMBER_DRIFT");
@@ -430,6 +338,8 @@ function verifiedDeltaMembers(selected: AcceptedPortableSource, members: readonl
     const stored = actual.get(memberKey(member));
     if (!stored || (["releaseCandidateId", "batchId", "sourceId", "sourceResultId", "setKind", "jobKey", "jobKeySha256", "lifecycleStatus", "missingCount"] as const)
       .some(key => stored[key] !== member[key])) throw new Error("PORTABLE_DELTA_MEMBER_DRIFT");
+    if (member.missingCount === 0 && (member.lastPresentResultId !== selected.result.id ||
+        member.lastConfirmedObservedAt !== delta.observedAt || member.lifecycleLastSeenAt !== delta.verifiedAt)) throw Error("PORTABLE_DELTA_CURRENT_OBSERVATION_DRIFT");
     if (member.missingCount === 1) {
       const reference = selected.historicalObservations?.get(member.lastPresentResultId);
       if (!reference || reference.result.sourceId !== selected.result.sourceId ||

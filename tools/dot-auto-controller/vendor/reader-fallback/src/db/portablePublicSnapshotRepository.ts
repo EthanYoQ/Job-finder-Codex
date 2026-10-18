@@ -1,3 +1,4 @@
+import { SANOFI_HISTORICAL_PUBLIC_RECEIPT } from "../crawler/sanofiHistoricalPublicReceipt";
 import {readNovoSingleClosures} from "./novoSingleClosureRepository";
 import {NOVO_CLOSURE_SOURCE,NOVO_CLOSURE_COMPANY,novoSingleClosureRemoves} from "../domain/novoSingleJobClosure";
 import { isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
@@ -10,7 +11,7 @@ import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256, type SourceCrawlPl
 import { candidateCompanies } from "../data/companyRegistry";
 import { getPortableCoverageScope, PORTABLE_COVERAGE_POLICY_ID } from "../release/portableCoveragePolicy";
 import { P0_LAUNCH_MANIFEST, selectLaunchCompanies, validateLaunchManifest } from "../release/launchManifest";
-import { supportsPublicBGrade, verifiedMembers, selectPortableSourceSnapshots, projectPortableSourceJobs, type PortableProjectedSource, type PortablePublicJob, type PortableSnapshotOptions } from "../domain/portablePublicSnapshot";
+import { supportsPublicBGrade, compactCommittedCertificate, verifiedMembers, selectPortableSourceSnapshots, projectPortableSourceJobs, type PortableProjectedSource, type PortablePublicJob, type PortableSnapshotOptions } from "../domain/portablePublicSnapshot";
 import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "../domain/publicationEligibility";
 import { PortableSnapshotCache, PORTABLE_SNAPSHOT_VERSION_SQL, portableSnapshotVersion, portableSnapshotValidUntil } from "./portableSnapshotCache";
@@ -36,6 +37,45 @@ export const portableSourceResultSelect = {
     sourcePlanSha256: true, sourceConfigSha256: true, adapterBundleSha256: true, startedAt: true, finishedAt: true}}
 } as const satisfies Prisma.CrawlBatchSourceResultSelect;
 export type PortableSourceResultRow = Prisma.CrawlBatchSourceResultGetPayload<{select: typeof portableSourceResultSelect}> & {sanofiArtifacts?: readonly SanofiArtifactCommitment[]};
+/** Preserve the existing in-memory review interface while production transfers only compact JSON. */
+export function compactCommittedSourceResult(row: PortableSourceResultRow): PortableSourceResultRow {
+  const date = (value: Date | string | null) => value == null || value instanceof Date ? value : new Date(value.endsWith("Z") || /[+-]\d\d:\d\d$/.test(value) ? value : value + "Z");
+  return {...row, startedAt: date(row.startedAt)!, finishedAt: date(row.finishedAt),
+    completenessCertificate: compactCommittedCertificate(row.completenessCertificate) as PortableSourceResultRow["completenessCertificate"],
+    batch: {...row.batch, startedAt: date(row.batch.startedAt)!, finishedAt: date(row.batch.finishedAt)},
+    observations: row.observations.map(o => ({...o, observedFrom: date(o.observedFrom), observedTo: date(o.observedTo), crawledAt: date(o.crawledAt)!}))};
+}
+
+/** Read only immutable publication metadata. Historical members are unnecessary:
+ * their complete CURRENT/GRACE/VISIBLE commitments already live on the parent. */
+export function portableCommittedResultsSql(plans: readonly SourceCrawlPlan[]): string {
+  const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'";
+  const scope = plans.map(plan => `(r."sourceId"=${quote(plan.source.id)}${isSanofiPublicTransitionPlan(plan) ? "" : ` AND r."sourceConfigHash"=${quote(sourcePlanConfigSha256(plan))}`})`).join(" OR ") || "FALSE";
+  const candidateScope = plans.map(plan => `(r."sourceId"=${quote(plan.source.id)} AND (r."sourceConfigHash"=${quote(sourcePlanConfigSha256(plan))}${isSanofiPublicTransitionPlan(plan) ? ` OR r.id=${quote(SANOFI_HISTORICAL_PUBLIC_RECEIPT.binding.sourceResultId)}` : ""}))`).join(" OR ") || "FALSE";
+  const scalars = Object.entries(portableSourceResultSelect).filter(([key, value]) => value === true && key !== "completenessCertificate").map(([key]) => `r."${key}"`).join(",");
+  const object = (alias: string, fields: object) => `jsonb_build_object(${Object.keys(fields).map(key => `${quote(key)},${alias}."${key}"`).join(",")})`;
+  const legacy = `jsonb_build_object('schemaVersion',c.value->'schemaVersion','policyId',c.value->'policyId','observedAt',c.value->'observedAt',
+    'observation',CASE WHEN c.value->'observation' IS NOT NULL THEN jsonb_build_object('crawledAt',c.value#>'{observation,crawledAt}') END,
+    'counts',jsonb_build_object('finalUniqueJobCount',c.value#>'{counts,finalUniqueJobCount}','validationDiscardCount',c.value#>'{counts,validationDiscardCount}'),
+    'mainTraversal',CASE WHEN c.value->'mainTraversal' IS NOT NULL THEN jsonb_build_object('matchKeyKind',c.value#>'{mainTraversal,matchKeyKind}','canonicalMatchKeySetSha256',c.value#>'{mainTraversal,canonicalMatchKeySetSha256}') END)`;
+  const relations = {transportAttempts:"TransportAttemptEvidence",evidenceArtifacts:"EvidenceArtifact",observations:"CrawlObservation",paginationEvidence:"PaginationEvidence",lossLedgerEntries:"LossLedgerEntry",lifecycleSetMembers:"LifecycleSetEvidenceMember"};
+  return `WITH latest AS (SELECT DISTINCT ON (r."sourceId") r.id FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
+    WHERE (${candidateScope}) AND b.kind='SCHEDULED' AND r."atomicCommitState"='COMMITTED' AND r."completenessState"='VERIFIED'
+    ORDER BY r."sourceId",r."finishedAt" DESC,r.id DESC)
+  SELECT ${scalars},
+    CASE WHEN r."completenessCertificate" IS NULL THEN NULL WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1'
+      THEN jsonb_build_object('schemaVersion',r."completenessCertificate"->'schemaVersion','binding',r."completenessCertificate"->'binding',
+        'verifiedAt',r."completenessCertificate"->'verifiedAt','observedAt',r."completenessCertificate"->'observedAt',
+        'members',CASE WHEN r.id IN (SELECT id FROM latest) THEN r."completenessCertificate"->'members' ELSE '[]'::jsonb END,'legacyCertificate',${legacy})
+      ELSE ${legacy} END AS "completenessCertificate",
+    ${object("b", portableSourceResultSelect.batch.select)} AS batch,
+    (SELECT coalesce(jsonb_agg(${object("o", portableSourceResultSelect.observations.select)}),'[]'::jsonb) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id) AS observations,
+    CASE WHEN r."failureCode"='BATCH_ABORTED_BEFORE_SOURCE_TERMINAL' THEN jsonb_build_object(${Object.entries(relations).map(([key, table]) => `${quote(key)},(SELECT count(*) FROM public."${table}" e WHERE e."sourceResultId"=r.id)`).join(",")}) ELSE '{}'::jsonb END AS "_count"
+  FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
+  CROSS JOIN LATERAL (SELECT CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END AS value) c
+  WHERE (${scope}) AND b.kind='SCHEDULED' ORDER BY r."startedAt",r.id`;
+}
+
 const lifecycleMemberSelect = {
   releaseCandidateId: true, batchId: true, sourceId: true, sourceResultId: true, setKind: true, jobKey: true,
   jobKeySha256: true, lifecycleStatus: true, missingCount: true
@@ -195,19 +235,20 @@ export async function readPortablePublicSnapshotWithStatus(
       timing?.record("cacheClone", performance.now() - cloneStartedAt);
       return {cached: previous, refreshRequired: true};
     }
-    const rawResults = await tx.crawlBatchSourceResult.findMany({
-      where: {OR: requiredPlans.map(plan => isSanofiPublicTransitionPlan(plan) ? {sourceId: plan.source.id} :
-        {sourceId: plan.source.id, sourceConfigHash: sourcePlanConfigSha256(plan)}), batch: {is: {kind: "SCHEDULED"}}},
-      select: portableSourceResultSelect, orderBy: [{startedAt: "asc"}, {id: "asc"}]
-    });
+    const rawResults = tx.$queryRawUnsafe
+      ? await tx.$queryRawUnsafe(portableCommittedResultsSql(requiredPlans))
+      : await tx.crawlBatchSourceResult.findMany({
+        where: {OR: requiredPlans.map(plan => isSanofiPublicTransitionPlan(plan) ? {sourceId: plan.source.id} :
+          {sourceId: plan.source.id, sourceConfigHash: sourcePlanConfigSha256(plan)}), batch: {is: {kind: "SCHEDULED"}}},
+        select: portableSourceResultSelect, orderBy: [{startedAt: "asc"}, {id: "asc"}]
+      });
     if (!Array.isArray(rawResults)) throw new Error("INVALID_PORTABLE_SOURCE_RESULT_ROWS");
-    const results = rawResults as PortableSourceResultRow[];
-    await bindSanofiPersistedArtifacts(tx,results);
+    const results = (rawResults as PortableSourceResultRow[]).map(compactCommittedSourceResult);
     const novoClosed = requiredPlans.some(plan => plan.source.id === NOVO_CLOSURE_SOURCE)
       ? await readNovoSingleClosures(tx as Parameters<typeof readNovoSingleClosures>[0],readOptions.currentTime) : [];
     // Prefetch candidates only, never publication authority. A publishing selection must be
     // the newest committed/verified row: a later invalid or unclaimed receipt forces a hold.
-    // Keep all history for the verifier's true floor, latest attempt and integrity decisions.
+    // Keep compact history for the true floor, latest attempt and writer decisions.
     const candidates = new Map<string, {result: PortableSourceResultRow; floor: Date; companyId: string}>();
     for (const row of results) {
       const identity = identities.get(row.sourceId);
@@ -263,8 +304,8 @@ export async function readPortablePublicSnapshotWithStatus(
   }
   const {results, members, jobs, version, novoClosed} = data;
   const rebuildStartedAt = performance.now();
-  // Receipt hashing, rendered evidence replay and lifecycle/job projection are pure CPU
-  // work over the same owned snapshot. Release the database connection before doing them.
+  // Current membership and mutable Job projection checks use the same owned snapshot.
+  // Original source evidence was admitted by the atomic publisher.
   let selections: ReturnType<typeof selectPortableSourceSnapshots>;
   if (yieldAfterSource) {
     selections = [];
@@ -277,8 +318,8 @@ export async function readPortablePublicSnapshotWithStatus(
     }
     selections.sort((left, right) => Buffer.compare(Buffer.from(left.sourceId), Buffer.from(right.sourceId)));
   } else selections = selectPortableSourceSnapshots(requiredPlans, results, readOptions);
-  // Closure identity is backed by the original accepted receipt and its complete
-  // immutable membership set, not a title match or mutable Job.visible flag.
+  // Closure identity is backed by the original committed metadata and complete
+  // membership set, not a title match or mutable Job.visible flag.
   for (const closure of novoClosed) {
     const plan = requiredPlans.find(plan => plan.source.id === NOVO_CLOSURE_SOURCE)!;
     const row = results.find(row => row.id === closure.previousSourceResultId && row.sourceId === NOVO_CLOSURE_SOURCE);
