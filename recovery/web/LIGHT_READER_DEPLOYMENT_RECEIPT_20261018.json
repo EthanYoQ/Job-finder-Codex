@@ -129,6 +129,7 @@
   "limits": [
     "Ready times and HWM are observed real production snapshot builds, not a guarantee for all future loads.",
     "No broad production stress test or full historical replay was run.",
-    "Complete evidence validation remains in ingestion; committed-read semantics and authorized Bayer visibilityFloor change are documented in the frozen candidate verification."
+    "Complete evidence validation remains in ingestion; committed-read semantics and authorized Bayer visibilityFloor change are documented in the frozen candidate verification.",
+    "Online all-4915 job-set comparison was not executed: tool permission denied uploading the local company-ID/lastSuccessAt comparison mapping to the original server. No retry or alternative route was used. Local frozen all-4915 validation and online Sanofi119/Novo37 field equality remain distinct evidence."
   ]
 }

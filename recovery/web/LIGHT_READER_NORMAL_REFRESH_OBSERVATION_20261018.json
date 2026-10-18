@@ -1,0 +1,34 @@
+{
+  "observedAt": "2026-10-18T10:43:00Z",
+  "main": {
+    "id": 56,
+    "status": "online",
+    "restart": 24,
+    "refreshEvents": [
+      "PORTABLE_SNAPSHOT_REFRESH_STARTED {\n  state: 'UPDATING',\n  failures: 0,\n  nextRetryAt: null,\n  lastVerifiedAt: '2026-10-18T10:37:28.406Z'\n}",
+      "PORTABLE_SNAPSHOT_REFRESH_COMPLETED {\n  state: 'CURRENT',\n  failures: 0,\n  nextRetryAt: null,\n  lastVerifiedAt: '2026-10-18T10:37:28.406Z',\n  durationMs: 1440\n}",
+      "PORTABLE_SNAPSHOT_REFRESH_STARTED {\n  state: 'UPDATING',\n  failures: 0,\n  nextRetryAt: null,\n  lastVerifiedAt: '2026-10-18T10:37:28.406Z'\n}",
+      "PORTABLE_SNAPSHOT_REFRESH_COMPLETED {\n  state: 'CURRENT',\n  failures: 0,\n  nextRetryAt: null,\n  lastVerifiedAt: '2026-10-18T10:37:28.406Z',\n  durationMs: 275\n}",
+      "PORTABLE_SNAPSHOT_REFRESH_STARTED {\n  state: 'UPDATING',\n  failures: 0,\n  nextRetryAt: null,\n  lastVerifiedAt: '2026-10-18T10:37:28.406Z'\n}",
+      "PORTABLE_SNAPSHOT_REFRESH_COMPLETED {\n  state: 'CURRENT',\n  failures: 0,\n  nextRetryAt: null,\n  lastVerifiedAt: '2026-10-18T10:37:28.406Z',\n  durationMs: 389\n}",
+      "PORTABLE_SNAPSHOT_REFRESH_STARTED {\n  state: 'UPDATING',\n  failures: 0,\n  nextRetryAt: null,\n  lastVerifiedAt: '2026-10-18T10:37:28.406Z'\n}",
+      "PORTABLE_SNAPSHOT_REFRESH_COMPLETED {\n  state: 'CURRENT',\n  failures: 0,\n  nextRetryAt: null,\n  lastVerifiedAt: '2026-10-18T10:37:28.406Z',\n  durationMs: 236\n}"
+    ]
+  },
+  "backupRestartCount": 40,
+  "scope": "Existing normal public-read refresh lifecycle, no collection triggered",
+  "notes": [
+    "Selected main events belong to the new snapshot first verified at 10:37:28.406Z; all completed CURRENT with failures0.",
+    "These are unchanged-data refresh/version-check timings, not full rebuild timings.",
+    "Public source company fields including lastUpdatedAt remained equal to the pre-deployment baseline; snapshot verification time is distinct from original source success time.",
+    "Fallback tail also contained old historical refresh logs, excluded from new-version timing claims."
+  ],
+  "completionBoundary": "First normal post-deployment refresh completion observed; no additional monitoring required for this deployment.",
+  "onlineFull4915Comparison": {
+    "executed": false,
+    "reason": "Tool authorization denied uploading local comparison mapping to original server",
+    "retried": false,
+    "alternativeRouteUsed": false,
+    "scopeClosedByRoot": true
+  }
+}
