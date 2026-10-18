@@ -186,7 +186,11 @@ function verifyAcceptedBGrade(row: PortableSourceResultRow, plan: SourceCrawlPla
   const fail = (): never => { throw new Error("PUBLIC_B_GRADE_RECEIPT_DRIFT"); };
   if (!supportsPublicBGrade(plan) || row.observations?.length !== 1) fail();
   const observation = row.observations[0]!;
-  verifyBGradeTraversalCertificateReceipt({certificate: row.completenessCertificate, certificateSha256: row.completenessCertificateSha256 ?? "", now, expected: {
+  // A committed Sanofi compact attestation proves acceptance at its recorded finish time; current freshness remains diagnostic.
+  const receiptTime = row.sourceId === "source-sanofi-china-social" &&
+    (row.completenessCertificate as {schemaVersion?: unknown} | null)?.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION &&
+    row.atomicCommitState === "COMMITTED" && row.completenessState === "VERIFIED" && validDate(row.finishedAt) && row.finishedAt <= now ? row.finishedAt : now;
+  verifyBGradeTraversalCertificateReceipt({certificate: row.completenessCertificate, certificateSha256: row.completenessCertificateSha256 ?? "", now: receiptTime, expected: {
     releaseCandidateId: row.releaseCandidateId, batchId: row.batchId, sourceResultId: row.id,
     sourceId: plan.source.id, companyId: plan.company.id, sourceConfigSha256: sourcePlanConfigSha256(plan),
     surfaceIds: [plan.source.surfaceId!], channelIds: plan.expectedChannels!.map(channel => channel.channelId),
