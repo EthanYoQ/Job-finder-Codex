@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "sample": "dot-auto-novartis-20261018T123719665Z",
+  "archiveBytes": 8959100,
+  "allMemberBytesEqual": true,
+  "bothRestoreVerified": true,
+  "reads": {
+    "before": {
+      "archiveReadCalls": 2,
+      "members": 20,
+      "rawFiles": 51
+    },
+    "after": {
+      "archiveReadCalls": 1,
+      "members": 20,
+      "rawFiles": 51
+    }
+  },
+  "sourceCollection": false,
+  "externalUpload": false,
+  "sqlExecuted": false
+}

@@ -85,8 +85,9 @@ def pack(runs, relay, output, request_ids):
             assert not re.search(rb'-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|AKIA[0-9A-Z]{16}|Bearer\s+[^\s"\\]+|(?:^|[^a-z0-9])(?:api[._-]?key|client[._-]?secret|access[._-]?token|refresh[._-]?token|token|secret|password|passwd|pwd|credential|private[._-]?key|auth|authorization|cookies?|session(?:id)?|jwt|bearer|basic)["\\\']*\s*[:=]\s*\S+', data, re.I), 'SECRET_IN_EVIDENCE'
             members[source+'/'+name] = data
         archive_path = next((run/'artifacts').glob('*.archive.json'))
-        count = raw_files(json.loads(archive_path.read_bytes()))
-        members[source+'/archive.json'] = archive_path.read_bytes()
+        archive_bytes = archive_path.read_bytes()
+        count = raw_files(json.loads(archive_bytes))
+        members[source+'/archive.json'] = archive_bytes
         exit_record = json.loads((run/'diagnostics/process.jsonl').read_text().splitlines()[-1])
         assert exit_record['exitCode'] == 0
         members[source+'/PRODUCER_EXIT.json'] = (json.dumps({k:v for k,v in exit_record.items() if k not in ['wrapperPid','childPid']}, indent=2)+'\n').encode()
