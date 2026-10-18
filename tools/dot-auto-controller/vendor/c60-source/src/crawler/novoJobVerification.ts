@@ -28,12 +28,14 @@ import {novoApplicationStatus} from "./novoChinaQuality";
 import {NOVO_CLOSURE_COMPANY,type NovoClosureArtifact} from "../domain/novoSingleJobClosure";
 export interface NovoPublishedVerificationJob {id:string;companyId:string;sourceId:string;sourceResultId:string;officialUrl:string;lastSeenAt:string;lastConfirmedObservedAt?:string;inGrace:boolean}
 export interface NovoVerificationTarget {identity:NovoClosureIdentity;nativeUrl:string;nativeCity:string}
+export interface NovoVerificationPlan {targets:NovoVerificationTarget[];unknown:Array<{jobId:string;sourceId:string;officialUrl:string;status:"UNKNOWN";reason:string}>}
 /** Input must come from the existing verified portable reader, never Job.visible alone.
  * A delta GRACE member binds its last actual CURRENT receipt, not its newer missing observation. */
-export function planNovoPublishedJobVerifications(input:{publishedJobs:readonly NovoPublishedVerificationJob[];selectedSourceResult:{id:string;completenessCertificate:unknown};jobs:readonly {id:string;dedupeKey:string;officialUrl:string;sourceId:string;companyId:string;locationRaw:string}[];artifacts:readonly NovoClosureArtifact[]}):NovoVerificationTarget[]{
+export function planNovoPublishedJobVerifications(input:{publishedJobs:readonly NovoPublishedVerificationJob[];selectedSourceResult:{id:string;completenessCertificate:unknown};jobs:readonly {id:string;dedupeKey:string;officialUrl:string;sourceId:string;companyId:string;locationRaw:string}[];artifacts:readonly NovoClosureArtifact[]}):NovoVerificationPlan{
  const delta=isJobProjectionDeltaReceipt(input.selectedSourceResult.completenessCertificate)?parseJobProjectionDeltaReceipt(input.selectedSourceResult.completenessCertificate):undefined;
- const seen=new Set<string>();
- return input.publishedJobs.filter(j=>j.sourceId===NOVO_CLOSURE_SOURCE).map(j=>{
+ const seen=new Set<string>(),targets:NovoVerificationTarget[]=[],unknown:NovoVerificationPlan["unknown"]=[];
+ for(const j of input.publishedJobs.filter(j=>j.sourceId===NOVO_CLOSURE_SOURCE)){
+  try {
   if(j.companyId!==NOVO_CLOSURE_COMPANY||j.sourceResultId!==input.selectedSourceResult.id||seen.has(j.id))throw Error("NOVO_JOB_VERIFICATION_PUBLIC_IDENTITY");seen.add(j.id);
   const rows=input.jobs.filter(row=>row.id===j.id&&row.sourceId===j.sourceId&&row.companyId===j.companyId&&row.officialUrl===j.officialUrl);
   if(rows.length!==1)throw Error("NOVO_JOB_VERIFICATION_JOB_BINDING");
@@ -44,8 +46,10 @@ export function planNovoPublishedJobVerifications(input:{publishedJobs:readonly 
   const previousSourceResultId=members?.[0]?.lastPresentResultId??input.selectedSourceResult.id;
   const prior=input.artifacts.filter(a=>a.sourceId===NOVO_CLOSURE_SOURCE&&a.sourceResultId===previousSourceResultId&&a.kind==='OFFICIAL_COMPANY_PAGE'&&a.httpStatus===200&&a.extractorLocator===`novo-application-${nativeId}`);
   if(prior.length!==1||!prior[0]!.finalUrl||!/^https:\/\/careers\.novonordisk\.com\/job\/[^/?#]+\/\d+\/$/.test(prior[0]!.finalUrl))throw Error("NOVO_JOB_VERIFICATION_NATIVE_BINDING");
-  return {identity:{nativeId,jobId:j.id,jobKey:row.dedupeKey,officialUrl:j.officialUrl,previousSourceResultId,previousApplicationArtifactId:prior[0]!.id},nativeUrl:prior[0]!.finalUrl,nativeCity:row.locationRaw.split(", ").at(-1)??""};
- });
+  targets.push({identity:{nativeId,jobId:j.id,jobKey:row.dedupeKey,officialUrl:j.officialUrl,previousSourceResultId,previousApplicationArtifactId:prior[0]!.id},nativeUrl:prior[0]!.finalUrl,nativeCity:row.locationRaw.split(", ").at(-1)??""});
+  } catch(error){unknown.push({jobId:j.id,sourceId:j.sourceId,officialUrl:j.officialUrl,status:"UNKNOWN",reason:error instanceof Error?error.message:String(error)});}
+ }
+ return {targets,unknown};
 }
 /** One original native GET; caller saves the returned exact raw locally. No login or application submission.
  * ACTIVE is native application diagnostics only; it grants no JD or whole-source publication authority. */

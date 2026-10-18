@@ -1,4 +1,4 @@
-import { B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION } from "../crawler/traversalCertificate";
+import { isCurrentBGradeCertificateSchema } from "../crawler/traversalCertificate";
 import { A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION } from "../crawler/completenessCertificate";
 import { BATCH_ABORTED_BEFORE_SOURCE_TERMINAL, isProvenUnstartedBatchAbort } from "../domain/unstartedBatchAbort";
 import { SOURCE_QUALITY_POLICY_ID, SOURCE_QUALITY_RECEIPT_SCHEMA } from "../crawler/sourceQualityAdmission";
@@ -39,7 +39,7 @@ export async function readPortableScheduleObservations(reader:PortableScheduleRe
  * this policy. Ignore it so it cannot postpone the first policy acquisition. */
 function completedLegacySuccess(row:PortableSourceResultRow):boolean {
   const receipt=row.completenessCertificate as {schemaVersion?:unknown;policyId?:unknown}|null;
-  const claimsCurrent=receipt?.schemaVersion===SOURCE_QUALITY_RECEIPT_SCHEMA||receipt?.policyId===SOURCE_QUALITY_POLICY_ID||receipt?.schemaVersion===A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION||receipt?.schemaVersion===B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION;
+  const claimsCurrent=receipt?.schemaVersion===SOURCE_QUALITY_RECEIPT_SCHEMA||receipt?.policyId===SOURCE_QUALITY_POLICY_ID||receipt?.schemaVersion===A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION||isCurrentBGradeCertificateSchema(receipt?.schemaVersion);
   return !claimsCurrent&&row.transportState==='SUCCEEDED'&&row.adapterState==='SUCCEEDED'&&
     row.completenessState==='VERIFIED'&&row.atomicCommitState==='COMMITTED'&&
     !row.failureCode&&!row.failureReason&&!row.blockerCode&&!row.blockerReason;

@@ -26,8 +26,15 @@ describe('original Novo evidence-only verification',()=>{
  it('plans only exact already-published keys with their historical native artifact',()=>{
   const row={...job,dedupeKey:identity.jobKey,locationRaw:'China, Beijing'};
   const input={publishedJobs:[job],selectedSourceResult:{id:'synthetic-prior',completenessCertificate:null},jobs:[row,{...row,id:'not-published'}],artifacts:[artifact]};
-  expect(planNovoPublishedJobVerifications(input)).toEqual([{identity,nativeUrl,nativeCity:'Beijing'}]);
-  expect(()=>planNovoPublishedJobVerifications({...input,artifacts:[{...artifact,sourceResultId:'wrong-prior'}]})).toThrow();
+  expect(planNovoPublishedJobVerifications(input)).toEqual({targets:[{identity,nativeUrl,nativeCity:'Beijing'}],unknown:[]});
+  expect(planNovoPublishedJobVerifications({...input,artifacts:[{...artifact,sourceResultId:'wrong-prior'}]})).toEqual({targets:[],unknown:[{jobId:job.id,sourceId:job.sourceId,officialUrl,status:'UNKNOWN',reason:'NOVO_JOB_VERIFICATION_NATIVE_BINDING'}]});
+ });
+ it('keeps one unbound published job UNKNOWN and still plans the other exact job',()=>{
+  const row={...job,dedupeKey:identity.jobKey,locationRaw:'China, Beijing'};
+  const missing={...job,id:'unbound-published-job'};
+  const result=planNovoPublishedJobVerifications({publishedJobs:[missing,job],selectedSourceResult:{id:'synthetic-prior',completenessCertificate:null},jobs:[row],artifacts:[artifact]});
+  expect(result.targets).toEqual([{identity,nativeUrl,nativeCity:'Beijing'}]);
+  expect(result.unknown).toEqual([{jobId:missing.id,sourceId:missing.sourceId,officialUrl,status:'UNKNOWN',reason:'NOVO_JOB_VERIFICATION_JOB_BINDING'}]);
  });
  it('distinguishes native ACTIVE and UNKNOWN without giving them write authority',async()=>{
   const target={identity,nativeUrl,nativeCity:'Beijing'};

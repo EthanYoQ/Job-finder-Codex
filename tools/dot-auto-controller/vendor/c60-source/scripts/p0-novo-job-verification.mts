@@ -29,9 +29,10 @@ if(mode==='prepare'){
  if(!source||source.state!=='PUBLISHING')throw Error('NOVO_ORIGINAL_READER_NOT_PUBLISHING');
  const selected=results.find((r:any)=>r.id===source.selectedSourceResultId);if(!selected)throw Error('NOVO_SELECTED_RESULT_REQUIRED');
  const native=await import('../src/crawler/novoJobVerification');
- const targets=native.planNovoPublishedJobVerifications({publishedJobs:source.jobs,selectedSourceResult:selected,jobs,artifacts});
- if(args.includes('--plan-only')){await save('reader-before.json',source);await save('targets.json',targets);console.log(JSON.stringify({outcome:'PLAN_ONLY',publishedCount:targets.length,networkRequests:0,sqlExecuted:false}));process.exit(0);}
- const captures=[],observations=[];const run='novo-verify-'+randomUUID();
+ const {targets,unknown}=native.planNovoPublishedJobVerifications({publishedJobs:source.jobs,selectedSourceResult:selected,jobs,artifacts});
+ await save('planning-unknown.json',unknown);
+ if(args.includes('--plan-only')){await save('reader-before.json',source);await save('targets.json',targets);await save('observations.json',unknown);console.log(JSON.stringify({outcome:'PLAN_ONLY',publishedCount:source.jobs.length,plannedCount:targets.length,unknownCount:unknown.length,networkRequests:0,sqlExecuted:false}));process.exit(0);}
+ const captures=[],observations=[];observations.push(...unknown);const run='novo-verify-'+randomUUID();
  for(const target of targets){
   if(Date.now()+30000>=deadline)throw Error('NOVO_CAPTURE_DEADLINE_INSUFFICIENT');
   const observation=await native.captureNovoPublishedJobVerification(target);observations.push({nativeId:target.identity.nativeId,status:observation.status,reason:observation.reason,capturedAt:observation.raw?.capturedAt});
@@ -46,7 +47,7 @@ if(mode==='prepare'){
   const holderId=randomUUID();await save('commit.sql',sql.compileCloudPilotNovoJobVerificationSetSql({...control,expiresAt,holderId,context:input.publicationContext,captures}));
   await save('readback.sql',sql.compileCloudPilotNovoJobVerificationReadbackSql(captures.map(c=>c.batchId)));
  }
- const result={outcome:captures.length?'CLOSURE_SQL_READY':'NO_CLOSED_EVIDENCE',publishedCount:targets.length,verifiedClosedCount:captures.length,activeCount:observations.filter(o=>o.status==='ACTIVE').length,unknownCount:observations.filter(o=>o.status==='UNKNOWN').length,sourceLastSuccessAt:source.lastSuccessAt,sourceLastAttemptAt:source.lastAttemptAt,sqlExecuted:false,expiresAt};await save('result.json',result);console.log(JSON.stringify(result));
+ const result={outcome:captures.length?'CLOSURE_SQL_READY':'NO_CLOSED_EVIDENCE',publishedCount:source.jobs.length,plannedCount:targets.length,verifiedClosedCount:captures.length,activeCount:observations.filter(o=>o.status==='ACTIVE').length,unknownCount:observations.filter(o=>o.status==='UNKNOWN').length,sourceLastSuccessAt:source.lastSuccessAt,sourceLastAttemptAt:source.lastAttemptAt,sqlExecuted:false,expiresAt};await save('result.json',result);console.log(JSON.stringify(result));
 }else if(mode==='reconcile'){
  const native=await import('../src/crawler/novoJobVerification'),readback=await read(option('readback')),expected=await read(option('expected'));
  const result=native.inspectNovoJobVerificationReadback(readback,expected,new Date());await save('reconcile-result.json',result);console.log(JSON.stringify(result));

@@ -1,15 +1,15 @@
 {
   "main": {
     "readerFileHashes": {
-      "src/domain/portablePublicSnapshot.ts": "0b4e30cd2b89dec6e9eea5cd9754819ed2002be20973d17a1c2e5a968d17c0fd",
+      "src/domain/portablePublicSnapshot.ts": "726a198e9815f19d3354c136908e603ac5a398a7419e02cd3861c2fff98457dd",
       "src/domain/jobProjectionDeltaReceipt.ts": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
-      "src/db/portablePublicSnapshotRepository.ts": "678acce78f1f6071a04f3aac7ecc7dd05160066b13e412cbf6a6f88cc0b020af",
+      "src/db/portablePublicSnapshotRepository.ts": "6a3fbd43c30b5b62f89872b01ba543636c7b158c24969395ff7a067cb143d65e",
       "src/crawler/sourceQualityAdmission.ts": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",
       "src/crawler/sourcePlan.ts": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
       "src/data/companyRegistry.ts": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
       "src/crawler/runSourceCrawl.ts": "65d37ef93af0c0d28088a03b4f67cf0948b1cbac53bf805ba237da1549da3d76",
       "src/crawler/completenessCertificate.ts": "5da74fb8a89f45d8905b5eb681c66096d5a80124d70b9a1b13aba6cace2a4434",
-      "src/crawler/traversalCertificate.ts": "774a1c8ac231a20f9cb4f2dbb43395d6f688b18aa0332ba8ba914c24c6f630ba",
+      "src/crawler/traversalCertificate.ts": "2bf94ec1f6bff40d86d875e2fcf983913dc32bbe8060a44f9e10ea4c0caf1604",
       "src/crawler/runtimeBatchIdentity.ts": "81485e7d021984da07d2fc78cfeb4733ce75d9affad88a376168fcf8c0201c6c",
       "src/db/prismaMappers.ts": "da2d751fced4c482d185d59aea342fd52ab5eedd444f4081f841d97c24e39c56",
       "src/domain/publicationEligibility.ts": "3820a2dd0de4913c90051328db6edae8e1b0fe3f0e0e70552ae2ef321e2f9d38",
@@ -23,7 +23,8 @@
       "src/crawler/sanofiChineseNative.ts": "fb513a20ec38020bcc6c4c5a05978b93efc30e84240f025737e484aaa3fab298",
       "src/crawler/sanofiNativeQuality.ts": "9db161f9ef260d8436e469df128ef5ab6f69c79b3b48fb551d6365b689e765ef",
       "src/domain/novoSingleJobClosure.ts": "56aded2e3cf23beb960eb6b87ffe74f7fd4ad5c978702129ccdd374754511c13",
-      "src/db/novoSingleClosureRepository.ts": "674252ec121c8494e0533c6ab336b22236f570a8ea5d0881eef82e8abbdbffce"
+      "src/db/novoSingleClosureRepository.ts": "674252ec121c8494e0533c6ab336b22236f570a8ea5d0881eef82e8abbdbffce",
+      "src/db/portableScheduleObservations.ts": "c5ae4fd14c9289494d16902d7406e6b041931d50b101e75e44bd0c0309b03a58"
     },
     "originCommit": "6510baecc784ec87999cb5ea546b0995afe9222f",
     "capsuleClassification": "PRIVACY_SANITIZED_DERIVATIVE",
@@ -37,15 +38,15 @@
   },
   "fallback": {
     "readerFileHashes": {
-      "src/domain/portablePublicSnapshot.ts": "0b4e30cd2b89dec6e9eea5cd9754819ed2002be20973d17a1c2e5a968d17c0fd",
+      "src/domain/portablePublicSnapshot.ts": "726a198e9815f19d3354c136908e603ac5a398a7419e02cd3861c2fff98457dd",
       "src/domain/jobProjectionDeltaReceipt.ts": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
-      "src/db/portablePublicSnapshotRepository.ts": "678acce78f1f6071a04f3aac7ecc7dd05160066b13e412cbf6a6f88cc0b020af",
+      "src/db/portablePublicSnapshotRepository.ts": "6a3fbd43c30b5b62f89872b01ba543636c7b158c24969395ff7a067cb143d65e",
       "src/crawler/sourceQualityAdmission.ts": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",
       "src/crawler/sourcePlan.ts": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
       "src/data/companyRegistry.ts": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
       "src/crawler/runSourceCrawl.ts": "65d37ef93af0c0d28088a03b4f67cf0948b1cbac53bf805ba237da1549da3d76",
       "src/crawler/completenessCertificate.ts": "5da74fb8a89f45d8905b5eb681c66096d5a80124d70b9a1b13aba6cace2a4434",
-      "src/crawler/traversalCertificate.ts": "774a1c8ac231a20f9cb4f2dbb43395d6f688b18aa0332ba8ba914c24c6f630ba",
+      "src/crawler/traversalCertificate.ts": "2bf94ec1f6bff40d86d875e2fcf983913dc32bbe8060a44f9e10ea4c0caf1604",
       "src/crawler/runtimeBatchIdentity.ts": "81485e7d021984da07d2fc78cfeb4733ce75d9affad88a376168fcf8c0201c6c",
       "src/db/prismaMappers.ts": "da2d751fced4c482d185d59aea342fd52ab5eedd444f4081f841d97c24e39c56",
       "src/domain/publicationEligibility.ts": "3820a2dd0de4913c90051328db6edae8e1b0fe3f0e0e70552ae2ef321e2f9d38",
@@ -59,7 +60,8 @@
       "src/crawler/sanofiChineseNative.ts": "fb513a20ec38020bcc6c4c5a05978b93efc30e84240f025737e484aaa3fab298",
       "src/crawler/sanofiNativeQuality.ts": "9db161f9ef260d8436e469df128ef5ab6f69c79b3b48fb551d6365b689e765ef",
       "src/domain/novoSingleJobClosure.ts": "56aded2e3cf23beb960eb6b87ffe74f7fd4ad5c978702129ccdd374754511c13",
-      "src/db/novoSingleClosureRepository.ts": "674252ec121c8494e0533c6ab336b22236f570a8ea5d0881eef82e8abbdbffce"
+      "src/db/novoSingleClosureRepository.ts": "674252ec121c8494e0533c6ab336b22236f570a8ea5d0881eef82e8abbdbffce",
+      "src/db/portableScheduleObservations.ts": "c5ae4fd14c9289494d16902d7406e6b041931d50b101e75e44bd0c0309b03a58"
     },
     "originCommit": "600ad0ab23e886ae9ac429d3d1b076e00af76e88",
     "capsuleClassification": "PRIVACY_SANITIZED_DERIVATIVE",
