@@ -1,22 +1,10 @@
 import {compileAtomicJsonRecords as originalSqlRecords} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/atomicJsonDeclarations.ts';
-import {readBiogenOriginalDeadline} from "/workspace/scratch/5e9614251709/takeda-original-recovery-20261017T0417Z/offline-checkers/original-wrapper-deadline.mjs";
-import {assertBiogenPacketDeadline} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/biogen-deadline-gate.mts";
-import {verifySourceQualityReceipt} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceQualityAdmission.ts";
-import {buildJobDedupeKey} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/normalizedJob.ts";
-import {canonicalPageTraceSha256,canonicalStringSetSha256} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts";
-import {requiresAGradeOfficialTotalCertificate,issueAGradeOfficialTotalCertificate,verifyAGradeCompletenessCertificateReceipt} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/completenessCertificate.ts";
-import {createWorkdaySourceFetch} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/workdaySourceFetch.ts";
-import {assertBiogenRefreshPlan} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/biogen-native-capture.mts";
-import {loadPilotContext} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/cloudPilotContext.ts";
-import {reviewBiogenRawPages} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/biogen-raw-review.mts";
-import {requestContractV2Matches} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/strictPageRequestContract.ts";
+
 /** Local read-only SQL parser/recompiler. Never submits SQL or edits producer/run. */
 import assert from 'node:assert/strict';
 import {verifyNodeRuntimeProfile} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/scripts/verify-node-runtime-profile.ts";
 import {createBuildIdentity} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/readiness/buildIdentity.ts";
-import {sanitizeEvidenceHttpUrl} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts";
-import {runSourceCrawl,replayStrictSourceQualityEvidence,supportsStrictOfficialTotalCertificate,validateStrictOfficialTotalCertificateEvidence} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runSourceCrawl.ts";
-import {load} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/cheerio/dist/esm/index.js";
+
 import {readFileSync,writeFileSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -27,7 +15,7 @@ import {prepareCloudPilotDbStartedControl,publicationContextComparisonValue,CLOU
 import {deriveCurrentStagedScheduleExpectation} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/stagedScheduleAuthority.ts";
 import {buildPendingRuntimeBatch} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts";
 import {hashCanonicalStringSet} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeBatchIdentity.ts";
-import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection,hashProjectionJson} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts";
+import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts";
 export async function reviewOriginalPortableSql(runArg:string,requestId:string,output:string,{originalOuterDeadline,publicationContext}: {originalOuterDeadline:number;publicationContext?:any}){
 assert(runArg&&requestId&&output);
 assert(Number.isFinite(originalOuterDeadline)&&Date.now()<originalOuterDeadline);
@@ -77,11 +65,11 @@ function parseRows(s:string,start:number){let i=start;
  take(') ORDER BY tuple.ordinality)\n    FROM jsonb_array_elements(');const tuples=jsonLiteral();take(') WITH ORDINALITY AS tuple(value, ordinality))');assert(Array.isArray(tuples));
  return {rows:tuples.map((t:any)=>{assert(Array.isArray(t));const used=new Set(fields.map(x=>x[1]));assert.equal(used.size,t.length);assert([...used].every((v:any)=>v<t.length));return {...common,...Object.fromEntries(fields.map(([k,n])=>[k,t[n]]))};}),end:i};
 }
-function verifyFullBody(sql:string){
-const bodyMatch=/^SET LOCAL statement_timeout = '120000ms';\nDO (\$atomic_[a-f0-9]{32}\$)\nDECLARE affected bigint; job_data jsonb; [\s\S]*? current_context jsonb; current_count bigint; current_hash text; aggregate_hash text;\nBEGIN\n([\s\S]*)\nEND;\n\1;$/.exec(sql);assert(bodyMatch);const body=bodyMatch[2]!;
 const e=deriveCurrentStagedScheduleExpectation(control.build),plan=e.plans.find((x:any)=>x.source.id===cfg.sourceId)!;assert(plan);
 const c=context.candidateRow;
 const planned=buildPendingRuntimeBatch(terminal.batchId,[plan],{releaseCandidateId:c.id,commitSha:c.commitSha,rosterSha256:c.rosterHash,sourcePlanSha256:c.sourcePlanHash,sourceConfigSha256:c.sourceConfigHash,adapterBundleSha256:c.adapterBundleHash,batchKind:'SCHEDULED',ownerId:CLOUD_PILOT_SOURCE.ownerId,expectedPlannedSourceIds:[cfg.sourceId],expectedPlannedSourceSetSha256:hashCanonicalStringSet([cfg.sourceId]),expectedPlannedSourceCount:1},new Date(terminal.startedAt));
+function verifyFullBody(sql:string){
+const bodyMatch=/^SET LOCAL statement_timeout = '120000ms';\nDO (\$atomic_[a-f0-9]{32}\$)\nDECLARE affected bigint; job_data jsonb; [\s\S]*? current_context jsonb; current_count bigint; current_hash text; aggregate_hash text;\nBEGIN\n([\s\S]*)\nEND;\n\1;$/.exec(sql);assert(bodyMatch);const body=bodyMatch[2]!;
 const holder=/UPDATE public\."CrawlCoordinatorLock" SET "holderId"=E'([a-f0-9-]{36})'/.exec(body)?.[1];assert(holder);
 const through=/IF E'([^']+)'::timestamptz>clock_timestamp\(\)\+interval '1 second'/.exec(body)?.[1];assert(through);
 // Shared JSON declarations restore nested certificate last; native matches emits original insertion order.
@@ -115,7 +103,7 @@ while(offset<middle.length){const s=middle.slice(offset);let stmt:string;let wri
 assert.equal(regenerated.join('\n'),middle,'BODY_NOT_FULLY_RECONSTRUCTED');
 return {decoded,through,plan};
 }
-const {decoded,through,plan}=verifyFullBody(sql);
+const {decoded,through}=verifyFullBody(sql);
 const negativeCases=[
  ['arbitrary inserted SQL',sql.replace('\nINSERT INTO public."EvidenceArtifact"','\nPERFORM pg_sleep(1);\nINSERT INTO public."EvidenceArtifact"')],
  ['weakened context guard',sql.replace(/IF [^\n]* THEN RAISE EXCEPTION 'PILOT_CONTEXT_CHANGED'; END IF;/,"IF false THEN RAISE EXCEPTION 'PILOT_CONTEXT_CHANGED'; END IF;")],

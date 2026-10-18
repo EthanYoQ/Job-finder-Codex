@@ -18,8 +18,8 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  if(!sourceFolders[sourceId])throw Error('ROUTE_NOT_CONNECTED:'+routeById[sourceId].route);
  if(state.holder||Number(state.running)||Number(state.manual))throw Error('EXISTING_WRITER_RECONCILE_ONLY');
  const active=await command("python3 -c "+q("import pathlib; print(any((p.read_bytes().split(b'\\0')[0].endswith(b'/node') and any(a.endswith(b'/run-with-http-diagnostics.mjs') or a.endswith(b'/p0-cloud-portable-source-pilot.ts') or a.endswith(b'/p0-cloud-source-pilot.ts') for a in p.read_bytes().split(b'\\0'))) for p in pathlib.Path('/proc').glob('[0-9]*/cmdline') if p.exists()))"));if(active.trim()==='True')throw Error('EXISTING_CLOUD_PRODUCER_RECONCILE_ONLY');
- await command('python3 '+q(D+'/prepare-original-source.py')+' '+q(sourceId)+' '+q(sourceFolders[sourceId]));
- const S=R+'/'+sourceFolders[sourceId],config=JSON.parse(await read(S+'/host-config.json')),control=JSON.parse(await read(S+'/control-base.json')),binding=JSON.parse(await read(S+'/binding-selector.json'));
+ const {config,control,binding}=JSON.parse(await command('python3 '+q(D+'/prepare-original-source.py')+' '+q(sourceId)+' '+q(sourceFolders[sourceId])));
+ const S=R+'/'+sourceFolders[sourceId];
  store('cloudPilotHostConfig',{mode:config.mode,bindingSha256:binding.sha256,root:V+'/ops/cloud-pilot-host',repo:V,project:'yiopvxysxrtrnvqxwgbx',sourceId});
  const stage=await new A(load('cloudPilotHostStages'))();await stage.h.binding();if(await stage.h.next(relay))throw Error('EXISTING_RELAY_RECONCILE_ONLY'); // Existing identity validator rejects stale source/build bindings.
  const template=await read(R+'/transport/'+(sourceId==='source-sanofi-china-social'?'sanofi-reader-before-original.sql':'viatris-reader-before-original.sql'));

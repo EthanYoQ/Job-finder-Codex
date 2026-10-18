@@ -1,0 +1,111 @@
+{
+  "reader": {
+    "hengrui996CompleteEqual": true,
+    "novo37CompleteEqual": true,
+    "hengruiFreshProcessBeforeMs": 1583.820804,
+    "hengruiFreshProcessAfterMs": 1427.776793,
+    "benchmarkNote": "one historical local sample; no guaranteed performance percentage",
+    "noDatabaseOrNetwork": true
+  },
+  "sql": {
+    "classification": "HISTORICAL_LOCAL_VERIFY_FULL_BODY_EQUIVALENCE_ONLY",
+    "run": "/workspace/scratch/5e9614251709/takeda-original-recovery-20261017T0417Z/bayer/dot-auto-bayer-20261018T050354084Z",
+    "sourceId": "source-bayer-healthcare-social",
+    "candidateId": "dot-cloud-native-3f77a6b-20261018",
+    "sqlBytes": 2967708,
+    "sqlSha256": "01ee477e7ffe2e7dbf3581d0a2775c19bb158538da84cd1c49f48b36c3e845f9",
+    "sourceSha256": {
+      "before": "78717d630bf95a540e35a37680a1be21e46c05f746c28ca912cf9a8f0e766b5e",
+      "after": "23eec9e2ead52c13c06ef72de619f1977c40fcad7d173b1ffe5faa5804929831"
+    },
+    "positiveSqlAcceptedBoth": true,
+    "negativeTests": [
+      {
+        "name": "arbitrary inserted SQL",
+        "rejected": true
+      },
+      {
+        "name": "weakened context guard",
+        "rejected": true
+      },
+      {
+        "name": "removed coordinator release",
+        "rejected": true
+      },
+      {
+        "name": "arbitrary trailing SQL",
+        "rejected": true
+      },
+      {
+        "name": "altered update target scope",
+        "rejected": true
+      },
+      {
+        "name": "arbitrary delete in body",
+        "rejected": true
+      }
+    ],
+    "outputsEqual": true,
+    "savedDecodedRowsEqual": true,
+    "inputsUnchanged": true,
+    "decodedTables": [
+      {
+        "table": "EvidenceArtifact",
+        "rows": 167
+      },
+      {
+        "table": "PaginationEvidence",
+        "rows": 4
+      },
+      {
+        "table": "LossLedgerEntry",
+        "rows": 2
+      },
+      {
+        "table": "CrawlObservation",
+        "rows": 1
+      },
+      {
+        "table": "Job",
+        "rows": 132
+      },
+      {
+        "table": "LifecycleSetEvidenceMember",
+        "rows": 320
+      },
+      {
+        "table": "CrawlBatchSourceResult",
+        "rows": 1
+      }
+    ],
+    "counts": {
+      "before": {
+        "derive": 6,
+        "pending": 6,
+        "elapsedMs": 320
+      },
+      "after": {
+        "derive": 1,
+        "pending": 1,
+        "elapsedMs": 285
+      }
+    },
+    "outputSha256": "37f5eed849c3df495e901c8cd7a1b1df2f7b437b6ad7daa779179774a2ea1aa5",
+    "network": false,
+    "db": false,
+    "fullReleaseIdentityChecked": false
+  },
+  "prepare": "PASS actual persisted portable/A return and failure stop",
+  "relayExistingTests": "PASS",
+  "syntaxTranspile": "PASS",
+  "unusedImportEmission": "same runtime imports, 21 unused imported names removed",
+  "changes": {
+    "addedLines": 16,
+    "removedLines": 25,
+    "netLines": -9,
+    "productionFiles": 4,
+    "newProductionFiles": 0
+  },
+  "noActivation": true,
+  "noDatabaseOrNetwork": true
+}

@@ -17,4 +17,5 @@ else:
 S=R/folder; S.mkdir(exist_ok=True); control=binding['control']
 for name,value in {'binding-selector.json':{'sha256':digest},'control-base.json':control,'host-config.json':{'mode':mode,'route':row['route'],'sourceId':source,'sourceConfigSha256':row['sourceConfigSha256']},'activation.json':{'status':'REGISTERED_VERIFIED','candidate':control['candidate'],'build':control['build']}}.items():
  (S/name).write_text(json.dumps(value))
-print(json.dumps({'sourceId':source,'candidateId':control['candidate']['id'],'bindingSha256':digest}))
+print(json.dumps({'sourceId':source,'candidateId':control['candidate']['id'],'bindingSha256':digest,
+ **{key:json.loads((S/name).read_text()) for key,name in [('config','host-config.json'),('control','control-base.json'),('binding','binding-selector.json')]}}))
