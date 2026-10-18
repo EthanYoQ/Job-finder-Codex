@@ -1,0 +1,2 @@
+# Inactive upload error detail
+One existing helper branch: Drive isError now retains tool text such as error type/status/reason in the existing PENDING reason, instead of discarding it. All URLs and named credential/session values are redacted before saving; no raw response or signed download URL is saved. Existing 300-character pending cap and automaticRetry:false remain. Small artificial check exercises the actual helper isError path. No upload, retry or real user data in test. Parent0644/2ab72d3.

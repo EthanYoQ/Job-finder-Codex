@@ -9,7 +9,10 @@ async function backupSuccessfulSource({command,save,q,D,run,relay}) {
   stage='UPLOAD';
   await save(directory+'/UPLOAD_STARTED.json',{startedAt:new Date().toISOString(),sha256:packed.sha256});
   const uploaded=await tools.mcp__codex_apps__google_drive_upload_file({file_uri:archive,file_name:run.split('/').at(-1)+'-success-evidence.tar.gz',mime_type:'application/gzip',parent_folder_id:'11IB7F0xjEWueTzBLRfWv2oZGEoTW7u0J'});
-  if(uploaded.isError)throw Error('DRIVE_UPLOAD_FAILED');
+  if(uploaded.isError){
+   const detail=(uploaded.content??[]).filter(x=>x.type==='text').map(x=>x.text).join(' ').replace(/https?:\/\/[^\s"'<>]+/gi,'[URL]').replace(/(authorization|cookie|[a-z_-]*token|[a-z_-]*session[a-z_-]*|api[_-]?key|password)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;}]+)/gi,'$1=[REDACTED]').replace(/Bearer\s+[^\s,;}]+/gi,'Bearer [REDACTED]');
+   throw Error('DRIVE_UPLOAD_FAILED: '+(detail||'tool isError without text').slice(0,500));
+  }
   fileId=uploaded.structuredContent?.id;
   if(typeof fileId!=='string'||!fileId)throw Error('DRIVE_UPLOAD_ID_UNCONFIRMED');
   await save(directory+'/UPLOADED.json',{fileId,sha256:packed.sha256});
