@@ -1,0 +1,188 @@
+{
+  "asOf": "2026-10-18T04:18:00Z",
+  "scope": "RECOVERY_INDEX_NOT_FULL_RESTORE_ACCEPTANCE",
+  "native": {
+    "candidate": 104,
+    "commit": "3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800",
+    "tree": "d733832ab3c4986210a18320397435a1db9aa8d8",
+    "activation": "Reported by operational owner; this index does not activate code"
+  },
+  "fromVerified99": {
+    "manifestDriveFileId": "1lLMz2AeTcYsCAyUR7ec5KU5SbMeOOpYo",
+    "commit": "15531938f57340eba60943faf55c56ce3512653f",
+    "orderedSourceDeltas": [
+      {
+        "commit": "4e8b8414f17060401b06dfd29833a6c5df90ffef",
+        "parent": "15531938f57340eba60943faf55c56ce3512653f",
+        "driveFileId": "1bPc7zV2bqefugYhn5uWJrozTj4NBKO3Z",
+        "sha256": "8609571053fac30caf2fe683f8a73d929646218e5dde2d03834d415d0a12397f",
+        "bytes": 5912,
+        "individualDownloadedPatchRestore": "PASS"
+      },
+      {
+        "commit": "002c3cd3d84e079f8c582a38f08c2dc66f0eb7d6",
+        "parent": "4e8b8414f17060401b06dfd29833a6c5df90ffef",
+        "driveFileId": "1pOvFy1CGs7kv8SRKSP61zuwHppVfx3cx",
+        "sha256": "54c87759281850852f1a49331bcae7dcd66d4f0d8278faf705e5ee1316b3d941",
+        "bytes": 4782,
+        "individualDownloadedPatchRestore": "PASS"
+      },
+      {
+        "commit": "aed309c564e28f571c95a27574f393570b29118b",
+        "parent": "002c3cd3d84e079f8c582a38f08c2dc66f0eb7d6",
+        "driveFileId": "19sUFMO95E5jKkwoihZPAkxKVEaNtfam-",
+        "sha256": "02ac6e824939093bbdca58b000d8ea8fa7947699c8b2a9a3d63cea37558ba79f",
+        "bytes": 37136,
+        "individualDownloadedPatchRestore": "PASS"
+      },
+      {
+        "commit": "9b0dbf16b386746b43c65d11e7679ea0db388c76",
+        "parent": "aed309c564e28f571c95a27574f393570b29118b",
+        "driveFileId": "1HyKRMB46YGkFzcdA-9-t_tu_udm0gozx",
+        "sha256": "74142b8b6683b2ff4bd0d5847bb89929a06f3bbf1fe89b01c6d792dc982c61ae",
+        "bytes": 23835,
+        "individualDownloadedPatchRestore": "PASS"
+      },
+      {
+        "commit": "17cfcedab6160f2e9660b60d960d2e69ef6e737a",
+        "parent": "9b0dbf16b386746b43c65d11e7679ea0db388c76",
+        "driveFileId": "1YvNmpOnlSfjlqS4tCLTQubDzGL3Pk8E4",
+        "sha256": "eed8ecfdc05a75b53c841c36086bfe3845e65eef77ce71c234fc7afdb79bb66a",
+        "bytes": 23068,
+        "individualDownloadedPatchRestore": "PASS"
+      },
+      {
+        "commit": "1ac1271630b700d17b678e383f3854552b49f0c4",
+        "parent": "17cfcedab6160f2e9660b60d960d2e69ef6e737a",
+        "driveFileId": "1flzB0mWsX4fN9Fb9pT1Zxf52-ytxvPLg",
+        "sha256": "0092f2b2b56f66447c9f88d760bde28cb358ad9a7263d1bf80bd09e9229548dc",
+        "bytes": 3177,
+        "individualDownloadedPatchRestore": "PASS"
+      },
+      {
+        "commit": "024439cbd1b1cae8a7dc4aa36a516b1a1342bc06",
+        "parent": "1ac1271630b700d17b678e383f3854552b49f0c4",
+        "driveFileId": "1xXyQHeYqMgTn8EpuFIWppXi7WRmghssp",
+        "sha256": "1fd9eb6d80f2f23f87436ff73609bed2185c978336399426366a762496fe44c5",
+        "bytes": 1387,
+        "individualDownloadedPatchRestore": "PASS"
+      },
+      {
+        "commit": "3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800",
+        "parent": "024439cbd1b1cae8a7dc4aa36a516b1a1342bc06",
+        "driveFileId": "1os9KbTScQHAaXH2uH3CUtsC1mVfVzPMc",
+        "sha256": "21b42f4c0def7f7dc1bd868d798170f022edf9bbfa2605e390e214799dbe851b",
+        "bytes": 1417,
+        "individualDownloadedPatchRestore": "PASS"
+      }
+    ]
+  },
+  "runtime": {
+    "manifestDriveFileId": "1S_6waabY9pkPg7yF9ZHnVTWNISlWzHlW",
+    "archiveBytes": 177315360,
+    "archiveSha256": "97696e80c741c8543807a22e43b0ef4c2adddc4e066854ba84ffbf9f75308837",
+    "parts": [
+      {
+        "name": "schema50-integrated-local-rebuild-20261016T0156Z.tar.gz.part001",
+        "bytes": 25165824,
+        "sha256": "a9f7a8e4e64629b9ef51b4042c995d8084f7043347b93d166684e5b2d4372513",
+        "index": 1,
+        "driveFileId": "1NdcjthUR-qUKisLoSzz2o6Ltimv4hT-C",
+        "url": "https://drive.google.com/file/d/1NdcjthUR-qUKisLoSzz2o6Ltimv4hT-C/view?usp=drivesdk"
+      },
+      {
+        "name": "schema50-integrated-local-rebuild-20261016T0156Z.tar.gz.part002",
+        "bytes": 25165824,
+        "sha256": "7e05ea79eacd1633221185a307c3d8c5ed89bf43b428fad4201dba519c6c4eee",
+        "index": 2,
+        "driveFileId": "1Yohx-I_q9_xHeWl50gWbg2kAf7PRJJxL",
+        "url": "https://drive.google.com/file/d/1Yohx-I_q9_xHeWl50gWbg2kAf7PRJJxL/view?usp=drivesdk"
+      },
+      {
+        "name": "schema50-integrated-local-rebuild-20261016T0156Z.tar.gz.part003",
+        "bytes": 25165824,
+        "sha256": "5698e05dff967417322493ea80304b2ed3d6cc840a5f50e39388e5654ef6cfb8",
+        "index": 3,
+        "driveFileId": "1Z8SMS9fndTeR4Frsy1gb77NHwVjVHWs6",
+        "url": "https://drive.google.com/file/d/1Z8SMS9fndTeR4Frsy1gb77NHwVjVHWs6/view?usp=drivesdk"
+      },
+      {
+        "name": "schema50-integrated-local-rebuild-20261016T0156Z.tar.gz.part004",
+        "bytes": 25165824,
+        "sha256": "9fdac5881d402d345f13db44a6757f11dea22f8a5049d70362a821af5d812d7a",
+        "index": 4,
+        "driveFileId": "1QwY1Qc_hLHnFzZ2A1ZZz6DU5v2a6yINJ",
+        "url": "https://drive.google.com/file/d/1QwY1Qc_hLHnFzZ2A1ZZz6DU5v2a6yINJ/view?usp=drivesdk"
+      },
+      {
+        "name": "schema50-integrated-local-rebuild-20261016T0156Z.tar.gz.part005",
+        "bytes": 25165824,
+        "sha256": "cb3b86cdd9b3611bb889ef816141f02b2133853ba86260467ad2779dc6de8b64",
+        "index": 5,
+        "driveFileId": "1w_cjZMWIN-D54F51I01MRMLUUTYMHdsE",
+        "url": "https://drive.google.com/file/d/1w_cjZMWIN-D54F51I01MRMLUUTYMHdsE/view?usp=drivesdk"
+      },
+      {
+        "name": "schema50-integrated-local-rebuild-20261016T0156Z.tar.gz.part006",
+        "bytes": 25165824,
+        "sha256": "dad7766d2f92a66493c642f0b82aa70152cbe9fc2ff9e2deb3a495666365c975",
+        "index": 6,
+        "driveFileId": "18ytNYs86HV6R4rvockAz7SMW_QZunr2P",
+        "url": "https://drive.google.com/file/d/18ytNYs86HV6R4rvockAz7SMW_QZunr2P/view?usp=drivesdk"
+      },
+      {
+        "name": "schema50-integrated-local-rebuild-20261016T0156Z.tar.gz.part007",
+        "bytes": 25165824,
+        "sha256": "f52ee3b654bda02f22f80a6284eda7961c2735f26141eb8b196b13a54e1aff29",
+        "index": 7,
+        "driveFileId": "162Oe_Z5yJ3SRC5k6YHGBDv-9GzgQquC8",
+        "url": "https://drive.google.com/file/d/162Oe_Z5yJ3SRC5k6YHGBDv-9GzgQquC8/view?usp=drivesdk"
+      },
+      {
+        "name": "schema50-integrated-local-rebuild-20261016T0156Z.tar.gz.part008",
+        "bytes": 1154592,
+        "sha256": "52fb5e2d70175f6968ac8dee028325df99bdcd7786546d8478bf8e05859bcdfa",
+        "index": 8,
+        "driveFileId": "1_o2Et3lSQBrASqDABTCXbxrwPuVEcMFh",
+        "url": "https://drive.google.com/file/d/1_o2Et3lSQBrASqDABTCXbxrwPuVEcMFh/view?usp=drivesdk"
+      }
+    ],
+    "restoreMembers": [
+      "tools/dot-auto-controller/vendor/c60-source/node_modules",
+      "tools/dot-auto-controller/vendor/c60-source/dist",
+      "pinned-runtime/node"
+    ],
+    "nodeSha256": "fde6a4bf8d0562f7751d1a2d6cb9b417c4cfe107bbcb0aa3e9a24e125e348f48"
+  },
+  "prisma51TextDelta": {
+    "driveFileId": "1_9wB8gAXwhVapTftoRHhI6JpsnnViyZ1",
+    "bytes": 73321,
+    "sha256": "22967bf87d4a0afd4338ac28e9297ca80969fcd31d1b39f9fd049a9e58bfa92c",
+    "restoredFiles": 7,
+    "restore": "PASS",
+    "scope": "Generated text delta applied to exact old seven copies; not full production runtime activation"
+  },
+  "externalModule": {
+    "commit": "b7ba587c4b67fea05469b380b6957119bb6c22a8",
+    "tree": "23248375b0c9e69c60176347498da8fab94426d5",
+    "driveFileId": "1mLlCAseX9jygssN8nJht0W06K8273upa",
+    "bytes": 98054,
+    "sha256": "6d947655d424bf45c41c194d62cf3716805ecbae44fefa949eb103759d9fd49b",
+    "files": 58,
+    "restore": "PASS"
+  },
+  "reader": {
+    "portablePublicSnapshotRepositorySha256": "6a3fbd43c30b5b62f89872b01ba543636c7b158c24969395ff7a067cb143d65e",
+    "mainHeapMiB": 320,
+    "fallbackLiveHeapMiB": 256,
+    "fallbackSavedHeapMiB": 192,
+    "readerCloneRemovalDeployed": false
+  },
+  "limits": [
+    "104 combined empty-environment runtime restore has not been repeated; individual source deltas, generated text delta and module download/restore passed",
+    "No current official read-only36 proof for the combined104/0405 bundle is asserted by this index",
+    "Live database/schema51 and credentials must be reconciled separately; never replay migration or publication SQL from backup",
+    "Drive fixed LATEST and RESTORE remain verified99 baseline; untouched",
+    "Reader clone-removal chain1d931/763 is pending deployment; Novartis abafad full-batch qualification remains incomplete"
+  ]
+}

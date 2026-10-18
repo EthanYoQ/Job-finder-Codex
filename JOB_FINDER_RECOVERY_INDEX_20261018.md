@@ -1,3 +1,22 @@
+# Current recovery target — 2026-10-18 04:18 UTC
+
+- Native candidate104: `3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800`, tree `d733832ab3c4986210a18320397435a1db9aa8d8`. Operational owner confirms active. Includes AZ parsed-document reuse, completed-relay filename filtering, and one Sanofi producer replay removal. It deliberately excludes the pending reader clone change.
+- Applied external module0405: `b7ba587c4b67fea05469b380b6957119bb6c22a8`, tree `23248375b0c9e69c60176347498da8fab94426d5`. Downloaded 58-file package and focused restored checks passed; actual application recorded at04:11:01 UTC. Branch/task scheduling references are separate and must be checked, not inferred from this index.
+- Live reader repository file remains `6a3fbd43c30b5b62f89872b01ba543636c7b158c24969395ff7a067cb143d65e`. Main heap320MiB; fallback live256/saved192MiB. Reader clone-removal1d931/763 is not deployed. Novartis `abafad5ed28a09fc8f43b4b4aa3d67b830b17bd8` remains inactive, full-batch qualification incomplete.
+
+## Shortest next-run recovery
+1. Obtain the exact complete private GitHub source tree at104 commit above. Do not merge every historical branch. If using Drive-only recovery, follow the verified99 baseline and eight ordered source deltas in [RECOVERY_104_20261018.json](RECOVERY_104_20261018.json).
+2. Reuse the original eight runtime parts and pinned Node listed in that manifest. Apply the previously downloaded/restored Prisma6.19.3 seven-text-file schema51 delta to its exact old files; engine binaries are unchanged. Do not reinstall or repackage all dependencies merely because source changed.
+3. Download module0405 package `1mLlCAseX9jygssN8nJht0W06K8273upa` (98054bytes, SHA256 `6d947655d424bf45c41c194d62cf3716805ecbae44fefa949eb103759d9fd49b`) and use its existing restore-module.py for the intended cloud workspace. Native and external modules are distinct artifacts.
+4. Before a scheduled run, read the actual official candidate/schema51/coordination and unknown outcomes, measure the restored native identity using the original algorithm, and use the existing read-only36 entry. Do not dispatch with historical control expiry or replay saved SQL. Existing live website deployment is separately verified; source restoration is not a server redeployment instruction.
+
+## Verification limits
+Individual source delta downloads restore exact trees; original dependencies were fully restored for99, seven generated Prisma texts restored exactly, and0405 module restored with focused checks. This update only reconciles these existing proofs. It does not claim a fresh empty-environment end-to-end104 runtime rehearsal, a combined104/0405 official read-only36 check, database/credential recovery, full36 success, or unattended acceptance. No large runtime work was run alongside production.
+
+Fixed Drive LATEST (`130GXTnVN2Wl1hRUGv1Tv2w9iF2hBklTE`) and RESTORE (`17BcO0r2qt4Li9pzanjR4f3YThUVSCGzF`) still point to the verified99 recovery baseline and are unchanged. Use this exact current-source supplement; do not call the old pointer latest production.
+
+---
+
 # Job Finder recovery index — 2026-10-18 02:39 UTC
 
 This index separates deployed, inactive, and historical code. It is not full-run acceptance or a database/credential backup. Use the actual official candidate and coordination state before resuming production.
