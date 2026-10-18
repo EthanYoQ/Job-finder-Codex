@@ -1,6 +1,6 @@
 import {readNovoSingleClosures} from "./novoSingleClosureRepository";
 import {NOVO_CLOSURE_SOURCE,NOVO_CLOSURE_COMPANY,novoSingleClosureRemoves} from "../domain/novoSingleJobClosure";
-import { isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
+import { isJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
 import { portableSnapshotIdentities } from "./portableDisplayIdentity";
 import { SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION, sanofiCertificateArtifactLocators, type SanofiArtifactCommitment } from "../crawler/traversalCertificate";
 import { isSanofiPublicTransitionPlan, isSanofiHistoricalPublicCandidate } from "../domain/sanofiPublicTransition";
@@ -231,11 +231,11 @@ export async function readPortablePublicSnapshotWithStatus(
       for (const closure of novoClosed) memberResultIds.add(closure.previousSourceResultId);
       for (const {result} of pending) {
         if (!isJobProjectionDeltaReceipt(result.completenessCertificate)) continue;
-        try {
-          const delta = parseJobProjectionDeltaReceipt(result.completenessCertificate, result.completenessCertificateSha256 ?? "");
-          for (const member of delta.members) if (member.missingCount === 1 &&
-              results.some(row => row.id === member.lastPresentResultId && row.sourceId === result.sourceId)) memberResultIds.add(member.lastPresentResultId);
-        } catch { /* Malformed receipts fail closed in the selector. */ }
+        const receiptMembers = (result.completenessCertificate as {members?: unknown}).members;
+        if (!Array.isArray(receiptMembers)) continue;
+        for (const member of receiptMembers) if (member && typeof member === "object" && member.missingCount === 1 &&
+            typeof member.lastPresentResultId === "string" &&
+            results.some(row => row.id === member.lastPresentResultId && row.sourceId === result.sourceId)) memberResultIds.add(member.lastPresentResultId);
       }
       const rawMembers = await tx.lifecycleSetEvidenceMember.findMany({
         where: {sourceResultId: {in: [...memberResultIds]}}, select: lifecycleMemberSelect,

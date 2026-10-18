@@ -1,0 +1,59 @@
+{
+  "inactive": true,
+  "beforeSha256": "0be7dbba023882a9558186b0bd742eb300b5bff3b3d751858e5afe96a0c76edb",
+  "afterSha256": "94d96c80f2431cdbc53f2e7d8663f65e991f2e68d22af345c4109afc69ca501e",
+  "pairedTimeout30Sha256": "f0d030080647707658cc286c77223d5b448dfdfa1ad8ba80c024753ec1af371c",
+  "checks": {
+    "pass": true,
+    "checks": [
+      {
+        "name": "current",
+        "state": "PUBLISHING",
+        "totalJobs": 1,
+        "oldParseCalls": 2,
+        "newParseCalls": 1,
+        "queriedMemberResults": 1,
+        "outputEqual": true,
+        "inputUnchanged": true
+      },
+      {
+        "name": "grace",
+        "state": "PUBLISHING",
+        "totalJobs": 1,
+        "oldParseCalls": 2,
+        "newParseCalls": 1,
+        "queriedMemberResults": 2,
+        "outputEqual": true,
+        "inputUnchanged": true
+      },
+      {
+        "name": "bad-hash-grace",
+        "state": "HOLD",
+        "totalJobs": 0,
+        "oldParseCalls": 2,
+        "newParseCalls": 1,
+        "queriedMemberResults": 2,
+        "outputEqual": true,
+        "inputUnchanged": true
+      },
+      {
+        "name": "original-novo-before",
+        "oldParseCalls": 6,
+        "newParseCalls": 5,
+        "rows": 3,
+        "jobs": 61,
+        "closureRecords": 4,
+        "totalJobs": 15,
+        "state": "PUBLISHING",
+        "outputQueriesEqual": true,
+        "inputUnchanged": true
+      }
+    ]
+  },
+  "scope": "Reader GRACE prefetch only. No producer/pins/deployment/database change.",
+  "limits": [
+    "No reduction of SQL certificate bytes or historical domain verifications.",
+    "Bad-hash receipt can prefetch additional same-source existing members; authoritative result remains HOLD.",
+    "30s timeout is separate and does not prove sufficiency for observed 118-138s failures."
+  ]
+}
