@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-18T15:38:14.855017+00:00",
+  "status": "APPLIED_SAFE_WINDOW",
+  "externalCommit": "15c7dc23810ce421f83ccb8a3170de9718be8baa",
+  "files": 63,
+  "changed": [
+    "bi-functions.js"
+  ],
+  "biSha256": "79c715816e6ce0c7253934cc06a0697bea1a51f12b230937756e374ea63bd24e",
+  "nativeCommit": "b9ef32f269b1e7433d65a0c5a20710ccc59da282",
+  "nativeVersion": 112,
+  "entrySha256": "97452ed300874dfae14c2688c9f39cab4c435a7f225f8d8d139d38faf6fe2fb8",
+  "producerStarted": false
+}

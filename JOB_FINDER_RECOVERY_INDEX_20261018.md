@@ -229,3 +229,12 @@ Native112 and entry97452ed300874dfae14c2688c9f39cab4c435a7f225f8d8d139d38faf6fe2
 Append1514 delta Drive1idkqsEbZLCdEr-fTerl8bl82bZxZQxta (2725 bytes,SHA256ad6ae57f6af1f8ace78941c886b649b1cd4118746c334f17177571a93a17686f), then1517 delta Drive1ZZxIN4wtaiPD-TLERiXD0nqhPFvNP4i4 (2114 bytes,SHA256bd40983e803e798637976848ebb45766b37cb70ec1daa30090c437339d5d20d8) to the existing verified BI1454 chain. Downloaded restoration matched all63 files. Biogen removes only a missing obsolete static-plan duplicate assertion. BI retains its absolute30s same-tab selector budget, continues only premature timeouts, and saves visible failure evidence.
 
 The previous execution273 completed six automatic full chains: Amgen54, Astellas15, AstraZeneca249, BMS33, CR Pharma25, CSL4. All six were officially SUCCESS/COMMITTED, public full-field verified, and their exact-request-ID private evidence packages downloaded/restored automatically. Per-package Drive IDs/hashes are in TASK_RECOVERY_REFS_112_1517.json. Biogen and BI failed without database writes; other28 sources skipped recent observations. It was not a fully successful36-source round. FixedLATEST99 and prior full-source/long-term acceptance limits remain. No originals or web check tokens are included here.
+
+
+## Current recovery refs — 2026-10-18 15:38 UTC
+
+Module1526/15c7dc23810ce421f83ccb8a3170de9718be8baa applied15:38:14.855017Z, all63 files exact; native112 and entry97452ed300874dfae14c2688c9f39cab4c435a7f225f8d8d139d38faf6fe2fb8 unchanged. Task update15:38:32.011373Z succeeded with daily08:00/20:00 Asia/Shanghai unchanged. New fresh execution280 is running; no BI production success yet.
+
+Append1526 delta Drive1fcI1OZEwLxua6HTqOa5otanhG-xlHjGS (1768 bytes,SHA256c5b27125f22ec1b7061b1fb866456841f856ff4c263d8277ee7f9458e06c5d70) to the existing verified chain through1517. Downloaded restoration matched63 files. Only BI DOM URL handling changed to native anchor fields and string ID parsing; wrong origin/ID rejection remains.
+
+Prior execution277 completed five automatic full chains: Biogen7, CTTQ623, Fosun81, Lilly95, MSD121. Official SUCCESS/COMMITTED, full-field web readbacks and exact-ID automatic private evidence restore passed for all five; individual Drive IDs/hashes are in TASK_RECOVERY_REFS_112_1526.json. BI failed before producer/database write;30 recent skips are not new successes. This establishes fresh Biogen route success after1514 but not all36 or long-term unattended acceptance. FixedLATEST99 and earlier historical limitations remain.
