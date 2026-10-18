@@ -254,3 +254,11 @@ Final read-only check15:48:19.615421Z confirmed36 recent/0 due,154 local request
 External1603/08c4831b57a6b69489bc431e91ea0ff160664262 was safely applied16:07:11.687533Z; all63 runtime files match, native112 remains clean and entry97452ed300874dfae14c2688c9f39cab4c435a7f225f8d8d139d38faf6fe2fb8 is unchanged. Task prompt updated16:07:31.246794Z with original08:00/20:00 Asia/Shanghai schedule unchanged. See TASK_RECOVERY_REFS_112_1603.json and recovery/module/ACTIVE_VERIFIED_1603.json.
 
 Append downloaded-and-restored delta Drive1bIRrxR200d_stnuXv1R3t3waUEoRHMJx (4095 bytes; SHA2561029392f7799b4c756a8800cf45bf0214f96de7d58aa146b27838999d109723b) after1526. The single raw checker removes duplicate same-input strict replay; the native strict replay, required completeness truth assertion and independent admission/receipt/DOM-HTTP boundaries remain. Historical JNJ159, Novartis169 and BI50 reports were byte-identical with original accepted-time replay. No new collection started with this activation; no all36 replay or live performance percentage is claimed. LATEST99 remains unchanged.
+
+## Current recovery refs — 2026-10-18 16:29 UTC
+
+External1624/7e4569f9a711d866a10a040fdb407599b5a61f12 applied16:28:05.852459Z; all63 files exact, native112 and entry97452ed300874dfae14c2688c9f39cab4c435a7f225f8d8d139d38faf6fe2fb8 unchanged. Task prompt updated16:29:45.971598Z with original daily08:00/20:00 Asia/Shanghai schedule unchanged. See TASK_RECOVERY_REFS_112_1624.json and recovery/module/ACTIVE_VERIFIED_1624.json.
+
+Append1624 delta Drive1Sh46CkM0ImSSXnKHKZjIGbNs4IfrQbBy,2654 bytes,SHA256e7af40152d1c13822780f8ec612eed9190fa867e67161d5552350bcca08ac04f after1603. Downloaded patch restored all63 runtime files exactly. The packer reuses its validated archive bytes instead of rereading the whole file. Historical Novartis20 members/51raw files, including manifest, were byte-identical and both restores passed. No new collection or live performance result is claimed; independent remote restore remains intact.
+
+Candidate1627 was not adopted: old errors cannot distinguish permission denial from transient failure, and a narrowed scan of already-resolved records adds insufficient benefit. It is not an active recovery candidate. Current1624 and fixedLATEST99 remain; no1627 code is included.
