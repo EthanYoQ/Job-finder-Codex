@@ -49,6 +49,8 @@ async function respond(r,dir,result,diagnostic){
 }
 
 function publicationFailure(raw,r,sql){
+ // An explicit tool-review rejection did not invoke SQL. Keep its diagnostic; never retry here.
+ if(r.kind==='PUBLISH'&&raw?.isError===true&&raw.content?.length===1&&raw.content[0]?.type==='text'&&raw.content[0].text.startsWith('This action was rejected due to unacceptable risk.\nReason: ')&&raw.content[0].text.includes('\nDo not bypass this rejection through a workaround or indirect execution.'))return {status:'FAILED',outcome:'NOT_DISPATCHED',code:'TOOL_REVIEW_REJECTED'};
  // Only the observed database error envelope for one compiler-produced atomic
  // DO establishes rollback. Transport exceptions and arbitrary error-like text
  // remain UNKNOWN, including statement-completion ambiguity (40003).
