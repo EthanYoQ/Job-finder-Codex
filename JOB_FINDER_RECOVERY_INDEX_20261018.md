@@ -126,3 +126,12 @@ Native108 cb901e51049c64a5ddf8c2a8383508254d290390 and external0838 32fa560c0fe4
 Restore native107 then the two-file108 delta from Drive1ajlTLcoD2k8FXZZbvw3v3XyQNL9QaCGF, SHA256 fa12667849af7c50f3c6369fa89c9a93b839158f35893576d960ccd7fbda624d. Pair with complete61-file0838 module from Drive1Ik-fB_reO0Bz25hRPMHLyU_pRVUbeS5U, SHA256687a7fd47c64b797d4688f018e2df2dd2307e7055b7ceb83ea13347290c4f267. Both remote download/restoration checks passed. The existing single bounded Novo retry now recognizes exact same-ID official invite502; external replay consumes its original failure/start/success evidence. No old batch may be republished. Four persisted closures remain protected.
 
 Task update08:53:20.817795Z succeeded; sections1–6 and08:00/20:00 Asia/Shanghai schedule unchanged. Section7 was shortened to current recovery refs plus all source exceptions and acceptance limits. FixedLATEST remains99; no full36/unattended acceptance. See TASK_RECOVERY_REFS_108_0838.json; prior107/0819 remains rollback history.
+
+
+## Current recovery refs — 2026-10-18 10:20 UTC
+
+Native109 /4842e16b8c89e9624049d78b49a79dc25bb15775 officially registered10:18:01.143Z with module0838 /32fa560c0fe45d62289861610aeab7ec518bc774. Read-only enumeration34 recent/2 due; task update10:19:42.526163Z succeeded with unchanged08:00/20:00 Asia/Shanghai schedule. Native108 plus the five-file109 delta restores the source: Drive17iFflCP0njnzhyDLtaIKThSmaw8-tnVp, SHA256166d2956a37857f08593c2f6f9b8f8979e978b3f6fcd44ac55c274c88bac17fc. The complete0838 module and its verified recovery remain unchanged.
+
+Both deployed readers match repository271d1a283dcb345387b405152d4177aa63e2a61de16fd2a47de272480435363a and domain06e653a3d39c2e2dfcc8b8df36f3b9c0c8f7fff194b46d8677b8d55d886fc9ff with matching pins. Main/fallback actual and saved heaps320MiB; see recovery/web/FINAL_4842_DEPLOYMENT_RECEIPT.json for precise observations and earlier failures. Novo37 and Sanofi119 have independently recovered CURRENT full-field readbacks. Original automatic failure and manual recovery histories are not rewritten as automatic success. Novo supplemental Drive1sxSm4IYAvGJ7-3Ild3R0wn2M3Ivt17GW links the original WEB_PENDING package.
+
+The separately authorized lightweight committed-evidence reader is isolated and not deployed. Full36/unattended acceptance, prior evidence gaps, and fixedLATEST99 limitations remain. See TASK_RECOVERY_REFS_109_0838.json.
