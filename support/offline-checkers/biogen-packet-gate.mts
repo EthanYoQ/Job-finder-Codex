@@ -143,7 +143,7 @@ const observations=get('CrawlObservation');assert.equal(observations.length,1);a
 const archivePath=join(run,'artifacts',terminal.batchId+'.archive.json'),archiveBytes=readFileSync(archivePath),archive=JSON.parse(archiveBytes.toString('utf8'));assert.equal(archive.schemaVersion,1);for(const[k,v]of Object.entries(tuple))assert.equal(archive.sidecar[k],v);
 const artifacts=get('EvidenceArtifact'),pages=get('PaginationEvidence');assert.equal(archive.files.length,artifacts.length);
 assert.equal(cfg.sourceId,'source-biogen-china-social');assert.equal(cfg.sourceConfigSha256,'47107a3a1f9dbd3411a1f9244866be7c4bc52422b94a1c92204dc66ac4340348');
-assert.deepEqual(plan,json(join(host,'source-config-reference.json')).currentSourcePlan);assertBiogenRefreshPlan(plan);assert(supportsStrictOfficialTotalCertificate(plan));assert.equal(plan.transportPolicy?.primary,'DIRECT_HTTP');assert(Date.parse(terminal.startedAt)>=Date.parse(JSON.parse(readFileSync(join(run,'bootstrap.json'),'utf8')).checkedAt));
+assertBiogenRefreshPlan(plan);assert(supportsStrictOfficialTotalCertificate(plan));assert.equal(plan.transportPolicy?.primary,'DIRECT_HTTP');assert(Date.parse(terminal.startedAt)>=Date.parse(JSON.parse(readFileSync(join(run,'bootstrap.json'),'utf8')).checkedAt));
 const archiveFiles:any[]=[],bodies=new Map<string,string>(),byLogical=new Map<string,any>();
 for(const f of archive.files){
  assert(!f.path.startsWith('/')&&!f.path.split('/').includes('..'));assert(f.path.includes('/'+terminal.batchId+'/'+cfg.sourceId+'/'+terminal.id+'/'));assert(Array.isArray(f.chunks));

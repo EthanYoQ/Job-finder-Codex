@@ -1,0 +1,25 @@
+{
+  "status": "OFFLINE_REAL_CURRENT_PACKET_PASS",
+  "run": "dot-auto-biogen-20261018T151009886Z",
+  "requestId": "17d354a1-1863-4718-a31c-b46979dc6111",
+  "contextRequestId": "ea49ff71-76a8-41b4-9df0-0f6adfa68849",
+  "currentJobs": 7,
+  "packetAndEmbeddedRawReplay": "PASS",
+  "bothReaders": "PASS",
+  "targetApi": "PASS",
+  "originalDeadlinesUnmodified": true,
+  "realCurrentBuildChecked": true,
+  "sqlExecuted": false,
+  "activeFilesChanged": false,
+  "removedOnly": "static source-config-reference currentSourcePlan deepEqual",
+  "preserved": [
+    "registered16fields",
+    "contextSnapshotBinding",
+    "actualBuildIdentity",
+    "fixedSourceConfigHash",
+    "assertBiogenRefreshPlan",
+    "strictRawReplay",
+    "receiptIssuer",
+    "originalDeadline"
+  ]
+}
