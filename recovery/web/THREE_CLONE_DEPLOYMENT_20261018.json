@@ -1,0 +1,61 @@
+{
+  "deployedAtUtc": "2026-10-18T06:48:02Z",
+  "checkedThroughUtc": "2026-10-18T06:52:40Z",
+  "authorization": "User explicitly approved brief main/fallback maintenance; only original JobFinder56/57 changed",
+  "region": "ap-northeast-2",
+  "sourceBackupCommit": "1d931cf2aa078c1001494b8138a68ed133a76ab6",
+  "beforeSha256": "6a3fbd43c30b5b62f89872b01ba543636c7b158c24969395ff7a067cb143d65e",
+  "afterSha256": "0be7dbba023882a9558186b0bd742eb300b5bff3b3d751858e5afe96a0c76edb",
+  "change": "Only three structuredClone wrappers removed from private Prisma query results; all other source bytes preserved",
+  "rollbackSuffix": ".pre-three-clones-20261018T0647Z",
+  "main": {
+    "pm2Id": 56,
+    "heapMiB": 320,
+    "readyAtUtc": "2026-10-18T06:48:48Z",
+    "VmHwmKB": 556420,
+    "restartCountBefore": 23,
+    "restartCountAfter": 24,
+    "startupFailure": "One P2028 transaction timeout10223ms versus10000ms at job.findMany; automatically restarted and became ready",
+    "finalState": "online"
+  },
+  "fallback": {
+    "pm2Id": 57,
+    "heapMiB": 256,
+    "readyAtUtc": "2026-10-18T06:50:48Z",
+    "VmHwmKB": 540188,
+    "restartCountBefore": 18,
+    "restartCountAfter": 21,
+    "startupFailure": "Three V8 heapOOM SIGABRT at06:50:01/09/16; final process became ready",
+    "finalState": "online"
+  },
+  "memoryGates": {
+    "availableAfterDoubleStopKB": 1037072,
+    "initialBudgetKB": 845824,
+    "newMainWarmPeakKB": 556420,
+    "fallbackBudgetKB": 687492,
+    "availableBeforeFallbackStartKB": 762220
+  },
+  "verification": {
+    "homeHttp": 200,
+    "publicReadyHttp": 200,
+    "publicCoverageHttp": 200,
+    "fallbackReadyHttp": 200,
+    "fallbackCoverageHttp": 200,
+    "mainRefresh": "CURRENT",
+    "fallbackRefresh": "CURRENT",
+    "displayDataVersionEqual": true,
+    "statusVersionEqual": true,
+    "companies": 41,
+    "publishingCompanies": 35,
+    "requiredCompanies": 40,
+    "kernelOomDuringMaintenance": false,
+    "countsStableAfterReady": true,
+    "realRefreshCycle": "Main completed original requested refresh; correlated check returned CURRENT, both restart counts unchanged through06:52:40"
+  },
+  "limits": [
+    "Startup heap OOM persists on fallback; do not claim all memory risk removed",
+    "VmHWM is observed successful startup peak, not a whole-load guarantee",
+    "No heap, server size, safety settings, nginx routes, other apps, producer or native candidate changes"
+  ],
+  "redaction": "Internal invocation/instance/process identifiers omitted; original receipt retained privately."
+}
