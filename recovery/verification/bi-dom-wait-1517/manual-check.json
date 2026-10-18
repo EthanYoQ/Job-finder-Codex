@@ -1,0 +1,41 @@
+{
+  "checked_at": "2026-10-18T15:20:23.842Z",
+  "kind": "Two synthetic manual checks; no browser or network used",
+  "source_sha256": "f9bfbaf56958638c377e703fe0f3813578f4e46becf255ed510a9e9a2914ad17",
+  "results": [
+    {
+      "case": "early_timeout_then_success",
+      "passed": true,
+      "wait_timeout_ms": [
+        30000,
+        26000
+      ],
+      "elapsed_ms": 7000,
+      "events": [
+        "extract",
+        "save_capture",
+        "close"
+      ],
+      "error": null
+    },
+    {
+      "case": "total_budget_exhausted",
+      "passed": true,
+      "wait_timeout_ms": [
+        30000,
+        25000,
+        20000,
+        15000,
+        10000,
+        5000
+      ],
+      "elapsed_ms": 30000,
+      "events": [
+        "snapshot",
+        "save_failure",
+        "close"
+      ],
+      "error": "Error: BI_DOM_TOOL_ERROR:selector deadline exceeded: first match 0"
+    }
+  ]
+}
