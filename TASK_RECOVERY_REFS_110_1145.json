@@ -1,0 +1,84 @@
+{
+  "taskTitle": "采集并核验招聘岗位",
+  "updateSucceededAt": "2026-10-18T11:53:36.743751+00:00",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "dailyHours": [
+      8,
+      20
+    ]
+  },
+  "nativeCandidate": 110,
+  "nativeCommit": "ac70c21b686c498c4c6a28dbe5bd0f423922d140",
+  "registeredAt": "2026-10-18T10:39:54.050Z",
+  "independent16Fields": "PASS",
+  "connectorValidate": "PASS",
+  "nativeDelta": {
+    "base": "4842e16b8c89e9624049d78b49a79dc25bb15775",
+    "driveFileId": "1wZ3E6i-rQVjZj7GgfFVBzxVU_o0TnXq1",
+    "sha256": "fa3c5170c73d7a961ab9914ed6eac64016d55e6241984e1eba1da294de6c6cab"
+  },
+  "moduleVersion": "1145",
+  "moduleCommit": "decda27f823985086758fcde801d203cb6104808",
+  "moduleAppliedAt": "2026-10-18T11:53:11.041655+00:00",
+  "runtimeFiles": 61,
+  "readOnly36": {
+    "recent": 34,
+    "due": 2
+  },
+  "evidenceBackup": {
+    "jnj159": "AUTOMATIC_REMOTE_RESTORE_VERIFIED",
+    "sanofi119": "AUTOMATIC_UPLOAD_FAILED_MANUALLY_RECOVERED"
+  },
+  "limits": [
+    "Original Novo108 automatic web/backup failures retained; later independent manual recovery is not automatic success",
+    "No full36 or unattended acceptance",
+    "Reader startup memory/timeouts remain risks",
+    "Fixed LATEST remains99; prior evidence-loss gaps retained"
+  ],
+  "oldNovo074422": "FAILED_NOT_DISPATCHED_DIAGNOSTIC_ONLY_NO_REPLAY",
+  "oldNovo080715": "RECONCILED_OFFLINE_DIAGNOSTIC_ONLY_NOT_PUBLISHED",
+  "persistedNovoClosures": "Four existing CLOSED verifications preserved; no revival",
+  "entrySha256": "32e6ec0927c9536896d10902c940975a725621fee62d5d7f01d80788d87bcbb7",
+  "pairedActivationRequired": true,
+  "taskInstructions": "Sections1–6 and schedule unchanged; section7 retains current refs, source exceptions and acceptance limits",
+  "deployedReaders": {
+    "repositorySha256": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
+    "domainSha256": "8d31a7206da617d9b4e586ac1e8f52822c69e9495f8c3bea773323891fad4a6d",
+    "mainHeapMiB": 320,
+    "fallbackHeapMiB": 320,
+    "persistedHeapsMatch": true
+  },
+  "independentWebRecovery": {
+    "novoJobs": 37,
+    "sanofiJobs": 119,
+    "allFieldsMatch": true,
+    "originalAutomaticFailureUnchanged": true,
+    "novoSupplementDriveId": "1sxSm4IYAvGJ7-3Ild3R0wn2M3Ivt17GW"
+  },
+  "lightReaderVerification": {
+    "differentSourcesCompared": 13,
+    "existingReaderPlans": 41,
+    "existingPublicJobs": 4915,
+    "coreNetLinesRemoved": 49,
+    "observedMainPeakReductionPercent": 34.7,
+    "observedFallbackPeakReductionPercent": 40.5,
+    "limits": "Existing reader projection checks, not expanded collection scope or newly published jobs. Single observed production startup peaks, not a long-term guarantee."
+  },
+  "deploymentReceiptCommit": "4a8883c78a89ee37438875f7d3dfc917f9411c11",
+  "moduleBaseRecovery": {
+    "version": "0838",
+    "commit": "32fa560c0fe45d62289861610aeab7ec518bc774",
+    "driveFileId": "1Ik-fB_reO0Bz25hRPMHLyU_pRVUbeS5U",
+    "sha256": "687a7fd47c64b797d4688f018e2df2dd2307e7055b7ceb83ea13347290c4f267"
+  },
+  "moduleDelta": {
+    "driveFileId": "1myIrk1W99OSIL-Ggd3CFgkFxjfpyzlBD",
+    "sha256": "00cae60c39deaeb9c4c94ebdad0829cac16c45ced13af75ef2e5c71330f133e0",
+    "bytes": 10275,
+    "restoredRuntimeFiles": 61,
+    "exact": true
+  },
+  "activationScope": "Four external files only; native110 unchanged; no collection or SQL started by activation"
+}
