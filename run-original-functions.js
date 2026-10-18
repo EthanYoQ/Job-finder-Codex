@@ -37,6 +37,11 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
   const {captureCspcDomObservation}=await new A(await read(D+'/cspc-functions.js'))();
   await captureCspcDomObservation({directory,browserSource:await read(D+'/cspc-dom-runtime-functions.js')+'\n'+await read(D+'/cspc-browser-runtime.js'),runStartedAt,dispatchBefore:new Date(Date.now()+1800000).toISOString()});
  }
+ if(sourceId==='source-boehringer-ingelheim-china-social'){
+  const directory=run+'/independent-dom';await command('mkdir -p '+q(directory));
+  const {captureBiDom}=await new A(await read(D+'/bi-functions.js'))();
+  await captureBiDom({directory,deadline:Date.now()+1800000});
+ }
  let independentValidation,currentCapture;
  if(sourceId==='source-johnson-innovative-medicine-social'){
   const directory=run+'/native-dom';await command('mkdir -p '+q(directory));

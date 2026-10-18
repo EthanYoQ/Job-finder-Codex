@@ -1,0 +1,5 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';import {reviewBiDomHttp} from './bi-dom-http-review.mts';
+import {replayBiUiSemanticContract} from '../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/biUiSemanticContract.ts';
+const dir='bi-http-ui-feasibility-20261018T1440Z',dom=JSON.parse(fs.readFileSync(dir+'/ui/bi-jobs.json','utf8')),uiContract=replayBiUiSemanticContract(fs.readFileSync(dir+'/recruit-ui.js','utf8'));
+const args={dom,plan:{source:{id:'source-boehringer-ingelheim-china-social'}},replayedEvidence:{artifacts:[{logicalKey:'51job-page-0001',body:fs.readFileSync(dir+'/job-list-response.txt','utf8')}]},uiContract,now:new Date().toISOString(),dispatchBefore:new Date(Date.now()+60000).toISOString()};
+assert.equal(reviewBiDomHttp(args).uiJobs,50);assert.throws(()=>reviewBiDomHttp({...args,dom:{...dom,jobs:dom.jobs.slice(1)}}),/BI_DOM_API_SET_SIZE/);console.log('PASS actual API total50 + UI50 title/location/ID; missing UI job rejected');
