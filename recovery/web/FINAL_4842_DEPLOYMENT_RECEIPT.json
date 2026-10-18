@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "completedAt": "2026-10-18T10:17:33Z",
+  "sourceCommit": "4842e16b8c89e9624049d78b49a79dc25bb15775",
+  "parentCommit": "cb901e51049c64a5ddf8c2a8383508254d290390",
+  "sourceBackupRestoreVerified": true,
+  "scope": "Original JobFinder main/fallback only; no producer or database write",
+  "deployment": [
+    {
+      "role": "main",
+      "readyAt": "2026-10-18T10:08:59Z",
+      "readySeconds": 34.7,
+      "availableAfterStopKB": 1008732,
+      "requiredKB": 766600,
+      "heapMiB": 320,
+      "heapChanged": false,
+      "firstStartSucceeded": true
+    },
+    {
+      "role": "fallback",
+      "readyAt": "2026-10-18T10:12:06Z",
+      "readySeconds": 30.8,
+      "availableBeforeStartKB": 711256,
+      "requiredKB": 693924,
+      "budgetBasis": "Successful new main HWM562852KB plus128MiB",
+      "heapBeforeMiB": 256,
+      "heapMiB": 320,
+      "firstStartSucceeded": true
+    }
+  ],
+  "finalObservedStatus": [
+    {
+      "id": 56,
+      "status": "online",
+      "restart": 24,
+      "heap": "--max-old-space-size=320",
+      "savedHeap": [
+        "--max-old-space-size=320"
+      ],
+      "VmHWMKB": 562852,
+      "VmRSSKB": 327740,
+      "repositorySha256": "271d1a283dcb345387b405152d4177aa63e2a61de16fd2a47de272480435363a",
+      "domainSha256": "06e653a3d39c2e2dfcc8b8df36f3b9c0c8f7fff194b46d8677b8d55d886fc9ff"
+    },
+    {
+      "id": 57,
+      "status": "online",
+      "restart": 40,
+      "heap": "--max-old-space-size=320",
+      "savedHeap": [
+        "--max-old-space-size=320"
+      ],
+      "VmHWMKB": 572980,
+      "VmRSSKB": 339496,
+      "repositorySha256": "271d1a283dcb345387b405152d4177aa63e2a61de16fd2a47de272480435363a",
+      "domainSha256": "06e653a3d39c2e2dfcc8b8df36f3b9c0c8f7fff194b46d8677b8d55d886fc9ff"
+    },
+    {
+      "nginxSha256": "6e15ffaeaf4e8571585ad2a84bd59d04d883009ea6298cb133a93c9997ea1af8",
+      "proxy3036": true,
+      "memAvailableKB": 406248
+    }
+  ],
+  "persistence": {
+    "changedOnly": "Exact current fallback PM2 entry matched by name and cwd",
+    "savedHeapBeforeMiB": 192,
+    "runtimeHeapBeforeMiB": 256,
+    "savedHeapAfterMiB": 320,
+    "changedOccurrences": 2,
+    "otherEntriesAndSurroundingBytesUnchanged": true,
+    "originalFileModePreserved": true,
+    "pm2SaveUsed": false,
+    "mainSavedHeapMiB": 320
+  },
+  "publicReadback": {
+    "checkedAt": "2026-10-18T10:10:58Z",
+    "snapshotAt": "2026-10-18T10:08:27.563Z",
+    "state": "CURRENT",
+    "sanofiJobs": 119,
+    "novoJobs": 37,
+    "allCompanyFieldsEqual": true,
+    "novoClosedIdsAbsent": [
+      "346023",
+      "338014",
+      "340120",
+      "342045"
+    ],
+    "independentlyConfirmedByRoot": true
+  },
+  "rollback": {
+    "originalFilesRetained": true,
+    "suffix": ".pre-final-4842-20261018T1007Z",
+    "warning": "Fallback pre-final repository was superseded f0d; do not restore that invalid-import version. Use verified original baseline when rollback is required."
+  },
+  "unchanged": [
+    "Nginx original proxy3036",
+    "TLS and access controls",
+    "Other applications",
+    "Main heap320",
+    "Producer native108 until owner measures/registers109"
+  ],
+  "limits": [
+    "Earlier superseded fallback256 attempt failed with V8 heap OOM and restart21→40; retained in prior PARTIAL_DEPLOYMENT_RECEIPT.json. Final corrected320 starts had no new exits/restarts through final observation.",
+    "Two optional follow-up readback scripts failed due check field and invalid request parameters; these were diagnostic script failures, not service exits. Final state/hash/config-only summary succeeded.",
+    "Fallback true snapshot readiness verified; additional fallback keyword readback was not completed. Public main complete source fields verified independently.",
+    "History JSON payload remains heavy. These observed HWM figures are not a guarantee for all future load."
+  ]
+}
