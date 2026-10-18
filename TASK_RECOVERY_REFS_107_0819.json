@@ -1,0 +1,46 @@
+{
+  "taskTitle": "采集并核验招聘岗位",
+  "updateSucceededAt": "2026-10-18T08:26:19.307747+00:00",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "dailyHours": [
+      8,
+      20
+    ]
+  },
+  "nativeCandidate": 107,
+  "nativeCommit": "d6ec709797bb0f2ac68cecb42398238fa631da26",
+  "registeredAt": "2026-10-18T07:41:10.770Z",
+  "independent16Fields": "PASS",
+  "connectorValidate": "PASS",
+  "nativeDelta": {
+    "base": "24d0516f01bc7ed7178a7fd576789fd831b183cc",
+    "driveFileId": "1oUBPiX27iN_SK0LPSYAknVaf-Jj2hjiS",
+    "sha256": "26be1b8142575ad750cdffc24c56757db8a51fc36387d8b7efb9ff173a2327d6"
+  },
+  "moduleVersion": "0819",
+  "moduleCommit": "296fd2bc27e11fd204040f8ed49a9c72cec0092f",
+  "moduleAppliedAt": "2026-10-18T08:25:45Z",
+  "moduleDriveFileId": "10wW8cQKpLaoymYBGqnvSBy8Ddlz2bFgY",
+  "moduleSha256": "96a0385849085583d887c44dd918dbca6a92d67ace2325c97669bf6c1020203a",
+  "runtimeFiles": 60,
+  "readOnly36": {
+    "recent": 33,
+    "due": 3
+  },
+  "freshCollectionStartedAt": "2026-10-18T08:26:07Z",
+  "evidenceBackup": {
+    "jnj159": "AUTOMATIC_REMOTE_RESTORE_VERIFIED",
+    "sanofi119": "AUTOMATIC_UPLOAD_FAILED_MANUALLY_RECOVERED"
+  },
+  "limits": [
+    "Novo107 fresh verification pending",
+    "No full36 or unattended acceptance",
+    "Reader startup memory/timeouts remain risks",
+    "Fixed LATEST remains99; prior evidence-loss gaps retained"
+  ],
+  "oldNovo074422": "FAILED_NOT_DISPATCHED_DIAGNOSTIC_ONLY_NO_REPLAY",
+  "oldNovo080715": "RECONCILED_OFFLINE_DIAGNOSTIC_ONLY_NOT_PUBLISHED",
+  "persistedNovoClosures": "Four existing CLOSED verifications preserved; no revival"
+}

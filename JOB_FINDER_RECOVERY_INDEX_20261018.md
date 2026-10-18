@@ -110,3 +110,10 @@ The original collection task update succeeded with candidate104 / source3f77 and
 - Novo application replay now preserves the recorded finalURL under its original scope. Artificial negative cases and offline86-original replay passed. Old074422 failed batch is diagnostic evidence only, not replayable production work; it was separately preserved as FAILED_NOT_DISPATCHED.
 - Original task update succeeded2026-10-18T08:03:58.476406+00:00, enabled daily08:00/20:00 Asia/Shanghai unchanged. Fresh run started08:03:47 UTC; result pending. [Current minimal references](TASK_RECOVERY_REFS_107_0756.json).
 - Restore the existing107 native chain and the complete0756 module, whose60 files were downloaded and actually restored. No new native/dependency package needed. Prior automatic/manual backup distinction, full36 gaps, reader startup risks and fixedLATEST99 remain unchanged.
+
+
+## Current recovery refs — 2026-10-18 08:26 UTC
+
+Native107 remains d6ec709797bb0f2ac68cecb42398238fa631da26. External0819 / 296fd2bc27e11fd204040f8ed49a9c72cec0092f was applied at08:25:45Z, with all60 mapped files exact. Original task update succeeded08:26:19.307747Z; daily08:00/20:00 Asia/Shanghai is unchanged. Read-only enumeration:33 recent,3 due; fresh collection started08:26:07Z and is not yet a successful full round.
+
+Restore the existing native107 chain and the complete0819 module from Drive10wW8cQKpLaoymYBGqnvSBy8Ddlz2bFgY (109890 bytes, SHA25696a0385849085583d887c44dd918dbca6a92d67ace2325c97669bf6c1020203a). All60 downloaded members and the isolated restore matched.0819 retains0756 and adds the existing persisted JOB_VERIFICATION closures to Novo reader-before and reuses the deployed repository in replay. The old080715 batch has only RECONCILED offline diagnostic evidence and is not submitted. Four previously CLOSED jobs are not revived. FixedLATEST remains99; full36/unattended acceptance and original evidence-loss gaps remain unresolved. See TASK_RECOVERY_REFS_107_0819.json.
