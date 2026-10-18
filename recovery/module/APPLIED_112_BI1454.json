@@ -1,0 +1,17 @@
+{
+  "nativeCommit": "b9ef32f269b1e7433d65a0c5a20710ccc59da282",
+  "nativeTree": "636e9a2882691d47184b08f48b242bf8647bfbf5",
+  "externalCommit": "f94fb96d45aa072c8278a8edba1ca15027df67da",
+  "externalFiles": 63,
+  "changedExternal": [
+    "automatic-relay-functions.js",
+    "run-original-functions.js",
+    "support/offline-checkers/replay-original-json-archive.mts",
+    "evidence-backup-functions.js",
+    "package-success-evidence.py",
+    "bi-functions.js",
+    "support/offline-checkers/bi-dom-http-review.mts"
+  ],
+  "entrySha256": "97452ed300874dfae14c2688c9f39cab4c435a7f225f8d8d139d38faf6fe2fb8",
+  "producerStarted": false
+}

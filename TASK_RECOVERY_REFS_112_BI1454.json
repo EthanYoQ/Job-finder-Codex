@@ -1,0 +1,221 @@
+{
+  "taskTitle": "采集并核验招聘岗位",
+  "updateSucceededAt": "2026-10-18T14:59:51.272548Z",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "dailyHours": [
+      8,
+      20
+    ]
+  },
+  "nativeCandidate": 112,
+  "nativeCommit": "b9ef32f269b1e7433d65a0c5a20710ccc59da282",
+  "registeredAt": "2026-10-18T14:58:06.117Z",
+  "independent16Fields": "PASS",
+  "connectorValidate": "PASS",
+  "nativeDelta": {
+    "base": "c44ff2790fa9e5e9edd51d04be116b2da356eca2",
+    "driveFileId": "17KahomnNTiejojQvtFwpz545JIa3SmZx",
+    "bytes": 10823,
+    "sha256": "eddb3d6763cba9aa98270f6269d55e6be794c562577b5476d6c42f65e7e07895",
+    "restoredTree": "636e9a2882691d47184b08f48b242bf8647bfbf5",
+    "rawCommitExact": true
+  },
+  "moduleVersion": "BI1454",
+  "moduleCommit": "f94fb96d45aa072c8278a8edba1ca15027df67da",
+  "moduleAppliedAt": "2026-10-18T14:58:06.117Z",
+  "runtimeFiles": 63,
+  "readOnly36": {
+    "recent": 35,
+    "due": 1
+  },
+  "evidenceBackup": {
+    "jnj159": "AUTOMATIC_REMOTE_RESTORE_VERIFIED",
+    "sanofi119": "AUTOMATIC_UPLOAD_FAILED_MANUALLY_RECOVERED"
+  },
+  "limits": [
+    "Original Novo108 automatic web/backup failures retained; later independent manual recovery is not automatic success",
+    "No full36 or unattended acceptance",
+    "Reader startup memory/timeouts remain risks",
+    "Fixed LATEST remains99; prior evidence-loss gaps retained",
+    "1303 Biogen has no real packet available: static/syntax checks only; Hengrui real archive review passed. Next due-source production validation remains pending."
+  ],
+  "oldNovo074422": "FAILED_NOT_DISPATCHED_DIAGNOSTIC_ONLY_NO_REPLAY",
+  "oldNovo080715": "RECONCILED_OFFLINE_DIAGNOSTIC_ONLY_NOT_PUBLISHED",
+  "persistedNovoClosures": "Four existing CLOSED verifications preserved; no revival",
+  "entrySha256": "97452ed300874dfae14c2688c9f39cab4c435a7f225f8d8d139d38faf6fe2fb8",
+  "pairedActivationRequired": true,
+  "taskInstructions": "Sections1–6 and schedule unchanged; section7 retains current refs, source exceptions and acceptance limits",
+  "deployedReaders": {
+    "repositorySha256": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
+    "domainSha256": "8d31a7206da617d9b4e586ac1e8f52822c69e9495f8c3bea773323891fad4a6d",
+    "mainHeapMiB": 320,
+    "fallbackHeapMiB": 320,
+    "persistedHeapsMatch": true
+  },
+  "independentWebRecovery": {
+    "novoJobs": 37,
+    "sanofiJobs": 119,
+    "allFieldsMatch": true,
+    "originalAutomaticFailureUnchanged": true,
+    "novoSupplementDriveId": "1sxSm4IYAvGJ7-3Ild3R0wn2M3Ivt17GW"
+  },
+  "lightReaderVerification": {
+    "differentSourcesCompared": 13,
+    "existingReaderPlans": 41,
+    "existingPublicJobs": 4915,
+    "coreNetLinesRemoved": 49,
+    "observedMainPeakReductionPercent": 34.7,
+    "observedFallbackPeakReductionPercent": 40.5,
+    "limits": "Existing reader projection checks, not expanded collection scope or newly published jobs. Single observed production startup peaks, not a long-term guarantee."
+  },
+  "deploymentReceiptCommit": "4a8883c78a89ee37438875f7d3dfc917f9411c11",
+  "moduleBaseRecovery": {
+    "version": "0838",
+    "commit": "32fa560c0fe45d62289861610aeab7ec518bc774",
+    "driveFileId": "1Ik-fB_reO0Bz25hRPMHLyU_pRVUbeS5U",
+    "sha256": "687a7fd47c64b797d4688f018e2df2dd2307e7055b7ceb83ea13347290c4f267"
+  },
+  "moduleDelta": {
+    "driveFileId": "15zn8fZcfa0yEy_kBLNWxVTsj_J2FMqkV",
+    "bytes": 7292,
+    "sha256": "970d73814a2798864d3a237f752192d49062b1e7bce9e1d8a3115a1401472955",
+    "parentCommit": "4a873af944e0e942eed746c7f887a4f2e6223f4e",
+    "restoredRuntimeFiles": 63,
+    "exact": true
+  },
+  "activationScope": "Paired BI native and external acquisition/replay plus exact handled request IDs for backup. Original raw evidence remains private; no production success inferred from offline50 validation.",
+  "latestScheduledRound": {
+    "localDate": "2026-10-18",
+    "localHour": 20,
+    "timezone": "Asia/Shanghai",
+    "skippedRecent": 34,
+    "heldSources": [
+      "BI",
+      "Novartis"
+    ],
+    "newSuccess": 0,
+    "unknownSubmissions": 0,
+    "fullAcceptance": false
+  },
+  "previousNativeDelta": {
+    "base": "ac70c21b686c498c4c6a28dbe5bd0f423922d140",
+    "driveFileId": "1Qz5z9PbN-N2h53Ruiz1meTzGicL0Uw2V",
+    "sha256": "e7abf3b4236e9d2dc4dd160aa2921546e882dec2a9c8631c99bc88bdf2f61d1a",
+    "bytes": 12425,
+    "restoredTree": "92fb4fce57b29a449b93e77e66da633c9ef72b81"
+  },
+  "novartisProduction": {
+    "batch": "dot-auto-novartis-20261018T123719665Z",
+    "jobs": 169,
+    "membership": "CURRENT",
+    "status": "SUCCESS",
+    "verification": "VERIFIED",
+    "atomicCommitState": "COMMITTED",
+    "crawledAt": "2026-10-18T12:37:41.190Z",
+    "finishedAt": "2026-10-18T12:39:02.896Z",
+    "webVerifiedAt": "2026-10-18T12:39:26.963Z",
+    "allFieldsMatch": true,
+    "automaticBackup": {
+      "status": "REMOTE_RESTORE_VERIFIED",
+      "driveFileId": "19unsu2Y6E9OqDwYnCWIrR20HmrNYQnKR",
+      "bytes": 1911092,
+      "sha256": "e4dde2679febae31fb3e00b86c899887bfdadf0c54164a15f5201545165d1d16",
+      "rawFiles": 51,
+      "members": 12,
+      "verifiedAt": "2026-10-18T12:40:06.376Z"
+    }
+  },
+  "latestExecution": {
+    "newSuccessfulSources": 1,
+    "skippedRecent": 34,
+    "heldSources": [
+      "BI"
+    ],
+    "liveRunning": 0,
+    "unknownSubmissions": 0,
+    "fullAcceptance": false,
+    "officialCheckedAt": "2026-10-18T13:30:58.4659Z"
+  },
+  "moduleDeltaChain": [
+    {
+      "driveFileId": "1myIrk1W99OSIL-Ggd3CFgkFxjfpyzlBD",
+      "sha256": "00cae60c39deaeb9c4c94ebdad0829cac16c45ced13af75ef2e5c71330f133e0",
+      "bytes": 10275,
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1zSuYDEIXVWMu_d1Kkvf1tlxIGEkmN6zM",
+      "sha256": "40f5c5f5f5d4e8d4425286850b63f6f56de9bdd7dcf2b48b2645d056ba822f03",
+      "bytes": 11859,
+      "parentCommit": "decda27f823985086758fcde801d203cb6104808",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1XG-sjvHPmxn_I0x5WRJHyN6Kh9Yz3sMV",
+      "sha256": "060603bf1f29932eec0a1f9b93086f2977ca1b2ae77c196e9b6dafa078e9ac25",
+      "bytes": 3747,
+      "parentCommit": "65cae6f882ecf7e186d044a08fd99e9ea0634547",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1hmQd82a_QD4-sZjFMHjJR61k0tlr6nGm",
+      "sha256": "1d810e23a7017b94b0d18df394276869a02e09f2679df2cf7fa95efe36a23dcd",
+      "bytes": 7609,
+      "parentCommit": "e0bc3ab81045abf283bb8462640199251c091865",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1QUBucKxUt1Aw_Hd27_wBL8wvaKUuR-K0",
+      "sha256": "1ec1eeed58930f1e335a223dacc0f3557c7e716b06639b5977733357a9d0551e",
+      "bytes": 4898,
+      "parentCommit": "413569e0a2e52afcff099277f8ab73777728c97c",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1Kphl3iMXf9hLMGd6FUAw0oeQKfrE4oAS",
+      "bytes": 4387,
+      "sha256": "73f5774f773f4aaa1b4fd0da2ce42600fae7cb10fb132cd27cb4117143ac2d22",
+      "parentCommit": "50376672c07ac435431908d98d913a193e6503ff",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1PSYh3-pENDMAQfUd1-Ee_e_H6CsnX-mR",
+      "bytes": 7617,
+      "sha256": "621e1da1444ee84abd00a4de8f6aebb0d11fdd02031ca411e001b9e2f7f8ef21",
+      "parentCommit": "cd1b12a922a47259d19b90f4c86907621cefa292",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    }
+  ],
+  "nextActualRoundValidation": "FRESH_STARTED_2026-10-18T14:59:55Z_PENDING",
+  "abbvie1303Production": {
+    "batch": "dot-auto-abbvie-20261018T132712732Z",
+    "jobs": 57,
+    "status": "SUCCESS",
+    "verification": "VERIFIED",
+    "atomicCommitState": "COMMITTED",
+    "crawledAt": "2026-10-18T13:27:31.088Z",
+    "finishedAt": "2026-10-18T13:28:21.889Z",
+    "webVerifiedAt": "2026-10-18T13:28:56.596Z",
+    "allFieldsMatch": true,
+    "automaticBackup": {
+      "status": "REMOTE_RESTORE_VERIFIED",
+      "driveFileId": "1FSVrEWRZ2EwsN7aW3DgXkZ79Lj2oaIXY",
+      "bytes": 235727,
+      "sha256": "6a1fbd6909ac0e531c08271c26411e8c2f41708916ae59c746526b6036071159",
+      "rawFiles": 6,
+      "members": 12,
+      "verifiedAt": "2026-10-18T13:29:57.013Z"
+    },
+    "stepwiseManualIntervention": false,
+    "scope": "This source validates the actual 1303 production chain; not Biogen, all routes, or long-term unattended acceptance."
+  }
+}
