@@ -1,0 +1,11 @@
+# Remove normal precollection public-web blocking
+
+User approved allowing collection/publication to proceed while the previous public website is unavailable. Parent external 1205 canonical 65cae6f882ecf7e186d044a08fd99e9ea0634547. Native 111 c44ff2790fa9e5e9edd51d04be116b2da356eca2 remains unchanged.
+
+Two runtime files: remove the normal per-source precollection Python public readback call; remove project-original-target-api's PUBLIC_BEFORE file dependency and equality gate. Existing validated official DB reader diagnostic remains the source of before/after API projections, and main/fallback equality stays. Report field is honestly beforeFromOfficialReader rather than beforeMatchesPublic. No synthetic HTTP observation is written.
+
+Benefit per collected source: one fewer process/exec, at least two fewer HTTP requests, and no precollection refresh polling/retry (old polling deadline 120 seconds, individual HTTP timeout 30 seconds). This is an intentional responsibility change: old website disagreement no longer blocks new acquisition. Official context binding and current publication review are unchanged; postpublish public readback, WEB_PENDING handling and backup are unchanged. Novo standalone closure verification still uses genuine before/after HTTP observations through the baseline helper mode, so that mode and tool are retained.
+
+Historical Bayer160, Hengrui996, Novo37 and Novartis169 saved reader diagnostics produce exactly the same before/after search and coverage projections as their stored accepted expected output, without any PUBLIC_BEFORE file. Both reader implementations agree. Entry syntax validated; its only code change is the removed call. No network or collection ran in this verification. No claim of live publication success is made.
+
+Back up only the two after runtime files, this README and verification-summary.json; do not include source fixtures. Restore all 61 runtime files against the original 1205 backup before activation. Require no active producer/unknown request and exact active before-image matching; replace the projection consumer before entry and read back all 61 files. Native is untouched. Entry hash changes and must be reflected in existing task references after activation.

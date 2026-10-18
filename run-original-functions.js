@@ -30,7 +30,6 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
   before=await readOriginalReaderBefore(query,sql,['source-bayer-healthcare-social','source-hengrui-social'].includes(sourceId)?'15s':'8s');
  }else before=(await sql(query))[0].reader_before;
  await save(S+'/READER_BEFORE.json',before);await save(S+'/expected-candidate.json',before.publicationContext.candidateRow);
- await command('python3 '+q(D+'/readback-original-web.py')+' '+q(S)+' '+q(routeById[sourceId].companyId));
  const batchId='dot-auto-'+sourceFolders[sourceId]+'-'+new Date().toISOString().replace(/[-:.]/g,''),run=S+'/'+batchId;
  await command('mkdir -p '+q(run+'/artifacts'));
  if(sourceId==='source-cspc-social'){

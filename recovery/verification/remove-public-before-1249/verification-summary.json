@@ -1,0 +1,53 @@
+{
+  "status": "PASS",
+  "sources": [
+    {
+      "source": "bayer",
+      "allFourProjectionsEqual": true,
+      "afterJobs": 160,
+      "noPublicBeforeFile": true,
+      "reported": {
+        "bothReadersMatch": true,
+        "beforeFromOfficialReader": true,
+        "afterJobs": 160
+      }
+    },
+    {
+      "source": "hengrui",
+      "allFourProjectionsEqual": true,
+      "afterJobs": 996,
+      "noPublicBeforeFile": true,
+      "reported": {
+        "bothReadersMatch": true,
+        "beforeFromOfficialReader": true,
+        "afterJobs": 996
+      }
+    },
+    {
+      "source": "novo-nordisk",
+      "allFourProjectionsEqual": true,
+      "afterJobs": 37,
+      "noPublicBeforeFile": true,
+      "reported": {
+        "bothReadersMatch": true,
+        "beforeFromOfficialReader": true,
+        "afterJobs": 37
+      }
+    },
+    {
+      "source": "novartis",
+      "allFourProjectionsEqual": true,
+      "afterJobs": 169,
+      "noPublicBeforeFile": true,
+      "reported": {
+        "bothReadersMatch": true,
+        "beforeFromOfficialReader": true,
+        "afterJobs": 169
+      }
+    }
+  ],
+  "entryOnlyChange": "removed precollection web readback",
+  "postPublishReadbackAndWebPendingUnchanged": true,
+  "networkCalls": 0,
+  "collectionStarted": false
+}
