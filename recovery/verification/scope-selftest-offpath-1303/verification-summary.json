@@ -1,0 +1,50 @@
+{
+  "status": "ISOLATED_VERIFIED_NOT_ACTIVATED",
+  "baseModuleCommit": "413569e0a2e52afcff099277f8ab73777728c97c",
+  "nativeCommit": "c44ff2790fa9e5e9edd51d04be116b2da356eca2",
+  "changedFiles": 2,
+  "existingOfflineEntry": "packet-only-sql-selftest",
+  "newEntrypoints": 0,
+  "realScopeAndSqlChecksUnchanged": true,
+  "originalFiveArtificialCasesUnchanged": true,
+  "normalNestedReportOmitsScopeNegativeTests": true,
+  "hengruiRealArchiveComparison": {
+    "archiveBytesAndHashesVerified": true,
+    "originalNativeReplayPassed": true,
+    "actualStrictScopePassed": true,
+    "actualEvidenceAndJobDigestMatched": true,
+    "rawRowsEqualSaved": true,
+    "calls": {
+      "before": {
+        "clones": 5,
+        "strictChecks": 5,
+        "digests": 5
+      },
+      "after": {
+        "clones": 0,
+        "strictChecks": 0,
+        "digests": 0
+      },
+      "offline": {
+        "clones": 5,
+        "strictChecks": 5,
+        "digests": 5
+      }
+    },
+    "fiveActualOfflineResultsEqualOriginal": true,
+    "actualEvidenceUnchanged": true,
+    "originalReportExpressionsExecuted": true,
+    "normalReportEqualsOriginalExceptSelftestField": true,
+    "offlineReportEqualsOriginal": true
+  },
+  "biogenValidation": "EXACT_TWO_FILE_CHANGE_AND_TYPESCRIPT_SYNTAX_ONLY_NO_REAL_BIOGEN_PACKET",
+  "syntax": "PASS",
+  "diffCheck": "PASS",
+  "activeFilesUnchanged": true,
+  "noNetwork": true,
+  "databaseWrites": false,
+  "limitations": [
+    "Biogen has no available real packet; its five cases were preserved byte-for-byte but not executed here.",
+    "Historical Hengrui raw/scope checks do not establish current release identity, deadline validity, publication, or a scheduled end-to-end result."
+  ]
+}
