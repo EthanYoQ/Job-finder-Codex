@@ -248,3 +248,9 @@ BI API/UI IDs, titles and locations matched50 jobs; unsigned artifact URLs, abse
 Task updated15:47:19.372729Z, daily08:00/20:00 Asia/Shanghai unchanged. All36 sources now have successful records across runs; this is not same-round full coverage or long-term unattended acceptance. FixedLATEST99 and prior recovery limitations remain unchanged.
 
 Final read-only check15:48:19.615421Z confirmed36 recent/0 due,154 local requests all answered, no producer processes and no formal/live/manual holder. This is a point-in-time status, not a promise that no source will become due later.
+
+## Current recovery refs — 2026-10-18 16:07 UTC
+
+External1603/08c4831b57a6b69489bc431e91ea0ff160664262 was safely applied16:07:11.687533Z; all63 runtime files match, native112 remains clean and entry97452ed300874dfae14c2688c9f39cab4c435a7f225f8d8d139d38faf6fe2fb8 is unchanged. Task prompt updated16:07:31.246794Z with original08:00/20:00 Asia/Shanghai schedule unchanged. See TASK_RECOVERY_REFS_112_1603.json and recovery/module/ACTIVE_VERIFIED_1603.json.
+
+Append downloaded-and-restored delta Drive1bIRrxR200d_stnuXv1R3t3waUEoRHMJx (4095 bytes; SHA2561029392f7799b4c756a8800cf45bf0214f96de7d58aa146b27838999d109723b) after1526. The single raw checker removes duplicate same-input strict replay; the native strict replay, required completeness truth assertion and independent admission/receipt/DOM-HTTP boundaries remain. Historical JNJ159, Novartis169 and BI50 reports were byte-identical with original accepted-time replay. No new collection started with this activation; no all36 replay or live performance percentage is claimed. LATEST99 remains unchanged.

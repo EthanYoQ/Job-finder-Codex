@@ -1,0 +1,16 @@
+{
+  "status": "ACTIVE_VERIFIED",
+  "activatedAt": "2026-10-18T16:07:11.687533+00:00",
+  "canonical": "08c4831b57a6b69489bc431e91ea0ff160664262",
+  "native": "b9ef32f269b1e7433d65a0c5a20710ccc59da282",
+  "nativeClean": true,
+  "changedRuntimeFiles": [
+    "support/offline-checkers/replay-original-json-archive.mts"
+  ],
+  "verifiedRuntimeFiles": 63,
+  "entrySha256": "97452ed300874dfae14c2688c9f39cab4c435a7f225f8d8d139d38faf6fe2fb8",
+  "requestCount": 154,
+  "unansweredRequests": 0,
+  "afterSha256": "e8901c08d565a8eedeb6a6d2cd2a8269d7e5790a52f63086a65744b13144b509",
+  "productionRunStarted": false
+}
