@@ -1,0 +1,102 @@
+{
+  "status": "PASS_INACTIVE",
+  "baselineCommit": "cd1b12a922a47259d19b90f4c86907621cefa292",
+  "baselineMap": "automation-backup-files-1442-INACTIVE.json",
+  "productionChanges": [
+    {
+      "path": "automatic-relay-functions.js",
+      "beforeSha256": "4767ccf6bdc05c1b7a9a2ae199fd8940c23428982c974b2f88569b034ea11c4d",
+      "afterSha256": "78aecafd30aa38c119d0509acf8b01b4d414a94c2f6a5ae079104ce625b2be1f",
+      "beforeBytes": 5467,
+      "afterBytes": 5542
+    },
+    {
+      "path": "evidence-backup-functions.js",
+      "beforeSha256": "7d0e5ab9687494d43a76396c5b8390a61b0125caf406fdcc076a395eff2fdd1b",
+      "afterSha256": "4df8777a9ad3d417adbaef31f8aa376a2e39170f481546e5a72439cbfc15274d",
+      "beforeBytes": 2850,
+      "afterBytes": 2913
+    },
+    {
+      "path": "package-success-evidence.py",
+      "beforeSha256": "c1366ab2c86234cc68f21a643540e73722e2ca23a02b9072bfc6957027a0bd2a",
+      "afterSha256": "34d148a0a48578a9fa0fad5cfa79acb243197db2d0046ea36e4d2f2e34d1e39c",
+      "beforeBytes": 6131,
+      "afterBytes": 10026
+    },
+    {
+      "path": "run-original-functions.js",
+      "beforeSha256": "003b12495aafef33518a2a6e7a5ff1ded40a22a20115950b2334bef9bf9a3994",
+      "afterSha256": "79d4698d6dff972dd3561bbae4c941eb7338afe901914674ea724b67dab71c55",
+      "beforeBytes": 16665,
+      "afterBytes": 16696
+    }
+  ],
+  "checks": {
+    "python": {
+      "status": "PASS",
+      "checks": [
+        "real-receipts",
+        "historical-verify",
+        "missing-response",
+        "unknown-id",
+        "missing-context",
+        "duplicate-id",
+        "hash-mismatch",
+        "response-id-mismatch",
+        "response-kind-mismatch",
+        "context-source-mismatch",
+        "outcome-batch-mismatch",
+        "uncommitted-outcome",
+        "unknown-outcome",
+        "review-mismatch",
+        "reconciled-unknown-publish",
+        "unreconciled-unknown-publish",
+        "rolled-back-publish",
+        "embedded-json-key",
+        "embedded-token",
+        "escaped-json-key",
+        "explicit-single-run-cli"
+      ]
+    },
+    "runtime": {
+      "status": "PASS",
+      "checks": [
+        "actual-job-ids-through-afterSource",
+        "success",
+        "package-fails",
+        "missing-ids",
+        "web-pending"
+      ]
+    },
+    "existingAutomaticRelay": "PASS",
+    "diffWhitespace": "PASS",
+    "focusedReadOnlyReview": "No blocker or correction; completed."
+  },
+  "retainedRunComparison": {
+    "oldMembers": 12,
+    "newMembers": 20,
+    "unchangedOldPayloadMembers": 11,
+    "added": [
+      "novartis/official/08b613bb-5cd5-4bbc-8a8d-d8e3e23d5fd2.request.json",
+      "novartis/official/08b613bb-5cd5-4bbc-8a8d-d8e3e23d5fd2.response.json",
+      "novartis/official/5cf781db-31b1-477f-aa16-e1d6e5bd9b5e.request.json",
+      "novartis/official/5cf781db-31b1-477f-aa16-e1d6e5bd9b5e.response.json",
+      "novartis/official/63aea868-b67a-42a4-811b-7b7a8260152c.request.json",
+      "novartis/official/63aea868-b67a-42a4-811b-7b7a8260152c.response.json",
+      "novartis/official/f30a5bde-b43b-429e-964e-9b20710f6121.request.json",
+      "novartis/official/f30a5bde-b43b-429e-964e-9b20710f6121.response.json"
+    ],
+    "manifestChanged": true,
+    "rawFiles": 51,
+    "relayFilesRead": 8
+  },
+  "limits": [
+    "Retained real-run coverage: Novartis only. No new capture or live pipeline execution.",
+    "Drive upload/readback exercised with mocks only; this candidate has not been uploaded or activated.",
+    "Single-run CLI requires actual handled IDs. Historical verification remains supported.",
+    "Any failure remains PENDING in the existing helper; no automatic retry added."
+  ],
+  "handoff": "Parent/native owner merges BI independently using exact after/run-original-functions.js SHA256 79d4698d6dff972dd3561bbae4c941eb7338afe901914674ea724b67dab71c55. Do not activate from this isolated directory.",
+  "backupScope": "Only four changed source files, README.md, and verification-summary.json. No actual request/response inputs or evidence archives."
+}

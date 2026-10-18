@@ -29,6 +29,7 @@ async function serviceOriginalRelay(job) {
   throw Error('SOURCE_SCOPE_MISMATCH');
  if (!Number.isFinite(deadline) || deadline <= Date.now()) throw Error('SOURCE_DEADLINE');
  const handled = new Set();
+ job.relayRequestIds = [];
  let publication, publicationRequestId, publicationContextRequestId, outcomeSeen = false, committedExact = false, producerTerminal = false;
  try {
  while (Date.now() < deadline) {
@@ -40,6 +41,7 @@ async function serviceOriginalRelay(job) {
    if (!['READ_CONTEXT', 'READ_PUBLICATION_CONTEXT', 'PUBLISH', 'READ_OUTCOME'].includes(request.kind))
     throw Error('UNSUPPORTED_RELAY_KIND');
    handled.add(request.requestId);
+   job.relayRequestIds.push(request.requestId);
    const prepared = await stage.handle(request, relayDirectory);
    if (request.kind === 'READ_PUBLICATION_CONTEXT') publicationContextRequestId = prepared.status === 'SUCCEEDED' ? request.requestId : undefined;
    if (request.kind === 'PUBLISH') {

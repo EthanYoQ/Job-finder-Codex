@@ -17,13 +17,24 @@ def raw_files(archive):
         assert not re.search(rb'-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|AKIA[0-9A-Z]{16}', raw)
     return len(archive['files'])
 
-def pack(runs, relay, output):
+def pack(runs, relay, output, request_ids):
+    # shortcut: the runtime backs up one completed source; use separate calls for separate runs.
+    assert len(runs) == 1, 'ONE_RUN_PER_PACKAGE_REQUIRED'
+    assert request_ids and len(request_ids) == len(set(request_ids)), 'RELAY_REQUEST_IDS_REQUIRED'
+    requests = {}
+    for request_id in request_ids:
+        assert re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}', request_id), 'RELAY_REQUEST_ID'
+        request = json.loads((relay/(request_id+'.request.json')).read_text())
+        response = json.loads((relay/(request_id+'.response.json')).read_text())
+        body = {key:value for key,value in request.items() if key != 'requestSha256'}
+        digest = hashlib.sha256(json.dumps(body, ensure_ascii=False, separators=(',',':')).encode()).hexdigest()
+        assert request['requestId'] == request_id and request['requestSha256'] == digest, 'RELAY_REQUEST_HASH'
+        assert all(response[key] == request[key] for key in ['schemaVersion','requestId','requestSha256','kind']), 'RELAY_RESPONSE_BINDING'
+        assert request['schemaVersion'] == 1 and request['payload']['projectId'] == 'yiopvxysxrtrnvqxwgbx', 'RELAY_PROJECT_BINDING'
+        requests.setdefault(request['kind'], []).append((request,response))
+    assert set(requests) == {'READ_CONTEXT','READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME'}, 'RELAY_KINDS_INCOMPLETE'
+    assert len(requests['PUBLISH']) == 1, 'RELAY_PUBLICATION_COUNT'
     members, summary = {}, []
-    requests = []
-    # Preserve the original bounded lookup. A missing receipt fails rather than inventing success.
-    for path in sorted(relay.glob('*.request.json'), key=lambda p: p.stat().st_mtime, reverse=True)[:100]:
-        text = path.read_text()
-        requests.append((path, json.loads(text), text))
     for run in runs:
         source, batch = run.parent.name, run.name
         assert source not in {row['source'] for row in summary}
@@ -38,25 +49,48 @@ def pack(runs, relay, output):
             for path in (run/folder).glob('*.json'): selected[folder+'/'+path.name] = path
         for path in (run/'artifacts').glob('*.independent-validation.json'):
             selected['independent-validation-certificate.json'] = path
-        found = set()
-        for path, request, text in requests:
-            kind = request['kind']
-            if kind in ['PUBLISH','READ_OUTCOME'] and batch in text:
-                response = path.with_name(path.name.replace('.request.json','.response.json'))
-                assert json.loads(response.read_text())['kind'] == kind
-                selected['official/'+kind+'.json'] = response
-                found.add(kind)
-        assert found == {'PUBLISH','READ_OUTCOME'}
-        for name, path in selected.items():
-            members[source+'/'+name] = (json.dumps(clean(json.loads(path.read_text())), ensure_ascii=False, indent=2)+'\n').encode()
+        selected = {name:json.loads(path.read_text()) for name,path in selected.items()}
+        outcome, review = selected['OUTCOME.json'], selected['review/PACKET_REVIEW.json']
+        publication, published = requests['PUBLISH'][0]
+        assert review['requestId'] == publication['requestId'] and review['requestSha256'] == publication['requestSha256'], 'REVIEW_REQUEST_BINDING'
+        assert review['sqlSha256'] == hashlib.sha256(publication['payload']['sql'].encode()).hexdigest(), 'REVIEW_SQL_BINDING'
+        tuple_ = review['tuple']
+        assert tuple_['batchId'] == batch and all(tuple_[key] == outcome[key] for key in ['batchId','sourceId','sourceResultId']), 'OUTCOME_TUPLE_BINDING'
+        publish_result = published['result']
+        assert publish_result.get('status') == 'SUCCEEDED' or (publish_result.get('status') == 'FAILED' and publish_result.get('outcome') == 'UNKNOWN'), 'PUBLICATION_NOT_COMMITTED'
+        assert outcome['state'] == 'COMMITTED_EXACT', 'OUTCOME_NOT_COMMITTED'
+        for kind, pairs in requests.items():
+            for request, response in pairs:
+                result = response['result']
+                if kind in ['READ_CONTEXT','READ_PUBLICATION_CONTEXT']:
+                    if kind == 'READ_PUBLICATION_CONTEXT':
+                        assert result['status'] == 'SUCCEEDED' and len(result['rows']) == 1, 'PUBLICATION_CONTEXT_INCOMPLETE'
+                        context = result['rows'][0]['context']
+                    else:
+                        context = result
+                        assert request['payload']['sourceId'] == tuple_['sourceId'] and request['payload']['sourceConfigSha256'] == context['sourceConfigSha256'], 'CONTEXT_REQUEST_BINDING'
+                    assert context['sourceId'] == tuple_['sourceId'] and context['candidateRow']['id'] == tuple_['releaseCandidateId'], 'CONTEXT_TUPLE_BINDING'
+                if kind == 'READ_OUTCOME':
+                    assert result['status'] == 'SUCCEEDED' and len(result['rows']) == 1, 'READ_OUTCOME_INCOMPLETE'
+                    row, batch_row = result['rows'][0]['row'], result['rows'][0]['batch']
+                    assert row['id'] == tuple_['sourceResultId'] and all(row[key] == tuple_[key] for key in ['releaseCandidateId','batchId','sourceId']), 'READ_OUTCOME_TUPLE_BINDING'
+                    assert row['atomicCommitState'] == 'COMMITTED' and batch_row['id'] == batch and batch_row['releaseCandidateId'] == tuple_['releaseCandidateId'] and batch_row['status'] == 'SUCCESS', 'READ_OUTCOME_NOT_COMMITTED'
+                selected['official/'+request['requestId']+'.request.json'] = request
+                selected['official/'+request['requestId']+'.response.json'] = response
+            if kind in ['PUBLISH','READ_OUTCOME']:
+                selected['official/'+kind+'.json'] = pairs[-1][1]
+        for name, value in selected.items():
+            data = (json.dumps(clean(value), ensure_ascii=False, indent=2)+'\n').encode()
+            # SQL can contain escaped JSON credentials that recursive key removal cannot see.
+            assert not re.search(rb'-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|AKIA[0-9A-Z]{16}|Bearer\s+[^\s"\\]+|(?:^|[^a-z0-9])(?:api[._-]?key|client[._-]?secret|access[._-]?token|refresh[._-]?token|token|secret|password|passwd|pwd|credential|private[._-]?key|auth|authorization|cookies?|session(?:id)?|jwt|bearer|basic)["\\\']*\s*[:=]\s*\S+', data, re.I), 'SECRET_IN_EVIDENCE'
+            members[source+'/'+name] = data
         archive_path = next((run/'artifacts').glob('*.archive.json'))
         count = raw_files(json.loads(archive_path.read_bytes()))
         members[source+'/archive.json'] = archive_path.read_bytes()
         exit_record = json.loads((run/'diagnostics/process.jsonl').read_text().splitlines()[-1])
         assert exit_record['exitCode'] == 0
         members[source+'/PRODUCER_EXIT.json'] = (json.dumps({k:v for k,v in exit_record.items() if k not in ['wrapperPid','childPid']}, indent=2)+'\n').encode()
-        outcome = json.loads(members[source+'/OUTCOME.json']); web = json.loads(members[source+'/'+web_name])
-        assert outcome['state'] == 'COMMITTED_EXACT' and outcome['publishAcknowledged']
+        web = selected[web_name]
         assert web.get('allFieldsMatch') or web.get('status') == 'WEB_PENDING'
         summary.append({'source':source,'batch':batch,'rawFiles':count,'webStatus':'WEB_VERIFIED' if web.get('allFieldsMatch') else 'WEB_PENDING','webJobs':web.get('uniqueJobs')})
     members['RESTORE.json'] = (json.dumps({'sources':summary,'restore':'Decode archive base64 without text conversion; verify original byte count/hash including PDF. Never replay historical SQL/receipts.','scope':'Committed-source packaging; webStatus records verified or pending web readback. No upload or scheduling in this helper.'}, indent=2)+'\n').encode()
@@ -83,10 +117,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run', action='append', type=pathlib.Path)
     parser.add_argument('--relay', type=pathlib.Path)
+    parser.add_argument('--request-id', action='append')
     parser.add_argument('--output', type=pathlib.Path)
     parser.add_argument('--verify', type=pathlib.Path)
     args = parser.parse_args()
     if args.verify: print(json.dumps(verify(args.verify)))
     else:
-        if not args.run or not args.relay or not args.output: parser.error('--run, --relay and --output required')
-        print(json.dumps(pack(args.run, args.relay, args.output)))
+        if not args.run or not args.relay or not args.output or not args.request_id: parser.error('--run, --relay, --output and --request-id required')
+        print(json.dumps(pack(args.run, args.relay, args.output, args.request_id)))

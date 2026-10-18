@@ -1,10 +1,10 @@
 // Original private Drive backup, sequentially after a verified successful source.
-async function backupSuccessfulSource({command,save,q,D,run,relay}) {
+async function backupSuccessfulSource({command,save,q,D,run,relay,requestIds}) {
  const directory=run+'/backup',archive=directory+'/success-evidence.tar.gz';
  let stage='PACKAGE',fileId=null;
  try {
   await command('mkdir -p '+q(directory));
-  const packed=JSON.parse(await command('python3 '+q(D+'/package-success-evidence.py')+' --run '+q(run)+' --relay '+q(relay)+' --output '+q(archive)));
+  const packed=JSON.parse(await command('python3 '+q(D+'/package-success-evidence.py')+' --run '+q(run)+' --relay '+q(relay)+' --output '+q(archive)+requestIds.map(id=>' --request-id '+q(id)).join('')));
   await save(directory+'/LOCAL_PACKAGE.json',packed);
   stage='UPLOAD';
   await save(directory+'/UPLOAD_STARTED.json',{startedAt:new Date().toISOString(),sha256:packed.sha256});

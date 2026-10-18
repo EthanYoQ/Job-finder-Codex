@@ -87,7 +87,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
   if(result.status!=='WEB_VERIFIED')await save(job.runDirectory+'/WEB_READBACK_PENDING.json',{status:'WEB_PENDING',reason:result.reason,diagnostic:result.diagnostic});
   try{
    const {backupSuccessfulSource}=await new A(await read(D+'/evidence-backup-functions.js'))();
-   result.evidenceBackup=await backupSuccessfulSource({command,save,q,D,run:job.runDirectory,relay});
+   result.evidenceBackup=await backupSuccessfulSource({command,save,q,D,run:job.runDirectory,relay,requestIds:job.relayRequestIds});
   }catch(error){
    result.evidenceBackup={status:'PENDING',stage:'BACKUP_HELPER',reason:String(error).slice(0,300)};
    try{await save(job.runDirectory+'/EVIDENCE_BACKUP_PENDING.json',result.evidenceBackup);}catch{}
