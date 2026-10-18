@@ -1,0 +1,57 @@
+{
+  "status": "INACTIVE_VERIFIED_EXTERNAL_CHECKER_FIX",
+  "baseExternalModule": {
+    "id": "0739",
+    "canonicalCommit": "2a498b214b99ada897270d9d5cac48c4c9cc90f5"
+  },
+  "sourceCandidateCommit": "d6ec709797bb0f2ac68cecb42398238fa631da26",
+  "productionFile": "support/offline-checkers/replay-original-json-archive.mts",
+  "change": "One finalUrl expression: preserve the recorded Novo application redirect destination",
+  "beforeSha256": "04eb6264e3a5743575683a696964cf4176e3050fe2f07aead2f1e1b184e21b15",
+  "afterSha256": "a2ffab3edc1862eedea3f6130114ea555652e2eadfa484543b8862f91397a9ab",
+  "patchSha256": "d3eaef4d62a0bfb240223891e58e0a74b91c2c89a584c50b063eabb01b20cf15",
+  "testSha256": "fb2c8ccc5478bcea48168f93f5299ddae9ebbe671edffcb0da5447cfd33dc405",
+  "originalBatchId": "dot-auto-novo-nordisk-20261018T074422261Z",
+  "originalArchiveSha256": "91df194cc9b8d1299e90b78d8110634241807ec15122f2e36100c8cc77ac4777",
+  "originalBatchSubmission": "NOT_DISPATCHED; original offline failure unchanged",
+  "offlineReplay": {
+    "status": "PASS",
+    "classification": "ORIGINAL_NATIVE_ARCHIVE_EXACT_REPLAY",
+    "jobCount": 37,
+    "allRawHashesVerified": true,
+    "exactNativeEvidenceAndJobsDigests": true,
+    "originalStrictQualityReplay": true,
+    "networkUsed": false
+  },
+  "httpEvidence": {
+    "count": 86,
+    "allHttp200": true,
+    "uniqueRequestedUrls": 86,
+    "retryCount": 0
+  },
+  "nativeCounts": {
+    "rawCount": 43,
+    "parsedCount": 43,
+    "validCount": 37,
+    "parseDiscardCount": 0,
+    "validationDiscardCount": 6,
+    "normalizationDiscardCount": 0,
+    "dedupeInputCount": 37,
+    "dedupeDiscardCount": 0,
+    "collisionCount": 0,
+    "finalUniqueJobCount": 37
+  },
+  "nativeLossCodes": {
+    "NOVO_DETAIL_INSUFFICIENT": 2,
+    "OFFICIAL_APPLICATION_CLOSED": 4
+  },
+  "nativeEvidenceSha256": "4367319bf43d722689bf8002be9346f8d1b7a35b6f465790ee8f2688c5c83402",
+  "nativeJobsSha256": "2088e9d94d3e3132dfeff493d963f2295d152a1b1958e94bd2f12f886191ab3c",
+  "checks": "Small artificial HTML fixtures exercise the actual changed finalUrl expression and unchanged native parser: ACTIVE with preserved destination; old request destination UNKNOWN; missing/wrong destination, posting ID, city and requisition rejected; other branches unchanged. Actual original batch is separately fully replayed.",
+  "localEvidence": {
+    "fullReplayLog": "/workspace/scratch/5e9614251709/novo-final-url-replay-candidate-20261018T0756Z/full-original-replay.log",
+    "targetedTestLog": "/workspace/scratch/5e9614251709/novo-final-url-replay-candidate-20261018T0756Z/targeted-test.log",
+    "replayReport": "/workspace/scratch/5e9614251709/novo-final-url-replay-candidate-20261018T0756Z/offline-original-run/review/NATIVE_RAW_REPLAY.json"
+  },
+  "publishBoundary": "Offline code verification only. Do not dispatch old batch, change recorded times, change URLs/status parser, or hot-replace active modules."
+}
