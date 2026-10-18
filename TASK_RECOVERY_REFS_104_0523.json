@@ -1,0 +1,32 @@
+{
+  "taskTitle": "采集并核验招聘岗位",
+  "updateSucceededAt": "2026-10-18T05:48:24.560932+00:00",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "dailyHours": [
+      8,
+      20
+    ]
+  },
+  "nativeCandidate": 104,
+  "nativeCommit": "3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800",
+  "moduleCommit": "70cc1c7743a0e8545204326bfb58aaa797f4201d",
+  "moduleVersion": "0523",
+  "moduleDriveFileId": "1hmRUn8mWkkk-MS7qj4rR2cOK1L3DkapV",
+  "moduleSha256": "d9599d50193fd8becd361c2c0f64bef25217b9f306bd3cfa74499c254806dc3c",
+  "limits": [
+    "Sequential afterSource private backup connected; actual new-source automatic backup remains unverified",
+    "Hengrui missing-import repair applied; fresh source outcome still required",
+    "JNJ failed-page evidence diagnostic only; underlying list issue not declared fixed",
+    "Hansoh/Kelun raw evidence unavailable; never replay Kelun commit",
+    "Fixed LATEST still recovery99",
+    "Full36 and unattended acceptance not passed"
+  ],
+  "moduleActivatedAt": "2026-10-18T05:47:23.018985+00:00",
+  "runtimeFiles": 60,
+  "officialReadOnly36": {
+    "recent": 30,
+    "due": 6
+  }
+}

@@ -63,3 +63,12 @@ The original collection task update succeeded with candidate104 / source3f77 and
 - Evidence uploads previously required manual orchestration. recovery/evidence/package-success-evidence.py recovers the packaging logic, with run/output arguments and a download verifier. It does not upload and has not been connected to afterSource. This is not unattended backup acceptance.
 - Original task recovery references were updated successfully at 2026-10-18T05:03:33.430781+00:00; daily 08:00/20:00 Asia/Shanghai remains unchanged. See TASK_RECOVERY_REFS_104_0428.json.
 - Fixed Drive LATEST remains the prior verified 99 baseline. This update does not claim full-route, website-machine, credential or unattended recovery acceptance.
+
+
+## Current references — 2026-10-18 05:48 UTC
+- Native candidate104 remains 3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800, clean and unchanged.
+- Module0523 / 70cc1c7743a0e8545204326bfb58aaa797f4201d was actually applied at 05:47:23 UTC: 60 exact files; previous loop terminal, no live producer or unanswered relay at activation. Connector validation and isolated official read-only36 passed (30 recent, 6 due).
+- It includes the explicit Hengrui missing-import repair, sequential afterSource private evidence backup, shallow job-array copy, and JNJ failed-page original preservation. Automatic backup is connected but awaits a real successful source upload/readback. JNJ adds diagnosis, not a claimed pagination fix. No full36/unattended acceptance.
+- The original enabled task reference update succeeded at 2026-10-18T05:48:24.560932+00:00. Daily08:00/20:00 Asia/Shanghai unchanged. See [current minimal task references](TASK_RECOVERY_REFS_104_0523.json). Older dated entries above are historical.
+- Restore native104 using the existing RECOVERY_104_20261018.json source/runtime/Prisma51 chain, then module0523 from Drive1hmRUn8mWkkk-MS7qj4rR2cOK1L3DkapV, SHA256 d9599d50193fd8becd361c2c0f64bef25217b9f306bd3cfa74499c254806dc3c (108313 bytes). Existing native104 restoration and module download restoration were verified separately; this does not claim every route or a fresh scheduled full run passed.
+- Fixed Drive LATEST remains99. Earlier Hansoh/Kelun lost raw evidence remains a gap; no replay. Pending reader clone-removal and Novartis full-batch work are not enabled by this update.
