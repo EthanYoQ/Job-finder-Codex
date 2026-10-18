@@ -59,7 +59,7 @@ if(jnj){
 }
 const {sanitizeEvidenceHttpUrl}=await import(V+'/src/crawler/sourceFetchEvidence.ts');
 const {safeOfficialJsonEvidenceUrl}=await import(V+'/src/crawler/officialJsonEvidence.ts');
-const {runSourceCrawl,replayStrictSourceQualityEvidenceAsync}=await import(V+'/src/crawler/runSourceCrawl.ts');
+const {runSourceCrawl}=await import(V+'/src/crawler/runSourceCrawl.ts');
 const {loadPilotContext}=await import(V+'/src/crawler/cloudPilotContext.ts');
 const {buildJobDedupeKey}=await import(V+'/src/crawler/normalizedJob.ts');
 const {verifySourceQualityReceipt}=await import(V+'/src/crawler/sourceQualityAdmission.ts');
@@ -110,7 +110,6 @@ if(compact){
  }
 }
 if(ab){assert.equal(replay.fetchEvidence.artifacts.length,mainArtifacts.length,'EXACT_RAW_ARTIFACT_SET');for(const [index,artifact] of replay.fetchEvidence.artifacts.entries()){const saved=mainArtifacts[index];assert.equal(artifact.logicalKey,saved.logicalKey);assert.equal(sha(artifact.body),saved.sha256,'EXACT_RAW_OR_DERIVED_BODY');assert.equal(artifact.requestedUrl,saved.requestedUrl,'EXACT_REPLAY_REQUESTED_URL');assert.equal(artifact.capturedAt,saved.capturedAt);if(moka||sanofi){assert.equal(artifact.finalUrl,saved.finalUrl,'MOKA_EXACT_FINAL_EVIDENCE_URL');assert.equal(artifact.extractorLocator,saved.extractorLocator,'MOKA_EXACT_REQUEST_LOCATOR');}}}const ctx=await loadPilotContext(d.context,d.plan,ab);const native=await runSourceCrawl(d.plan,{fetch:async()=>replay,isBaseline:!ctx.baselineCompletedBeforeCrawl});assert.deepEqual(native.truth,{transportSuccess:true,adapterSuccess:true,completenessVerified:true});
-if(jnj)assert(await replayStrictSourceQualityEvidenceAsync({plan:d.plan,evidence:replay.fetchEvidence,paginationEvaluation:replay.paginationEvaluation,reconciliation:native.reconciliation,jobs:native.jobs,capturedAt:replay.capturedAt}),'JNJ_ORIGINAL_STRICT_DOM_REPLAY');
 let certificateReplay:any;
 if(ab){
  const {reviewOriginalABCertificate}=await import('./original-ab-certificate-review.mts');
@@ -127,7 +126,7 @@ if(ab){
  }
 }else{
 const source=fs.readFileSync(V+'/src/crawler/sourceQualityAdmission.ts','utf8');const snippets=source.slice(source.indexOf('function digest('),source.indexOf('function deepFreeze('))+'\n'+source.slice(source.indexOf('function jobRecordsDigest('),source.indexOf('function artifactProjection('));const code=ts.transpileModule(snippets+'\nreturn {digest,jobRecordsDigest}',{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.None}}).outputText;const digest=new Function('createHash','buildJobDedupeKey',code)(createHash,buildJobDedupeKey);
-assert.equal(digest.digest(replay.fetchEvidence),d.receipt.legacyCertificate.sourceEvidenceSha256,'EXACT_SOURCE_EVIDENCE_DIGEST');assert.equal(digest.jobRecordsDigest(native.jobs),d.receipt.legacyCertificate.output.jobsSha256,'EXACT_NATIVE_JOBS');assert(await replayStrictSourceQualityEvidenceAsync({plan:d.plan,evidence:replay.fetchEvidence,paginationEvaluation:replay.paginationEvaluation,reconciliation:native.reconciliation,jobs:native.jobs,capturedAt:replay.capturedAt}));
+assert.equal(digest.digest(replay.fetchEvidence),d.receipt.legacyCertificate.sourceEvidenceSha256,'EXACT_SOURCE_EVIDENCE_DIGEST');assert.equal(digest.jobRecordsDigest(native.jobs),d.receipt.legacyCertificate.output.jobsSha256,'EXACT_NATIVE_JOBS');
 verifySourceQualityReceipt({receipt:d.receipt.legacyCertificate,receiptSha256:d.receipt.legacyCertificateSha256,expected:{releaseCandidateId:d.terminal.releaseCandidateId,batchId:d.terminal.batchId,sourceResultId:d.terminal.id,sourceId:d.terminal.sourceId,sourceConfigSha256:d.terminal.sourceConfigHash,adapterVersion:d.terminal.adapterVersion}});
 }
 let independentDomReview;

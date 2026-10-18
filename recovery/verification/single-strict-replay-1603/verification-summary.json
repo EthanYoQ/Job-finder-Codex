@@ -1,0 +1,44 @@
+{
+  "status": "ISOLATED_EQUIVALENT_NOT_ACTIVATED",
+  "nativeCommit": "b9ef32f269b1e7433d65a0c5a20710ccc59da282",
+  "externalBase": "15c7dc23810ce421f83ccb8a3170de9718be8baa",
+  "changedRuntimeFiles": 1,
+  "checksRemoved": "2 external same-input strict replay call sites and named import",
+  "requiredNativeTruthAssertionRetained": true,
+  "sourceQualityAdmissionUnchanged": true,
+  "independentBiDomHttpReviewUnchanged": true,
+  "realFixtures": [
+    {
+      "source": "jnj",
+      "jobCount": 159,
+      "beforeAfterByteEqual": true,
+      "historicalSavedReportByteEqual": true,
+      "reportSha256": "080618ddbe8f9e350e30ceb61e1f4139fc90472c4097bf6e4c6a223339e6adf3"
+    },
+    {
+      "source": "novartis",
+      "jobCount": 169,
+      "beforeAfterByteEqual": true,
+      "historicalSavedReportByteEqual": true,
+      "reportSha256": "2eaf236e876cf4f8b6ef8020741af81afb40f231b040d2a235ae117bbf0979d5"
+    },
+    {
+      "source": "boehringer-ingelheim",
+      "jobCount": 50,
+      "beforeAfterByteEqual": true,
+      "historicalSavedReportByteEqual": true,
+      "reportSha256": "201f385ccb3a726d0b0d3136ead7d5dce6e41bf0204499082ee7fcf19c21f6a1"
+    }
+  ],
+  "strictInvocationsPerAffectedRun": {
+    "before": 2,
+    "after": 1
+  },
+  "countBasis": "native finalizeTruth plus exactly one of mutually exclusive JNJ/!ab external call sites",
+  "liveTimingMeasured": false,
+  "archiveAndReceiptChecksRetained": true,
+  "historicalClockPinnedToOriginalReviewedAt": true,
+  "network": false,
+  "sqlExecuted": false,
+  "activeFileUnchanged": true
+}
