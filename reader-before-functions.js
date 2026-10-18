@@ -1,5 +1,5 @@
 // The original object is restored before any caller sees it; only connector response size changes.
-function readerBeforeQueries(query) {
+function readerBeforeQueries(query, snapshotTimeout='8s') {
  const prefix="BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY; SET LOCAL statement_timeout='8s';\n";
  const text=value=>"E'"+String(value).replaceAll('\\','\\\\').replaceAll("'","''")+"'";
  const digest=value=>`encode(extensions.digest(convert_to((${value})::text,'UTF8'),'sha256'),'hex')`;
@@ -11,7 +11,7 @@ function readerBeforeQueries(query) {
  const stable="(reader_before-'checkedAt') || jsonb_build_object('publicationContext',(reader_before->'publicationContext')-'checkedAt')";
  const reference=value=>`CASE WHEN ${value} IS NULL OR ${value}='null'::jsonb THEN 'null'::jsonb ELSE jsonb_build_object('id',${value}->>'id','sha256',${digest(value)}) END`;
  const wrap=select=>prefix+select+';\nROLLBACK;';
- const snapshot=select=>wrap(`WITH snapshot AS (${body}) ${select} FROM snapshot`);
+ const snapshot=select=>wrap(`WITH snapshot AS (${body}) ${select} FROM snapshot`).replace("statement_timeout='8s'","statement_timeout='"+snapshotTimeout+"'");
  return {
   header:snapshot(`SELECT reader_before || jsonb_build_object('results',coalesce((SELECT jsonb_agg(${reference('value')} ORDER BY ordinality) FROM jsonb_array_elements(reader_before->'results') WITH ORDINALITY),'[]'::jsonb),'publicationContext',(reader_before->'publicationContext') || jsonb_build_object('firstAccepted',${reference("reader_before->'publicationContext'->'firstAccepted'")},'latestAccepted',${reference("reader_before->'publicationContext'->'latestAccepted'")})) AS reader_before,${digest(stable)} AS snapshot_sha256`),
   final:snapshot(`SELECT ${digest(stable)} AS snapshot_sha256`),
@@ -20,8 +20,8 @@ function readerBeforeQueries(query) {
  };
 }
 
-async function readOriginalReaderBefore(query, sql) {
- const queries=readerBeforeQueries(query);
+async function readOriginalReaderBefore(query, sql, snapshotTimeout='8s') {
+ const queries=readerBeforeQueries(query,snapshotTimeout);
  const one=async query=>{const rows=await sql(query);if(!Array.isArray(rows)||rows.length!==1)throw Error('READER_ROW_COUNT');return rows[0];};
  const header=await one(queries.header),before=header.reader_before,refs=before.results,loaded=new Map();
  if(!/^[a-f0-9]{64}$/.test(header.snapshot_sha256)||!Array.isArray(refs)||new Set(refs.map(r=>r.id)).size!==refs.length)throw Error('READER_HEADER_INVALID');
