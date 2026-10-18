@@ -1,0 +1,81 @@
+{
+  "status": "ISOLATED_VERIFIED_NOT_ACTIVATED",
+  "baseModuleCommit": "e0bc3ab81045abf283bb8462640199251c091865",
+  "nativeCommit": "c44ff2790fa9e5e9edd51d04be116b2da356eca2",
+  "changedFiles": 4,
+  "realSqlVerifierBodiesUnchanged": true,
+  "originalSixNegativeCasesUnchanged": true,
+  "normalModeVerifyFullBodyCalls": 1,
+  "oldAndExplicitOfflineVerifyFullBodyCalls": 7,
+  "normalReportOmitsNegativeTests": true,
+  "localComparisons": [
+    {
+      "key": "biogen-packet-gate-source-hengrui-social.json",
+      "sourceId": "source-hengrui-social",
+      "reviewer": "biogen-packet-gate.mts",
+      "calls": {
+        "before": 7,
+        "after": 1,
+        "offline": 7
+      },
+      "negativeCases": 6,
+      "outputsEqual": true,
+      "savedDecodedRowsEqual": true,
+      "fullReleaseIdentityChecked": false
+    },
+    {
+      "key": "hengrui-packet-gate-source-hengrui-social.json",
+      "sourceId": "source-hengrui-social",
+      "reviewer": "hengrui-packet-gate.mts",
+      "calls": {
+        "before": 7,
+        "after": 1,
+        "offline": 7
+      },
+      "negativeCases": 6,
+      "outputsEqual": true,
+      "savedDecodedRowsEqual": true,
+      "fullReleaseIdentityChecked": false
+    },
+    {
+      "key": "original-portable-sql-review-source-novartis-social.json",
+      "sourceId": "source-novartis-social",
+      "reviewer": "original-portable-sql-review.mts",
+      "calls": {
+        "before": 7,
+        "after": 1,
+        "offline": 7
+      },
+      "negativeCases": 6,
+      "outputsEqual": true,
+      "savedDecodedRowsEqual": true,
+      "fullReleaseIdentityChecked": false
+    }
+  ],
+  "wrapperControlledBranches": 9,
+  "fullGenericCurrentNovartisReview": {
+    "passed": true,
+    "releaseIdentityChecked": true,
+    "originalDeadlinesUnchanged": true,
+    "savedReportFieldsMatch": true,
+    "normalNegativeTestsAbsent": true,
+    "explicitOfflineSixRejected": true
+  },
+  "existingTests": {
+    "automaticRelay": "PASS",
+    "explicitReviewRejection": "PASS",
+    "novoHook": "PASS",
+    "hostSession": "FIRST_5_GROUPS_PASS_FINAL_ASSERTION_FAILS_IDENTICALLY_ON_BASELINE"
+  },
+  "verificationLimitations": [
+    "No real Biogen packet was available; its SQL closure used Hengrui real evidence.",
+    "Historical Hengrui checks were local SQL closure comparisons, not current full source release verification.",
+    "No real publication, source capture, or scheduled end-to-end run."
+  ],
+  "syntax": "PASS",
+  "diffCheck": "PASS",
+  "activeFilesUnchanged": true,
+  "network": false,
+  "databaseWrites": false,
+  "sqlExecuted": false
+}

@@ -1,13 +1,14 @@
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {execFileSync} from 'node:child_process';
 const B='/workspace/scratch/5e9614251709',R=B+'/takeda-original-recovery-20261017T0417Z',V=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source';
 const [run,id,relay,contextRequestId,phase]=process.argv.slice(2),read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
+const sqlNegativeTests=phase==='packet-only-sql-selftest';
 fs.mkdirSync(run+'/relay',{recursive:true});fs.mkdirSync(run+'/review',{recursive:true});
 const request=read(relay+'/'+id+'.request.json');fs.copyFileSync(relay+'/'+id+'.request.json',run+'/relay/'+id+'.request.json');const sqlPath=run+'/relay/'+id+'.request.json.sql';if(fs.existsSync(sqlPath))assert.equal(fs.readFileSync(sqlPath,'utf8'),request.payload.sql);else fs.writeFileSync(sqlPath,request.payload.sql,{flag:'wx'});
 const starts=fs.readFileSync(run+'/diagnostics/process.jsonl','utf8').trim().split('\n').map(JSON.parse).filter(x=>x.event==='WRAPPER_START');assert.equal(starts.length,1);
 const source=request.payload.sourceId??JSON.parse(fs.readFileSync(path.dirname(run)+'/host-config.json','utf8')).sourceId;
 const special={'source-biogen-china-social':['biogen-packet-gate.mts','reviewBiogenPacket'],'source-hengrui-social':['hengrui-packet-gate.mts','reviewHengruiPacket']}[source];
 // Run heavy packet/readers in a completed process before raw replay loads its modules.
-if(phase!=='packet-only'){
+if(phase!=='packet-only'&&phase!=='packet-only-sql-selftest'){
  const loader=V+'/node_modules/tsx/dist/loader.mjs';
  const commands=[['--import',loader,process.argv[1],run,id,relay,contextRequestId,'packet-only'],...(special?[]:[['--import',loader,R+'/offline-checkers/replay-original-json-archive.mts',run]]),['--import',loader,R+'/offline-checkers/project-original-target-api.mts',run]];
  for(const args of commands){
@@ -28,8 +29,10 @@ if(contextRequestId){
  assert.match(response.result.rows?.[0]?.context?.snapshotSha256??'',/^[a-f0-9]{64}$/,'ORIGINAL_PUBLICATION_CONTEXT_RESPONSE_REQUIRED');
  publicationContext=response.result.rows[0].context;
 }
-const packet=await review(run,id,run+'/review/PACKET_REVIEW.json',{originalOuterDeadline:starts[0].outerDeadline,publicationContext});
+const packet=await review(run,id,run+'/review/'+(sqlNegativeTests?'SQL_NEGATIVE_SELFTEST.json':'PACKET_REVIEW.json'),{originalOuterDeadline:starts[0].outerDeadline,publicationContext,sqlNegativeTests});
+if(!sqlNegativeTests){
 const {replayOriginalPortableReaders}=await import(R+'/offline-checkers/original-portable-reader-replay.mts');
 await replayOriginalPortableReaders({run,outputDirectory:run+'/review',before:read(path.dirname(run)+'/READER_BEFORE.json'),packet});
+}
 }
 console.log(JSON.stringify({requestId:id,requestSha256:request.requestSha256}));

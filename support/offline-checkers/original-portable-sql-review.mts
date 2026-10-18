@@ -16,7 +16,7 @@ import {deriveCurrentStagedScheduleExpectation} from "/workspace/scratch/5e96142
 import {buildPendingRuntimeBatch} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts";
 import {hashCanonicalStringSet} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeBatchIdentity.ts";
 import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts";
-export async function reviewOriginalPortableSql(runArg:string,requestId:string,output:string,{originalOuterDeadline,publicationContext}: {originalOuterDeadline:number;publicationContext?:any}){
+export async function reviewOriginalPortableSql(runArg:string,requestId:string,output:string,{originalOuterDeadline,publicationContext,sqlNegativeTests=false}: {originalOuterDeadline:number;publicationContext?:any;sqlNegativeTests?:boolean}){
 assert(runArg&&requestId&&output);
 assert(Number.isFinite(originalOuterDeadline)&&Date.now()<originalOuterDeadline);
 const R=resolve("/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native",'../vendor'),run=resolve(runArg),host=resolve(run,'..');
@@ -104,6 +104,8 @@ assert.equal(regenerated.join('\n'),middle,'BODY_NOT_FULLY_RECONSTRUCTED');
 return {decoded,through,plan};
 }
 const {decoded,through}=verifyFullBody(sql);
+let negativeTests;
+if(sqlNegativeTests){
 const negativeCases=[
  ['arbitrary inserted SQL',sql.replace('\nINSERT INTO public."EvidenceArtifact"','\nPERFORM pg_sleep(1);\nINSERT INTO public."EvidenceArtifact"')],
  ['weakened context guard',sql.replace(/IF [^\n]* THEN RAISE EXCEPTION 'PILOT_CONTEXT_CHANGED'; END IF;/,"IF false THEN RAISE EXCEPTION 'PILOT_CONTEXT_CHANGED'; END IF;")],
@@ -112,7 +114,8 @@ const negativeCases=[
  ['altered update target scope',sql.replace('target."sourceId" = E\''+cfg.sourceId+'\'','target."sourceId" = E\'source-other\'')],
  ['arbitrary delete in body',sql.replace('\nINSERT INTO public."EvidenceArtifact"','\nDELETE FROM public."Job";\nINSERT INTO public."EvidenceArtifact"')]
 ];
-const negativeTests=negativeCases.filter(([name,mutated])=>mutated!==sql).map(([name,mutated])=>{assert.notEqual(mutated,sql,name+' not applied');assert.throws(()=>verifyFullBody(mutated),name);return {name,rejected:true};});
+negativeTests=negativeCases.filter(([name,mutated])=>mutated!==sql).map(([name,mutated])=>{assert.notEqual(mutated,sql,name+' not applied');assert.throws(()=>verifyFullBody(mutated),name);return {name,rejected:true};});
+}
 const statementTables=decoded.map(x=>x.table);const tables=statementTables.filter((x,i)=>i===0||x!==statementTables[i-1]);assert.deepEqual(tables.filter(x=>!['Job','LossLedgerEntry'].includes(x)),['EvidenceArtifact','PaginationEvidence','CrawlObservation','LifecycleSetEvidenceMember','CrawlBatchSourceResult']);assert(tables.filter(x=>x==='Job').length<=1);assert(tables.filter(x=>x==='LossLedgerEntry').length<=1);if(tables.includes('LossLedgerEntry'))assert(tables.indexOf('LossLedgerEntry')===2);
 const get=(name:string)=>decoded.filter(x=>x.table===name).flatMap(x=>x.rows);
 const tuple={releaseCandidateId:terminal.releaseCandidateId,batchId:terminal.batchId,sourceId:terminal.sourceId,sourceResultId:terminal.id};
@@ -128,6 +131,6 @@ const observations=get('CrawlObservation');assert.equal(observations.length,1);a
 const archivePath=join(run,'artifacts',terminal.batchId+'.archive.json'),archiveBytes=readFileSync(archivePath),archive=JSON.parse(archiveBytes.toString('utf8'));assert.equal(archive.schemaVersion,1);for(const[k,v]of Object.entries(tuple))assert.equal(archive.sidecar[k],v);
 const artifacts=get('EvidenceArtifact'),pages=get('PaginationEvidence');assert.equal(archive.files.length,artifacts.length);
 
-const review={classification:ab?'ORIGINAL_AB_SQL_RECOMPILE_PASS':'ORIGINAL_GENERIC_PORTABLE_SQL_RECOMPILE_PASS',reviewedAt:new Date().toISOString(),requestId,requestSha256:request.requestSha256,sqlSha256:sha(sql),dispatchBefore:request.payload.dispatchBefore,expiresAt:request.expiresAt,controlsExactOriginalRecompile:true,allMutationBytesConsumed:true,mutationsExactOriginalCompilerRecompile:true,tuple,counts:{current:kinds.CURRENT,grace:kinds.GRACE,visible:kinds.VISIBLE,jobWrites:jobs.length,newJobs:newCount,changedExistingJobs:changedCount},negativeTests,sourceRawReplayPending:true};
+const review={classification:ab?'ORIGINAL_AB_SQL_RECOMPILE_PASS':'ORIGINAL_GENERIC_PORTABLE_SQL_RECOMPILE_PASS',reviewedAt:new Date().toISOString(),requestId,requestSha256:request.requestSha256,sqlSha256:sha(sql),dispatchBefore:request.payload.dispatchBefore,expiresAt:request.expiresAt,controlsExactOriginalRecompile:true,allMutationBytesConsumed:true,mutationsExactOriginalCompilerRecompile:true,tuple,counts:{current:kinds.CURRENT,grace:kinds.GRACE,visible:kinds.VISIBLE,jobWrites:jobs.length,newJobs:newCount,changedExistingJobs:changedCount},...(negativeTests?{negativeTests}:{}),sourceRawReplayPending:true};
 writeFileSync(output+'.decoded.json',JSON.stringify({terminal,context,decoded:decoded.filter(x=>x.table!=='CrawlBatchSourceResult'),plan},null,2),{flag:'wx',mode:0o600});writeFileSync(output,JSON.stringify(review,null,2),{flag:'wx',mode:0o600});return {review,decoded:{terminal,context,decoded,receipt,plan}};
 }
