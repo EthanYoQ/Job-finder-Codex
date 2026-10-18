@@ -1,0 +1,11 @@
+{
+  "completeJobRowsAndRevivedRowsEqual": true,
+  "originalBeforeUnchanged": true,
+  "inserted": 1,
+  "updated": 1,
+  "unchanged": 1,
+  "jobDeepCloneCallsBefore": 1,
+  "jobDeepCloneCallsAfter": 0,
+  "network": false,
+  "databaseWrites": false
+}
