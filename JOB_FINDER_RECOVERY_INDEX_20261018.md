@@ -167,3 +167,10 @@ The20:00 Asia/Shanghai scheduled round skipped34 recent sources, held existingBI
 Native111/c44ff2790fa9e5e9edd51d04be116b2da356eca2 was officially registered12:34:35.142Z with independent checks passed and activated; external1205/65cae6f882ecf7e186d044a08fd99e9ea0634547 remains unchanged. Task update12:36:02.524496Z succeeded, preserving daily08:00/20:00 Asia/Shanghai and recording the approved Novartis partition route. Fresh original entry started12:36UTC; no new production success is established. Diagnostic169 jobs must not be reported as published.
 
 Restore verified native110 then the six-code-path111 delta Drive1Qz5z9PbN-N2h53Ruiz1meTzGicL0Uw2V (12425 bytes, SHA256e7abf3b4236e9d2dc4dd160aa2921546e882dec2a9c8631c99bc88bdf2f61d1a). Downloaded patch rebuilt exact tree92fb4fce57b29a449b93e77e66da633c9ef72b81 and downloaded raw commit reproduced its canonical SHA. Pair with the unchanged0838→1145→1205 external restore chain. FixedLATEST99 and prior scheduled/full-source acceptance limitations remain. See TASK_RECOVERY_REFS_111_1205.json.
+
+
+## Novartis production result — 2026-10-18 12:42 UTC
+
+Native111/external1205 unchanged. Fresh batch dot-auto-novartis-20261018T123719665Z completed SUCCESS/VERIFIED/COMMITTED with169 CURRENT jobs: crawled12:37:41.190Z, finished12:39:02.896Z, public CURRENT/full-field match12:39:26.963Z. Its automatic evidence backup was downloaded and restored12:40:06.376Z: Drive19unsu2Y6E9OqDwYnCWIrR20HmrNYQnKR,1911092 bytes,SHA256e4dde2679febae31fb3e00b86c899887bfdadf0c54164a15f5201545165d1d16,51 originals/12 package members.
+
+This execution produced one successful source and34 recent skips. Official reconciliation lists35 recent/1 due(BI), no live running producer or unknown submission. Skips are not new successes and full36/unattended acceptance remains open. Task update12:41:51.212494Z succeeded without version/schedule change. Only sanitized references are stored here; originals remain in the authorized private Drive package. See updated TASK_RECOVERY_REFS_111_1205.json. FixedLATEST99 remains unchanged.

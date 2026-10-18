@@ -1,6 +1,6 @@
 {
   "taskTitle": "采集并核验招聘岗位",
-  "updateSucceededAt": "2026-10-18T12:36:02.524496+00:00",
+  "updateSucceededAt": "2026-10-18T12:41:51.212494+00:00",
   "enabled": true,
   "schedule": {
     "timezone": "Asia/Shanghai",
@@ -26,8 +26,8 @@
   "moduleAppliedAt": "2026-10-18T12:16:42Z",
   "runtimeFiles": 61,
   "readOnly36": {
-    "recent": 34,
-    "due": 2
+    "recent": 35,
+    "due": 1
   },
   "evidenceBackup": {
     "jnj159": "AUTOMATIC_REMOTE_RESTORE_VERIFIED",
@@ -104,10 +104,40 @@
     "unknownSubmissions": 0,
     "fullAcceptance": false
   },
-  "pendingNovartis": "Approved native partition route activated in111; fresh original entry began12:36UTC, production result pending. Diagnostic169 is not a published result.",
   "previousNativeDelta": {
     "base": "4842e16b8c89e9624049d78b49a79dc25bb15775",
     "driveFileId": "1wZ3E6i-rQVjZj7GgfFVBzxVU_o0TnXq1",
     "sha256": "fa3c5170c73d7a961ab9914ed6eac64016d55e6241984e1eba1da294de6c6cab"
+  },
+  "novartisProduction": {
+    "batch": "dot-auto-novartis-20261018T123719665Z",
+    "jobs": 169,
+    "membership": "CURRENT",
+    "status": "SUCCESS",
+    "verification": "VERIFIED",
+    "atomicCommitState": "COMMITTED",
+    "crawledAt": "2026-10-18T12:37:41.190Z",
+    "finishedAt": "2026-10-18T12:39:02.896Z",
+    "webVerifiedAt": "2026-10-18T12:39:26.963Z",
+    "allFieldsMatch": true,
+    "automaticBackup": {
+      "status": "REMOTE_RESTORE_VERIFIED",
+      "driveFileId": "19unsu2Y6E9OqDwYnCWIrR20HmrNYQnKR",
+      "bytes": 1911092,
+      "sha256": "e4dde2679febae31fb3e00b86c899887bfdadf0c54164a15f5201545165d1d16",
+      "rawFiles": 51,
+      "members": 12,
+      "verifiedAt": "2026-10-18T12:40:06.376Z"
+    }
+  },
+  "latestExecution": {
+    "newSuccessfulSources": 1,
+    "skippedRecent": 34,
+    "remainingDue": [
+      "BI"
+    ],
+    "liveRunning": 0,
+    "unknownSubmissions": 0,
+    "fullAcceptance": false
   }
 }
