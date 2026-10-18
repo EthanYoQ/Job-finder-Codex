@@ -1,0 +1,44 @@
+{
+  "checked_at": "2026-10-18T15:27:47.959Z",
+  "source_sha256": "79c715816e6ce0c7253934cc06a0697bea1a51f12b230937756e374ea63bd24e",
+  "evidence_captured_at": "2026-10-18T15:24:45.275Z",
+  "url_global": "undefined in both simulated Functions host and browser callback context",
+  "test_type": "Synthetic mock against saved actual current hrefs; no browser or network run",
+  "results": [
+    {
+      "case": "current_50_hrefs",
+      "passed": true,
+      "rows": 50,
+      "error": null,
+      "events": [
+        "create",
+        "save_capture",
+        "close"
+      ]
+    },
+    {
+      "case": "wrong_origin",
+      "passed": true,
+      "rows": null,
+      "error": "Error: BI_DOM_JOB_IDENTITY",
+      "events": [
+        "create",
+        "snapshot",
+        "save_failure",
+        "close"
+      ]
+    },
+    {
+      "case": "wrong_job_id",
+      "passed": true,
+      "rows": null,
+      "error": "Error: BI_DOM_JOB_IDENTITY",
+      "events": [
+        "create",
+        "snapshot",
+        "save_failure",
+        "close"
+      ]
+    }
+  ]
+}
