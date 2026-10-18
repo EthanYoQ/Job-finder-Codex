@@ -201,7 +201,7 @@ export async function readPortablePublicSnapshotWithStatus(
       select: portableSourceResultSelect, orderBy: [{startedAt: "asc"}, {id: "asc"}]
     });
     if (!Array.isArray(rawResults)) throw new Error("INVALID_PORTABLE_SOURCE_RESULT_ROWS");
-    const results = structuredClone(rawResults) as PortableSourceResultRow[];
+    const results = rawResults as PortableSourceResultRow[];
     await bindSanofiPersistedArtifacts(tx,results);
     const novoClosed = requiredPlans.some(plan => plan.source.id === NOVO_CLOSURE_SOURCE)
       ? await readNovoSingleClosures(tx as Parameters<typeof readNovoSingleClosures>[0],readOptions.currentTime) : [];
@@ -242,7 +242,7 @@ export async function readPortablePublicSnapshotWithStatus(
         orderBy: [{sourceResultId: "asc"}, {setKind: "asc"}, {jobKey: "asc"}]
       });
       if (!Array.isArray(rawMembers)) throw new Error("INVALID_PORTABLE_LIFECYCLE_ROWS");
-      members = structuredClone(rawMembers) as PortableLifecycleMemberRow[];
+      members = rawMembers as PortableLifecycleMemberRow[];
       // The conservative date envelope contains the eventual verified floor/ceiling.
       // The pure projector rechecks the exact verified bounds and all membership rules.
       const rawJobs = await tx.job.findMany({where: {OR: pending.map(({result, floor, companyId}) => ({
@@ -251,7 +251,7 @@ export async function readPortablePublicSnapshotWithStatus(
         dedupeKey: {in: members.filter(member => member.sourceResultId === result.id && member.setKind === "VISIBLE").map(member => member.jobKey)}
       }))}, select: jobSelect, orderBy: [{sourceId: "asc"}, {dedupeKey: "asc"}]});
       if (!Array.isArray(rawJobs)) throw new Error("INVALID_PORTABLE_JOB_ROWS");
-      jobs = structuredClone(rawJobs) as PortableJobRow[];
+      jobs = rawJobs as PortableJobRow[];
     }
     return {results, members, jobs, version, novoClosed};
   }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 10_000});
