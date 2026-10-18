@@ -183,3 +183,10 @@ Native111/c44ff2790fa9e5e9edd51d04be116b2da356eca2 remains unchanged. External12
 The user approved removing normal precollection old-web blocking at12:48UTC. Official DB context and publication review remain; postpublish web readback/WEB_PENDING backup remain. Native standalone Novo closure checks retain genuine HTTP observations. This activation has not collected a new source; next actual round validation remains pending. Latest source state remains35 recent/1 dueBI. Subsequent self-test hot-path work is not active and is not part of1249.
 
 Restore0838 full module,1145 and1205 deltas, then1249 delta Drive1XG-sjvHPmxn_I0x5WRJHyN6Kh9Yz3sMV (3747 bytes,SHA256060603bf1f29932eec0a1f9b93086f2977ca1b2ae77c196e9b6dafa078e9ac25). Downloaded restoration matched all61 runtime files. FixedLATEST99/full-source acceptance limitations remain. See TASK_RECOVERY_REFS_111_1249.json and recovery/module/ACTIVE_VERIFIED_1249.json.
+
+
+## Current recovery refs — 2026-10-18 13:02 UTC
+
+Native111 and entry003b12495aafef33518a2a6e7a5ff1ded40a22a20115950b2334bef9bf9a3994 are unchanged. External1251/413569e0a2e52afcff099277f8ab73777728c97c was applied13:02:11Z with61 files exact. Task update13:02:27.379504Z succeeded; daily08:00/20:00 Asia/Shanghai unchanged. Three SQL reviewers now run six synthetic damaged-SQL selftests only in the explicit offline phase; original real-packet checks remain unchanged. No new production batch has verified1251 yet. Latest state remains35 recent/1 dueBI.
+
+Restore the existing0838→1145→1205→1249 module chain then1251 delta Drive1hmQd82a_QD4-sZjFMHjJR61k0tlr6nGm (7609 bytes,SHA2561d810e23a7017b94b0d18df394276869a02e09f2679df2cf7fa95efe36a23dcd). Downloaded restoration matched all61 runtime files. Six negative cases remain available offline; baseline host-session callback assertion failure remains documented rather than silently fixed. FixedLATEST99 and full-source/unattended acceptance limits remain. See TASK_RECOVERY_REFS_111_1251.json and recovery/module/ACTIVE_VERIFIED_1251.json.

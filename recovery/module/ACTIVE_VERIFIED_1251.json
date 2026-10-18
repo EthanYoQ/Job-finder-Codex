@@ -1,0 +1,11 @@
+{
+  "activatedAt": "2026-10-18T13:02:11.594699+00:00",
+  "canonical": "413569e0a2e52afcff099277f8ab73777728c97c",
+  "runtimeFilesVerified": 61,
+  "allRuntimeBytesMatch": true,
+  "entrySha256": "003b12495aafef33518a2a6e7a5ff1ded40a22a20115950b2334bef9bf9a3994",
+  "nativeCanonical": "c44ff2790fa9e5e9edd51d04be116b2da356eca2",
+  "nativeClean": true,
+  "ownerWindow": "13:01:50 formal holder empty;RUNNING0;producer0;89 requests answered",
+  "collectionStarted": false
+}
