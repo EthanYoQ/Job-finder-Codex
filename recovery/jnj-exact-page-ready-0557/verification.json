@@ -1,0 +1,10 @@
+{
+  "artificialOnly": true,
+  "previousPageVisibleDoesNotCountAsReady": true,
+  "onePaginationClick": true,
+  "trueDriftHeldAndOriginalPageSaved": true,
+  "noBrowserCalls": true,
+  "noHttpCalls": true,
+  "noDatabaseCalls": true,
+  "limitation": "Real failed page 5 was never archived; readiness gap is proven in code, not proven as live root cause"
+}

@@ -1,0 +1,24 @@
+--- a/jnj-browser-runtime.js
++++ b/jnj-browser-runtime.js
+@@ -17,7 +17,9 @@
+   async function readList() {
+     checkTime();
+     await list.playwright.locator('#js-job-search-results').waitFor({state:'visible',timeoutMs:30000});
+-    const heading = await list.playwright.getByRole('heading',{name:/^Displaying \d+ to \d+ of \d+ matching jobs$/}).innerText();
++    const headingLocator = list.playwright.getByRole('heading',{name:total===undefined?/^Displaying 1 to \d+ of \d+ matching jobs$/:`Displaying ${(page-1)*20+1} to ${Math.min(page*20,total)} of ${total} matching jobs`,exact:true});
++    await headingLocator.waitFor({state:'visible',timeoutMs:30000});
++    const heading = await headingLocator.innerText();
+     const fragment = await list.playwright.locator('#js-job-search-results').evaluate(e=>({html:e.outerHTML,htmlLength:e.outerHTML.length,
+       items:Array.from(e.children).map(e=>({text:e.innerText,links:Array.from(e.querySelectorAll('a[href*="/jobs/r-"]')).map(a=>({title:a.textContent.trim(),url:a.href}))}))}));
+     const value = {kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',url:await list.url(),heading,fragment,
+@@ -29,7 +31,9 @@
+     total ??= Number(declaration[3]);
+     if(value.url!==listUrl(page) || total<=0 || total>400 || Number(declaration[3])!==total ||
+        Number(declaration[1])!==(page-1)*20+1 || Number(declaration[2])!==Math.min(page*20,total) ||
+-       fragment.items.length!==Math.min(20,total-(page-1)*20)) throw Error('JNJ_DOM_PAGE_DRIFT');
++       fragment.items.length!==Math.min(20,total-(page-1)*20)) {
++      return {file:'jnj-list-page-'+page+'.json',raw:raw(value),failure:'JNJ_DOM_PAGE_DRIFT:'+JSON.stringify({page,expectedUrl:listUrl(page),actualUrl:value.url,heading,itemCount:fragment.items.length,total})};
++    }
+     const names=['team','subteam','country','state','location','type','pattern'];
+     if(JSON.stringify(value.filters.map(f=>f.name))!==JSON.stringify(names) || value.filters.some(f=>JSON.stringify(f.selectedOptions)!==JSON.stringify(f.name==='country'?[{text:'China',value:'China'}]:[]))) throw Error('JNJ_DOM_SCOPE');
+     current = [];
