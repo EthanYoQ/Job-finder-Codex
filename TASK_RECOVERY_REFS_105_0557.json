@@ -1,0 +1,40 @@
+{
+  "taskTitle": "采集并核验招聘岗位",
+  "updateSucceededAt": "2026-10-18T06:09:22.428521+00:00",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "dailyHours": [
+      8,
+      20
+    ]
+  },
+  "nativeCandidate": 105,
+  "nativeCommit": "8efa94c03a542fdcdf24df58d3e4f46be4ad771a",
+  "nativeRegisteredAt": "2026-10-18T06:07:51.162Z",
+  "nativeIndependent16FieldCheck": "PASS",
+  "nativeDelta": {
+    "base": "3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800",
+    "driveFileId": "1FEfe6pSQlFQW-T7Ni-gZbcT86dZGezx6",
+    "sha256": "b32263a47e318088204680b456320c8a3037f4d5fdedd8302b231b0bbe606531"
+  },
+  "moduleVersion": "0557",
+  "moduleCommit": "777ca0535d4c8ce71240ac4bd6a9386542e38294",
+  "moduleActivatedAt": "2026-10-18T06:06:59.951824+00:00",
+  "moduleDriveFileId": "16jSnhRjirqtRxgod0ySw6CludnC81RR1",
+  "moduleSha256": "3a74e32abc59eaf34024a64706782fc94a74e6f52b6364a0a23a7d64e16c6009",
+  "runtimeFiles": 60,
+  "rollback": {
+    "nativeCandidate": 104,
+    "nativeCommit": "3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800",
+    "moduleVersion": "0523",
+    "moduleCommit": "70cc1c7743a0e8545204326bfb58aaa797f4201d"
+  },
+  "limits": [
+    "Automatic evidence backup connected but no actual source success has validated it",
+    "Previous due-source attempt held all six; no full36 acceptance",
+    "Fresh candidate105 collection started; outcome remains separate from registration",
+    "JNJ exact-heading wait has artificial evidence; no proven live root cause",
+    "Fixed LATEST remains recovery99; Hansoh/Kelun lost raw gap persists"
+  ]
+}
