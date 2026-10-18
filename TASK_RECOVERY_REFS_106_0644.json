@@ -1,0 +1,41 @@
+{
+  "taskTitle": "采集并核验招聘岗位",
+  "updateSucceededAt": "2026-10-18T07:15:44.461267+00:00",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "dailyHours": [
+      8,
+      20
+    ]
+  },
+  "nativeCandidate": 106,
+  "nativeCommit": "24d0516f01bc7ed7178a7fd576789fd831b183cc",
+  "registeredAt": "2026-10-18T07:14:13.757Z",
+  "independent16Fields": "PASS",
+  "connectorValidate": "PASS",
+  "nativeDelta": {
+    "base": "8efa94c03a542fdcdf24df58d3e4f46be4ad771a",
+    "driveFileId": "1SwAlVfVfkQdy9pl6c0ESLdZM4IZ4Bxwz",
+    "sha256": "b2213e059ba86e97b6f86e349d8b45fe71ba934647f6c468783d2a16da4e17be"
+  },
+  "moduleVersion": "0644",
+  "moduleCommit": "2ab72d3c753439995a21134b4371d85f8a606bb4",
+  "moduleAppliedAt": "2026-10-18T07:12:36.197675+00:00",
+  "moduleDriveFileId": "1CHflNvYA7CqdDCLQEsx6zSKAUgyyt4Gs",
+  "moduleSha256": "f690e05eacaccf6c27727c139dc883d6f35451341f94c7cf1395e0254e7e676d",
+  "runtimeFiles": 60,
+  "readOnly36": {
+    "recent": 31,
+    "due": 5
+  },
+  "readerRepositorySha256": "0be7dbba023882a9558186b0bd742eb300b5bff3b3d751858e5afe96a0c76edb",
+  "freshCollectionStartedAt": "2026-10-18T07:15:20Z",
+  "limits": [
+    "Automatic evidence backup awaits actual source verification",
+    "Sanofi064002 ABANDONED_EXPIRED_UNCOMMITTED; original process exit unconfirmed",
+    "Reader startup P2028 and fallback heapOOM remain observed risks; see deployment receipt",
+    "Fixed Drive LATEST remains99; full36 and unattended acceptance incomplete",
+    "Prior Hansoh/Kelun raw-evidence loss remains a gap"
+  ]
+}
