@@ -1,0 +1,16 @@
+{
+  "activatedAt": "2026-10-18T14:48:58.139229+00:00",
+  "canonical": "cd1b12a922a47259d19b90f4c86907621cefa292",
+  "runtimeFilesVerified": 61,
+  "allRuntimeBytesMatch": true,
+  "entrySha256": "003b12495aafef33518a2a6e7a5ff1ded40a22a20115950b2334bef9bf9a3994",
+  "nativeCanonical": "c44ff2790fa9e5e9edd51d04be116b2da356eca2",
+  "nativeClean": false,
+  "nativeExistingBIDiffUnchanged": true,
+  "nativeDiffSha256": "2e751b5bc2302882b7565b3b65d97612a2ab77fde5986ab4e9dd27e1b246d37f",
+  "ownerWindow": "14:48 producer0;94 requests answered;no activity on checker",
+  "collectionStarted": false,
+  "postActivationNativeRestoredCleanAt": "2026-10-18T14:49:39.451546+00:00",
+  "postActivationNativeClean": true,
+  "postActivationNote": "BI owner restored original111 after exporting isolated diff; no producer started"
+}

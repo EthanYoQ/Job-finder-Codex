@@ -204,3 +204,10 @@ Restore the existing0838→1145→1205→1249→1251 chain then1303 delta Drive1
 Native111/external1303 unchanged. Fresh AbbVie batch dot-auto-abbvie-20261018T132712732Z completed SUCCESS/VERIFIED/COMMITTED,57 CURRENT jobs with full-field public match. Crawled13:27:31.088Z, finished13:28:21.889Z, web verified13:28:56.596Z. Automatic evidence backup was downloaded and restored13:29:57.013Z: Drive1FSVrEWRZ2EwsN7aW3DgXkZ79Lj2oaIXY,235727 bytes,SHA2566a1fbd6909ac0e531c08271c26411e8c2f41708916ae59c746526b6036071159,6 originals/12 members.
 
 This source completed without stepwise manual intervention and validates its actual1303 production chain. The other34 sources were recent skips; BI remained HELD. Official reconciliation13:30:58.4659Z found no live producer, lock holder, or unanswered relay request. This does not establish Biogen/full-route/long-term unattended acceptance. The Biogen missing-real-packet limitation and fixedLATEST99 remain. See updated TASK_RECOVERY_REFS_111_1303.json; no original payload or web check token is stored in this index.
+
+
+## Current recovery refs — 2026-10-18 14:49 UTC
+
+External1442/cd1b12a922a47259d19b90f4c86907621cefa292 applied14:48:58.139229Z with61 runtime files exact; native111 and entry003b remain unchanged. An existing BI staged difference was left untouched during activation; its owner restored native111 clean14:49:39.451546Z before any producer started. Task update14:49:51.842310Z succeeded; daily08:00/20:00 Asia/Shanghai unchanged.
+
+Append1442 delta Drive1Kphl3iMXf9hLMGd6FUAw0oeQKfrE4oAS (4387 bytes,SHA25673f5774f773f4aaa1b4fd0da2ce42600fae7cb10fb132cd27cb4117143ac2d22) to the verified0838→1145→1205→1249→1251→1303 module chain. Downloaded restoration matched61 files. Generic archive checks now run once in the existing raw stage; packet-only defers them while full publication still requires raw success. This phase difference is intentional and documented. No new1442 production validation yet. Exact-backup-ID work remains inactive and excluded. FixedLATEST99 and prior acceptance limits remain. See TASK_RECOVERY_REFS_111_1442.json and recovery/module/ACTIVE_VERIFIED_1442.json.
