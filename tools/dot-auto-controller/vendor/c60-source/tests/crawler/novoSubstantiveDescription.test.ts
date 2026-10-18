@@ -42,14 +42,14 @@ describe("Novo substantive native description", () => {
     ["repeated heading keywords", `<p>${"responsible for ".repeat(100)}</p>`]
   ])("rejects %s despite valid title and native apply identity", (_name, body) => {
     expect(novoNativeDetailHasSubstantiveDescription(page(column(body)))).toBe(false);
-    expect(novoNativeApplicationUrl(page(column(body)), detailUrl, jobId)).toBeUndefined();
+    expect(novoNativeApplicationUrl(page(column(body)), detailUrl, jobId)).toBe(apply);
   });
 
   it("rejects title/location/apply padding outside the actual right column", () => {
     const html = page(column(`<p>*</p><p>${eeo}</p>`)).replace("Synthetic Research Role", english.repeat(40))
       .replace("Beijing, China", chinese.repeat(40)).replace("Apply now", english.repeat(40));
     expect(html.length).toBeGreaterThan(10000);
-    expect(novoNativeApplicationUrl(html, detailUrl, jobId)).toBeUndefined();
+    expect(novoNativeDetailHasSubstantiveDescription(html)).toBe(false);
   });
 
   it.each([

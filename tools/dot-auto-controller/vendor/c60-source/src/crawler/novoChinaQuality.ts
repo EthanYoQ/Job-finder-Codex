@@ -162,10 +162,10 @@ export function novoNativeDetailHasSubstantiveDescription(body: string): boolean
   });
 }
 
-/** Follow the actual native apply href, including its tenant and requisition binding. */
+/** Bind the native apply href independently of JD sufficiency. A valid link alone is not publishable. */
 export function novoNativeApplicationUrl(body: string, detailUrl: string, jobId: string): string | undefined {
   const $ = loadHtml(body);
-  if (!clean($("#careerjobdisplay h1").text()) || !novoNativeDetailHasSubstantiveDescription(body)) return undefined;
+  if ($("#careerjobdisplay").length !== 1 || !clean($("#careerjobdisplay h1").text())) return undefined;
   const links = [...new Set($("#careerjobdisplay a[href]").toArray().map(node => $(node).attr("href")!)
     .filter(href => href.includes("career_job_req_id=")))];
   if (links.length !== 1) return undefined;
@@ -206,7 +206,14 @@ export function novoClosedLoss(raw: Record<string, unknown>, recordIndex: number
     details: { code: "OFFICIAL_APPLICATION_CLOSED", pageSequence: 0, recordIndex }, recordedAt };
 }
 
-/** Only explicit closure produces a loss; unavailable or ambiguous pages fail the source. */
+export function novoInsufficientDetailLoss(raw: Record<string, unknown>, recordIndex: number, recordedAt: string): PersistentSourceFetchEvidence["fetchLosses"][number] {
+  return { stage: "VALIDATION", reason: "Novo native detail has no substantive job description",
+    rawLocator: officialJsonRawLocator(raw, recordIndex),
+    details: { code: "NOVO_DETAIL_INSUFFICIENT", pageSequence: 0, recordIndex }, recordedAt };
+}
+
+/** Replay every list member. Insufficient JD is unpublished, never explicit closure;
+ * unavailable or unbound pages still fail the source. */
 export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence, output: readonly NormalizedJobRecord[], capturedAt: string): boolean {
   if (!exactNovoChinaQualityPlan(plan) || evidence.pages.length !== 1) return false;
   const artifact = evidence.artifacts[0], page = evidence.pages[0]!;
@@ -282,6 +289,10 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
     if (!detail || detail.finalUrl !== projection.officialUrl) return false;
     const href = novoNativeApplicationUrl(body(detail), projection.officialUrl, String(raw.jobId));
     if (!href) return false;
+    if (!novoNativeDetailHasSubstantiveDescription(body(detail))) {
+      losses.push(novoInsufficientDetailLoss(raw, i, detail.capturedAt));
+      continue;
+    }
     const application = readNative(href, `novo-application-${raw.jobId}`, true);
     if (!application) return false;
     const state = novoApplicationStatus(body(application), application.finalUrl!, String(record(raw.jobCity)!.value));
@@ -311,12 +322,18 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
   });
 }
 
-/** Invoked only after owned admission replay has verified every closure body. */
-export function novoClosedSourceJobIds(evidence: PersistentSourceFetchEvidence): Set<string> {
+/** Invoked only after owned admission has replayed each exclusion against its original body. */
+export function novoSourceJobExclusions(evidence: PersistentSourceFetchEvidence): { closed: Set<string>; insufficient: Set<string> } {
   const raw = evidence.artifacts[0]?.body;
   const parsed = raw === undefined ? undefined : parseNovoChinaResponse(typeof raw === "string" ? raw : Buffer.from(raw).toString("utf8"));
-  return new Set(evidence.fetchLosses.flatMap(loss => {
-    const row = parsed?.rawJobs[(loss.details as { recordIndex: number }).recordIndex];
-    return row ? [persistentOfficialJsonJobId(String(row.jobId))] : [];
-  }));
+  const closed = new Set<string>(), insufficient = new Set<string>();
+  for (const loss of evidence.fetchLosses) {
+    const { code, recordIndex } = loss.details as { code: string; recordIndex: number };
+    const row = parsed?.rawJobs[recordIndex];
+    if (!row) continue;
+    const id = persistentOfficialJsonJobId(String(row.jobId));
+    if (code === "OFFICIAL_APPLICATION_CLOSED") closed.add(id);
+    if (code === "NOVO_DETAIL_INSUFFICIENT") insufficient.add(id);
+  }
+  return { closed, insufficient };
 }

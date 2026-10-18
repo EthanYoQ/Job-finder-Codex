@@ -7,7 +7,7 @@ import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEq
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
-import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss } from "./novoChinaQuality";
+import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss } from "./novoChinaQuality";
 import { BMS_GEOGRAPHY_POLICY, bmsMainlandCities } from "./bmsMainlandGeography";
 import { bmsOfficialPostedDate, exactBmsPostedDatePlan, requiresBmsPostedDate } from "./bmsOfficialPostedDate";
 import { ucbOfficialCities, exactUcbPostedDatePlan, exactUcbPostedDateBootstrap, requiresUcbPostedDate, ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
@@ -1005,8 +1005,11 @@ async function fetchSingleResponseOfficialJson({
         const detailUrl = `${base}.${raw.jobId}.html`;
         const detail = await html(detailUrl, `novo-detail-${raw.jobId}`);
         const applyUrl = novoNativeApplicationUrl(detail.body, detailUrl, String(raw.jobId));
-        if (!applyUrl) throw new Error(novoNativeDetailHasSubstantiveDescription(detail.body)
-          ? "Novo native detail/application identity is UNKNOWN" : "NOVO_DETAIL_INSUFFICIENT");
+        if (!applyUrl) throw new Error("Novo native detail/application identity is UNKNOWN");
+        if (!novoNativeDetailHasSubstantiveDescription(detail.body)) {
+          losses.push(novoInsufficientDetailLoss(raw, i, detail.capturedAt!));
+          continue;
+        }
         const application = await html(applyUrl, `novo-application-${raw.jobId}`, true);
         const status = novoApplicationStatus(application.body, application.finalUrl!, String((raw.jobCity as { value: string }).value));
         if (!status) throw new Error("Novo official application status is UNKNOWN");
@@ -1015,13 +1018,12 @@ async function fetchSingleResponseOfficialJson({
       }
     } catch (error) {
       // Preserve failure classification, but do not restart a begun native traversal.
-      // Unknown content, access blocks and source cancellation still fail closed.
+      // Unbound pages, application uncertainty, access blocks and cancellation still fail closed.
       const transportFailure = nativeHttpFailure ?? retryableTransportFailureFromError(error);
-      const code = error instanceof Error && error.message === "NOVO_DETAIL_INSUFFICIENT"
-        ? "NOVO_DETAIL_INSUFFICIENT" : "NOVO_APPLICATION_STATUS_UNKNOWN";
+      const code = "NOVO_APPLICATION_STATUS_UNKNOWN";
       return { ...failedWithEvidence(capturedAt, transportFailure
         ? safeSourceTransportFailureReason(transportFailure) : safeOfficialJsonFailure(error,
-          code === "NOVO_DETAIL_INSUFFICIENT" ? code : "Novo application status UNKNOWN"),
+          "Novo application status UNKNOWN"),
         finalizeOfficialJsonSupportingFailureEvidence({ artifacts, code }), transportFailure),
         ...(nativeRequestStarted ? { sourceRetryExhausted: true } : {}) };
     }

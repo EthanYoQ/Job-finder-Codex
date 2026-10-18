@@ -1,4 +1,4 @@
-import { exactNovoChinaQualityPlan, novoClosedSourceJobIds } from "./novoChinaQuality";
+import { exactNovoChinaQualityPlan, novoSourceJobExclusions } from "./novoChinaQuality";
 import { hasNovartisOfficialPresencePlan, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
 import { buildIngestionCommands, type IngestionCommand } from "./ingestion";
 import { applyCrawlObservation, type JobSnapshot } from "./lifecycle";
@@ -47,13 +47,17 @@ export function buildSourceQualityJobCommands(input:SourceQualityPublicationInpu
   const currentKeys=new Set(input.result.jobs.map(buildJobDedupeKey));
   // Retain firstSeen for currently observed legacy rows; no legacy-only row gets initial grace.
   // Later grace is limited to rows seen during this accepted policy/config era.
-  const closed=exactNovoChinaQualityPlan(input.plan)&&input.result.fetchEvidence
-    ?novoClosedSourceJobIds(input.result.fetchEvidence):new Set<string>();
+  const novoExclusions=exactNovoChinaQualityPlan(input.plan)&&input.result.fetchEvidence
+    ?novoSourceJobExclusions(input.result.fetchEvidence):{closed:new Set<string>(),insufficient:new Set<string>()};
   const closedUrls=hasNovartisOfficialPresencePlan(input.plan)
     ?replayNovartisOfficialPresence(input.plan,input.result.fetchEvidence!).closedUrls:new Set<string>();
-  const previous=input.previousJobs.filter(job=>!closedUrls.has(job.record.officialUrl)&&!closed.has(job.record.sourceJobId??"")&&(currentKeys.has(job.dedupeKey)||
+  const previous=input.previousJobs.filter(job=>!closedUrls.has(job.record.officialUrl)&&!novoExclusions.closed.has(job.record.sourceJobId??"")&&(currentKeys.has(job.dedupeKey)||
     priorReceipt!==null&&Date.parse(job.lastSeenAt)>=floor));
-  const lifecycle=applyCrawlObservation(previous,input.result.jobs,{
+  // The existing atomic protocol cannot retain a listed UNKNOWN as current.
+  // Hold known public rows; never fabricate an absence or refresh their old time.
+  if(previous.some(job=>job.lifecycleStatus==="ACTIVE"&&novoExclusions.insufficient.has(job.record.sourceJobId??"")))
+    throw new Error("NOVO_PREVIOUS_JOB_DETAIL_UNKNOWN_PRESERVE_LAST_GOOD");
+  const lifecycle=applyCrawlObservation(previous.filter(job=>!novoExclusions.insufficient.has(job.record.sourceJobId??"")),input.result.jobs,{
     observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:receipt.issuedAt,
     baselineCompletedBeforeCrawl:input.baselineCompletedBeforeCrawl
   });

@@ -217,12 +217,15 @@ describe("Novo nested shared geography", () => {
       return { ...page, body, status: 200, capturedAt: CAPTURED_AT };
     } });
     const result = await runSourceCrawl(plan, { fetch, isBaseline: true });
-    expect(result).toMatchObject({ status: "FAILED", jobs: [], failureReason:
-      kind === "insufficient JD" ? "NOVO_DETAIL_INSUFFICIENT" : "Novo application status UNKNOWN" });
-    expect(result.fetchEvidence?.fetchLosses).toEqual([]);
-    expect(result.fetchEvidence?.supportingArtifactOnlyFailure?.code).toBe(
-      kind === "insufficient JD" ? "NOVO_DETAIL_INSUFFICIENT" : "NOVO_APPLICATION_STATUS_UNKNOWN");
     expect(requests.some(url => url.includes("career_job_req_id="))).toBe(false);
-    expect(result.truth.completenessVerified).toBe(false);
+    if (kind === "insufficient JD") {
+      expect(result).toMatchObject({status:"FAILED",jobs:[],truth:{completenessVerified:false}});
+      expect(result.fetchEvidence?.fetchCounts).toMatchObject({rawCount:3,validCount:0,validationDiscardCount:3});
+      expect(result.fetchEvidence?.fetchLosses.map(loss=>(loss.details as {code:string}).code)).toEqual(Array(3).fill("NOVO_DETAIL_INSUFFICIENT"));
+    } else {
+      expect(result).toMatchObject({status:"FAILED",jobs:[],failureReason:"Novo application status UNKNOWN"});
+      expect(result.fetchEvidence?.fetchLosses).toEqual([]);
+      expect(result.truth.completenessVerified).toBe(false);
+    }
   });
 });

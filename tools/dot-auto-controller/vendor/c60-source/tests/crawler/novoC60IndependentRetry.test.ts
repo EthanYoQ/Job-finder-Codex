@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import { getPlanBySourceId, buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
 import { runSourceCrawl, createSourceFetchAttemptTracker } from "../../src/crawler/runSourceCrawl";
-import { createOwnedSourceQualityFetch, issueSourceQualityAdmission } from "../../src/crawler/sourceQualityAdmission";
+import { createOwnedSourceQualityFetch, issueSourceQualityAdmission, verifySourceQualityAtomicCommit } from "../../src/crawler/sourceQualityAdmission";
 import { archiveSourceEvidence } from "../../src/crawler/artifactArchive";
 import { bindRuntimeEvidenceArtifactIds, buildPendingRuntimeBatch, buildAtomicRuntimeCommit, verifyAtomicRuntimeCommitForPersistence } from "../../src/crawler/runtimeAtomicEvidence";
 import { NOVO_CHINA_ENDPOINT, replayNovoChinaRows } from "../../src/crawler/novoChinaQuality";
@@ -20,7 +20,7 @@ import type { SourceFetchArtifactDraft } from "../../src/crawler/sourceFetchEvid
 const START = Date.parse("2026-10-08T04:00:00.000Z");
 const BUDGET = 20 * 60_000;
 import { ENTRY, detail, apply, final, listing, pages } from "../helpers/novoC60SyntheticFixture";
-type Outcome = number | "timeout" | "bare-timeout" | "network" | "unknown" | "captcha" | "tls" | "late-posting" | "body-timeout";
+type Outcome = number | "timeout" | "bare-timeout" | "network" | "unknown" | "captcha" | "tls" | "late-posting" | "body-timeout" | "insufficient";
 type Script = Record<string, Outcome[]>;
 const directories: string[] = [];
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
@@ -50,7 +50,8 @@ async function capture(script: Script = {}, options: { retryAfter?: string; budg
     if (action === "network") throw Object.assign(Error("Synthetic network error"), { code: "ECONNRESET" });
     if (action === "timeout") return new Promise<Response>((_resolve, reject) => init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason), { once: true }));
     const status = typeof action === "number" ? action : action === "captcha" || action === "tls" ? 502 : 200;
-    const body = action === "unknown" ? "<html>Unknown application state</html>" : action === "captcha" ? "<html>Verify you are human</html>" :
+    const body = action === "insufficient" ? page.body.replace(
+      "Develop synthetic laboratory procedures and maintain documented quality controls for research teams.","*") : action === "unknown" ? "<html>Unknown application state</html>" : action === "captcha" ? "<html>Verify you are human</html>" :
       action === "tls" ? "<html>SSL certificate verify failed</html>" : status !== 200 ? "<html>Bad Gateway</html>" : page.body;
     const response = new Response(body, { status, headers: { "content-type": page.contentType,
       ...(options.retryAfter && status !== 200 ? { "retry-after": options.retryAfter } : {}) } });
@@ -73,18 +74,18 @@ async function capture(script: Script = {}, options: { retryAfter?: string; budg
   return { ...outcome, calls, counts, tracker, plan, delays };
 }
 type Capture = Awaited<ReturnType<typeof capture>>;
-function successful(input: Capture) {
+function successful(input: Capture,expected=2) {
   if (!("result" in input)) throw input.error;
   expect(input.result).toMatchObject({ status: "SUCCESS", truth: { completenessVerified: true } });
-  expect(input.result.jobs).toHaveLength(2);
-  expect(input.result.fetchEvidence!.fetchCounts).toMatchObject({ rawCount: 3, validCount: 2, validationDiscardCount: 1 });
+  expect(input.result.jobs).toHaveLength(expected);
+  expect(input.result.fetchEvidence!.fetchCounts).toMatchObject({ rawCount: 3, validCount: expected, validationDiscardCount: 3-expected });
   expect(input.counts.get(NOVO_CHINA_ENDPOINT)).toBe(1);
   expect(input.tracker).toEqual({ fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: [] });
   expect(replayNovoChinaRows(input.plan, input.result.fetchEvidence!, input.result.jobs, input.result.observation.crawledAt.toISOString())).toBe(true);
   return input.result;
 }
-async function admissionInput(input: Capture) {
-  const result = successful(input), workspaceRoot = await mkdtemp(join(tmpdir(), "novo-c60-synthetic-")); directories.push(workspaceRoot);
+async function admissionInput(input: Capture,expected=2) {
+  const result = successful(input,expected), workspaceRoot = await mkdtemp(join(tmpdir(), "novo-c60-synthetic-")); directories.push(workspaceRoot);
   const identity = { releaseCandidateId: "novo-c60-synthetic", commitSha: "a".repeat(40), rosterSha256: "a".repeat(64), sourcePlanSha256: "a".repeat(64),
     sourceConfigSha256: "a".repeat(64), adapterBundleSha256: "a".repeat(64), batchKind: "SCHEDULED" as const, ownerId: "synthetic-owner",
     expectedPlannedSourceIds: [input.plan.source.id], expectedPlannedSourceSetSha256: "a".repeat(64), expectedPlannedSourceCount: 1 };
@@ -222,6 +223,16 @@ describe("independent C60 Novo retry candidate, synthetic offline", () => {
     const commit = buildAtomicRuntimeCommit({ ...input, batchId: input.binding.batchId, previousJobs: [], baselineCompletedBeforeCrawl: true,
       artifacts: input.archive.artifacts, sourceAdmissionPolicy: "PLAN_BOUND_SOURCE_QUALITY_V1", sourceQualityAdmission: admission, firstAcceptedCurrentPolicyReceipt: null });
     await expect(verifyAtomicRuntimeCommitForPersistence(commit)).resolves.toBeUndefined();
+  });
+  it("admits a complete list with unpublished insufficient detail through the unchanged atomic protocol", async()=>{
+    const input=await admissionInput(await capture({[detail(2)]:["insufficient"]}),1);
+    const admission=await issueSourceQualityAdmission(input);expect(admission.status).toBe("ACCEPTED");
+    const commit=buildAtomicRuntimeCommit({...input,batchId:input.binding.batchId,previousJobs:[],baselineCompletedBeforeCrawl:true,
+      artifacts:input.archive.artifacts,sourceAdmissionPolicy:"PLAN_BOUND_SOURCE_QUALITY_V1",sourceQualityAdmission:admission,firstAcceptedCurrentPolicyReceipt:null});
+    expect(()=>verifySourceQualityAtomicCommit({plan:input.plan,commit})).not.toThrow();
+    await expect(verifyAtomicRuntimeCommitForPersistence(commit)).resolves.toBeUndefined();
+    expect(commit.commands.filter(command=>command.type==="UPSERT_JOB")).toHaveLength(1);
+    expect(commit.lossLedger.map(loss=>(loss.details as {code:string}).code)).toEqual(["NOVO_DETAIL_INSUFFICIENT","OFFICIAL_APPLICATION_CLOSED"]);
   });
   it("rejects a changed archived retry receipt", async () => {
     const input = await admissionInput(await capture({ [apply(1)]: [502] }));
