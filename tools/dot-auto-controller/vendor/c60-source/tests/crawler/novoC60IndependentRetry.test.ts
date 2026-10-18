@@ -116,6 +116,49 @@ describe("independent C60 Novo retry candidate, synthetic offline", () => {
     const input = await admissionInput(captured);
     expect((await issueSourceQualityAdmission(input)).status).toBe("ACCEPTED");
   });
+  it("retries the same-ID official invite 502 from the original apply URL and admits the complete proof", async () => {
+    const invite = "https://careers.novonordisk.com/job-invite/346002/?locale=en_GB";
+    const captured = await capture({ [apply(2)]: [502] }, { gatewayFinalUrl: invite });
+    const result = successful(captured);
+    expect(captured.counts.get(apply(2))).toBe(2); expect(captured.calls).not.toContain(invite);
+    expect(captured.delays).toBe(1); expect(captured.calls).toHaveLength(9);
+    const failed = result.fetchEvidence!.artifacts.find(a => a.logicalKey.endsWith("-http-error-1"))!;
+    expect(failed).toMatchObject({ httpStatus: 502, bodyRepresentation: "EXACT", finalUrl: safeOfficialJsonEvidenceUrl(invite) });
+    for (const changed of [safeOfficialJsonEvidenceUrl(invite.replace("346002", "346001")),
+      safeOfficialJsonEvidenceUrl(invite.replace("en_GB", "zh_CN")), invite]) {
+      const evidence = structuredClone(result.fetchEvidence!);
+      evidence.artifacts.find(a => a.logicalKey === failed.logicalKey)!.finalUrl = changed;
+      expect(replayNovoChinaRows(captured.plan, evidence, result.jobs, result.observation.crawledAt.toISOString())).toBe(false);
+    }
+    const input = await admissionInput(captured), admission = await issueSourceQualityAdmission(input);
+    expect(admission.status).toBe("ACCEPTED");
+    const commit = buildAtomicRuntimeCommit({ ...input, batchId: input.binding.batchId, previousJobs: [], baselineCompletedBeforeCrawl: true,
+      artifacts: input.archive.artifacts, sourceAdmissionPolicy: "PLAN_BOUND_SOURCE_QUALITY_V1", sourceQualityAdmission: admission, firstAcceptedCurrentPolicyReceipt: null });
+    await expect(verifyAtomicRuntimeCommitForPersistence(commit)).resolves.toBeUndefined();
+  });
+  it.each([
+    "https://careers.novonordisk.com/job-invite/346001/?locale=en_GB",
+    "https://careers.novonordisk.com/job-invite/346002/?locale=zh_CN",
+    "https://careers.novonordisk.com/job-invite/346002/?locale=en_GB&extra=1",
+    "https://careers.novonordisk.com/job-invite/346002/?locale=en_GB#changed",
+    "https://unrelated.example/job-invite/346002/?locale=en_GB"
+  ])("refuses an unbound invite destination without retry: %s", async gatewayFinalUrl => {
+    const input = await capture({ [apply(2)]: [502] }, { gatewayFinalUrl });
+    if (!("result" in input)) throw input.error;
+    expect(input.result.status).toBe("FAILED"); expect(input.counts.get(apply(2))).toBe(1); expect(input.delays).toBe(0);
+  });
+  it.each([200, 503, 504])("does not broaden the observed invite 502 exception to %s", async status => {
+    const input = await capture({ [apply(2)]: [status] }, { gatewayFinalUrl: "https://careers.novonordisk.com/job-invite/346002/?locale=en_GB" });
+    if (!("result" in input)) throw input.error;
+    expect(input.result.status).toBe("FAILED"); expect(input.counts.get(apply(2))).toBe(1); expect(input.delays).toBe(0);
+  });
+  it("keeps a repeated invite 502 failed after its one existing retry", async () => {
+    const input = await capture({ [apply(2)]: [502, 502] }, { gatewayFinalUrl: "https://careers.novonordisk.com/job-invite/346002/?locale=en_GB" });
+    if (!("result" in input)) throw input.error;
+    expect(input.result.status).toBe("FAILED"); expect(input.result.jobs).toEqual([]);
+    expect(input.counts.get(apply(2))).toBe(2); expect(input.delays).toBe(1);
+    expect(input.counts.get(NOVO_CHINA_ENDPOINT)).toBe(1); expect(input.tracker.retryCount).toBe(0);
+  });
   it.each(["wrong-final-hash", "wrong-requested-hash", "raw-query", "foreign-origin", "posting-query", "changed-posting", "posting-fragment"])("rejects pre-redirect persisted URL tampering: %s", async mode => {
     const input = await capture({ [apply(2)]: [502] }, { gatewayBeforeRedirect: true });
     const result = successful(input), evidence = structuredClone(result.fetchEvidence!);

@@ -23,8 +23,15 @@ const startSchema = z.object({
 }).strict();
 export type NovoNativeGatewayRetryStart = z.infer<typeof startSchema>;
 
+// The native detail already binds this request; its official invite uses the same requisition ID.
+function nativeInviteUrl(requestedUrl: string): string | undefined {
+  const request = new URL(requestedUrl), id = request.searchParams.get("career_job_req_id");
+  return request.origin === "https://career2.successfactors.eu" && request.pathname === "/career" &&
+    /^[1-9][0-9]{5}$/u.test(id ?? "") ? `https://careers.novonordisk.com/job-invite/${id}/?locale=en_GB` : undefined;
+}
+
 /** A strict subset of the existing C60 transport classifier. No challenges,
- * network errors, ambiguous content, or changed destination are retried here. */
+ * ambiguous content, or unbound destinations are retried here. */
 export function novoNativeGatewayRetryAllowed(response: OfficialJsonHttpResponse, requestedUrl: string,
   allowApplicationRedirect: boolean): boolean {
   if (![502, 503, 504].includes(response.status)) return false;
@@ -32,8 +39,9 @@ export function novoNativeGatewayRetryAllowed(response: OfficialJsonHttpResponse
       !Number.isSafeInteger(response.retryAfter.delayMs) || response.retryAfter.delayMs > NOVO_NATIVE_RETRY.backoffMs)) return false;
   try {
     const final = new URL(response.finalUrl!);
-    if (final.href !== requestedUrl && (!allowApplicationRedirect || final.origin !== "https://careers.novonordisk.com" ||
-        final.username || final.password || final.search || final.hash || !/^\/job\/[^/]+\/[0-9]+\/$/u.test(final.pathname))) return false;
+    const sameInvite = response.status === 502 && final.href === nativeInviteUrl(requestedUrl);
+    if (final.href !== requestedUrl && (!allowApplicationRedirect || !sameInvite && (final.origin !== "https://careers.novonordisk.com" ||
+        final.username || final.password || final.search || final.hash || !/^\/job\/[^/]+\/[0-9]+\/$/u.test(final.pathname)))) return false;
   } catch { return false; }
   const $ = loadHtml(response.body);
   if ($(".jobDisplay, #careerjobdisplay, input[type=password], [id*=captcha], [class*=captcha]").length) return false;
@@ -51,12 +59,14 @@ export function novoNativeGatewayFailureArtifact(response: OfficialJsonHttpRespo
 }
 
 /** Restore only the already-bound request for local validation, never for a new
- * request or persisted output. Other final URLs must be canonical official
- * posting URLs with no query, credentials or fragment. */
+ * request or persisted output. The same-ID invite's locale is restored only by
+ * exact comparison with its expected safe projection. */
 export function novoNativeGatewayReplayFinalUrl(persistedFinalUrl: string | undefined,
   requestedUrl: string, allowApplicationRedirect: boolean): string {
   if (persistedFinalUrl === safeOfficialJsonEvidenceUrl(requestedUrl)) return requestedUrl;
   if (persistedFinalUrl !== undefined && allowApplicationRedirect) {
+    const invite = nativeInviteUrl(requestedUrl);
+    if (invite && persistedFinalUrl === safeOfficialJsonEvidenceUrl(invite)) return invite;
     const final = new URL(persistedFinalUrl);
     if (final.href === persistedFinalUrl && final.origin === "https://careers.novonordisk.com" &&
         !final.username && !final.password && !final.search && !final.hash &&
