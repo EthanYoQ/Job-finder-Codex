@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 // Review only: replay original issuers; never dispatch or acquire a lease.
 export async function reviewOriginalABCertificate(V:string,d:any,native:any,independentValidation?:unknown,now=new Date()){
  const {issueAGradeOfficialTotalCertificate,verifyAGradeCompletenessCertificateReceipt}=await import(V+'/src/crawler/completenessCertificate.ts');
- const {requiresBGradeTraversalCertificate,issueBGradeTraversalCertificate,verifyBGradeTraversalCertificateReceipt}=await import(V+'/src/crawler/traversalCertificate.ts');
+ const {requiresBGradeTraversalCertificate,issueBGradeTraversalCertificate,verifyBGradeTraversalCertificateReceipt,isCurrentBGradeCertificateSchema,SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION}=await import(V+'/src/crawler/traversalCertificate.ts');
  const {createHash}=await import('node:crypto');
  const certificate=d.receipt.legacyCertificate,certificateSha256=d.receipt.legacyCertificateSha256;
  const expected={releaseCandidateId:d.terminal.releaseCandidateId,batchId:d.terminal.batchId,sourceResultId:d.terminal.id,sourceId:d.terminal.sourceId,sourceConfigSha256:d.terminal.sourceConfigHash,companyId:d.plan.company.id};
@@ -11,9 +11,15 @@ export async function reviewOriginalABCertificate(V:string,d:any,native:any,inde
  let issued;
  if(requiresBGradeTraversalCertificate(d.plan)){
   assert(['source-pfizer-china-social','source-bayer-healthcare-social','source-servier-china-social','source-sanofi-china-social'].includes(expected.sourceId),'UNIMPLEMENTED_B_UI_ROUTE');
-  assert.equal(certificate.schemaVersion,'b-grade-independent-traversal-v2');
+  assert(isCurrentBGradeCertificateSchema(certificate.schemaVersion),'CURRENT_B_CERTIFICATE_REQUIRED');
   assert.deepEqual(certificate.validationPolicy,{trigger:'INITIAL_QUALIFICATION',execution:'CURRENT_RUN'});
-  assert.deepEqual(independentValidation,certificate.independentValidation,'CURRENT_UI_ORIGINAL_BINDING');
+  let sanofiArchive;
+  if(certificate.schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION){
+   assert.equal(expected.sourceId,'source-sanofi-china-social');
+   assert(Buffer.isBuffer(independentValidation),'SANOFI_INDEPENDENT_ORIGINAL_BYTES_REQUIRED');
+   const raw=independentValidation;independentValidation=JSON.parse(raw.toString('utf8'));
+   sanofiArchive={artifacts:d.decoded.filter((x:any)=>x.table==='EvidenceArtifact').flatMap((x:any)=>x.rows),independentOriginal:{sha256:createHash('sha256').update(raw).digest('hex'),byteCount:raw.length,canonicalArtifactSha256:(independentValidation as any).artifactSha256}};
+  }else assert.deepEqual(independentValidation,certificate.independentValidation,'CURRENT_UI_ORIGINAL_BINDING');
   const {canonicalStringSetSha256}=await import(V+'/src/crawler/sourceFetchEvidence.ts');
   const canonicalRawEvidenceIdSetSha256=canonicalStringSetSha256(native.fetchEvidence.pages.flatMap((p:any)=>p.rawJobIds));
   verifyBGradeTraversalCertificateReceipt({certificate,certificateSha256,expected:{...expected,
@@ -22,7 +28,7 @@ export async function reviewOriginalABCertificate(V:string,d:any,native:any,inde
    adapterReconciliationSha256:d.terminal.adapterReconciliationSha256,
    collisionLedgerSha256:d.terminal.collisionLedgerSha256,canonicalRawEvidenceIdSetSha256,
    ...(expected.sourceId==='source-sanofi-china-social'?{sanofiArtifacts:d.decoded.filter((x:any)=>x.table==='EvidenceArtifact').flatMap((x:any)=>x.rows)}:{})},now});
-  issued=issueBGradeTraversalCertificate({...input,independentValidation,validationExecution:'CURRENT_RUN',trigger:'INITIAL_QUALIFICATION',now:new Date(certificate.issuedAt)});
+  issued=issueBGradeTraversalCertificate({...input,...(sanofiArchive?{sanofiArchive}:{}),independentValidation,validationExecution:'CURRENT_RUN',trigger:'INITIAL_QUALIFICATION',now:new Date(certificate.issuedAt)});
  }else{
   assert.equal(certificate.schemaVersion,'a-grade-official-total-v2');
   verifyAGradeCompletenessCertificateReceipt({certificate,certificateSha256,expected});
