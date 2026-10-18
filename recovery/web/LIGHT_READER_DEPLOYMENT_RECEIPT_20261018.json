@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-18T10:38:47Z",
+  "sourceCommit": "ac70c21b686c498c4c6a28dbe5bd0f423922d140",
+  "parentCommit": "4842e16b8c89e9624049d78b49a79dc25bb15775",
+  "sourceBackupRestoreVerified": true,
+  "mode": "Sequential original fallback then main; one side kept serving",
+  "deployment": [
+    {
+      "role": "fallback",
+      "readyAt": "2026-10-18T10:35:31Z",
+      "readySeconds": 18.7,
+      "availableAfterStopKB": 707740,
+      "requiredKB": 704052,
+      "oldHwmKB": 572980,
+      "newReadyHwmKB": 341144,
+      "firstStartSucceeded": true,
+      "restartBefore": 40,
+      "restartAfter": 40
+    },
+    {
+      "role": "main",
+      "readyAt": "2026-10-18T10:37:40Z",
+      "readySeconds": 14.5,
+      "availableAfterStopKB": 763340,
+      "requiredKB": 693924,
+      "oldHwmKB": 562852,
+      "newReadyHwmKB": 367588,
+      "firstStartSucceeded": true,
+      "restartBefore": 24,
+      "restartAfter": 24
+    }
+  ],
+  "routing": {
+    "temporarySwitchAt": "2026-10-18T10:37:01Z",
+    "returnedOriginalAt": "2026-10-18T10:38:20Z",
+    "originalAndFinalPort": 3036,
+    "temporaryPort": 3031,
+    "onlyOriginalProxyPortChanged": true,
+    "nginxTestBeforeEachReload": true,
+    "originalConfigByteExactRestored": true
+  },
+  "publicReadbackAndFinalStatus": [
+    {
+      "keyword": "赛诺菲",
+      "count": 119,
+      "expected": 119,
+      "refresh": {
+        "state": "CURRENT",
+        "version": "1c4645be7759589b715315aebc8561f47d19f692591b89482a02a2d05d2f9b33",
+        "displayDataVersion": "d1a7e3ca001564f3ae4815f2f9878ea9b66445456812d1f2043ac958ed83e1dd",
+        "statusVersion": "56685ebb45164c1d890ade371ca6a75460d4c739be26bf953180747899d9690d",
+        "verificationVersion": "35fdcb62b9a90ba07975bc9c2c54afe3cdca3762212a66dbb072934b6eecf4f7",
+        "verifiedAt": "2026-10-18T10:37:28.406Z"
+      },
+      "closedReappeared": [],
+      "companiesSha256": "ac5c817e00fd93d809c67ade259ca1eded6939cab199eb51e758ce0359117dea"
+    },
+    {
+      "keyword": "诺和诺德",
+      "count": 37,
+      "expected": 37,
+      "refresh": {
+        "state": "CURRENT",
+        "version": "1c4645be7759589b715315aebc8561f47d19f692591b89482a02a2d05d2f9b33",
+        "displayDataVersion": "d1a7e3ca001564f3ae4815f2f9878ea9b66445456812d1f2043ac958ed83e1dd",
+        "statusVersion": "56685ebb45164c1d890ade371ca6a75460d4c739be26bf953180747899d9690d",
+        "verificationVersion": "35fdcb62b9a90ba07975bc9c2c54afe3cdca3762212a66dbb072934b6eecf4f7",
+        "verifiedAt": "2026-10-18T10:37:28.406Z"
+      },
+      "closedReappeared": [],
+      "companiesSha256": "d0c36d09bb561e753d12af12c08eedca44786f782c373c3b3c2e7eb5b9c4ee3e"
+    },
+    {
+      "id": 56,
+      "status": "online",
+      "restart": 24,
+      "heap": "--max-old-space-size=320",
+      "savedHeap": [
+        "--max-old-space-size=320"
+      ],
+      "VmHWMKB": 367588,
+      "VmRSSKB": 309772,
+      "repositorySha256": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
+      "domainSha256": "8d31a7206da617d9b4e586ac1e8f52822c69e9495f8c3bea773323891fad4a6d"
+    },
+    {
+      "id": 57,
+      "status": "online",
+      "restart": 40,
+      "heap": "--max-old-space-size=320",
+      "savedHeap": [
+        "--max-old-space-size=320"
+      ],
+      "VmHWMKB": 341144,
+      "VmRSSKB": 261032,
+      "repositorySha256": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
+      "domainSha256": "8d31a7206da617d9b4e586ac1e8f52822c69e9495f8c3bea773323891fad4a6d"
+    },
+    {
+      "nginxSha256": "6e15ffaeaf4e8571585ad2a84bd59d04d883009ea6298cb133a93c9997ea1af8",
+      "proxy3036": true,
+      "memAvailableKB": 509572
+    }
+  ],
+  "pairwiseCompatibility": {
+    "checkedAt": "2026-10-18T10:36:36Z",
+    "oldMainAndNewFallbackFullCompaniesEqual": true,
+    "sanofi": 119,
+    "novo": 37,
+    "novoClosedIdsAbsent": [
+      "346023",
+      "338014",
+      "340120",
+      "342045"
+    ]
+  },
+  "unchanged": [
+    "Runtime and persisted heap320MiB on both roles",
+    "Original TLS/access controls/listeners and other applications",
+    "No database writes or collector invocation",
+    "Native pins left to sole native owner registration"
+  ],
+  "rollback": {
+    "originalCodeCopiesRetained": true,
+    "codeSuffix": ".pre-light-ac70-20261018T1034Z",
+    "originalNginxBackupRetained": true
+  },
+  "limits": [
+    "Ready times and HWM are observed real production snapshot builds, not a guarantee for all future loads.",
+    "No broad production stress test or full historical replay was run.",
+    "Complete evidence validation remains in ingestion; committed-read semantics and authorized Bayer visibilityFloor change are documented in the frozen candidate verification."
+  ]
+}
