@@ -71,7 +71,8 @@ async function serviceOriginalRelay(job) {
    if (producer.exitCode !== 0 || (publication?.status !== 'SUCCEEDED' && producer.outcomeState!=='COMMITTED_EXACT') || !outcomeSeen)
     return {status: 'HELD', reason: 'PRODUCER_OR_OUTCOME_INCOMPLETE', exitCode: producer.exitCode, diagnostic:publication?.reviewFailure??producer.diagnostic};
    committedExact = producer.outcomeState==='COMMITTED_EXACT';
-   return await readback();
+   try { return await readback(); }
+   catch(error) { return {status:'HELD',reason:'WEB_READBACK_FAILED',committedExact,diagnostic:String(error)}; }
   }
   if (!request) await new Promise(resolve => setTimeout(resolve, 1000));
  }

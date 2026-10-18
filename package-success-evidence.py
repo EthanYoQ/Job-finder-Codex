@@ -27,8 +27,9 @@ def pack(runs, relay, output):
     for run in runs:
         source, batch = run.parent.name, run.name
         assert source not in {row['source'] for row in summary}
-        selected = {'WEB_READBACK_VERIFIED.json': run/'WEB_READBACK_VERIFIED.json',
-                    'OUTCOME.json': next((run/'artifacts').glob('*.outcome.json'))}
+        selected = {'OUTCOME.json': next((run/'artifacts').glob('*.outcome.json'))}
+        web_name = 'WEB_READBACK_VERIFIED.json' if (run/'WEB_READBACK_VERIFIED.json').exists() else 'WEB_READBACK_PENDING.json'
+        selected[web_name] = run/web_name
         for name in ['PACKET_REVIEW.json','NATIVE_RAW_REPLAY.json','ORIGINAL_DEPLOYED_READER_REPLAY.json','EXPECTED_TARGET_API.json']:
             if (run/'review'/name).exists(): selected['review/'+name] = run/'review'/name
         for name in ['CURRENT_SET_DIFF_SUMMARY.json','WEB_REFRESH_INITIAL_FAILURE.json']:
@@ -54,10 +55,11 @@ def pack(runs, relay, output):
         exit_record = json.loads((run/'diagnostics/process.jsonl').read_text().splitlines()[-1])
         assert exit_record['exitCode'] == 0
         members[source+'/PRODUCER_EXIT.json'] = (json.dumps({k:v for k,v in exit_record.items() if k not in ['wrapperPid','childPid']}, indent=2)+'\n').encode()
-        outcome = json.loads(members[source+'/OUTCOME.json']); web = json.loads(members[source+'/WEB_READBACK_VERIFIED.json'])
-        assert outcome['state'] == 'COMMITTED_EXACT' and outcome['publishAcknowledged'] and web['allFieldsMatch']
-        summary.append({'source':source,'batch':batch,'rawFiles':count,'webJobs':web['uniqueJobs']})
-    members['RESTORE.json'] = (json.dumps({'sources':summary,'restore':'Decode archive base64 without text conversion; verify original byte count/hash including PDF. Never replay historical SQL/receipts.','scope':'Success packaging only. No upload or automatic scheduling is implemented by this helper.'}, indent=2)+'\n').encode()
+        outcome = json.loads(members[source+'/OUTCOME.json']); web = json.loads(members[source+'/'+web_name])
+        assert outcome['state'] == 'COMMITTED_EXACT' and outcome['publishAcknowledged']
+        assert web.get('allFieldsMatch') or web.get('status') == 'WEB_PENDING'
+        summary.append({'source':source,'batch':batch,'rawFiles':count,'webStatus':'WEB_VERIFIED' if web.get('allFieldsMatch') else 'WEB_PENDING','webJobs':web.get('uniqueJobs')})
+    members['RESTORE.json'] = (json.dumps({'sources':summary,'restore':'Decode archive base64 without text conversion; verify original byte count/hash including PDF. Never replay historical SQL/receipts.','scope':'Committed-source packaging; webStatus records verified or pending web readback. No upload or scheduling in this helper.'}, indent=2)+'\n').encode()
     manifest = [{'path':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()} for name,data in sorted(members.items())]
     members['MANIFEST.json'] = (json.dumps(manifest, indent=2)+'\n').encode()
     import io
