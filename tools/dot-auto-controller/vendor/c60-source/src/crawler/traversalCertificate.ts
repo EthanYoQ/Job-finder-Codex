@@ -679,8 +679,6 @@ export function createOfficialJsonRenderedTraversalValidation(input: {
   expiresAt: string;
 }): BGradeIndependentTraversalValidation {
   const policy = OFFICIAL_JSON_RENDERED_TRAVERSAL_POLICIES[input.sourceId];
-  const replay = replayOfficialJsonRenderedTraversal(input.sourceId, input.pages);
-  if (replay.matchKeys.length < 1) throw new Error("Official JSON browser validation is empty");
   return createRenderedTraversalValidation({
     ...input,
     pages: input.pages.map((page) => ({ ...page, matchKeys: page.rawRows
