@@ -9,12 +9,13 @@ const SOURCE = "source-boehringer-ingelheim-china-social";
 const COMPANY = "company-boehringer-ingelheim-china";
 const CHAIN = "https://www.boehringer-ingelheim.cn/careers/jobs";
 const API_LOCATOR = "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode";
-// Exact labels from the retained 2026-10-01 capture, reviewed against the existing
+// Exact labels from the 2026-10-01 and 2026-10-18 captures, reviewed against the existing
 // mainland prefecture vocabulary. No prefixes, suffix stripping or runtime extension.
 const FULL_MAINLAND_LABELS: Readonly<Record<string, string>> = Object.freeze({
   "上海": "Shanghai", "信阳": "Xinyang", "北京": "Beijing", "南昌": "Nanchang",
   "成都": "Chengdu", "杭州": "Hangzhou", "武汉": "Wuhan", "泰州": "Taizhou",
-  "秦皇岛": "Qinhuangdao", "银川": "Yinchuan", "长沙": "Changsha", "驻马店": "Zhumadian"
+  "秦皇岛": "Qinhuangdao", "银川": "Yinchuan", "长沙": "Changsha", "驻马店": "Zhumadian",
+  "六安": "Luan", "宿州": "Suzhou", "漯河": "Luohe"
 });
 const ROW_FIELDS = "address coid coname ctmid degreefrom divid divname edegreefrom efuntype ejobareaname eworkareaname eworkyearname funtype issuedate jkeyword jobareaname jobid jobname jobnum joborder monthlysalary poscode providesalarname term workareaname workyearname".split(" ");
 const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
@@ -45,12 +46,91 @@ export function replayBiSemanticCompleteness(
   outputJobs: readonly NormalizedJobRecord[],
   capturedAt: string
 ): BiSemanticReplay | undefined {
-  // Privacy-sanitized derivative: BI evidence cannot receive semantic admission.
-  // Keep hasBiSemanticPlan so this family cannot fall through another policy.
-  return undefined;
+  try {
+    if (!hasBiSemanticPlan(plan)) return undefined;
+    validateExecutablePlanChannelBinding(plan);
+    const evidence = parsePersistentSourceFetchEvidence(input);
+    if (evidence.artifacts.length !== 2 || evidence.pages.length !== 1 || evidence.supportingArtifactOnlyFailure ||
+        !same(evidence.captureTool, { name: "official-json-http", version: "1" })) return undefined;
+    const script = evidence.artifacts.find(a => a.logicalKey === "51job-ui-script");
+    const api = evidence.artifacts.find(a => a.logicalKey === "51job-page-0001");
+    if (!script || !api || !exactArtifact(script, BI_SCRIPT_URL, "OFFICIAL_COMPANY_PAGE", ["application/javascript", "text/javascript"]) ||
+        !exactArtifact(api, BI_API_URL, "ATS_API_RESPONSE", ["text/html", "application/javascript", "text/javascript", "application/json"]) ||
+        script.extractorLocator !== "javascript:sxsPosCode[code,jobareaname]" ||
+        !Number.isFinite(Date.parse(capturedAt)) || Date.parse(capturedAt) > Date.parse(script.capturedAt) ||
+        Date.parse(script.capturedAt) > Date.parse(api.capturedAt)) return undefined;
+    const ui = replayBiUiSemanticContract(bodyText(script));
+    if (!ui || api.extractorLocator !== requestLocator(ui.params)) return undefined;
+    const body = bodyText(api);
+    const match = /^\s*jsoncallback\((\{[\s\S]*\})\)\s*;?\s*$/u.exec(body);
+    if (!match || !boundedJsonDepth(match[1]!) || !hasUniqueJsonObjectKeys(match[1]!)) return undefined;
+    const root: unknown = JSON.parse(match[1]!);
+    if (!record(root) || !exactKeys(root, ["status", "message", "resultbody"]) || root.status !== "1" ||
+        root.message !== "接口调用成功" || !record(root.resultbody) || !exactKeys(root.resultbody, ["totalnum", "joblist"]) ||
+        typeof root.resultbody.totalnum !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(root.resultbody.totalnum) ||
+        !Array.isArray(root.resultbody.joblist)) return undefined;
+    const rows: unknown[] = root.resultbody.joblist;
+    const total = Number(root.resultbody.totalnum);
+    if (!Number.isSafeInteger(total) || total !== rows.length || total > 500) return undefined;
+    const page = evidence.pages[0]!;
+    if (page.sequence !== 0 || page.artifactLogicalKey !== api.logicalKey || page.channelId !== undefined ||
+        page.requestedCursor != null || page.returnedCursor != null || page.requestedOffset != null || page.returnedOffset != null ||
+        page.requestedPage !== 1 || page.returnedPage !== 1 || page.requestedPageSize !== 500 ||
+        page.returnedPageSize != null || page.declaredTotal !== total || page.declaredCount !== total ||
+        page.declaredPages !== 1 || page.nextPageSignalBefore !== null || page.nextPageSignalAfter !== null ||
+        page.termination !== "NEXT_ABSENT" || page.anomalyCodes.length !== 0 || page.capturedAt !== api.capturedAt ||
+        page.responseFingerprintSha256 !== hash(body)) return undefined;
+    if (!same(evidence.declaredCompleteness, { kind: "OFFICIAL_TOTAL_COUNT", value: total,
+      artifactLogicalKey: api.logicalKey, extractorLocator: api.extractorLocator, scope: "SOURCE" })) return undefined;
+    const rawIds: string[] = [], validIds: string[] = [], excludedRecordIndexes: number[] = [];
+    const expected = new Map<string, { title: string; location: string; url: string }>();
+    const seen = new Set<string>();
+    const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+    for (let index = 0; index < rows.length; index++) {
+      const row = rows[index];
+      if (!record(row) || !exactKeys(row, ROW_FIELDS) || Object.values(row).some(v => typeof v !== "string") ||
+          row.ctmid !== "3479" || !text(row.jobname) || !id(row.jobid) || !id(row.coid) || !text(row.coname) ||
+          seen.has(row.jobid as string)) return undefined;
+      const location = row.jobareaname as string;
+      const english = Object.hasOwn(FULL_MAINLAND_LABELS, location) ? FULL_MAINLAND_LABELS[location] : undefined;
+      if (!english || row.workareaname !== location || row.ejobareaname !== english || row.eworkareaname !== english) return undefined;
+      const jobId = row.jobid as string;
+      seen.add(jobId); rawIds.push(`sha256:${hash(JSON.stringify(jobId))}`);
+      if (ui.exclusions.some(rule => (row.jobname as string).includes(rule.code) && location.includes(rule.jobareaname))) {
+        excludedRecordIndexes.push(index);
+        losses.push({ stage: "VALIDATION", reason: "51job record excluded by official recruitment UI",
+          rawLocator: `official-json-page-0000#record:${index}#sha256:${hash("0")}`,
+          details: { code: "OFFICIAL_UI_EXCLUSION", recordIndex: index } });
+      } else {
+        const sourceId = `official-json:sha256:${hash(JSON.stringify(jobId))}`;
+        validIds.push(`sha256:${hash(JSON.stringify(sourceId))}`);
+        const url = new URL(BI_DETAIL_URL); url.searchParams.set("jobId", jobId);
+        expected.set(sourceId, { title: clean(row.jobname as string), location, url: url.toString() });
+      }
+    }
+    if (!sameSet(rawIds, page.rawJobIds) || !sameSet(validIds, page.validJobIds) ||
+        !same(evidence.fetchCounts, { rawCount: total, parsedCount: total, validCount: expected.size,
+          parseDiscardCount: 0, validationDiscardCount: excludedRecordIndexes.length }) ||
+        !same(losses, evidence.fetchLosses) || outputJobs.length !== expected.size ||
+        new Set(outputJobs.map(j => j.sourceJobId)).size !== expected.size) return undefined;
+    for (const job of outputJobs) {
+      const target = job.sourceJobId && expected.get(job.sourceJobId);
+      if (!target || !same(job, {
+        companyId: COMPANY, sourceId: SOURCE, sourceKind: "SOCIAL", atsKind: "OFFICIAL_JSON",
+        officialChineseCompanyName: plan.company.officialChineseName, officialTitle: target.title,
+        officialUrl: target.url, listUrl: BI_ENTRY_URL, sourceJobId: job.sourceJobId,
+        locationRaw: target.location, cities: [target.location], category: "其他", isBaseline: job.isBaseline,
+        evidence: { officialEntryUrl: BI_ENTRY_URL, officialChainEvidenceUrl: CHAIN, capturedAt }
+      }) || typeof job.isBaseline !== "boolean") return undefined;
+    }
+    return { policyId: BI_UI_RECONSTRUCTION_POLICY, rawCount: total, includedCount: expected.size, excludedRecordIndexes };
+  } catch { return undefined; }
 }
 
-// Signed 51job request reconstruction is intentionally absent.
+function requestLocator(params: Record<string, string | number | null>): string {
+  // Business scope is replayable; the transient signed transport URL is intentionally absent.
+  return `${API_LOCATOR}|business-request-v1|${JSON.stringify({ method: "GET", baseUrl: BI_API_URL, params, jsoncallback: "jsoncallback" })}`;
+}
 
 function exactArtifact(a: SourceFetchArtifactDraft, url: string, kind: SourceFetchArtifactDraft["kind"], mime: string[]): boolean {
   return a.id === a.logicalKey && a.kind === kind && a.httpStatus === 200 && a.channelId === undefined &&

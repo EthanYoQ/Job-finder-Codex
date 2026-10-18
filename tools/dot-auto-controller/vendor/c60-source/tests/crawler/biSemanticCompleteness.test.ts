@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { candidateCompanies } from "../../src/data/companyRegistry";
-import { createOfficialJsonSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
+import { createOfficialJsonSourceFetch, replayBiArchivedSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
 import { buildStagedSourceCrawlPlans, getPlanBySourceId, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import { runSourceCrawl, type SourceFetchResult } from "../../src/crawler/runSourceCrawl";
 import type { PersistentSourceFetchEvidence } from "../../src/crawler/sourceFetchEvidence";
@@ -12,7 +12,7 @@ import { replayBiUiSemanticContract } from "../../src/crawler/biUiSemanticContra
 import { requiresBGradeTraversalCertificate } from "../../src/crawler/traversalCertificate";
 import { requiresAGradeOfficialTotalCertificate } from "../../src/crawler/completenessCertificate";
 
-const fixture = JSON.parse(readFileSync(resolve(process.cwd(), "tests/fixtures/bi/20261001-exact-evidence.json"), "utf8")) as PersistentSourceFetchEvidence;
+const fixture = JSON.parse(readFileSync(process.env.BI_RETAINED_EVIDENCE_PATH ?? resolve(process.cwd(), "tests/fixtures/bi/20261001-exact-evidence.json"), "utf8")) as PersistentSourceFetchEvidence;
 const START = "2026-10-01T10:07:02.505Z";
 const END = "2026-10-01T10:07:15.329Z";
 const plan = () => structuredClone(getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-boehringer-ingelheim-china-social")!);
@@ -21,7 +21,7 @@ type Row = Record<string, string>;
 async function crawl(options: {
   script?: (body: string) => string;
   rows?: (rows: Row[], root: any) => void;
-  body?: (body: string) => string;
+  body?: (body: string, requestUrl: string) => string;
   plan?: (plan: SourceCrawlPlan) => void;
   fetched?: (result: Extract<SourceFetchResult, { ok: true }>) => void;
 } = {}) {
@@ -29,12 +29,16 @@ async function crawl(options: {
   let calls = 0;
   const fetch = createOfficialJsonSourceFetch({ now: () => new Date(calls === 0 ? START : END), http: async request => {
     calls++;
+    if (request.url === "https://js.51jobcdn.com/in/js/2018/coapi/coapi.min.js") return {
+      status: 200, body: 'window.coapi={key:"synthetic-public-test-material"}', finalUrl: request.url,
+      capturedAt: END, contentType: "application/x-javascript"
+    };
     const a = fixture.artifacts[request.url.includes("/scripts/recruit.js") ? 0 : 1]!;
     let body = String(a.body);
     if (request.url.includes("/scripts/recruit.js")) body = options.script?.(body) ?? body;
     else {
       if (options.rows) { const root = JSON.parse(body.slice(13, -1)); options.rows(root.resultbody.joblist, root); body = `jsoncallback(${JSON.stringify(root)})`; }
-      body = options.body?.(body) ?? body;
+      body = options.body?.(body, request.url) ?? body;
     }
     return { status: 200, body, finalUrl: request.url, capturedAt: a.capturedAt, contentType: a.contentType! };
   } });
@@ -42,6 +46,39 @@ async function crawl(options: {
 }
 
 describe("BI reconstructed source semantic completeness, not acquisition or formal qualification", () => {
+  it.each(["public-material", "request-sign"])("refuses an API body echoing %s before creating an artifact", async kind => {
+    const result = await crawl({ body: (body, url) => body + (kind === "public-material"
+      ? "synthetic-public-test-material" : new URL(url).searchParams.get("sign")) });
+    expect(result.truth.transportSuccess).toBe(false);
+    expect(result.failureReason).toContain("transient request material");
+    expect(result.fetchEvidence).toBeUndefined();
+  });
+
+  it.skipIf(!process.env.BI_CURRENT_API_RESPONSE_PATH)("replays the 2026-10-18 50-row raw body offline with the synthetic fixture clock", async () => {
+    const raw = readFileSync(process.env.BI_CURRENT_API_RESPONSE_PATH!, "utf8");
+    const result = await crawl({ body: () => raw });
+    expect(result.truth.completenessVerified).toBe(true);
+    expect(result.jobs).toHaveLength(50);
+    expect(result.fetchEvidence!.artifacts[1]!.body).toBe(raw);
+    expect(new Set(result.jobs.map(job => job.locationRaw))).toEqual(new Set([
+      "上海", "信阳", "六安", "北京", "南昌", "宿州", "成都", "杭州", "武汉", "泰州", "漯河", "秦皇岛", "银川", "长沙", "驻马店"
+    ]));
+  });
+
+  it("replays only the two unsigned originals with no public request material", async () => {
+    const result = await crawl(), artifacts = result.fetchEvidence!.artifacts;
+    expect(artifacts).toHaveLength(2);
+    const replay = replayBiArchivedSourceFetch(plan(), artifacts.map(a => ({ ...a, path: "archive/path", sha256: "archive-only" })), START);
+    const checked = await runSourceCrawl(plan(), { fetch: async () => replay });
+    expect(checked.truth.completenessVerified).toBe(true);
+    expect(checked.jobs).toEqual(result.jobs);
+    expect(checked.fetchEvidence).toEqual(result.fetchEvidence);
+    expect(JSON.stringify(replay)).not.toContain("synthetic-public-test-material");
+    expect(JSON.stringify(replay)).not.toContain("sign=");
+    expect(artifacts[1]!.extractorLocator).toContain('"baseUrl":"https://coapi.51job.com/job_list.php"');
+    expect(artifacts[1]!.extractorLocator).toContain('"ctmid":"3479","pagesize":500,"pagenum":1');
+  });
+
   it("proves the exact retained 44-row capture without executing the script", async () => {
     const result = await crawl();
     expect(result.status).toBe("SUCCESS");

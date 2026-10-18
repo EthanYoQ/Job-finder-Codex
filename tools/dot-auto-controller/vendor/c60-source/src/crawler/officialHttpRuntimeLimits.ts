@@ -204,7 +204,11 @@ export async function fetchWithOfficialTimeout<T>(
   }
   // Fail before diagnostics or HTTP when native fetch cannot honor the requested proxy.
   if (!deps.fetchImpl) assertOfficialHttpProxyRuntime();
-  const diagnostic = officialHttpRequestDiagnostics(input, timeoutMs);
+  // BI signing material must not reach telemetry, even as a whole-URL digest.
+  const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const diagnosticInput = requestUrl.startsWith("https://coapi.51job.com/job_list.php?")
+    ? "https://coapi.51job.com/job_list.php" : input;
+  const diagnostic = officialHttpRequestDiagnostics(diagnosticInput, timeoutMs);
   const requestStartedAtMs = Date.now();
   const deadline = AbortSignal.timeout(timeoutMs);
   let timeoutAtMs: number | undefined;

@@ -1,3 +1,5 @@
+import { hasBiSemanticPlan } from "./biSemanticCompleteness";
+import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
 import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
 import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFailureArtifact, novoNativeGatewayRetryStart, novoNativeGatewayRetryArtifact, delayNovoNativeRetry } from "./novoNativeGatewayRetry";
 import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl } from "./rocheChinaQuality";
@@ -2194,25 +2196,245 @@ async function fetch51jobCoapi({
   capturedAt: string;
   now: () => Date;
 }): Promise<SourceFetchResult> {
-  // Privacy-sanitized derivative: this unsupported signed source is disabled.
-  // No network request, signature creation, or alternate key retrieval.
-  return failed(capturedAt, "51JOB_DISABLED_PRIVACY_SANITIZED_SOURCE");
+  let safeEntryUrl: string;
+  let scriptUrl: string;
+  let detailBase: URL;
+  try {
+    safeEntryUrl = safeOfficialJsonEvidenceUrl(entryUrl);
+    const entry = new URL(safeEntryUrl);
+    scriptUrl = safeOfficialJsonEndpoint(config.uiScriptUrl);
+    detailBase = new URL(safeOfficialJsonEndpoint(config.detailBaseUrl));
+    const script = new URL(scriptUrl);
+    if (entry.origin !== "https://campus.51job.com" || script.origin !== entry.origin ||
+      detailBase.origin !== entry.origin || !/^\d+$/u.test(config.ctmid) ||
+      config.pageSize !== undefined && config.pageSize !== 500) throw new Error();
+  } catch {
+    return failed(capturedAt, "51job CoAPI source configuration is invalid");
+  }
+
+  let scriptResponse: OfficialJsonHttpResponse;
+  try {
+    scriptResponse = await http({ url: scriptUrl, method: "GET", headers: {
+      Accept: "application/javascript,text/javascript,*/*;q=0.1",
+      Referer: safeEntryUrl,
+      "User-Agent": "job-search-crawler/0.1"
+    } });
+    assertOfficialJsonEvidenceResponse(scriptResponse, {
+      requestedUrl: scriptUrl,
+      crawlStartedAtMs: Date.parse(capturedAt),
+      observedNowMs: now().getTime()
+    });
+  } catch {
+    return failed(capturedAt, "51job recruitment UI script transport or metadata failed");
+  }
+  if (scriptResponse.status < 200 || scriptResponse.status >= 300) {
+    return failed(capturedAt, `51job recruitment UI script returned HTTP ${scriptResponse.status}`);
+  }
+  const ui = replayBiUiSemanticContract(scriptResponse.body);
+  if (!ui) return failed(capturedAt, "51job recruitment UI exclusion contract is invalid");
+  const scriptArtifact = officialJsonNetworkArtifact({
+    id: "51job-ui-script",
+    logicalKey: "51job-ui-script",
+    kind: "OFFICIAL_COMPANY_PAGE",
+    requestedUrl: scriptUrl,
+    response: scriptResponse,
+    extractorLocator: "javascript:sxsPosCode[code,jobareaname]"
+  });
+
+  const params = ui.params;
+  // Public request material stays in memory; this script is never an artifact.
+  let publicKey: string;
+  const publicScriptUrl = "https://js.51jobcdn.com/in/js/2018/coapi/coapi.min.js";
+  try {
+    const publicScript = await http({ url: publicScriptUrl, method: "GET", headers: {
+      Accept: "application/javascript,text/javascript,*/*;q=0.1", Referer: safeEntryUrl,
+      "User-Agent": "job-search-crawler/0.1"
+    } });
+    assertOfficialJsonEvidenceResponse(publicScript, {
+      requestedUrl: publicScriptUrl, crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime()
+    });
+    if (publicScript.status !== 200 || !["application/javascript", "application/x-javascript", "text/javascript"].includes(
+      publicScript.contentType!.split(";", 1)[0]!.trim().toLowerCase())) throw new Error();
+    const match = /window\.coapi\s*=\s*\{\s*key\s*:\s*(["'])([^"'\r\n\\]{16,512})\1/u.exec(publicScript.body);
+    if (!match) throw new Error();
+    publicKey = match[2]!;
+  } catch { return failed(capturedAt, "51job public request material is unavailable"); }
+  const serializedParams = JSON.stringify(params);
+  const keyIndex = 1;
+  const sign = createHash("md5")
+    .update(`coapi${serializedParams}${publicKey.slice(keyIndex, keyIndex + 15)}`)
+    .digest("hex");
+  const endpoint = new URL("https://coapi.51job.com/job_list.php");
+  endpoint.searchParams.set("key", String(keyIndex));
+  endpoint.searchParams.set("sign", sign);
+  endpoint.searchParams.set("params", serializedParams);
+  endpoint.searchParams.set("jsoncallback", "jsoncallback");
+  const requestedUrl = endpoint.toString();
+  let response: OfficialJsonHttpResponse;
+  try {
+    response = await http({ url: requestedUrl, method: "GET", headers: {
+      Accept: "application/javascript,application/json,text/javascript,*/*;q=0.1",
+      Referer: safeEntryUrl,
+      "User-Agent": "job-search-crawler/0.1"
+    } });
+    if (response.finalUrl !== requestedUrl) throw new Error();
+    response = { ...response, finalUrl: BI_API_URL };
+    assertOfficialJsonEvidenceResponse(response, {
+      requestedUrl: BI_API_URL,
+      crawlStartedAtMs: Date.parse(capturedAt),
+      observedNowMs: now().getTime()
+    });
+  } catch {
+    return failed(capturedAt, "51job CoAPI transport or metadata failed");
+  }
+  const locator = "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode" +
+    "|business-request-v1|" + JSON.stringify({ method: "GET", baseUrl: BI_API_URL, params, jsoncallback: "jsoncallback" });
+  if (response.body.includes(publicKey) || response.body.includes(sign)) {
+    return failed(capturedAt, "51job response contains transient request material");
+  }
+  const apiArtifact = officialJsonNetworkArtifact({
+    id: "51job-page-0001",
+    logicalKey: "51job-page-0001",
+    kind: "ATS_API_RESPONSE",
+    requestedUrl: "https://coapi.51job.com/job_list.php",
+    response: { ...response, finalUrl: "https://coapi.51job.com/job_list.php" },
+    extractorLocator: locator
+  });
+  return replay51jobArtifacts(scriptArtifact, apiArtifact, safeEntryUrl, detailBase, capturedAt);
 }
 
-function parse51jobUiExclusions(body: string): Array<{ code: string; location: string }> | undefined {
-  const block = /(?:let|var|const)\s+sxsPosCode\s*=\s*\[([\s\S]*?)\]\s*(?:;|\/\/)/u.exec(body)?.[1];
-  if (!block) return undefined;
-  const rules: Array<{ code: string; location: string }> = [];
-  const objectPattern = /\{\s*code\s*:\s*["']([^"']+)["']\s*,\s*jobareaname\s*:\s*["']([^"']+)["']\s*,?\s*\}/gu;
-  for (const match of block.matchAll(objectPattern)) {
-    const code = match[1]?.trim();
-    const location = match[2]?.trim();
-    if (!code || !location) return undefined;
-    rules.push({ code, location });
+/** Offline raw-body replay only. Never fetches or reconstructs a signed request. */
+export function replayBiArchivedSourceFetch(
+  plan: SourceCrawlPlan, artifacts: readonly SourceFetchArtifactDraft[], capturedAt: string
+): SourceFetchResult {
+  if (!hasBiSemanticPlan(plan) || artifacts.length !== 2) return failed(capturedAt, "51job archive scope is invalid");
+  const draftKeys = ["id", "logicalKey", "kind", "channelId", "requestedUrl", "finalUrl", "httpStatus",
+    "contentType", "capturedAt", "body", "bodyRepresentation", "rawBodySha256", "redactionDescriptors", "extractorLocator"] as const;
+  const drafts = artifacts.map(artifact => Object.fromEntries(draftKeys.filter(key => artifact[key] !== undefined)
+    .map(key => [key, artifact[key]])) as SourceFetchArtifactDraft);
+  const script = drafts.find(a => a.logicalKey === "51job-ui-script");
+  const api = drafts.find(a => a.logicalKey === "51job-page-0001");
+  if (!script || !api) return failed(capturedAt, "51job archive originals are missing");
+  return replay51jobArtifacts(script, api, plan.source.officialEntryUrl,
+    new URL("https://campus.51job.com/BI/recruit_article_detail3.html"), capturedAt);
+}
+
+function replay51jobArtifacts(
+  scriptArtifact: SourceFetchArtifactDraft, apiArtifact: SourceFetchArtifactDraft,
+  safeEntryUrl: string, detailBase: URL, capturedAt: string
+): SourceFetchResult {
+  const body = (artifact: SourceFetchArtifactDraft) => typeof artifact.body === "string"
+    ? artifact.body : new TextDecoder("utf-8", { fatal: true }).decode(artifact.body);
+  const ui = replayBiUiSemanticContract(body(scriptArtifact));
+  if (!ui) return failed(capturedAt, "51job recruitment UI exclusion contract is invalid");
+  const params = ui.params, locator = apiArtifact.extractorLocator;
+  const response = { status: apiArtifact.httpStatus ?? 0, body: body(apiArtifact) };
+  if (response.status < 200 || response.status >= 300) {
+    return failed(capturedAt, `51job CoAPI returned HTTP ${response.status}`);
   }
-  return rules.length > 0 && new Set(rules.map((rule) => `${rule.code}\u0000${rule.location}`)).size === rules.length
-    ? rules
-    : undefined;
+  const envelope = parse51jobJsonp(response.body);
+  if (!envelope) return failed(capturedAt, "51job CoAPI response schema is invalid");
+
+  const jobs: NormalizedOfficialJsonJob[] = [];
+  const rawIds: string[] = [];
+  const validIds: string[] = [];
+  const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+  const counts: PersistentSourceFetchEvidence["fetchCounts"] = {
+    rawCount: envelope.jobs.length,
+    parsedCount: envelope.jobs.length,
+    validCount: 0,
+    parseDiscardCount: 0,
+    validationDiscardCount: 0
+  };
+  const seen = new Set<string>();
+  for (let index = 0; index < envelope.jobs.length; index += 1) {
+    const raw = envelope.jobs[index]!;
+    const rawId = stringValue(raw.jobid);
+    rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? raw));
+    const title = stringValue(raw.jobname);
+    const locationRaw = stringValue(raw.jobareaname);
+    if (!rawId || !title || !locationRaw || seen.has(rawId)) {
+      counts.validationDiscardCount += 1;
+      losses.push({ stage: "VALIDATION", reason: "51job record rejected: INVALID_REQUIRED_FIELD",
+        rawLocator: officialJsonRawLocator(0, index), details: { code: "INVALID_REQUIRED_FIELD", recordIndex: index } });
+      continue;
+    }
+    if (ui.exclusions.some((rule) => title.includes(rule.code) && locationRaw.includes(rule.jobareaname))) {
+      counts.validationDiscardCount += 1;
+      losses.push({ stage: "VALIDATION", reason: "51job record excluded by official recruitment UI",
+        rawLocator: officialJsonRawLocator(0, index), details: { code: "OFFICIAL_UI_EXCLUSION", recordIndex: index } });
+      continue;
+    }
+    const officialUrl = new URL(detailBase);
+    officialUrl.searchParams.set("jobId", rawId);
+    const sourceJobId = persistentOfficialJsonJobId(rawId);
+    jobs.push({ sourceJobId, title, officialUrl: officialUrl.toString(), locationRaw,
+      cities: citiesWithFallback(locationRaw, locationRaw) });
+    seen.add(rawId);
+    counts.validCount += 1;
+    validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
+  }
+  if (envelope.total !== envelope.jobs.length || envelope.jobs.length > Number(params.pagesize) ||
+    counts.validCount + counts.validationDiscardCount !== counts.rawCount) {
+    return failed(capturedAt, "51job CoAPI traversal did not close the declared total");
+  }
+  const page: SourceFetchPageTrace = {
+    sequence: 0,
+    artifactLogicalKey: apiArtifact.logicalKey,
+    requestedCursor: null,
+    returnedCursor: null,
+    requestedOffset: null,
+    returnedOffset: null,
+    requestedPage: 1,
+    returnedPage: 1,
+    requestedPageSize: Number(params.pagesize),
+    returnedPageSize: null,
+    rawJobIds: [...new Set(rawIds)],
+    validJobIds: validIds,
+    // Keep the official raw total; semantic replay separately verifies UI exclusions.
+    declaredTotal: envelope.total,
+    declaredCount: envelope.total,
+    declaredPages: 1,
+    nextPageSignalBefore: null,
+    nextPageSignalAfter: null,
+    responseFingerprintSha256: sha256Bytes(Buffer.from(response.body, "utf8")).sha256,
+    termination: "NEXT_ABSENT",
+    anomalyCodes: [],
+    capturedAt: apiArtifact.capturedAt
+  };
+  const declaredCompleteness = {
+    kind: "OFFICIAL_TOTAL_COUNT" as const,
+    value: envelope.total,
+    artifactLogicalKey: apiArtifact.logicalKey,
+    extractorLocator: locator,
+    scope: "SOURCE" as const
+  };
+  const finalized = finalizeOfficialJsonEvidenceBundle({
+    artifacts: [scriptArtifact, apiArtifact],
+    pages: [page],
+    fetchCounts: counts,
+    fetchLosses: losses,
+    declaredCompleteness,
+    allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+    allowIndependentlyVerifiedProfileBoundExclusions: true
+  });
+  return {
+    ok: true,
+    capturedAt,
+    payload: { jobs },
+    completeness: {
+      completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
+      expectedJobCount: counts.validCount,
+      completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
+      completenessEvidenceUrl: safeEntryUrl,
+      completenessBlockerReason: "51job UI exclusions await independent strict replay",
+      totalPages: 1,
+      pageSize: Number(params.pagesize),
+      pagesVisited: 1
+    },
+    fetchEvidence: finalized.evidence,
+    paginationEvaluation: finalized.evaluation
+  };
 }
 
 function parse51jobJsonp(body: string): { total: number; jobs: Record<string, unknown>[] } | undefined {

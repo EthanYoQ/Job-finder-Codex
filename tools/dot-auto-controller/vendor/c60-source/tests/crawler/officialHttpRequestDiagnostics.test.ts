@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -21,6 +22,19 @@ function diagnostics() {
 }
 
 describe("bounded official HTTP failure diagnostics (no network)", () => {
+  it("strips BI signed queries before telemetry without changing the request", async () => {
+    const log = diagnostics(), url = "https://coapi.51job.com/job_list.php?sign=synthetic&key=1&params=test";
+    let requested: unknown;
+    await fetchWithOfficialTimeout(url, {}, { fetchImpl: async input => {
+      requested = input; return new Response("ok", { status: 200 });
+    } });
+    expect(requested).toBe(url);
+    expect(log.read()[0].url).toMatchObject({ hasQuery: false,
+      requestUrlSha256: createHash("sha256").update("https://coapi.51job.com/job_list.php").digest("hex") });
+    expect(log.raw()).not.toContain(createHash("sha256").update(url).digest("hex"));
+    expect(log.raw()).not.toContain("synthetic");
+  });
+
   it("records a nested network cause and preserves the exact original fetch error", async () => {
     const log = diagnostics();
     const reason = new TypeError("fetch failed SECRET", {
