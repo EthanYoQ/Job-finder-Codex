@@ -90,7 +90,8 @@ export function parseJobProjectionDeltaReceipt(value: unknown, expectedSha256?: 
   if (Date.parse(receipt.observedAt) > Date.parse(receipt.verifiedAt)) throw Error("JOB_DELTA_TIME_ORDER");
   if (receipt.legacyCertificate.schemaVersion === JOB_PROJECTION_DELTA_SCHEMA) throw Error("JOB_DELTA_NESTED_RECEIPT");
   const sorted = sortJobProjectionMembers(receipt.members);
-  if (canonicalProjectionJson(sorted) !== canonicalProjectionJson(receipt.members) || hashProjectionJson(sorted) !== receipt.manifestSha256) throw Error("JOB_DELTA_MANIFEST_HASH_MISMATCH");
+  const canonicalMembers = canonicalProjectionJson(sorted);
+  if (canonicalMembers !== canonicalProjectionJson(receipt.members) || createHash("sha256").update(canonicalMembers, "utf8").digest("hex") !== receipt.manifestSha256) throw Error("JOB_DELTA_MANIFEST_HASH_MISMATCH");
   const unique = new Set<string>();
   for (const m of receipt.members) {
     for (const key of ["releaseCandidateId", "batchId", "sourceId", "sourceResultId"] as const) {
