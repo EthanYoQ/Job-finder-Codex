@@ -1,0 +1,12 @@
+[
+  {
+    "path": "support/offline-checkers/replay-original-json-archive.mts",
+    "beforeSha256": "a2ffab3edc1862eedea3f6130114ea555652e2eadfa484543b8862f91397a9ab",
+    "afterSha256": "4ada7a3e8f1a6cdfb919c61d52c2273415d71286cac5f51fb9a303be08f4f2eb"
+  },
+  {
+    "path": "support/offline-checkers/original-novo-archive-replay.mts",
+    "beforeSha256": null,
+    "afterSha256": "3ddd1084ec9d71a114a9d0b4378c57b3729260a23109e2cc21ce4b64b38f5288"
+  }
+]

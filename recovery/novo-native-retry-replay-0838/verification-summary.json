@@ -1,0 +1,39 @@
+{
+  "gateway": {
+    "synthetic": true,
+    "packet": "ORIGINAL_GENERIC_PORTABLE_SQL_RECOMPILE_PASS",
+    "sqlNegativeCases": 6,
+    "raw": "PASS",
+    "requestCount": 9,
+    "sourceEvidenceAndJobDigests": true,
+    "strictQuality": true,
+    "readers": "PASS",
+    "beforeJobs": 0,
+    "afterJobs": 2
+  },
+  "timeout": {
+    "synthetic": true,
+    "packet": "ORIGINAL_GENERIC_PORTABLE_SQL_RECOMPILE_PASS",
+    "sqlNegativeCases": 6,
+    "raw": "PASS",
+    "requestCount": 9,
+    "sourceEvidenceAndJobDigests": true,
+    "strictQuality": true,
+    "readers": "PASS",
+    "beforeJobs": 0,
+    "afterJobs": 2
+  },
+  "historical0807": {
+    "classification": "EXPIRED_HISTORICAL_REPLAY_ONLY",
+    "packet": "ORIGINAL_GENERIC_PORTABLE_SQL_RECOMPILE_PASS",
+    "raw": "PASS",
+    "rawArtifactCount": 86,
+    "sourceEvidenceAndJobDigests": true,
+    "strictQuality": true,
+    "readers": "PASS",
+    "beforeJobs": 15,
+    "afterJobs": 37,
+    "closureRecords": 4,
+    "originalExpiry": "2026-10-18T08:35:18.333Z"
+  }
+}
