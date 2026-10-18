@@ -1,0 +1,42 @@
+{
+  "status": "EXACT_104_SOURCE_RUNTIME_RESTORED_EXTERNAL_0428_ACTIVE_WITH_HENGRUI_DEPENDENCY_GAP",
+  "restoredAt": "2026-10-18T04:59:51.256738+00:00",
+  "actualBuild": {
+    "schemaVersion": 2,
+    "commitSha": "3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800",
+    "sourceTreeSha256": "be269aeb1974ffd52bc6ed58728b440e1ab6fa5b8770e52e92b00156ba1d3f7c",
+    "runtimeTreeSha256": "fb6ab13046d7d866be4e4f11093a62898b6076d0bd98a75c95314c239abe9493",
+    "contentSha256": "b65a5a0d25dd2ebc8af9db687530c71a05d5097a28516d07ef7a09ea71cc09e4"
+  },
+  "tree": "d733832ab3c4986210a18320397435a1db9aa8d8",
+  "sourceBaseAnd20DeltasVerified": true,
+  "runtime8PartsAndWholeArchiveVerified": true,
+  "prisma7BeforeAfterVerified": true,
+  "fixedNodeSha256": "fde6a4bf8d0562f7751d1a2d6cb9b417c4cfe107bbcb0aa3e9a24e125e348f48",
+  "baseSelector": "e83ba79aa3a99cb891926b46979df9fda471acb463486725099b0851ffcdfdda",
+  "connectorValidate": "PASS",
+  "officialReadOnly36": {
+    "rows": 36,
+    "recent": 25,
+    "due": 11
+  },
+  "restoredReaderDependencySymlinks": [
+    "vendor/reader-main/node_modules -> ../c60-source/node_modules",
+    "vendor/reader-fallback/node_modules -> ../c60-source/node_modules"
+  ],
+  "readerImports": "PASS",
+  "missingOriginalDependencies": [
+    "offline-checkers/hengrui-wrapper-deadline.mjs",
+    "offline-checkers/hengrui-raw-review-langzhong.mts"
+  ],
+  "lostRuntimeEvidence": [
+    "Hansoh raw and original receipts not remotely backed before executor changed",
+    "Kelun raw and original READ_OUTCOME not recovered; official DB COMMITTED and recovered public CURRENT28 verified separately"
+  ],
+  "productionWrites": false,
+  "externalModule": {
+    "appliedAt": "2026-10-18T04:58:48.326114+00:00",
+    "nativeCandidate": 104,
+    "moduleCommit": "c6b9ad0d4cce6dbd77484449059895ec49ee57f3"
+  }
+}

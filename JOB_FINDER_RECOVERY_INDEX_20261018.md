@@ -53,3 +53,13 @@ All listed commits were read through the official GitHub connection on 2026-10-1
 
 ## Task reference update — 2026-10-18 04:39:27 UTC
 The original collection task update succeeded with candidate104 / source3f77 and module0405 / b7ba, pointing to indexab23. Enabled and Asia/Shanghai daily08:00/20:00 remain unchanged. [Minimal task recovery references](TASK_RECOVERY_REFS_104_0405.json) preserve only the necessary configuration facts. Pending0418/0423/0428 and reader clone-removal are excluded. This records the task configuration, not a completed scheduled run; fixed Drive LATEST remains99.
+
+
+## 2026-10-18 05:03 UTC recovery update
+- Native candidate 104 remains 3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800. The actual restored source, runtime and content identities matched the recorded candidate; original 8 dependency parts, Prisma 51 seven-file delta, selector and official read-only 36-source query passed.
+- External module 0428 / c6b9ad0d4cce6dbd77484449059895ec49ee57f3 was applied at 04:58:48 UTC. It supersedes the earlier 0405 operating reference. Drive: 1_mZDA6_1NZOcENt20xrKqmglXu42w5SN; SHA256 acfde9e38b1db72bef5461a0a67d2c970621c9959ce47c328d211d50e82dc619.
+- Hengrui remains HOLD: offline-checkers/hengrui-wrapper-deadline.mjs and hengrui-raw-review-langzhong.mts are absent from the checked remote recovery chain. No replacement equivalence is claimed.
+- Hansoh 044235862 and Kelun 044608247 raw evidence was not remotely backed up before workspace loss. Kelun official commit and recovered web verification do not recreate the lost raw evidence; do not replay the commit.
+- Evidence uploads previously required manual orchestration. recovery/evidence/package-success-evidence.py recovers the packaging logic, with run/output arguments and a download verifier. It does not upload and has not been connected to afterSource. This is not unattended backup acceptance.
+- Original task recovery references were updated successfully at 2026-10-18T05:03:33.430781+00:00; daily 08:00/20:00 Asia/Shanghai remains unchanged. See TASK_RECOVERY_REFS_104_0428.json.
+- Fixed Drive LATEST remains the prior verified 99 baseline. This update does not claim full-route, website-machine, credential or unattended recovery acceptance.

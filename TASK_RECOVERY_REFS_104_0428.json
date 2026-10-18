@@ -1,0 +1,25 @@
+{
+  "taskTitle": "采集并核验招聘岗位",
+  "updateSucceededAt": "2026-10-18T05:03:33.430781+00:00",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "dailyHours": [
+      8,
+      20
+    ]
+  },
+  "nativeCandidate": 104,
+  "nativeCommit": "3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800",
+  "moduleCommit": "c6b9ad0d4cce6dbd77484449059895ec49ee57f3",
+  "moduleVersion": "0428",
+  "moduleDriveFileId": "1_mZDA6_1NZOcENt20xrKqmglXu42w5SN",
+  "moduleSha256": "acfde9e38b1db72bef5461a0a67d2c970621c9959ce47c328d211d50e82dc619",
+  "limits": [
+    "Hengrui two missing imports: HOLD",
+    "Raw backup is not yet automatic",
+    "Hansoh/Kelun raw evidence unavailable; never replay Kelun commit",
+    "Fixed LATEST still recovery99",
+    "No full-range or unattended acceptance"
+  ]
+}
