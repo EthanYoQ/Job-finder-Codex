@@ -1,0 +1,155 @@
+{
+  "taskTitle": "采集并核验招聘岗位",
+  "updateSucceededAt": "2026-10-18T12:52:33.880871+00:00",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "dailyHours": [
+      8,
+      20
+    ]
+  },
+  "nativeCandidate": 111,
+  "nativeCommit": "c44ff2790fa9e5e9edd51d04be116b2da356eca2",
+  "registeredAt": "2026-10-18T12:34:35.142Z",
+  "independent16Fields": "PASS",
+  "connectorValidate": "PASS",
+  "nativeDelta": {
+    "base": "ac70c21b686c498c4c6a28dbe5bd0f423922d140",
+    "driveFileId": "1Qz5z9PbN-N2h53Ruiz1meTzGicL0Uw2V",
+    "sha256": "e7abf3b4236e9d2dc4dd160aa2921546e882dec2a9c8631c99bc88bdf2f61d1a",
+    "bytes": 12425,
+    "restoredTree": "92fb4fce57b29a449b93e77e66da633c9ef72b81"
+  },
+  "moduleVersion": "1249",
+  "moduleCommit": "e0bc3ab81045abf283bb8462640199251c091865",
+  "moduleAppliedAt": "2026-10-18T12:52:17.121002+00:00",
+  "runtimeFiles": 61,
+  "readOnly36": {
+    "recent": 35,
+    "due": 1
+  },
+  "evidenceBackup": {
+    "jnj159": "AUTOMATIC_REMOTE_RESTORE_VERIFIED",
+    "sanofi119": "AUTOMATIC_UPLOAD_FAILED_MANUALLY_RECOVERED"
+  },
+  "limits": [
+    "Original Novo108 automatic web/backup failures retained; later independent manual recovery is not automatic success",
+    "No full36 or unattended acceptance",
+    "Reader startup memory/timeouts remain risks",
+    "Fixed LATEST remains99; prior evidence-loss gaps retained"
+  ],
+  "oldNovo074422": "FAILED_NOT_DISPATCHED_DIAGNOSTIC_ONLY_NO_REPLAY",
+  "oldNovo080715": "RECONCILED_OFFLINE_DIAGNOSTIC_ONLY_NOT_PUBLISHED",
+  "persistedNovoClosures": "Four existing CLOSED verifications preserved; no revival",
+  "entrySha256": "003b12495aafef33518a2a6e7a5ff1ded40a22a20115950b2334bef9bf9a3994",
+  "pairedActivationRequired": true,
+  "taskInstructions": "Sections1–6 and schedule unchanged; section7 retains current refs, source exceptions and acceptance limits",
+  "deployedReaders": {
+    "repositorySha256": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
+    "domainSha256": "8d31a7206da617d9b4e586ac1e8f52822c69e9495f8c3bea773323891fad4a6d",
+    "mainHeapMiB": 320,
+    "fallbackHeapMiB": 320,
+    "persistedHeapsMatch": true
+  },
+  "independentWebRecovery": {
+    "novoJobs": 37,
+    "sanofiJobs": 119,
+    "allFieldsMatch": true,
+    "originalAutomaticFailureUnchanged": true,
+    "novoSupplementDriveId": "1sxSm4IYAvGJ7-3Ild3R0wn2M3Ivt17GW"
+  },
+  "lightReaderVerification": {
+    "differentSourcesCompared": 13,
+    "existingReaderPlans": 41,
+    "existingPublicJobs": 4915,
+    "coreNetLinesRemoved": 49,
+    "observedMainPeakReductionPercent": 34.7,
+    "observedFallbackPeakReductionPercent": 40.5,
+    "limits": "Existing reader projection checks, not expanded collection scope or newly published jobs. Single observed production startup peaks, not a long-term guarantee."
+  },
+  "deploymentReceiptCommit": "4a8883c78a89ee37438875f7d3dfc917f9411c11",
+  "moduleBaseRecovery": {
+    "version": "0838",
+    "commit": "32fa560c0fe45d62289861610aeab7ec518bc774",
+    "driveFileId": "1Ik-fB_reO0Bz25hRPMHLyU_pRVUbeS5U",
+    "sha256": "687a7fd47c64b797d4688f018e2df2dd2307e7055b7ceb83ea13347290c4f267"
+  },
+  "moduleDelta": {
+    "driveFileId": "1XG-sjvHPmxn_I0x5WRJHyN6Kh9Yz3sMV",
+    "sha256": "060603bf1f29932eec0a1f9b93086f2977ca1b2ae77c196e9b6dafa078e9ac25",
+    "bytes": 3747,
+    "parentCommit": "65cae6f882ecf7e186d044a08fd99e9ea0634547",
+    "restoredRuntimeFiles": 61,
+    "exact": true
+  },
+  "activationScope": "Two external files; native111 unchanged; approved removal of normal precollection old-web blocking; postpublish public readback retained",
+  "latestScheduledRound": {
+    "localDate": "2026-10-18",
+    "localHour": 20,
+    "timezone": "Asia/Shanghai",
+    "skippedRecent": 34,
+    "heldSources": [
+      "BI",
+      "Novartis"
+    ],
+    "newSuccess": 0,
+    "unknownSubmissions": 0,
+    "fullAcceptance": false
+  },
+  "previousNativeDelta": {
+    "base": "4842e16b8c89e9624049d78b49a79dc25bb15775",
+    "driveFileId": "1wZ3E6i-rQVjZj7GgfFVBzxVU_o0TnXq1",
+    "sha256": "fa3c5170c73d7a961ab9914ed6eac64016d55e6241984e1eba1da294de6c6cab"
+  },
+  "novartisProduction": {
+    "batch": "dot-auto-novartis-20261018T123719665Z",
+    "jobs": 169,
+    "membership": "CURRENT",
+    "status": "SUCCESS",
+    "verification": "VERIFIED",
+    "atomicCommitState": "COMMITTED",
+    "crawledAt": "2026-10-18T12:37:41.190Z",
+    "finishedAt": "2026-10-18T12:39:02.896Z",
+    "webVerifiedAt": "2026-10-18T12:39:26.963Z",
+    "allFieldsMatch": true,
+    "automaticBackup": {
+      "status": "REMOTE_RESTORE_VERIFIED",
+      "driveFileId": "19unsu2Y6E9OqDwYnCWIrR20HmrNYQnKR",
+      "bytes": 1911092,
+      "sha256": "e4dde2679febae31fb3e00b86c899887bfdadf0c54164a15f5201545165d1d16",
+      "rawFiles": 51,
+      "members": 12,
+      "verifiedAt": "2026-10-18T12:40:06.376Z"
+    }
+  },
+  "latestExecution": {
+    "newSuccessfulSources": 1,
+    "skippedRecent": 34,
+    "remainingDue": [
+      "BI"
+    ],
+    "liveRunning": 0,
+    "unknownSubmissions": 0,
+    "fullAcceptance": false
+  },
+  "moduleDeltaChain": [
+    {
+      "driveFileId": "1myIrk1W99OSIL-Ggd3CFgkFxjfpyzlBD",
+      "sha256": "00cae60c39deaeb9c4c94ebdad0829cac16c45ced13af75ef2e5c71330f133e0",
+      "bytes": 10275,
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1zSuYDEIXVWMu_d1Kkvf1tlxIGEkmN6zM",
+      "sha256": "40f5c5f5f5d4e8d4425286850b63f6f56de9bdd7dcf2b48b2645d056ba822f03",
+      "bytes": 11859,
+      "parentCommit": "decda27f823985086758fcde801d203cb6104808",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    }
+  ],
+  "nextActualRoundValidation": "PENDING",
+  "futureSelfTestHotPathChange": "Not active, excluded from current1249"
+}

@@ -174,3 +174,12 @@ Restore verified native110 then the six-code-path111 delta Drive1Qz5z9PbN-N2h53R
 Native111/external1205 unchanged. Fresh batch dot-auto-novartis-20261018T123719665Z completed SUCCESS/VERIFIED/COMMITTED with169 CURRENT jobs: crawled12:37:41.190Z, finished12:39:02.896Z, public CURRENT/full-field match12:39:26.963Z. Its automatic evidence backup was downloaded and restored12:40:06.376Z: Drive19unsu2Y6E9OqDwYnCWIrR20HmrNYQnKR,1911092 bytes,SHA256e4dde2679febae31fb3e00b86c899887bfdadf0c54164a15f5201545165d1d16,51 originals/12 package members.
 
 This execution produced one successful source and34 recent skips. Official reconciliation lists35 recent/1 due(BI), no live running producer or unknown submission. Skips are not new successes and full36/unattended acceptance remains open. Task update12:41:51.212494Z succeeded without version/schedule change. Only sanitized references are stored here; originals remain in the authorized private Drive package. See updated TASK_RECOVERY_REFS_111_1205.json. FixedLATEST99 remains unchanged.
+
+
+## Current recovery refs — 2026-10-18 12:52 UTC
+
+Native111/c44ff2790fa9e5e9edd51d04be116b2da356eca2 remains unchanged. External1249/e0bc3ab81045abf283bb8462640199251c091865 was applied12:52:17.121002Z with61 runtime files exact. Entry SHA256003b12495aafef33518a2a6e7a5ff1ded40a22a20115950b2334bef9bf9a3994. Task update12:52:33.880871Z succeeded; daily08:00/20:00 Asia/Shanghai unchanged.
+
+The user approved removing normal precollection old-web blocking at12:48UTC. Official DB context and publication review remain; postpublish web readback/WEB_PENDING backup remain. Native standalone Novo closure checks retain genuine HTTP observations. This activation has not collected a new source; next actual round validation remains pending. Latest source state remains35 recent/1 dueBI. Subsequent self-test hot-path work is not active and is not part of1249.
+
+Restore0838 full module,1145 and1205 deltas, then1249 delta Drive1XG-sjvHPmxn_I0x5WRJHyN6Kh9Yz3sMV (3747 bytes,SHA256060603bf1f29932eec0a1f9b93086f2977ca1b2ae77c196e9b6dafa078e9ac25). Downloaded restoration matched all61 runtime files. FixedLATEST99/full-source acceptance limitations remain. See TASK_RECOVERY_REFS_111_1249.json and recovery/module/ACTIVE_VERIFIED_1249.json.
