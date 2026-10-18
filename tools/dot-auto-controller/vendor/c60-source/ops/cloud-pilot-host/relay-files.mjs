@@ -31,8 +31,8 @@ else if(!dir.startsWith('/workspace/shared/job-finder-recovery/'))throw Error('R
 if(command==='next'||command==='next-meta'){
  const names=await readdir(dir),rows=[];
  for(const name of readyRequestNames(names)){
+  if(names.includes(name.replace(/\.request\.json$/,'.response.json')))continue;
   const r=await readRequest(join(dir,name));
-  if(names.includes(r.requestId+'.response.json'))continue;
   rows.push({...command==='next-meta'?{requestId:r.requestId,requestSha256:r.requestSha256,kind:r.kind}:r,expired:Date.now()>=Date.parse(r.expiresAt),dispatchRecorded:names.includes(r.requestId+'.dispatch.json')});
  }
  console.log(JSON.stringify(rows));
