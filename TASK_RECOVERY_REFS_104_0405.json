@@ -1,0 +1,38 @@
+{
+  "verifiedUpdateAt": "2026-10-18T04:39:27.189532+00:00",
+  "taskTitle": "采集并核验招聘岗位",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "frequency": "DAILY",
+    "hours": [
+      8,
+      20
+    ],
+    "minute": 0,
+    "second": 0,
+    "timingMode": "flexible_schedule"
+  },
+  "native": {
+    "candidate": 104,
+    "commit": "3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800"
+  },
+  "externalModule": {
+    "commit": "b7ba587c4b67fea05469b380b6957119bb6c22a8",
+    "driveFileId": "1mLlCAseX9jygssN8nJht0W06K8273upa",
+    "sha256": "6d947655d424bf45c41c194d62cf3716805ecbae44fefa949eb103759d9fd49b"
+  },
+  "recoveryIndexCommit": "ab23a0c490c5c0382b8b485fa781f04a28014dde",
+  "excludesPendingChanges": [
+    "0418",
+    "0423",
+    "0428",
+    "reader clone removal"
+  ],
+  "fixedDriveLatest": "Verified99 baseline retained",
+  "limitations": [
+    "104 combined empty-environment restore not yet repeated",
+    "Task configuration update does not establish scheduled run success or unattended acceptance",
+    "No credentials or internal tool/session receipts included"
+  ]
+}
