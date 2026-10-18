@@ -151,3 +151,12 @@ The core change removes49 net lines. Validation compared13 different sources and
 Native110/ac70c21b686c498c4c6a28dbe5bd0f423922d140 remains unchanged. External1145/decda27f823985086758fcde801d203cb6104808 was applied11:53:11.041655Z after four exact before-images matched; all61 active module files matched the restored map. Entry SHA25632e6ec0927c9536896d10902c940975a725621fee62d5d7f01d80788d87bcbb7. Task update11:53:36.743751Z succeeded; daily08:00/20:00 Asia/Shanghai unchanged.
 
 Restore the verified full0838 module, then the downloaded1145 four-file delta from Drive1myIrk1W99OSIL-Ggd3CFgkFxjfpyzlBD (10275 bytes, SHA25600cae60c39deaeb9c4c94ebdad0829cac16c45ced13af75ef2e5c71330f133e0). This exact combination restored all61 runtime files. Three redundant prepare exec calls per source and five repeated SQL-plan constructions were removed; reader repeated scans use existing data indexes. Existing negative checks and assertions remain. Activation itself started no producer and executed no SQL; full36/unattended acceptance remains open. FixedLATEST99 and all historical evidence gaps remain unchanged. See TASK_RECOVERY_REFS_110_1145.json and recovery/module/ACTIVE_VERIFIED_1145.json. Prior current-reference sections are history.
+
+
+## Current recovery refs — 2026-10-18 12:17 UTC
+
+Native110/ac70 remains unchanged. External1205/65cae6f882ecf7e186d044a08fd99e9ea0634547 was applied12:16:42Z: all61 runtime files matched, with the backward-compatible raw consumer updated first in an idle window. Entry SHA25632e6ec0927c9536896d10902c940975a725621fee62d5d7f01d80788d87bcbb7 is unchanged. Task update12:16:57.684550Z succeeded; daily08:00/20:00 Asia/Shanghai unchanged.
+
+Restore verified0838 full module, then1145 delta, then1205 delta Drive1zSuYDEIXVWMu_d1Kkvf1tlxIGEkmN6zM (11859 bytes, SHA25640f5c5f5f5d4e8d4425286850b63f6f56de9bdd7dcf2b48b2645d056ba822f03). This downloaded chain restored all61 files exactly. Current compact reader-before inputs retain publisher context and row/final-snapshot checks. Reduced stored packets retain current certificate once; raw reader accepts old/new forms and rejects conflicting legacy duplicates.
+
+The20:00 Asia/Shanghai scheduled round skipped34 recent sources, held existingBI/Novartis cases, had0 new successful sources and0 unknown submissions. This is not full-source acceptance. Novartis partition work was authorized12:14UTC and remains isolated development. FixedLATEST99 and historical evidence gaps remain. See TASK_RECOVERY_REFS_110_1205.json and recovery/module/ACTIVE_VERIFIED_1205.json.

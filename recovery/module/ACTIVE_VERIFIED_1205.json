@@ -1,0 +1,22 @@
+{
+  "activatedAt": "2026-10-18T12:16:42.923541+00:00",
+  "canonical": "65cae6f882ecf7e186d044a08fd99e9ea0634547",
+  "runtimeFilesVerified": 61,
+  "allRuntimeBytesMatch": true,
+  "replacedOrder": [
+    "support/offline-checkers/replay-original-json-archive.mts",
+    "support/offline-checkers/original-portable-reader-replay.mts",
+    "reader-before-functions.js",
+    "support/transport/sanofi-reader-before-original.sql",
+    "support/transport/viatris-reader-before-original.sql",
+    "support/offline-checkers/biogen-packet-gate.mts",
+    "support/offline-checkers/hengrui-packet-gate.mts",
+    "support/offline-checkers/original-portable-sql-review.mts"
+  ],
+  "entrySha256": "32e6ec0927c9536896d10902c940975a725621fee62d5d7f01d80788d87bcbb7",
+  "nativeCanonical": "ac70c21b686c498c4c6a28dbe5bd0f423922d140",
+  "nativeClean": true,
+  "noProducerAtReplacement": true,
+  "unknownPublishCheck": "Owner 12:15:07: all 84 relay requests answered; no unresolved PUBLISH",
+  "collectionStarted": false
+}
