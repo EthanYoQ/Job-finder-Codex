@@ -75,7 +75,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  try{started=await tools.exec_command({cmd:'PYTHONDONTWRITEBYTECODE=1 TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+' python3 '+q(R+'/capture-simple-guard.py')+' -- '+q(N)+' '+q(V+'/scripts/run-with-http-diagnostics.mjs')+' '+q(run+'/diagnostics')+' 1800000 -- '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/'+(config.route==='PORTABLE'?'p0-cloud-portable-source-pilot.ts':'p0-cloud-source-pilot.ts'))+' '+q(run+'/bootstrap.json')+' '+digest+' '+q(run+'/artifacts')+' '+q(relay)+' --db-started-control '+q(S+'/control-base.json'),yield_time_ms:1000,max_output_tokens:1000});}
  catch(error){error.producerStateUnconfirmed=true;throw error;}
  let process=started;
- return {stage,sourceId,relayDirectory:relay,deadline:Date.now()+1800000,
+ return {stage,sourceId,runDirectory:run,relayDirectory:relay,deadline:Date.now()+1800000,
   pollProducer:async()=>{if(process.session_id)process=await tools.write_stdin({session_id:process.session_id,chars:'',yield_time_ms:1000,max_output_tokens:1000});const outcome=process.exit_code===0?JSON.parse(await read(run+'/artifacts/'+batchId+'.outcome.json')):null;return {exitCode:process.exit_code??null,outcomeState:outcome?.state,diagnostic:process.exit_code?process.output?.trim()||await command('python3 '+q(D+'/failure-summary.py')+' '+q(run)):process.output?.slice(-1200)};},
   reviewPublication:async (request,prepared,publicationContextRequestId)=>{const reviewed=JSON.parse((await command('JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+' '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(D+'/review-original-publication.mjs')+' '+q(run)+' '+q(request.requestId)+' '+q(relay)+' '+q(publicationContextRequestId??'')+' > '+q(run+'/review-command.log')+' 2>&1; code=$?; printf \"%s\\n\" \"$code\" > '+q(run+'/review-command.exit')+'; cat '+q(run+'/review-command.log')+'; exit \"$code\"')).trim().split('\n').at(-1));
    const [recent]=await sql(`SELECT EXISTS(SELECT 1 FROM public."CrawlObservation" o JOIN public."CrawlBatchSourceResult" r ON r.id=o."sourceResultId" JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE o."sourceId"='${sourceId}' AND o.successful AND r."atomicCommitState"='COMMITTED' AND b.status::text='SUCCESS' AND o."crawledAt">clock_timestamp()-interval '12 hours') AS fresh;`);if(recent.fresh)throw Error('NEW_SUCCESS_BEFORE_DISPATCH');
@@ -83,7 +83,16 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
    if(typeof notify==='function')notify({sourceId,batchId,publicationRequestId:request.requestId,...captureTimes,dispatchBefore:request.payload.dispatchBefore,rawReviewMeaning:'Local revalidation of freshly captured responses from this same batch; not replay of a prior publication.'});
    return reviewed;},
   readback:async()=>JSON.parse(await command('python3 '+q(D+'/readback-original-web.py')+' '+q(run)))};
-},async sourceId=>{
+},async (sourceId,result,job)=>{
+ if(result.status==='WEB_VERIFIED'){
+  try{
+   const {backupSuccessfulSource}=await new A(await read(D+'/evidence-backup-functions.js'))();
+   result.evidenceBackup=await backupSuccessfulSource({command,save,q,D,run:job.runDirectory,relay});
+  }catch(error){
+   result.evidenceBackup={status:'PENDING',stage:'BACKUP_HELPER',reason:String(error).slice(0,300)};
+   try{await save(job.runDirectory+'/EVIDENCE_BACKUP_PENDING.json',result.evidenceBackup);}catch{}
+  }
+ }
  if(sourceId!=='source-novo-nordisk-china-social')return undefined;
  const {verifyNovoPublishedJobs}=await new A(await read(D+'/novo-job-verification-functions.js'))();
  return verifyNovoPublishedJobs({command,read,save,q,N,V,P,D,R,rows,
