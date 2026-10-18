@@ -1,0 +1,15 @@
+{
+  "status": "CORRECTED_BACKUP_VERIFIED_DEPLOYMENT_PENDING",
+  "invalidCommits": [
+    "91842eab2537d62a49cc461c4bd1d598a04eeb61",
+    "d604f383f5bbf19725e102b8a5f62a28656e43da"
+  ],
+  "reason": "GRACE-only prefetch removal accidentally removed parser import still needed by Sanofi artifact binder. Do not deploy or register these earlier variants.",
+  "correctedCommit": "32e87985441611d4378f88cd0de9663087ab8ba0",
+  "baseCommit": "cb901e51049c64a5ddf8c2a8383508254d290390",
+  "correctedRepositorySha256": "271d1a283dcb345387b405152d4177aa63e2a61de16fd2a47de272480435363a",
+  "driveFileId": "1xsr7x7QIXCiF-auPfC2tfj1ovWnqnqDk",
+  "archiveSha256": "fffb43c38c839c681d8bdcfbd425bd056c5ab9c2848a73a0b1bd756ff15703bc",
+  "downloadedPatchIndexRestore": "PASS",
+  "checks": "Sanofi valid binding, bad hash rejection, original paired fixture equivalence PASS; no live deployment claim"
+}
