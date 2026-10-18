@@ -1,0 +1,44 @@
+{
+  "taskTitle": "采集并核验招聘岗位",
+  "updateSucceededAt": "2026-10-18T06:31:01.699187+00:00",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "dailyHours": [
+      8,
+      20
+    ]
+  },
+  "nativeCandidate": 105,
+  "nativeCommit": "8efa94c03a542fdcdf24df58d3e4f46be4ad771a",
+  "nativeRegisteredAt": "2026-10-18T06:07:51.162Z",
+  "nativeIndependent16FieldCheck": "PASS",
+  "nativeDelta": {
+    "base": "3f77a6bd4d359abbe2b4cc4ae9d57dc06b9e0800",
+    "driveFileId": "1FEfe6pSQlFQW-T7Ni-gZbcT86dZGezx6",
+    "sha256": "b32263a47e318088204680b456320c8a3037f4d5fdedd8302b231b0bbe606531"
+  },
+  "moduleVersion": "0628",
+  "moduleCommit": "dc966d910ef6e2c46bea6fe56fc03918a37e8c22",
+  "moduleActivatedAt": "2026-10-18T06:30:22.268575+00:00",
+  "moduleDriveFileId": "1x5hj6LawdgwkrLufFgXyeoublnHSSAZr",
+  "moduleSha256": "113f77a081578e788c2b50ed0bbbc6827bfcae11ef383d0ee7ed6234e7b190bb",
+  "runtimeFiles": 60,
+  "rollback": {
+    "nativeCandidate": 105,
+    "nativeCommit": "8efa94c03a542fdcdf24df58d3e4f46be4ad771a",
+    "moduleVersion": "0557",
+    "moduleCommit": "777ca0535d4c8ce71240ac4bd6a9386542e38294"
+  },
+  "limits": [
+    "Automatic evidence backup connected; real-source automatic upload and download verification still pending",
+    "Fresh collection started 2026-10-18T06:30:49Z; no full36 or unattended acceptance",
+    "Reader three-clone removal remains undeployed pending user approval for short downtime",
+    "Fixed LATEST remains recovery99; Hansoh/Kelun lost raw evidence gap persists"
+  ],
+  "readOnly36": {
+    "checkedAt": "2026-10-18T06:30:34Z",
+    "recent": 31,
+    "due": 5
+  }
+}
