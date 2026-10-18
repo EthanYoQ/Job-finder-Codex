@@ -129,5 +129,5 @@ const archivePath=join(run,'artifacts',terminal.batchId+'.archive.json'),archive
 const artifacts=get('EvidenceArtifact'),pages=get('PaginationEvidence');assert.equal(archive.files.length,artifacts.length);
 
 const review={classification:ab?'ORIGINAL_AB_SQL_RECOMPILE_PASS':'ORIGINAL_GENERIC_PORTABLE_SQL_RECOMPILE_PASS',reviewedAt:new Date().toISOString(),requestId,requestSha256:request.requestSha256,sqlSha256:sha(sql),dispatchBefore:request.payload.dispatchBefore,expiresAt:request.expiresAt,controlsExactOriginalRecompile:true,allMutationBytesConsumed:true,mutationsExactOriginalCompilerRecompile:true,tuple,counts:{current:kinds.CURRENT,grace:kinds.GRACE,visible:kinds.VISIBLE,jobWrites:jobs.length,newJobs:newCount,changedExistingJobs:changedCount},negativeTests,sourceRawReplayPending:true};
-writeFileSync(output+'.decoded.json',JSON.stringify({terminal,context,decoded,receipt,plan},null,2),{flag:'wx',mode:0o600});writeFileSync(output,JSON.stringify(review,null,2),{flag:'wx',mode:0o600});return {review,decoded:{terminal,context,decoded,receipt,plan}};
+writeFileSync(output+'.decoded.json',JSON.stringify({terminal,context,decoded:decoded.filter(x=>x.table!=='CrawlBatchSourceResult'),plan},null,2),{flag:'wx',mode:0o600});writeFileSync(output,JSON.stringify(review,null,2),{flag:'wx',mode:0o600});return {review,decoded:{terminal,context,decoded,receipt,plan}};
 }

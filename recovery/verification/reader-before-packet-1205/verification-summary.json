@@ -1,0 +1,131 @@
+{
+  "reader": [
+    {
+      "source": "bayer",
+      "fullReaderOutputEqual": true,
+      "publicationContextExact": true,
+      "writerInventoryJobsMembersExact": true,
+      "beforeBytes": 12656196,
+      "afterBytes": 4884837,
+      "oldSqlQueries": 9,
+      "newSqlQueries": 4,
+      "headerBytes": 724188,
+      "jobs": 160,
+      "historicalOnly": true,
+      "network": false
+    },
+    {
+      "source": "hengrui",
+      "fullReaderOutputEqual": true,
+      "publicationContextExact": true,
+      "writerInventoryJobsMembersExact": true,
+      "beforeBytes": 9949532,
+      "afterBytes": 8435696,
+      "oldSqlQueries": 21,
+      "newSqlQueries": 4,
+      "headerBytes": 5278884,
+      "jobs": 996,
+      "historicalOnly": true,
+      "network": false
+    },
+    {
+      "source": "sanofi",
+      "fullReaderOutputEqual": true,
+      "publicationContextExact": true,
+      "writerInventoryJobsMembersExact": true,
+      "beforeBytes": 907230,
+      "afterBytes": 755046,
+      "oldSqlQueries": 24,
+      "newSqlQueries": 2,
+      "headerBytes": 755046,
+      "jobs": 119,
+      "historicalOnly": true,
+      "network": false
+    }
+  ],
+  "packet": {
+    "classification": "ISOLATED_HISTORICAL_PACKET_STORAGE_EQUIVALENCE",
+    "sources": [
+      {
+        "source": "bayer",
+        "oldBytes": 15040449,
+        "newBytes": 8394549,
+        "bytesSaved": 6645900,
+        "reductionPercent": 44.19,
+        "allThreeWriterSerializersChecked": true,
+        "memoryReturnIdentityPreserved": true,
+        "allWriterChecksUnchanged": true,
+        "restoredContentsEqual": true,
+        "legacyPacketAccepted": true,
+        "legacyReceiptMismatchRejected": true
+      },
+      {
+        "source": "hengrui",
+        "oldBytes": 10784272,
+        "newBytes": 6980010,
+        "bytesSaved": 3804262,
+        "reductionPercent": 35.28,
+        "allThreeWriterSerializersChecked": true,
+        "memoryReturnIdentityPreserved": true,
+        "allWriterChecksUnchanged": true,
+        "restoredContentsEqual": true,
+        "legacyPacketAccepted": true,
+        "legacyReceiptMismatchRejected": true
+      }
+    ],
+    "bayerRawReplay": {
+      "before": "PASS",
+      "afterCompact": "PASS",
+      "afterLegacy": "PASS",
+      "allReportsEqual": true,
+      "historicalSavedReportEqual": true,
+      "jobCount": 160,
+      "requests": 167,
+      "networkBlocked": true
+    },
+    "fullCurrentReleaseChain": false,
+    "sourceSha256": {
+      "before": {
+        "original-portable-sql-review.mts": "23eec9e2ead52c13c06ef72de619f1977c40fcad7d173b1ffe5faa5804929831",
+        "biogen-packet-gate.mts": "4634ebea2aeacc9fe341d9a7e9f61e1ecf1385f819535357da0c04a35fff313a",
+        "hengrui-packet-gate.mts": "950f58cea90ad3165645553a560e87b9e1679d247c7554d49c26cc4257e99e21",
+        "replay-original-json-archive.mts": "4ada7a3e8f1a6cdfb919c61d52c2273415d71286cac5f51fb9a303be08f4f2eb"
+      },
+      "after": {
+        "original-portable-sql-review.mts": "b434979c0a7f255d3a0c9019b7570c6daa4d574544a4e07ee5d2831d8f5d6b66",
+        "biogen-packet-gate.mts": "cd9e33bb91e15cbbbfc7656f035aab180bf92849a86b6dc64a83bbe1076ac41a",
+        "hengrui-packet-gate.mts": "526ab533d025558fe84601670e9f3d09ee627b4bb469cca886996869735c2df0",
+        "replay-original-json-archive.mts": "07d27fcdfc99986f3c84ffb99e9b4270ae143e97c1e41b39e391dc93a79bcbb3"
+      }
+    }
+  },
+  "sqlExplain": [
+    {
+      "name": "viatrisCompactExplain",
+      "pass": true,
+      "isError": false,
+      "explainOnly": true,
+      "analyze": false
+    },
+    {
+      "name": "sanofiCompactExplain",
+      "pass": true,
+      "isError": false,
+      "explainOnly": true,
+      "analyze": false
+    },
+    {
+      "name": "compactHeaderExplain",
+      "pass": true,
+      "isError": false,
+      "explainOnly": true,
+      "analyze": false
+    }
+  ],
+  "limits": [
+    "Historical saved inputs; no live collection or publication",
+    "SQL query counts measured with local existing-helper mock; not live latency",
+    "Official SQL EXPLAIN only; no ANALYZE or full result download",
+    "No full current release-chain rerun"
+  ]
+}

@@ -2,6 +2,8 @@ import {assertMokaArchivedRequest} from './moka-archive-request.mts';
 import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
 const B='/workspace/scratch/5e9614251709',V=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source';
 const run=process.argv[2],d=JSON.parse(fs.readFileSync(run+'/review/PACKET_REVIEW.json.decoded.json','utf8')),a=JSON.parse(fs.readFileSync(run+'/artifacts/'+d.terminal.batchId+'.archive.json','utf8'));
+if(Object.hasOwn(d,'receipt'))assert.deepEqual(d.receipt,d.terminal.completenessCertificate,'PACKET_RECEIPT_MISMATCH');
+d.receipt=d.terminal.completenessCertificate;
 const sha=(x:any)=>createHash('sha256').update(x).digest('hex');
 const {createOfficialJsonSourceFetch}=await import(V+'/src/crawler/officialJsonSourceFetch.ts');
 const {createPresenceCheckedHttpHtmlSourceFetch}=await import(V+'/src/crawler/httpHtmlSourceFetch.ts');
