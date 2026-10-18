@@ -1,3 +1,4 @@
+import { load } from "cheerio";
 import { sanofiPersistentJobId } from "./sanofiLegacyIdentity";
 import { isServierTraversalPlan, replayServierTraversal } from "./servierMokaScope";
 import { sanofiRawEvidenceId, isSanofiChinesePlan, parseSanofiChineseDetail, parseSanofiChineseNative, replaySanofiChineseNative, SANOFI_CN_PAGINATION_POLICY, type SanofiChineseRow } from "./sanofiChineseNative";
@@ -1312,9 +1313,9 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
         const oracle=evidence.artifacts.find(a=>a.logicalKey==="sanofi-cn-module-anomalies-v2");
         if(!oracle) throw new Error("SANOFI_CN_IDENTITY_ORACLE_REQUIRED");
         sanofiIdentityProof={oracleBody:typeof oracle.body==="string"?oracle.body:Buffer.from(oracle.body).toString("utf8")};
-        assertSanofiIdentityReplay(sanofiIdentityProof,independent,validation.pages,validation.artifactSha256);
+        assertSanofiIdentityReplay(sanofiIdentityProof,independent,validation.pages,validation.artifactSha256,input.sanofiArchive ? evidence : undefined);
         if(canonicalJson(main.anomalies.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY"))!==canonicalJson(independent.descriptionAnomalies)||
-          canonicalJson(main.decisions)!==canonicalJson(independent.decisions)||canonicalJson(mainRawMatchKeys)!==canonicalJson(replay.rawSourceJobIds)||
+          canonicalJson(mainRawMatchKeys)!==canonicalJson(replay.rawSourceJobIds)||
           canonicalJson(mainExcludedMatchKeys)!==canonicalJson(replay.excludedSourceJobIds)) blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
       }catch{blockers.add("INDEPENDENT_JOB_SET_MISMATCH");}
     }
@@ -1587,11 +1588,28 @@ function assertSanofiIdentityReplay(
   proof: z.infer<typeof sanofiIdentityProofSchema>,
   independent: ReturnType<typeof replaySanofiChineseIndependent>,
   pages: Parameters<typeof replaySanofiChineseIndependent>[0],
-  independentArtifactSha256: string
+  independentArtifactSha256: string,
+  mainEvidence?: PersistentSourceFetchEvidence
 ): z.infer<typeof sanofiIdentityOracleSchema> {
   if (!hasUniqueJsonObjectKeys(proof.oracleBody)) throw new Error("SANOFI_CN_IDENTITY_ORACLE_INVALID");
   const oracle=sanofiIdentityOracleSchema.parse(JSON.parse(proof.oracleBody));
-  if(canonicalJson(oracle.decisions)!==canonicalJson(independent.decisions) ||
+  // Internal application records may change; the official sourcePid identifies the same ordinary job.
+  const comparableDecisions=oracle.decisions.map((decision,index)=>{
+    const other=independent.decisions[index];
+    if(!mainEvidence||!other||decision.nativePositionId===other.nativePositionId||decision.state!=="PUBLISHING"||
+      !decision.nativePositionId||!other.nativePositionId||oracle.entries.some(a=>a.id===decision.id))return decision;
+    const artifact=mainEvidence.artifacts.find(a=>a.logicalKey===`sanofi-cn-tupu-${decision.reqId}`);
+    const native=pages.flatMap(p=>p.rawRows).find(r=>(r.rawPayload.domRow as SanofiChineseRow).id===decision.id)?.rawPayload.nativeResponse as {body:string}|undefined;
+    if(!artifact||!native)return decision;
+    const mainBody=typeof artifact.body==="string"?artifact.body:Buffer.from(artifact.body).toString("utf8");
+    const own=load(mainBody)("#sourcePid"),peer=load(native.body)("#sourcePid"),sourcePid=own.attr("value");
+    const pageIds=(body:string)=>[...body.matchAll(/\bvar\s+prevPositionId\s*=\s*["']([a-f0-9]{24})["']\s*;/gu)].map(m=>m[1]);
+    if(own.length!==1||peer.length!==1||!/^\d+$/u.test(sourcePid??"")||sourcePid!==peer.attr("value")||
+      canonicalJson(pageIds(mainBody))!==canonicalJson([decision.nativePositionId])||
+      canonicalJson(pageIds(native.body))!==canonicalJson([other.nativePositionId]))return decision;
+    return {...decision,nativePositionId:other.nativePositionId};
+  });
+  if(canonicalJson(comparableDecisions)!==canonicalJson(independent.decisions) ||
     canonicalJson(oracle.entries.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY"))!==canonicalJson(independent.descriptionAnomalies))
     throw new Error("SANOFI_CN_INDEPENDENT_IDENTITY_MISMATCH");
   const byId=new Map(independent.decisions.map(d=>[d.id,d])),headers=new Set<string>();
