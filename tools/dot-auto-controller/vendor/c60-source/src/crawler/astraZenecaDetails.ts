@@ -56,17 +56,20 @@ function fieldText($:CheerioAPI,node:AnyNode):string{
   copy.find('[style]').each((_i,el)=>{if(/(?:display\s*:\s*none|visibility\s*:\s*hidden)/iu.test($(el).attr('style')??''))$(el).remove();});
   return text(copy.text());
 }
-export function isAstraZenecaBotBody(body:string):boolean{
-  const $=load(body);
+function isAstraZenecaBotDocument($:CheerioAPI):boolean{
   return /access denied|just a moment|verify (?:you are|you're) human|robot check/iu.test($('title').text())||
     $('#challenge-form,.g-recaptcha,[data-sitekey]').length>0||($('section.job-description').length===0&&/captcha|cloudflare challenge/iu.test($('body').text()));
 }
+export function isAstraZenecaBotBody(body:string):boolean{return isAstraZenecaBotDocument(load(body));}
 /** Strict source-local JSON-LD parsing. Never evaluates downloaded scripts. */
 export function parseAstraZenecaDetail(body:string,row:AstraZenecaListRow,applicationArtifact?:SourceFetchArtifactDraft):AstraZenecaDetailClaim{
   if(!isAstraZenecaDetailUrl(row.officialUrl,row.sourceJobId))return fail('DETAIL_URL_INVALID');
   if(Buffer.byteLength(body,'utf8')>CONFIG.maxBodyBytes)return fail('DETAIL_BODY_TOO_LARGE');
-  if(isAstraZenecaBotBody(body))return fail('DETAIL_BOT_BLOCKED');
-  const $=load(body);const postings:unknown[]=[];
+  const $=load(body);if(isAstraZenecaBotDocument($))return fail('DETAIL_BOT_BLOCKED');
+  return parseAstraZenecaDetailDocument(body,row,$,applicationArtifact);
+}
+function parseAstraZenecaDetailDocument(body:string,row:AstraZenecaListRow,$:CheerioAPI,applicationArtifact?:SourceFetchArtifactDraft):AstraZenecaDetailClaim{
+  const postings:unknown[]=[];
   for(const script of $('script[type="application/ld+json"]').toArray()){
     // Like Sanofi, escape literal tabs inside JSON-LD strings without changing their values.
     // Preserve invalid backslash-TAB escapes so malformed JSON still fails closed.
@@ -152,8 +155,8 @@ function reviewAstraZenecaCountryApplication(a:SourceFetchArtifactDraft,row:Astr
   parseArtifactArchiveDrafts({captureTool:{name:CONFIG.extractor,version:'1'},artifacts:[a]});
   if(a.httpStatus===403||a.httpStatus===429)return fail('DETAIL_BOT_BLOCKED');
   if(a.id!==astraZenecaApplicationKey(row.sourceJobId)||a.logicalKey!==a.id||a.kind!=='ATS_PAGE'||![url,sanitizeEvidenceHttpUrl(url)].includes(a.requestedUrl??'')||a.finalUrl!==a.requestedUrl||a.channelId!==undefined||a.bodyRepresentation!=='EXACT'||a.rawBodySha256||a.redactionDescriptors||a.extractorLocator!==CONFIG.extractor||!(a.body instanceof Uint8Array)||a.body.byteLength>CONFIG.maxBodyBytes||a.httpStatus!==200||!(/^(?:text\/html|application\/octet-stream)(?:\s*;[^\r\n]*)?$/iu.test(a.contentType??'')))return fail('DETAIL_APPLICATION_INVALID');
-  const body=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(a.body);if(isAstraZenecaBotBody(body))return fail('DETAIL_BOT_BLOCKED');
-  const $=load(body),positionId=new URL(url).searchParams.get('positionId')!;
+  const body=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(a.body),$=load(body);if(isAstraZenecaBotDocument($))return fail('DETAIL_BOT_BLOCKED');
+  const positionId=new URL(url).searchParams.get('positionId')!;
   for(const [id,value] of [['positionId',positionId],['positionName',row.officialTitle],['positionStatus','PUBLISHING'],['recruitmentType','SOCIALRECRUITMENT']])if($(`#${id}`).length!==1||text($(`#${id}`).attr('value')??'')!==value)return fail('DETAIL_APPLICATION_INVALID');
   for(const [selector,value] of [['.position-header h4.name',row.officialTitle],['.position-extend .city','全国']]){const node=$(selector);if(node.length!==1||!visible($,node.get(0)!)||fieldText($,node.get(0)!)!==value)return fail('DETAIL_APPLICATION_INVALID');}
   const content=$('.position-description');if(content.length!==1||!visible($,content.get(0)!)||!descriptionAgrees(description,fieldText($,content.get(0)!)))return fail('DETAIL_APPLICATION_INVALID');
@@ -166,9 +169,9 @@ export function reviewAstraZenecaDetailArtifact(artifact:SourceFetchArtifactDraf
   if(artifact.kind!=='ATS_PAGE'||artifact.logicalKey!==astraZenecaArtifactKey(row.sourceJobId)||artifact.id!==artifact.logicalKey||artifact.requestedUrl!==row.officialUrl||artifact.finalUrl!==row.officialUrl||!isAstraZenecaDetailUrl(row.officialUrl,row.sourceJobId)||artifact.channelId!==undefined||artifact.bodyRepresentation!=='EXACT'||artifact.rawBodySha256||artifact.redactionDescriptors||artifact.extractorLocator!==CONFIG.extractor||!(artifact.body instanceof Uint8Array)||artifact.body.byteLength>CONFIG.maxBodyBytes)throw Error('ASTRAZENECA_DETAIL_ARTIFACT_INVALID');
   if(artifact.httpStatus===403||artifact.httpStatus===429)return {ok:false,code:'DETAIL_BOT_BLOCKED',artifact};
   let body:string;try{body=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(artifact.body);}catch{return {ok:false,code:'DETAIL_PARSE_INVALID',artifact};}
-  if(isAstraZenecaBotBody(body))return {ok:false,code:'DETAIL_BOT_BLOCKED',artifact};
+  const $=load(body);if(isAstraZenecaBotDocument($))return {ok:false,code:'DETAIL_BOT_BLOCKED',artifact};
   if(artifact.httpStatus!==200||!/^text\/html(?:\s*;[^\r\n]*)?$/iu.test(artifact.contentType??''))return {ok:false,code:'DETAIL_RESPONSE_INVALID',artifact};
-  try{return {ok:true,artifact,...(applicationArtifact?{applicationArtifact}:{}),evidence:parseAstraZenecaDetail(body,row,applicationArtifact)};}
+  try{return {ok:true,artifact,...(applicationArtifact?{applicationArtifact}:{}),evidence:parseAstraZenecaDetailDocument(body,row,$,applicationArtifact)};}
   catch(error){const code=astraZenecaFailureSchema.safeParse(error instanceof Error?error.message:'');return {ok:false,code:code.success?code.data:'DETAIL_PARSE_INVALID',artifact,...(applicationArtifact?{applicationArtifact}:{})};}
 }
 /** Byte cap and cancellation cover the complete response body, not just headers.

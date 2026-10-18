@@ -133,7 +133,7 @@ export async function acquireAstraZenecaDetails(plan:SourceCrawlPlan,fetched:Sou
 }
 export function replayAstraZenecaDetails(plan:SourceCrawlPlan,supplied:PersistentSourceFetchEvidence,capturedAt:string,isBaseline:boolean):{listEvidence:PersistentSourceFetchEvidence;jobs:NormalizedJobRecord[];detailComplete:boolean;scopeReviewRequired:boolean}{
   if(!hasAstraZenecaDetailPlan(plan))throw Error('ASTRAZENECA_PLAN_INVALID');
-  const evidence=parsePersistentSourceFetchEvidence(structuredClone(supplied)),envelope=astraZenecaDetailEnvelopeSchema.parse(evidence.astraZenecaDetails);
+  const evidence=parsePersistentSourceFetchEvidence(supplied),envelope=astraZenecaDetailEnvelopeSchema.parse(evidence.astraZenecaDetails);
   if(envelope.sourceConfigSha256!==sourcePlanConfigSha256(plan))throw Error('ASTRAZENECA_DETAIL_CONFIG_INVALID');
   const {astraZenecaDetails:_envelope,...base}=evidence;
   const listEvidence=parsePersistentSourceFetchEvidence({...base,artifacts:envelope.listArtifactLogicalKeys.map(key=>{const artifact=evidence.artifacts.find(a=>a.logicalKey===key);if(!artifact)throw Error('ASTRAZENECA_LIST_ARTIFACT_MISSING');return artifact;})});
