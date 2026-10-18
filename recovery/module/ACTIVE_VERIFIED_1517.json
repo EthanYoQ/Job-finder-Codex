@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-10-18T15:21:48.166198+00:00",
+  "status": "APPLIED_SAFE_WINDOW",
+  "externalCommit": "bb01282f238bec8a9040cb3be5f36b2918362dc9",
+  "files": 63,
+  "changes": [
+    {
+      "path": "support/offline-checkers/biogen-packet-gate.mts",
+      "sha256": "e241edfb105ab93e10a4b347efb57e9d558e50dea4d1bc6b4271506726913f7e"
+    },
+    {
+      "path": "bi-functions.js",
+      "sha256": "f9bfbaf56958638c377e703fe0f3813578f4e46becf255ed510a9e9a2914ad17"
+    }
+  ],
+  "nativeCommit": "b9ef32f269b1e7433d65a0c5a20710ccc59da282",
+  "nativeVersion": 112,
+  "entrySha256": "97452ed300874dfae14c2688c9f39cab4c435a7f225f8d8d139d38faf6fe2fb8",
+  "producerStarted": false
+}
