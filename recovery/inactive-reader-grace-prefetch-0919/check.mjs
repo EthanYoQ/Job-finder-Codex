@@ -16,11 +16,11 @@ function fixture(grace=false,badHash=false){
  current.result.completenessCertificate=receipt;current.result.completenessCertificateSha256=badHash?'0'.repeat(64):hashProjectionJson(receipt);
  return {results:[previous.result,current.result],members:[...previous.members,...current.members],jobs:[j]};
 }
-async function run(read,input,p=plan,now=NOW){
+export async function run(read,input,p=plan,now=NOW){
  const data=structuredClone(input),before=structuredClone(data),queries=[];
  const tx={crawlBatchSourceResult:{findMany:async q=>{queries.push(['results',q]);return data.results;}},lifecycleSetEvidenceMember:{findMany:async q=>{queries.push(['members',q]);return data.members.filter(m=>q.where.sourceResultId.in.includes(m.sourceResultId));}},job:{findMany:async q=>{queries.push(['jobs',q]);return data.jobs.filter(j=>q.where.OR.some(w=>j.sourceId===w.sourceId&&j.companyId===w.companyId&&j.lifecycleStatus===w.lifecycleStatus&&j.visibleInFrontend===w.visibleInFrontend&&w.dedupeKey.in.includes(j.dedupeKey)&&(!w.lastSeenAt||(j.lastSeenAt>=w.lastSeenAt.gte&&j.lastSeenAt<=w.lastSeenAt.lte))));}},lossLedgerEntry:{findMany:async()=>data.closureRecords??[]},evidenceArtifact:{findMany:async()=>data.artifacts??[]}};
  const db={$transaction:async(fn,opts)=>{assert.deepEqual(opts,{isolationLevel:'RepeatableRead',maxWait:5000,timeout:10000});return fn(tx);}};
- const output=await read(db,{currentTime:now},[p]);assert.deepEqual(data,before);return{output,queries};
+ const output=await read(db,{currentTime:now},[p]);assert.deepEqual(input,before);return{output,queries};
 }
 const checks=[];
 for(const [name,grace,bad] of [['current',false,false],['grace',true,false],['bad-hash-grace',true,true]]){
@@ -34,7 +34,7 @@ for(const [name,grace,bad] of [['current',false,false],['grace',true,false],['ba
 // The existing small original Novo snapshot includes its actual closure records.
 const raw=JSON.parse(readFileSync('../takeda-original-recovery-20261017T0417Z/novo-nordisk/READER_BEFORE.json','utf8'));
 const dateKeys=new Set(['startedAt','finishedAt','crawledAt','observedFrom','observedTo','recordedAt','capturedAt','lastSeenAt','firstSeenAt','officialPublishedAt']);
-function revive(v,inReceipt=false){if(Array.isArray(v))return v.map(x=>revive(x,inReceipt));if(v&&typeof v==='object')return Object.fromEntries(Object.entries(v).map(([k,x])=>[k,!inReceipt&&dateKeys.has(k)&&typeof x==='string'?new Date(/(?:Z|[+-]\d\d:\d\d)$/.test(x)?x:x+'Z'):revive(x,inReceipt||k==='completenessCertificate'||k==='details')]));return v;}
+export function revive(v,inReceipt=false){if(Array.isArray(v))return v.map(x=>revive(x,inReceipt));if(v&&typeof v==='object')return Object.fromEntries(Object.entries(v).map(([k,x])=>[k,!inReceipt&&dateKeys.has(k)&&typeof x==='string'?new Date(/(?:Z|[+-]\d\d:\d\d)$/.test(x)?x:x+'Z'):revive(x,inReceipt||k==='completenessCertificate'||k==='details')]));return v;}
 const real=revive(raw),p=getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies),raw.sourceId),when=new Date(raw.checkedAt);
 for(const j of real.jobs){j.category=toPrismaJobCategory(j.category);if(j.humanCorrectedCategory!==null)j.humanCorrectedCategory=toPrismaJobCategory(j.humanCorrectedCategory);}
 const a=await run(oldRead,real,p,when),b=await run(newRead,real,p,when);assert.deepEqual(a,b);assert.equal(b.output.totalJobs,15);assert.equal(b.output.sources[0].state,'PUBLISHING');
