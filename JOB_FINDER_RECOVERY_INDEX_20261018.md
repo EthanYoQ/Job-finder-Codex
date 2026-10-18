@@ -117,3 +117,12 @@ The original collection task update succeeded with candidate104 / source3f77 and
 Native107 remains d6ec709797bb0f2ac68cecb42398238fa631da26. External0819 / 296fd2bc27e11fd204040f8ed49a9c72cec0092f was applied at08:25:45Z, with all60 mapped files exact. Original task update succeeded08:26:19.307747Z; daily08:00/20:00 Asia/Shanghai is unchanged. Read-only enumeration:33 recent,3 due; fresh collection started08:26:07Z and is not yet a successful full round.
 
 Restore the existing native107 chain and the complete0819 module from Drive10wW8cQKpLaoymYBGqnvSBy8Ddlz2bFgY (109890 bytes, SHA25696a0385849085583d887c44dd918dbca6a92d67ace2325c97669bf6c1020203a). All60 downloaded members and the isolated restore matched.0819 retains0756 and adds the existing persisted JOB_VERIFICATION closures to Novo reader-before and reuses the deployed repository in replay. The old080715 batch has only RECONCILED offline diagnostic evidence and is not submitted. Four previously CLOSED jobs are not revived. FixedLATEST remains99; full36/unattended acceptance and original evidence-loss gaps remain unresolved. See TASK_RECOVERY_REFS_107_0819.json.
+
+
+## Current paired recovery refs — 2026-10-18 08:53 UTC
+
+Native108 cb901e51049c64a5ddf8c2a8383508254d290390 and external0838 32fa560c0fe45d62289861610aeab7ec518bc774 were paired at08:50:26.713686Z. Official registration08:51:04.672Z, independent16 fields and connector validation PASS; read-only36 lists33 recent/3 due. Fresh execution began08:52:23Z and remains pending. The existing JavaScript entry is unchanged (SHA256 f121f8585e49a9b6c066200422227e91483365d36599ba3cbbce0e0c8430a5e7).
+
+Restore native107 then the two-file108 delta from Drive1ajlTLcoD2k8FXZZbvw3v3XyQNL9QaCGF, SHA256 fa12667849af7c50f3c6369fa89c9a93b839158f35893576d960ccd7fbda624d. Pair with complete61-file0838 module from Drive1Ik-fB_reO0Bz25hRPMHLyU_pRVUbeS5U, SHA256687a7fd47c64b797d4688f018e2df2dd2307e7055b7ceb83ea13347290c4f267. Both remote download/restoration checks passed. The existing single bounded Novo retry now recognizes exact same-ID official invite502; external replay consumes its original failure/start/success evidence. No old batch may be republished. Four persisted closures remain protected.
+
+Task update08:53:20.817795Z succeeded; sections1–6 and08:00/20:00 Asia/Shanghai schedule unchanged. Section7 was shortened to current recovery refs plus all source exceptions and acceptance limits. FixedLATEST remains99; no full36/unattended acceptance. See TASK_RECOVERY_REFS_108_0838.json; prior107/0819 remains rollback history.
