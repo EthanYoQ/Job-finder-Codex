@@ -90,6 +90,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
   readback:async()=>JSON.parse(await command('python3 '+q(D+'/readback-original-web.py')+' '+q(run)))};
 },async (sourceId,result,job)=>{
  if(result.status==='WEB_VERIFIED'||result.committedExact===true){
+  const auditPath=job.runDirectory+'/review/NATIVE_RAW_REPLAY.json',sourceAudit=JSON.parse(await command('if test -f '+q(auditPath)+'; then cat '+q(auditPath)+"; else printf '{}'; fi")).sourceAudit;if(sourceAudit)result.sourceAudit=sourceAudit;
   if(result.status!=='WEB_VERIFIED')await save(job.runDirectory+'/WEB_READBACK_PENDING.json',{status:'WEB_PENDING',reason:result.reason,diagnostic:result.diagnostic});
   try{
    const {backupSuccessfulSource}=await new A(await read(D+'/evidence-backup-functions.js'))();

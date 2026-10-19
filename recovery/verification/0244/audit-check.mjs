@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+const base=new URL('./',import.meta.url),read=p=>fs.readFileSync(new URL(p,base),'utf8');
+const raw=read('after/support/offline-checkers/replay-original-json-archive.mts');
+const block=raw.slice(raw.indexOf('const auditArtifact='),raw.indexOf('const report='));
+const run=new Function('replay',block.replaceAll(':any','')+'return sourceAudit;');
+assert.equal(run({fetchEvidence:{artifacts:[],fetchLosses:[]}}),undefined);
+const audit={noOmissionVerified:false,anomalyCodes:['NOVARTIS_ROOT_PARTITION_COUNT_MISMATCH'],indexDeclaredTotal:168,primaryUniqueCount:167,observedUniqueCount:169};
+assert.deepEqual(run({fetchEvidence:{artifacts:[{logicalKey:'novartis-partitions-audit',body:JSON.stringify(audit)}]}}),audit);
+assert.deepEqual(run({fetchEvidence:{artifacts:[],fetchLosses:[{details:{code:'PFIZER_LIST_ROW_UNKNOWN'}}]}}),{noOmissionVerified:false,anomalyCodes:['PFIZER_LIST_ROW_UNKNOWN'],unknownRecordCount:1});
+assert.throws(()=>run({fetchEvidence:{artifacts:[{logicalKey:'novartis-partitions-audit',body:'invalid'}]}}));
+new (Object.getPrototypeOf(async function(){}).constructor)(read('after/run-original-functions.js'));
+const entry=read('after/run-original-functions.js');
+assert(entry.includes("if test -f "));
+const absent=execFileSync('sh',['-c',"if test -f /tmp/nonexistent-source-audit-fixture-0238; then cat /tmp/nonexistent-source-audit-fixture-0238; else printf '{}'; fi"],{encoding:'utf8'});
+assert.equal(JSON.parse(absent).sourceAudit,undefined);
+console.log('PASS audit exact fields; Pfizer anomaly; absent no default true; malformed audit rejects; entry syntax; no-report legacy source preserved');
