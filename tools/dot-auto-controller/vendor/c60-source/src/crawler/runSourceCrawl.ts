@@ -17,7 +17,7 @@ import { replayWorkdayMainlandQuality } from "./workdayMainlandQuality";
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap, organonBootstrapLocator } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
-import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail } from "./lillyChinaQuality";
+import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
 import { NOVO_CHINA_LOCATION_POLICY, exactNovoChinaQualityPlan, replayNovoChinaRows } from "./novoChinaQuality";
 import { bmsOfficialPostedDate, exactBmsPostedDatePlan } from "./bmsOfficialPostedDate";
@@ -233,7 +233,7 @@ export async function runSourceCrawl(
         ...baseInput,
         payload: fetchResult.payload,
         json: plan.json
-      }), fetchResult);
+      }), fetchResult, plan);
       attachYelloPublicAgeEvidence(plan, fetchResult.fetchEvidence, adapterResult.jobs);
       return finalizeTruth(withFetchEvidence(
         enforceStrictPfizerMainlandEvidence(adapterResult, fetchResult, plan),
@@ -285,7 +285,7 @@ export async function runSourceCrawl(
   }
 }
 
-function reconcileResult(result: CrawlAdapterResult, fetchResult: Extract<SourceFetchResult, { ok: true }>): CrawlAdapterResult {
+function reconcileResult(result: CrawlAdapterResult, fetchResult: Extract<SourceFetchResult, { ok: true }>, plan?: SourceCrawlPlan): CrawlAdapterResult {
   let ledger;
   try { ledger = assertAdapterReconciliation(result); }
   catch { return failedReconciliation(result); }
@@ -293,9 +293,10 @@ function reconcileResult(result: CrawlAdapterResult, fetchResult: Extract<Source
     fetchResult.fetchEvidence.fetchCounts.validCount === ledger.rawInputCount;
   const officialZero = fetchResult.fetchEvidence?.declaredCompleteness !== undefined &&
     fetchResult.paginationEvaluation?.safeCompleteness === true &&
-    fetchResult.paginationEvaluation.verifiedEligible === true &&
     fetchResult.fetchEvidence.fetchCounts.validCount === 0 && ledger.rawInputCount === 0 &&
-    ledger.adapterLosses.length === 0;
+    ledger.adapterLosses.length === 0 && (fetchResult.paginationEvaluation.verifiedEligible === true ||
+      plan?.adapterId === "official-json" && exactLillyChinaQualityPlan(plan) &&
+      strictPhenomRequestContracts(plan, fetchResult.fetchEvidence, [], fetchResult.capturedAt));
   if (result.status === "FAILED" && officialZero) {
     const { failureReason: _failureReason, ...observation } = result.observation;
     return { status: "SUCCESS", jobs: [], reconciliation: ledger, observation: {
@@ -615,9 +616,10 @@ function strictCompletenessGate(
     // strictPageRequestContracts above has already replayed the complete Yello
     // partition and its exact exclusion ledger. No other source inherits this opt-in.
     const yelloScopeProof = exactGileadPublicAgePlan(plan);
+    const lillyScopeProof = exactLillyChinaQualityPlan(plan);
     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
-    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !kelunScopeProof) {
+    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !lillyScopeProof && !kelunScopeProof) {
       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
     }
     if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) {
@@ -671,7 +673,7 @@ function strictCompletenessGate(
       : artifactUrlBindings?.get(artifact.logicalKey);
     if (!declaredArtifactRules) return strictGateTrace(plan, "DECLARATION_URL_RULE");
     if (declared.kind === "OFFICIAL_TOTAL_COUNT") {
-      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof || yelloScopeProof) &&
+      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof || yelloScopeProof || lillyScopeProof) &&
         replayPolicy?.allowIndependentlyVerifiedProfileBoundExclusions === true &&
         declared.value === evidence.fetchCounts.rawCount &&
         ledger.rawInputCount === evidence.fetchCounts.validCount;
@@ -2267,6 +2269,8 @@ function strictPhenomRequestContracts(
   const preserveLillyQuality = requiresLillyChinaQuality(plan);
   if (preserveLillyQuality && (!exactLillyChinaQualityPlan(plan) || !exactLillyChinaBootstrap(pageConfig))) return false;
   const lillyOutputs = new Map<string, StrictUcbDateOutput>();
+  const lillyIds = new Set<string>();
+  const lillyLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   const preserveUcbPostedDate = !preserveMerckQuality && !preserveOrganonQuality && !preserveLillyQuality && requiresUcbPostedDate(plan);
   if (preserveUcbPostedDate && (!exactUcbPostedDatePlan(plan) || !exactUcbPostedDateBootstrap(pageConfig))) return false;
   const ucbOutputs = new Map<string, StrictUcbDateOutput>();
@@ -2526,19 +2530,24 @@ function strictPhenomRequestContracts(
         page.nextPageSignalAfter !== (last ? null : `offset:${offset + pageSize}`) ||
         page.termination !== (total === 0 ? "EMPTY_PAGE" : last ? "NEXT_ABSENT" : "CONTINUE")) return false;
       const rawIds: string[] = [], validIds: string[] = [];
-      for (const value of envelope.jobs) {
+      for (const [recordIndex, value] of envelope.jobs.entries()) {
         const raw = strictRecord(value);
         const listCities = raw && lillyOfficialCities(raw);
-        const detail = raw && lillyNativeDetail(raw, artifacts.get(`lilly-detail-${raw.reqId}`), capturedAt);
-        const cities = detail?.cities;
+        const nativeArtifact = raw && artifacts.get(`lilly-detail-${raw.reqId}`);
+        const detail = raw && lillyNativeDetail(raw, nativeArtifact, capturedAt);
         const date = raw && lillyOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        if (!raw || !listCities || !detail || !cities || !date || !title) return false;
+        if (!raw || !listCities || !detail || !date || !title) return false;
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
-        if (lillyOutputs.has(sourceJobId)) return false;
-        lillyOutputs.set(sourceJobId, {rawId, sourceJobId, cities, officialPublishedAt: date, title,
-          officialUrl: raw.applyUrl as string, locationRaw: detail.locationRaw});
+        if (lillyIds.has(sourceJobId)) return false;
+        lillyIds.add(sourceJobId);
         rawIds.push(irreversibleOfficialJsonEvidenceId(rawId));
+        if (detail.status === "CLOSED") {
+          lillyLosses.push(lillyClosedLoss(raw, pageIndex, recordIndex, nativeArtifact!.capturedAt));
+          continue;
+        }
+        lillyOutputs.set(sourceJobId, {rawId, sourceJobId, cities: detail.cities, officialPublishedAt: date, title,
+          officialUrl: raw.applyUrl as string, locationRaw: detail.locationRaw});
         validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
       }
       if (JSON.stringify(page.rawJobIds) !== JSON.stringify(rawIds) || JSON.stringify(page.validJobIds) !== JSON.stringify(validIds)) return false;
@@ -2738,11 +2747,11 @@ function strictPhenomRequestContracts(
           job.officialTitle === expected.title && job.officialUrl === expected.officialUrl &&
           job.locationRaw === expected.locationRaw && JSON.stringify(job.cities) === JSON.stringify(expected.cities);
       }))) &&
-    (!preserveLillyQuality || (lillyOutputs.size === pageRawCount && outputJobs.length === pageRawCount &&
-      new Set(outputJobs.map(job => job.sourceJobId)).size === pageRawCount &&
+    (!preserveLillyQuality || (lillyIds.size === pageRawCount && lillyOutputs.size + lillyLosses.length === pageRawCount &&
+      outputJobs.length === lillyOutputs.size && new Set(outputJobs.map(job => job.sourceJobId)).size === lillyOutputs.size &&
       evidence.fetchCounts.rawCount === pageRawCount && evidence.fetchCounts.parsedCount === pageRawCount &&
-      evidence.fetchCounts.validCount === pageRawCount && evidence.fetchCounts.parseDiscardCount === 0 &&
-      evidence.fetchCounts.validationDiscardCount === 0 && evidence.fetchLosses.length === 0 &&
+      evidence.fetchCounts.validCount === lillyOutputs.size && evidence.fetchCounts.parseDiscardCount === 0 &&
+      evidence.fetchCounts.validationDiscardCount === lillyLosses.length && isDeepStrictEqual(evidence.fetchLosses, lillyLosses) &&
       outputJobs.every(job => {
         const expected = job.sourceJobId && lillyOutputs.get(job.sourceJobId);
         const publicEntry = new URL(plan.source.officialEntryUrl); publicEntry.search = "";
@@ -4787,6 +4796,7 @@ function strictPositiveOfficialTotalReplayPolicy(
     if (strategy.exactDuplicateReconciliationPolicy !== undefined && !exactRocheDuplicatePolicy) return undefined;
     return {
       allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+      ...(exactLillyChinaQualityPlan(plan) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
       ...(exactRocheDuplicatePolicy ? { allowRawIdOverlapAcrossPages: true as const } : {})
     };
   }

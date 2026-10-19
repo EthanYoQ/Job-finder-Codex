@@ -7,7 +7,7 @@ import { acquireBeisenDetailDates } from "./beisenDetailDates";
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
-import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail } from "./lillyChinaQuality";
+import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
 import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss } from "./novoChinaQuality";
 import { BMS_GEOGRAPHY_POLICY, bmsMainlandCities } from "./bmsMainlandGeography";
@@ -4587,7 +4587,18 @@ async function fetchPhenomWidgets({
         }));
         artifacts.push(...details.map(value => value.detail));
         if (details.some(value => !value.native)) throw Error("LILLY_NATIVE_DETAIL_INVALID");
-        for (const {native, sourceJobId} of details) Object.assign(jobs.find(job => job.sourceJobId === sourceJobId)!, native);
+        for (const [index, {detail, native, sourceJobId}] of details.entries()) {
+          if (native!.status === "CLOSED") {
+            const rowIndex = offset + index, pageSequence = Math.floor(rowIndex / pageSize);
+            losses.push(lillyClosedLoss(rows[rowIndex]!, pageSequence, rowIndex % pageSize, detail.capturedAt));
+            counts.validCount -= 1;
+            counts.validationDiscardCount += 1;
+            jobs.splice(jobs.findIndex(job => job.sourceJobId === sourceJobId), 1);
+            pages[pageSequence]!.validJobIds = pages[pageSequence]!.validJobIds.filter(id => id !== irreversibleOfficialJsonEvidenceId(sourceJobId));
+          } else if (native?.status === "ACTIVE") {
+            Object.assign(jobs.find(job => job.sourceJobId === sourceJobId)!, {cities: native.cities, locationRaw: native.locationRaw});
+          }
+        }
       }
     } catch {
       return phenomFailure(capturedAt, "Lilly native job detail or application validation failed", artifacts, pages, counts, losses, declaredCompleteness);
@@ -4598,6 +4609,8 @@ async function fetchPhenomWidgets({
     finalized = finalizeOfficialJsonEvidenceBundle({
       artifacts, pages, fetchCounts: counts, fetchLosses: losses,
       ...(declaredCompleteness ? { declaredCompleteness } : {}),
+      ...(preserveLillyQuality ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+        allowIndependentlyVerifiedProfileBoundExclusions: true } : {}),
       ...(exactRocheRequestBoundOmittedOffset &&
         config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1"
         ? { allowRawIdOverlapAcrossPages: true }

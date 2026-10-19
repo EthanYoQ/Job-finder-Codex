@@ -1,5 +1,6 @@
 import { load as loadHtml } from "cheerio";
-import type { SourceFetchArtifactDraft } from "./sourceFetchEvidence";
+import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
+import { irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from "./officialJsonEvidence";
 import { CITY_PENDING } from "../domain/jobLocation";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import { ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
@@ -251,7 +252,7 @@ const NATIVE_CITIES: Readonly<Record<string, string>> = {
   "Zhu Ma Dian":"驻马店", "Lang Fang":"廊坊", "Ning Bo":"宁波"
 };
 export function lillyNativeDetail(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined,
-  startedAt: string): {cities: string[]; locationRaw: string} | undefined {
+  startedAt: string): {status: "ACTIVE"; cities: string[]; locationRaw: string} | {status: "CLOSED"} | undefined {
   if (!artifact || !officialUrlLocation(raw) || artifact.logicalKey !== `lilly-detail-${raw.reqId}` ||
     artifact.kind !== "OFFICIAL_COMPANY_PAGE" || artifact.extractorLocator !== "lilly-workday-jobposting-v1" ||
     artifact.requestedUrl !== raw.applyUrl || artifact.finalUrl !== raw.applyUrl || artifact.httpStatus !== 200 ||
@@ -263,10 +264,14 @@ export function lillyNativeDetail(raw: Record<string, unknown>, artifact: Source
     const $ = loadHtml(artifact.body);
     const jobs = $('script[type="application/ld+json"]').toArray().map(node => JSON.parse($(node).text()))
       .filter(value => record(value) && value["@type"] === "JobPosting");
-    const available = $('script:not([src])').toArray().some(node => {
-      const text = $(node).text();
-      return /window\.workday\s*=/.test(text) && /\bpostingAvailable:\s*true\b/.test(text) && !/\bpostingAvailable:\s*false\b/.test(text);
-    });
+    const workday = $('script:not([src])').toArray().map(node => $(node).text()).filter(text => /window\.workday\s*=/.test(text));
+    const available = workday.some(text => /\bpostingAvailable:\s*true\b/.test(text) && !/\bpostingAvailable:\s*false\b/.test(text));
+    if (available && workday.some(text => /\bpostingAvailable:\s*false\b/.test(text))) return undefined;
+    // A closed Workday shell has no JD; its own og:url still binds the listed requisition.
+    if (workday.length === 1 && /\bpostingAvailable:\s*false\b/.test(workday[0]!) &&
+      !/\bpostingAvailable:\s*true\b/.test(workday[0]!) && /\btenant:\s*["']lilly["']/.test(workday[0]!) &&
+      /\bsiteId:\s*["']LLY["']/.test(workday[0]!) && $('script[type="application/ld+json"]').length === 0 &&
+      $('meta[property="og:url"]').length === 1 && $('meta[property="og:url"]').attr("content") === raw.applyUrl) return {status: "CLOSED"};
     const job = jobs.length === 1 ? jobs[0] : undefined;
     if (!available || !record(job) || !record(job.identifier) || job.identifier.value !== raw.reqId ||
       typeof job.title !== "string" || typeof raw.title !== "string" ||
@@ -277,6 +282,23 @@ export function lillyNativeDetail(raw: Record<string, unknown>, artifact: Source
     const address = job.jobLocation.address;
     if (address.addressCountry !== "China" || typeof address.addressLocality !== "string" || !address.addressLocality.trim()) return undefined;
     const city = NATIVE_CITIES[address.addressLocality.replace(/^CN: /u, "")];
-    return {cities: [city ?? CITY_PENDING], locationRaw: `${address.addressLocality}, China`};
+    return {status: "ACTIVE", cities: [city ?? CITY_PENDING], locationRaw: `${address.addressLocality}, China`};
   } catch { return undefined; }
+}
+
+export function lillyClosedLoss(raw: Record<string, unknown>, pageSequence: number, recordIndex: number,
+  recordedAt: string): PersistentSourceFetchEvidence["fetchLosses"][number] {
+  return {stage: "VALIDATION", reason: "Lilly official application explicitly no longer accepts applicants",
+    rawLocator: `phenom-page-${String(pageSequence).padStart(4, "0")}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId([recordIndex, raw])}`,
+    details: {code: "LILLY_OFFICIAL_APPLICATION_CLOSED", pageSequence, recordIndex}, recordedAt};
+}
+
+/** Only consumed after the complete source and exact closure ledger have passed replay. */
+export function lillyClosedSourceJobIds(evidence: PersistentSourceFetchEvidence): Set<string> {
+  return new Set(evidence.fetchLosses.filter(loss => loss.details?.code === "LILLY_OFFICIAL_APPLICATION_CLOSED").map(loss => {
+    const page = evidence.artifacts.find(artifact => artifact.logicalKey === `phenom-page-${String(loss.details!.pageSequence).padStart(4, "0")}`)!;
+    const raw = JSON.parse(typeof page.body === "string" ? page.body : Buffer.from(page.body).toString("utf8"))
+      .refineSearch.data.jobs[loss.details!.recordIndex as number];
+    return persistentOfficialJsonJobId(raw.jobSeqNo);
+  }));
 }
