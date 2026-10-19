@@ -25,8 +25,13 @@ var cspcDomRuntime = (() => {
     if(!Number.isFinite(deadline)||!Number.isFinite(Date.parse(runStartedAt))||
       Date.parse(runStartedAt)>Date.parse(observationStartedAt))throw Error('CSPC_RUN_WINDOW_REQUIRED');
     checkTime();
-    list=await cua.createBrowserTab('cdp',entryUrl);
-    await waitCspcDomReady(list,list.playwright.frameLocator('#recruit-content-iframe').locator('.vxe-table--body tbody tr a').first(),deadline);
+    list=await cua.createBrowserTab('cdp');
+    const navigationDeadline=Math.min(deadline,Date.now()+60000);
+    try { await list.goto(entryUrl); }
+    catch(error) {
+      if(String(error?.message??error)!=='Timed out waiting for tab '+list.id+' to navigate to '+entryUrl+'.')throw error;
+    }
+    await waitCspcDomReady(list,list.playwright.frameLocator('#recruit-content-iframe').locator('.vxe-table--body tbody tr a').first(),navigationDeadline);
     await list.getAXState({emit:false});
     before=await readCspcListObservation(list);checkList(before);
     return {observationStartedAt,rowCount:before.rows.length,before};

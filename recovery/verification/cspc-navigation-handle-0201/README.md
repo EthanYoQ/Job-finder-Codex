@@ -1,0 +1,3 @@
+# CSPC navigation handle (inactive)
+Parent0145/f1c1ee96c0c99bc4a015466068ca645b5b8734e3. One runtime file. Save the empty tab handle before one original goto. Only the exact current-tab/original-URL navigation timeout continues to existing readiness; unrelated errors, permission denials and security warnings propagate. Navigation starts the original60-second budget bounded by the source deadline. No repeated navigation or status promotion.
+Actual-source offline mocks passed. No live capture or underlying site success is claimed. Restore63 files against0145; only the original owner may activate after the running loop ends. No real diagnostic evidence included.
