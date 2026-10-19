@@ -1,0 +1,20 @@
+{
+  "appliedAt": "2026-10-19T04:57:27.314961+00:00",
+  "canonical": "33ba54d9056bbd05bbdd5fcc437057571a9cd0f4",
+  "entrySha256": "6d06a79ae9646439b9194b72834d2b73b4deb152cedc69084d39ff399390646b",
+  "runtimeFilesExact": 63,
+  "native": "92df0f97af037c138281700ecc56c76aaf73c75d",
+  "nativeVersion": 117,
+  "nativeClean": true,
+  "safeWindow": {
+    "officialCheckedAt": "2026-10-19T04:57:14.686844Z",
+    "holder": "",
+    "live": 0,
+    "manual": 0,
+    "producer": 0,
+    "relayCount": 309,
+    "unanswered": 0
+  },
+  "productionAcceptance": "PENDING_NEXT_NORMAL_RUN",
+  "newCrawlStarted": false
+}
