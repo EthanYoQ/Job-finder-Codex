@@ -1,0 +1,44 @@
+{
+  "recordedAt": "2026-10-19T20:17:20.555193+00:00",
+  "candidate": {
+    "id": "dot-cloud-native-de6598e-20261019",
+    "goalId": "jobfinder-portable-required-40",
+    "version": 120
+  },
+  "nativeCommit": "de6598eb37c13f40a51be4f34e58bf5ed173d115",
+  "nativeClean": true,
+  "externalCommit": "c1f3fbb702705f816f4cf3a2a0c1399e02a877cf",
+  "runtimeFilesExact": 63,
+  "entrySha256": "3861484edc94b6a500c16dededf7868b381192323a3df3877daff627e029d3b0",
+  "binding": "b0be1476be638a11fa85f8c335d440f31b7f008944f9a6c56a62f12d54efb37c",
+  "official16FieldsExact": true,
+  "connectorValidate": "PASS",
+  "readonlyRoutes": 36,
+  "sameSlotSuccessful": 33,
+  "due": [
+    "source-johnson-innovative-medicine-social",
+    "source-merck-china-social",
+    "source-pfizer-china-social"
+  ],
+  "formalHolder": "",
+  "live": 0,
+  "manual": 0,
+  "writerStarted": false,
+  "productionValidation": "PENDING_FRESH_RUN",
+  "nativeDrive": {
+    "id": "1S8JAyj7SsD-oqtmaOO-P2dzlsWlekVYB",
+    "bytes": 3627,
+    "sha256": "9f90fa940b32a81879f33d2d30eb8e8adf080d27a4f54fb9e893c6c2d1d5c3d8"
+  },
+  "externalDrive": {
+    "id": "1Evh5-Lfw9iQt5nG_8DpfI5miJAqAlRE2",
+    "bytes": 5871,
+    "sha256": "bd0ff220ba4097821b7f55b12931f253965f94fe622f081d2b11f4d695dabb6e"
+  },
+  "registeredAt": "2026-10-19T20:16:12.443Z",
+  "status": "ACTIVE_READY_PRODUCTION_VALIDATION_PENDING",
+  "taskUpdateReceipt": "NOT_YET_PROVIDED",
+  "schedule": "08:00/20:00 Asia/Shanghai unchanged",
+  "previousRefs": "TASK_RECOVERY_REFS_119_1859.json",
+  "fixedDriveLatest": "Verified99 baseline unchanged"
+}
