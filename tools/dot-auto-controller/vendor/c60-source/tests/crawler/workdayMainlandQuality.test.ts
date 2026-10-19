@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { candidateCompanies } from "../../src/data/companyRegistry";
 import { CITY_PENDING } from "../../src/domain/jobLocation";
 import { buildStagedSourceCrawlPlans } from "../../src/crawler/sourcePlan";
-import { parseWorkdayMainlandRow, projectWorkdayMainlandRow, workdayMainlandDetailUrl } from "../../src/crawler/workdayMainlandQuality";
+import { parseWorkdayMainlandRow, projectAmgenNativeCities, projectWorkdayMainlandRow, workdayMainlandDetailUrl } from "../../src/crawler/workdayMainlandQuality";
 
 it("requires verified CSL Field Sales details while retaining pending city and country/identity gates", () => {
   const plans = buildStagedSourceCrawlPlans(candidateCompanies);
@@ -35,4 +35,11 @@ it("requires verified CSL Field Sales details while retaining pending city and c
   const { timeType: _timeType, ...amgenRaw } = raw;
   expect(parseWorkdayMainlandRow(amgen, { ...amgenRaw, locationsText: "China - Field Sales", bulletFields: ["R-101"],
     externalPath: "/job/China---Field-Sales/Product-Specialist--Taiyuan_R-101" })).toBeUndefined();
+});
+
+it("maps Nanchang while preserving rejection of unknown city descriptors", () => {
+  const title = "Biopharmaceutical Rep-Repatha-Nanchang";
+  expect(projectAmgenNativeCities(title, ["China - Nanchang"], "China  - Field/Remote")).toEqual(["南昌"]);
+  expect(projectAmgenNativeCities(title, ["China - Unverified Place"], "China  - Field/Remote")).toBeUndefined();
+  expect(projectAmgenNativeCities(title, ["China - Nanchang"], "China - Unverified Place")).toBeUndefined();
 });
