@@ -1,0 +1,22 @@
+{
+  "observedAt": "2026-10-19T20:49:00Z",
+  "status": "AWAITING_USER_RESPONSE",
+  "action": "Stage four approved Merck reader compatibility source files to original web services",
+  "reviewOutcome": "Second review rejected staging after supplied authorization evidence",
+  "deploymentStarted": false,
+  "candidate121Registered": false,
+  "activeNative120Clean": true,
+  "activeExternal": "46ac03df383fd28e9ca2fe515dc10d33e5d48bac",
+  "preflight": {
+    "bothOriginalHashes": true,
+    "bothOnline": true,
+    "restartCounts": [
+      24,
+      40
+    ],
+    "readyHttpStatus": 200
+  },
+  "readonlyInvocationReconciliation": "No merck121-stage invocation; latest relevant invocation was read-only preflight",
+  "userQuestionSent": "Root reported specific approval question sent20:49UTC; response pending",
+  "credentialsOrPrivateToolTextIncluded": false
+}

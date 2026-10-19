@@ -23,7 +23,7 @@
   "formalHolder": "",
   "live": 0,
   "manual": 0,
-  "productionValidation": "PENDING_FRESH_RUN",
+  "productionValidation": "JNJ163_SUCCESS; Merck/Pfizer operational holds retained",
   "nativeDrive": {
     "id": "1S8JAyj7SsD-oqtmaOO-P2dzlsWlekVYB",
     "bytes": 3627,
@@ -43,7 +43,9 @@
   "taskPromptRecoveryFile": "TASK_CURRENT_PROMPT_120_2024.txt",
   "freshRun": {
     "startedAt": "2026-10-19T20:31:27Z",
-    "status": "RUNNING_JNJ_VALIDATION_PENDING"
+    "finishedAt": "2026-10-19T20:43:04Z",
+    "status": "TERMINAL_JNJ_SUCCESS",
+    "jnjCurrentJobs": 163
   },
   "moduleVersion": "2024",
   "operationalHolds": {
@@ -51,5 +53,19 @@
     "Pfizer": "DETAIL_LOADING_TIMEOUT_PENDING_NEXT_SCHEDULE",
     "pendingUserApproval": false
   },
-  "activationObservedAt": "2026-10-19T20:30:57.815245Z"
+  "activationObservedAt": "2026-10-19T20:30:57.815245Z",
+  "pendingNative": {
+    "version": 121,
+    "commit": "deacc12d185f10d04bcfd132c7b88f266ebd6941",
+    "tree": "22fa72384bc71390f9636d7005a13ab7650fc770",
+    "parent": "de6598eb37c13f40a51be4f34e58bf5ed173d115",
+    "driveFileId": "1Ohy0urfIJlnJOYHENEurzxpT_tV2neg_",
+    "bytes": 12669,
+    "sha256": "27a054ce45ccaf32f83c70e7f4b3f0f07de3630af25e398b1eef2b4e54d4b59a",
+    "github13FilesExact": true,
+    "downloadIndexTreeCommitExact": true,
+    "deployed": false,
+    "registered": false,
+    "status": "STAGING_REVIEW_BLOCKED_PENDING_SPECIFIC_USER_APPROVAL"
+  }
 }
