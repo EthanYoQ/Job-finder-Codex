@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-10-19T03:02:52.469850+00:00",
+  "candidate": {
+    "id": "dot-cloud-native-590aef1-20261019",
+    "goalId": "jobfinder-portable-required-40",
+    "version": 113
+  },
+  "nativeCommit": "590aef17ecd775a854c0f99bc5c383235c2cf687",
+  "externalCommit": "eb7faed9ed826aa255fb51a4d5e6ce6df8ddf7d7",
+  "entrySha256": "8b577c7142aa17ef3a1373cc4cdca91ca04568348957f312ae73be72e686da66",
+  "registeredReadbackFields": 16,
+  "connectorValidate": "PASS",
+  "runtimeFiles": 63,
+  "nativeGitClean": true,
+  "producerStarted": false,
+  "dueAtRead": [
+    "source-amgen-china-social",
+    "source-novartis-social",
+    "source-pfizer-china-social"
+  ],
+  "recentAtRead": 33,
+  "pendingHoldsMayClear": [
+    "source-pfizer-china-social",
+    "source-novartis-social"
+  ],
+  "sourceAuditMeaning": "WEB_VERIFIED is field equality only; noOmissionVerified false excludes source from no-omission acceptance"
+}
