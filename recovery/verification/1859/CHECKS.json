@@ -1,0 +1,24 @@
+{
+  "status": "PASS",
+  "isolated": true,
+  "baseExternal": "JNJ1824",
+  "baseCommit": "b0f52aa72c4e2a8ab66c02871942063b9f2102bf",
+  "baseMapSha256": "e8d6fcae4f025bc09cb71a4a2cea954fe4567dd690e3f775054489747bd890a4",
+  "activeExternal": "external1616",
+  "activeFilesUnchanged": true,
+  "checks": [
+    "One artificial page-1 detail-Apply wait failure before and after",
+    "node --check after/pfizer-browser-runtime.js",
+    "node --check after/pfizer-functions.js",
+    "git diff --no-index --check before after"
+  ],
+  "productionDeltaFiles": [
+    "pfizer-browser-runtime.js",
+    "pfizer-functions.js"
+  ],
+  "realBrowserCalls": 0,
+  "httpCalls": 0,
+  "databaseCalls": 0,
+  "productionRawIncluded": false,
+  "activation": "NOT_ACTIVATED"
+}

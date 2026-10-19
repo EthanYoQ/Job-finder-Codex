@@ -7,7 +7,7 @@ async function runPfizerManagedDom({directory,browserSource,sampleOnly,deadline}
     if(result?.isError) throw Error('PFIZER_DOM_ARCHIVE_WRITE');
   };
   const errorLine = error => String(error?.message ?? error).split('\n')[0].slice(0, 4096);
-  let stage = 'start', currentPage = 0, failure, failureStage;
+  let stage = 'start', currentPage = 0, failure, failureStage, state;
   async function call(code) {
     const result = await tools.mcp__cua_repl__js({code,timeout_ms:120000,title:'读取辉瑞原中国招聘 DOM 证据'});
     const texts=result.content.filter(x=>x.type==='text').map(x=>x.text);
@@ -43,6 +43,8 @@ async function runPfizerManagedDom({directory,browserSource,sampleOnly,deadline}
     throw Error('PFIZER_DOM_ORIGINAL_20_PAGE_LIMIT');
   } catch (error) {
     failure = error; failureStage = stage;
+    try { state=await call(emit('await pfizerDomRuntime.failureState()')); }
+    catch(readError) { state={readError:String(readError?.message??readError)}; }
     throw error;
   } finally {
     let cleanupFailure;
@@ -54,6 +56,7 @@ async function runPfizerManagedDom({directory,browserSource,sampleOnly,deadline}
         await put('capture-error.json', {
           stage: failure ? failureStage : 'close', pageNumber: currentPage, archivedPageCount: packets.length,
           error: errorLine(failure ?? cleanupFailure),
+          ...(state ? {state} : {}),
           ...(failure && cleanupFailure ? { cleanupError: errorLine(cleanupFailure) } : {})
         });
       } catch (archiveError) {

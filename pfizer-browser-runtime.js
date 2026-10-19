@@ -2,7 +2,7 @@
 var pfizerDomRuntime = (() => {
   const entry = 'https://pfizer.wd1.myworkdayjobs.com/en-US/PfizerCareers?Location_Country=6cb77610a8a543aea2d6bc10457e35d4';
   const prefix = 'https://pfizer.wd1.myworkdayjobs.com/en-US/PfizerCareers';
-  let list, detail, observedAt, deadline, total, totalPages, pageNumber = 1;
+  let list, detail, observedAt, deadline, total, totalPages, pageNumber = 1, active, stage = 'start';
   const seen = new Set();
   function checkTime() { if (Date.now() >= deadline) throw Error('PFIZER_ORIGINAL_20_MINUTE_CAPTURE_DEADLINE'); }
   function listSlots(listPage) {
@@ -29,9 +29,13 @@ var pfizerDomRuntime = (() => {
     return slots;
   }
   async function listState() {
+    stage = 'list-title-wait';
     await list.playwright.locator('[data-automation-id="jobTitle"]').first().waitFor({state:'visible',timeoutMs:30000});
+    stage = 'list-country-wait';
     await list.playwright.getByRole('button',{name:'China clear filter',exact:true}).waitFor({state:'visible',timeoutMs:30000});
+    stage = 'list-total-wait';
     await list.playwright.locator('[data-automation-id="jobFoundText"]').filter({hasText:/^\d+ JOBS FOUND$/}).waitFor({state:'visible',timeoutMs:30000});
+    stage = 'list-observation';
     const next = list.playwright.getByRole('button',{name:'next',exact:true});
     const clearAll = await list.playwright.getByRole('button',{name:/^Clear All \(\d+\)$/}).innerText();
     const value = {
@@ -52,13 +56,15 @@ var pfizerDomRuntime = (() => {
   async function start(overallDeadline) {
     observedAt = new Date().toISOString();
     deadline = Math.min(Date.parse(observedAt) + 20*60*1000, overallDeadline ?? Infinity);
-    list = await cua.createBrowserTab('cdp',entry);
+    list = await cua.createBrowserTab('cdp',entry); active = list;
     detail = await cua.createBrowserTab('cdp');
     return {observedAt,deadline};
   }
   async function readPage(sampleOnly=false) {
+    active = list; stage = 'read-page';
     checkTime();
     const listPage = await listState();
+    stage = 'list-validation';
     const label = /^Page (\d+) of (\d+)$/.exec(listPage.pageLabel || '');
     const count = /^(\d+) JOBS FOUND$/.exec(listPage.totalText || '');
     if (!label || !count || Number(label[1])!==pageNumber) throw Error('PFIZER_DOM_PAGE_DECLARATION:'+JSON.stringify({expectedPage:pageNumber,pageLabel:listPage.pageLabel,totalText:listPage.totalText,range:listPage.range}));
@@ -72,6 +78,7 @@ var pfizerDomRuntime = (() => {
         listPage.nextControlPresent!==(pageNumber<totalPages)) return {listPage,rows:[],failure:'PFIZER_DOM_PAGE_DRIFT_OR_TERMINAL',expected:{pageNumber,total,totalPages,cardCount:Math.min(20,total-(pageNumber-1)*20),nextControlPresent:pageNumber<totalPages}};
     const rows = [];
     for (const slot of sampleOnly ? slots.slice(0,1) : slots) {
+      active = list; stage = 'card-validation';
       checkTime();
       if (!slot.card) {
         if (seen.has(slot.officialId)) throw Error('PFIZER_DOM_DUPLICATE_OR_INVALID_ID');
@@ -83,10 +90,15 @@ var pfizerDomRuntime = (() => {
       const externalPath = new URL(card.href).pathname.slice('/en-US/PfizerCareers'.length);
       const officialId = /_(\d{7})(?:-\d+)?$/.exec(externalPath)?.[1];
       if (!officialId || seen.has(officialId)) throw Error('PFIZER_DOM_DUPLICATE_OR_INVALID_ID');
+      active = detail; stage = 'detail-navigation';
       await detail.goto(card.href);
+      stage = 'detail-accessibility';
       await detail.getAXState({emit:false});
+      stage = 'detail-title-wait';
       await detail.playwright.locator('[data-automation-id="jobPostingHeader"]').waitFor({state:'visible',timeoutMs:30000});
+      stage = 'detail-apply-wait';
       await detail.playwright.getByRole('button',{name:'Apply',exact:true}).waitFor({state:'visible',timeoutMs:30000});
+      stage = 'detail-observation';
       const jsonLds = await detail.playwright.locator('script[type="application/ld+json"]').allTextContents();
       if (jsonLds.length!==1 || await detail.url()!==card.href) throw Error('PFIZER_DOM_DETAIL_IDENTITY');
       const row = {
@@ -105,17 +117,26 @@ var pfizerDomRuntime = (() => {
     return {listPage,rows};
   }
   async function advance() {
+    active = list; stage = 'advance';
     checkTime();
     await list.playwright.getByRole('button',{name:'next',exact:true}).click();
     await list.getAXState({emit:false});
-    pageNumber++;
+    pageNumber++; stage = 'pagination-wait';
     await list.playwright.locator('ul[aria-label="Page '+pageNumber+' of '+totalPages+'"]').waitFor({state:'attached',timeoutMs:30000});
     return {pageNumber};
+  }
+  async function failureState() {
+    const value={stage,pageNumber,observedAt:new Date().toISOString()};
+    if(!active) return {...value,readError:'PFIZER_ACTIVE_TAB_UNAVAILABLE'};
+    value.tab=active===detail?'detail':'list';
+    try { value.url=await active.url(); } catch(error) { value.urlReadError=String(error); }
+    try { value.domSnapshot=await active.playwright.domSnapshot(); } catch(error) { value.domReadError=String(error); }
+    return value;
   }
   async function close() {
     if (detail) await detail.close();
     if (list) await list.close();
   }
-  return {start,readPage,advance,close};
+  return {start,readPage,advance,failureState,close};
 })();
 

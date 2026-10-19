@@ -1,0 +1,11 @@
+# Pfizer runtime failure diagnostics, inactive
+
+This two-file delta is based on the backed-up JNJ1824 external module (`b0f52aa72c4e2a8ab66c02871942063b9f2102bf`, `automation-backup-files-1824-INACTIVE.json`). Only the isolated Pfizer runtime and Functions copies change. The active1616 module and running loop were not edited; the JNJ1824 change remains part of the base.
+
+The current outer `read-page` failure did not identify which list or detail wait failed. The runtime now records its internal operation and active tab. A small `failureState` method uses the neighboring CSPC pattern to read the actual URL and DOM independently. Failed URL/DOM reads retain their own error fields. Functions obtains this state in its existing catch before closing the tabs, then adds it to its existing `capture-error.json`. The original error, rethrow, cleanup handling and HOLD remain unchanged, including the existing first-line error representation.
+
+List title, country and total waits, detail title and Apply waits, and pagination waits have separate stage names. Other stage names distinguish list observation/validation, card validation, detail navigation/accessibility/observation, and advance. No retry, navigation, wait parameter, deadline, ID/category rule, quarantine rule, publication path or successful packet changes. Already acquired values are not reconstructed or inserted as successful page/row evidence.
+
+The single artificial check runs a page-1 detail Apply-wait rejection before and after. It verifies the same original error and HOLD, five original 30000ms waits, one original detail navigation, both tab closures, actual activity URL/DOM, diagnostic reads before close, and no fabricated page/row archive. Both JavaScript files pass syntax checks, and the patch has no whitespace errors. No real browser, HTTP or database calls were made; no production DOM is included.
+
+`changes.json` names the exact two production files; `MANIFEST.json` freezes this local delivery. The parent owns private GitHub backup/readback and any later activation. This is not fresh-site or end-to-end acceptance. The runtime still depends on its existing browser transport; state collection can fail independently, in which case the existing capture-error retains the original primary error and records the diagnostic failure.
