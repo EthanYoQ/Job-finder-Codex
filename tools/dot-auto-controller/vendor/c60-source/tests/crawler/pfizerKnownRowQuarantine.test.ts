@@ -40,11 +40,19 @@ function packets() {
  const listPage={url:listUrl,title:"Search for Jobs",countryFilter:"China clear filter",filterCount:1,searchText:"",pageLabel:"Page 1 of 1",range:"1 - 2 of 2 jobs",totalText:"2 JOBS FOUND",nextControlPresent:false,capturedAt:at,cards:[{href:goodUrl,title:good.title}],domSnapshot:'- region "Search Results":\n  - list "Page 1 of 1":\n    - heading "Complete synthetic control" [level=3]:\n      - link "Complete synthetic control":\n        - /url: '+goodUrl+'\n    - list:\n      - listitem: "4965520"\n    - list:\n      - listitem: "4965522"\n  - navigation "pagination":'};
  return [{listPage,rows:[{officialId:"4965520",externalPath:good.externalPath,title:good.title,detailUrl:goodUrl,capturedAt:at,renderedTitle:good.title,renderedId:"4965520",renderedLocations:[good.locationsText],applyEnabled:true,jsonLd:JSON.stringify({"@type":"JobPosting",identifier:{value:"4965520"},title:good.title,datePosted:"2026-10-09",jobLocation:{address:{addressCountry:"China",addressLocality:"CHN - BJ - Beijing"}}})},{officialId:"4965522",quarantineCode:"PFIZER_LIST_ROW_UNKNOWN",noOmissionVerified:false,domRow,capturedAt:at}]}];
 }
-function validation() {
- return createOfficialJsonRenderedTraversalValidation({sourceId:"source-pfizer-china-social",companyId:plan.company.id,sourceConfigSha256:sourcePlanConfigSha256(plan),surfaceIds:[plan.source.surfaceId!],channelIds:plan.expectedChannels!.map(c=>c.channelId),pages:pfizerDomPacketsToPages(packets(),"a".repeat(64)),observedAt:at,expiresAt:"2026-10-20T01:52:01.208Z"});
+function positiveUnknownPackets(id:string) {
+ const p=packets() as any, row={...p[0].rows[0],officialId:id,renderedId:id,title:"Synthetic current DOM title",renderedTitle:"Synthetic current DOM title",externalPath:`/job/China---Synthetic---City/Synthetic_Old_${id}-1`};
+ row.detailUrl=`https://pfizer.wd1.myworkdayjobs.com/en-US/PfizerCareers${row.externalPath}?Location_Country=${PFIZER_CHINA}`;
+ const ld=JSON.parse(row.jsonLd);ld.identifier.value=id;ld.title=row.title;row.jsonLd=JSON.stringify(ld);
+ p[0].rows[1]=row;p[0].listPage.cards.push({href:row.detailUrl,title:row.title});
+ p[0].listPage.domSnapshot=p[0].listPage.domSnapshot.replace('    - list:\n      - listitem: "4965522"',`    - heading "${row.title}" [level=3]:\n      - link "${row.title}":\n        - /url: ${row.detailUrl}\n    - list:\n      - listitem: "${id}"`);
+ return p;
+}
+function validation(input=packets()) {
+ return createOfficialJsonRenderedTraversalValidation({sourceId:"source-pfizer-china-social",companyId:plan.company.id,sourceConfigSha256:sourcePlanConfigSha256(plan),surfaceIds:[plan.source.surfaceId!],channelIds:plan.expectedChannels!.map(c=>c.channelId),pages:pfizerDomPacketsToPages(input,"a".repeat(64)),observedAt:at,expiresAt:"2026-10-20T01:52:01.208Z"});
 }
 describe("Pfizer reviewed incomplete slot quarantine, offline only",()=>{
- it.each([{bulletFields:["4965523"]},{...bad,title:""},{...bad,externalPath:good.externalPath}])("does not broaden admission to %j",async invalid=>{
+ it.each([{bulletFields:["not-an-id"]},{...bad,title:""},{...bad,externalPath:good.externalPath}])("does not broaden admission to %j",async invalid=>{
   expect(pfizerQuarantinedRowId(invalid)).toBeUndefined();const {result}=await crawl([good,invalid]);expect(result.truth.completenessVerified).toBe(false);expect(result.status).toBe("FAILED");
  });
  it("retains raw count, makes no unknown detail request, and issues B only with matching independent slot evidence",async()=>{
@@ -60,7 +68,7 @@ describe("Pfizer reviewed incomplete slot quarantine, offline only",()=>{
  });
  it("rejects duplicate isolated IDs and another unexplained missing DOM card",async()=>{
   expect((await crawl([good,bad,bad])).result.truth.completenessVerified).toBe(false);
-  const page=structuredClone(packets()[0]!.listPage);page.cards.pop();expect(()=>pfizerDomListSlots(page)).toThrow();const unknown=structuredClone(packets()[0]!.listPage);unknown.domSnapshot=unknown.domSnapshot.replace('listitem: "4965522"','listitem: "4965523"');expect(()=>pfizerDomListSlots(unknown)).toThrow();
+  const page=structuredClone(packets()[0]!.listPage);page.cards.pop();expect(()=>pfizerDomListSlots(page)).toThrow();const unknown=structuredClone(packets()[0]!.listPage);unknown.domSnapshot=unknown.domSnapshot.replace('listitem: "4965522"','listitem: "4965523"');expect(pfizerDomListSlots(unknown)[1]!.officialId).toBe("4965523");
  });
  it("refuses a fabricated URL, title, activity, or no-omission claim on the unknown row",()=>{
   const pages=pfizerDomPacketsToPages(packets(),"b".repeat(64));for(const [field,value] of [["externalPath",good.externalPath],["title","Old title"],["applyEnabled",true],["noOmissionVerified",true]]){const row=structuredClone(pages[0]!.rawRows[1]!);row.rawPayload[String(field)]=value;expect(()=>replayPfizerRenderedRow(row,1)).toThrow();}
@@ -69,7 +77,7 @@ describe("Pfizer reviewed incomplete slot quarantine, offline only",()=>{
 });
 
 it("preserves exact prior Pfizer identity and timestamp as GRACE, leaves OFFLINE offline, and diffs all other missing jobs normally",async()=>{
- const {result}=await crawl(),oldAt="2026-10-18T01:00:00.000Z";
+ const {result}=await crawl([good,{bulletFields:["4965660"]}]),oldAt="2026-10-18T01:00:00.000Z";
  const identity={releaseCandidateId:"pfizer-quarantine-offline",commitSha:"a".repeat(64),rosterSha256:"a".repeat(64),sourcePlanSha256:"a".repeat(64),sourceConfigSha256:"a".repeat(64),adapterBundleSha256:"a".repeat(64),batchKind:"SCHEDULED" as const,ownerId:"test",expectedPlannedSourceIds:[plan.source.id],expectedPlannedSourceSetSha256:canonicalStringSetSha256([plan.source.id]),expectedPlannedSourceCount:1};
  const batchId="pfizer-quarantine-batch",pending=buildPendingRuntimeBatch(batchId,[plan],identity,new Date(at)).sources[0]!;
  const workspaceRoot=await mkdtemp(join(tmpdir(),"pfizer-quarantine-offline-"));
@@ -78,14 +86,18 @@ it("preserves exact prior Pfizer identity and timestamp as GRACE, leaves OFFLINE
   const archived=await archiveSourceEvidence({...binding,captureTool:result.fetchEvidence!.captureTool,artifacts:result.fetchEvidence!.artifacts});
   const artifacts=await verifyArchivedSourceEvidence({...binding,artifacts:archived.artifacts});
   // Fully synthetic historical pathname exercises the existing source-ID hash and numeric suffix formula.
-  const priorPath="/job/China---Synthetic---City/Synthetic_Old_4965522-1";
+  const priorPath="/job/China---Synthetic---City/Synthetic_Old_4965660-1";
   const snapshot=(path:string)=>{const record={...structuredClone(result.jobs[0]!),officialTitle:"Synthetic old title must remain unchanged",officialUrl:PFIZER_ENTRY+path,sourceJobId:pfizerSourceJobId(path),evidence:{...result.jobs[0]!.evidence,capturedAt:oldAt}};return {dedupeKey:buildJobDedupeKey(record),record,lifecycleStatus:"ACTIVE" as const,missingSuccessfulCrawlCount:0,firstSeenAt:oldAt,lastSeenAt:oldAt};};
   const unknown=snapshot(priorPath),missing=snapshot("/job/China/Ordinary_missing_4999999");
-  const common={plan,pending,identity,batchId,result,baselineCompletedBeforeCrawl:true,artifacts,completedAt:new Date(at),publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1" as const,independentTraversalValidation:validation(),independentTraversalValidationExecution:"CURRENT_RUN" as const,independentTraversalValidationTrigger:"INITIAL_QUALIFICATION" as const};
+  const common={plan,pending,identity,batchId,result,baselineCompletedBeforeCrawl:true,artifacts,completedAt:new Date(at),publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1" as const,independentTraversalValidation:validation(positiveUnknownPackets("4965660")),independentTraversalValidationExecution:"CURRENT_RUN" as const,independentTraversalValidationTrigger:"INITIAL_QUALIFICATION" as const};
   for(const state of ["ACTIVE","OFFLINE"] as const){
    const previous={...unknown,lifecycleStatus:state,missingSuccessfulCrawlCount:state==="ACTIVE"?0:3};
    const commit=buildAtomicRuntimeCommit({...common,previousJobs:[previous,missing]});
-   expect(commit.sourceResult.completenessState).toBe("VERIFIED");await verifyAtomicRuntimeCommitForPersistence(commit);
+   expect(commit.sourceResult.completenessState).toBe("VERIFIED");
+   const cert=commit.sourceResult.completenessCertificate as any;
+   expect(cert.mainTraversal.pfizerQuarantinedOfficialIds).toEqual(["4965660"]);expect(cert.counts).toMatchObject({mainUniqueJobCount:1,independentUniqueJobCount:2,finalUniqueJobCount:1});
+   expect(cert.independentValidation.pages[0].rawRows[1]).toMatchObject({scopeDecision:"INCLUDED_MAINLAND",rawPayload:{officialId:"4965660",title:"Synthetic current DOM title",applyEnabled:true}});
+   expect(cert.independentValidation.pages[0].rawRows[1].rawPayload.quarantineCode).toBeUndefined();await verifyAtomicRuntimeCommitForPersistence(commit);
    const held=commit.commands.find(c=>c.type==="UPSERT_JOB"&&c.dedupeKey===unknown.dedupeKey)!;
    if(held.type!=="UPSERT_JOB")throw Error("missing held command");
    expect(held.record).toEqual(unknown.record);expect(held.lastSeenAt).toBe(oldAt);expect(held.firstSeenAt).toBe(oldAt);expect(held.lifecycleStatus).toBe(state);expect(held.missingSuccessfulCrawlCount).toBe(state==="ACTIVE"?1:3);expect(held.visibleInFrontend).toBe(state==="ACTIVE");

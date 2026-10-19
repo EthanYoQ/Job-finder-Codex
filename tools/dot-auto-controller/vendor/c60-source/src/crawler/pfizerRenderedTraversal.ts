@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { OfficialJsonRenderedRawRow, OfficialJsonRenderedPageCapture } from "./officialJsonRenderedTraversalValidator";
+import type { OfficialJsonRenderedRawRow, OfficialJsonRenderedPageCapture, OfficialJsonRenderedReplay } from "./officialJsonRenderedTraversalValidator";
 import { irreversibleOfficialJsonEvidenceId } from "./officialJsonEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { PFIZER_LIST_ROW_UNKNOWN, pfizerQuarantinedEvidenceKey } from "./pfizerWorkdayTraversal";
@@ -20,7 +20,7 @@ export function pfizerDomListSlots(listPage: Record<string, any>): Array<{offici
     if (complete.some(row => !row.officialId) || new Set(complete.map(row => row.officialId)).size !== complete.length)
         throw Error("Pfizer DOM duplicate or invalid ID");
     if (cards.length === expected) return complete;
-    if (cards.length !== expected - 1 || typeof listPage.domSnapshot !== "string") throw Error("Pfizer DOM unexplained missing slot");
+    if (cards.length > expected || typeof listPage.domSnapshot !== "string") throw Error("Pfizer DOM unexplained missing slot");
     const section = /- list "Page \d+ of \d+":\n([\s\S]*?)(?=\n\s*- navigation "pagination":)/.exec(listPage.domSnapshot)?.[1];
     if (!section) throw Error("Pfizer DOM list evidence is missing");
     const slots: Array<{officialId: string; card?: {href:string;title:string}; domRow?:string}> = [];
@@ -29,25 +29,39 @@ export function pfizerDomListSlots(listPage: Record<string, any>): Array<{offici
         const officialId = match[1]!, end = match.index! + match[0].length;
         const card = complete.find(row => row.officialId === officialId)?.card;
         const domRow = section.slice(previousEnd, end).trim(); previousEnd = end;
-        if (!card && (officialId !== "4965522" || !/^- list:\n[ \t]+- listitem: "4965522"$/.test(domRow)))
+        if (!card && !new RegExp(`^- list:\n[ \t]+- listitem: "${officialId}"$`).test(domRow))
             throw Error("Pfizer DOM unreviewed missing slot");
         slots.push(card ? {officialId,card} : {officialId,domRow});
     }
     if (slots.length !== expected || new Set(slots.map(row => row.officialId)).size !== expected ||
-        slots.filter(row => !row.card).length !== 1 || slots.filter(row => row.card).some((row, index) => row.card !== cards[index]))
+        slots.filter(row => row.card).length !== cards.length || slots.filter(row => row.card).some((row, index) => row.card !== cards[index]))
         throw Error("Pfizer DOM slot set does not reconcile");
     return slots;
+}
+/** Publication comparison only: preserve the independent observations and quarantine exact main-side IDs. */
+export function pfizerComparisonTraversal(replay: OfficialJsonRenderedReplay, pages: readonly OfficialJsonRenderedPageCapture[], unknownIds: readonly string[]): OfficialJsonRenderedReplay {
+    if (unknownIds.length === 0) return replay;
+    const unknown = new Set(unknownIds), mapped = new Map<string,string>();
+    for (const row of pages.flatMap(page => page.rawRows)) {
+        const id = row.rawPayload.officialId as string;
+        if (unknown.has(id)) mapped.set(row.sourceJobId, pfizerQuarantinedEvidenceKey(id));
+    }
+    if (unknown.size !== unknownIds.length || mapped.size !== unknown.size) throw Error("Pfizer main unknown IDs do not match the independent raw identities");
+    const excluded = [...new Set([...replay.excludedSourceJobIds.map(key => mapped.get(key) ?? key), ...mapped.values()])].sort();
+    return {...replay, matchKeys:replay.matchKeys.filter(key => !mapped.has(key)),
+        rawSourceJobIds:replay.rawSourceJobIds.map(key => mapped.get(key) ?? key).sort(),
+        excludedSourceJobIds:excluded, excludedCount:excluded.length};
 }
 /** Independent path classifies native HTML JSON-LD plus rendered locations, never main API country fields. */
 export function replayPfizerRenderedRow(row: OfficialJsonRenderedRawRow, index: number): OfficialJsonRenderedRawRow["scopeDecision"] {
     const raw = object(row.rawPayload);
     if (typeof raw.capturedAt !== "string" || !Number.isFinite(Date.parse(raw.capturedAt)) || new Date(raw.capturedAt).toISOString() !== raw.capturedAt) throw Error("Pfizer UI capturedAt is invalid");
     if (raw.quarantineCode !== undefined) {
-        if (raw.quarantineCode !== PFIZER_LIST_ROW_UNKNOWN || raw.noOmissionVerified !== false || raw.officialId !== "4965522" ||
+        if (raw.quarantineCode !== PFIZER_LIST_ROW_UNKNOWN || raw.noOmissionVerified !== false || typeof raw.officialId !== "string" || !/^\d{7}$/u.test(raw.officialId) ||
             row.recordIndex !== index || row.sourceJobId !== pfizerQuarantinedEvidenceKey(raw.officialId) ||
             row.rawEvidenceId !== irreversibleOfficialJsonEvidenceId(raw.officialId) || row.scopeMarker !== "UNKNOWN" ||
             row.scopeDecision !== "EXCLUDED_AUDITED" || typeof raw.domRow !== "string" ||
-            !/^- list:\n[ \t]+- listitem: "4965522"$/.test(raw.domRow) ||
+            !new RegExp(`^- list:\n[ \t]+- listitem: "${raw.officialId}"$`).test(raw.domRow) ||
             Object.keys(raw).some(key => !["officialId","quarantineCode","noOmissionVerified","domRow","capturedAt","listPage","originalCaptureSha256","originalRowSha256"].includes(key)))
             throw Error("Pfizer quarantined DOM row is not the reviewed incomplete slot");
         return "EXCLUDED_AUDITED";

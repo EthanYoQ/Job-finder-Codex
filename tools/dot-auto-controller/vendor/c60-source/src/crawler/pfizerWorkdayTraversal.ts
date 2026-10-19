@@ -31,10 +31,11 @@ export function isPfizerWorkdayTraversalPlan(plan: SourceCrawlPlan): boolean {
         plan.executionAuthority === "STAGED" && isDeepStrictEqual(config, { tenant: "pfizer", site: "PfizerCareers", laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION", appliedFacets: { Location_Country: [PFIZER_CHINA] }, pageSize: 20, maxPages: 20 }) &&
         isDeepStrictEqual(plan.expectedChannels, [{ channelId: PFIZER_CHANNEL, kind: "SOCIAL" }]);
 }
-// Only the individually reviewed current incident is quarantined; every other malformed row still stops traversal.
+// Only an exact ID-only official row is quarantined; other malformed shapes still stop traversal.
 export const PFIZER_LIST_ROW_UNKNOWN = "PFIZER_LIST_ROW_UNKNOWN";
 export function pfizerQuarantinedRowId(raw: unknown): string | undefined {
-    return isDeepStrictEqual(raw, { bulletFields: ["4965522"] }) ? "4965522" : undefined;
+    const id = (raw as {bulletFields?: unknown[]} | null)?.bulletFields?.[0];
+    return typeof id === "string" && /^\d{7}$/u.test(id) && isDeepStrictEqual(raw, { bulletFields: [id] }) ? id : undefined;
 }
 export function pfizerQuarantinedEvidenceKey(id: string): string { return `pfizer-unresolved:${id}`; }
 function quarantineLoss(id: string, pageSequence: number, recordIndex: number, capturedAt: string | undefined) {
