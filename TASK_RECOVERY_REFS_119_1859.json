@@ -1,0 +1,62 @@
+{
+  "nativeCandidate": 119,
+  "nativeCommit": "98a1341b2b8051e3e645167caeaa45072255b2b4",
+  "registeredAt": "2026-10-19T19:36:46.222Z",
+  "official16FieldsMatched": true,
+  "nativeClean": true,
+  "moduleVersion": "1859",
+  "moduleCommit": "d7d95b359c2e5ea5d7d00d447e457b3e873647f5",
+  "runtimeFilesExact": 63,
+  "entrySha256": "e2fccabf67c3e21befd25d95e50f0aff2ae929f81220b9ed314d61eebea0cd01",
+  "bindingSha256": "392cfdfb277cf019250fe0bfac750e0da36f9b39b65a9cde8ba445460ead386c",
+  "readyCheckedAt": "2026-10-19T19:37:25.565650Z",
+  "nativeDeltas": [
+    {
+      "commit": "5bcaf0d64ba3880194eb0b766d9c1beebebc71ae",
+      "driveFileId": "1W7DRygiE_JLoAQ1frJyb5JuyakeJU1j4",
+      "bytes": 1438,
+      "sha256": "4bc55a33f42f29f5621c6b0150f727f6f35cefefe66e6569216a531eaeb477bd"
+    },
+    {
+      "commit": "98a1341b2b8051e3e645167caeaa45072255b2b4",
+      "driveFileId": "1KwMkYepKp6xhBf5Ak2Oi4wb8Vpmg_yYt",
+      "bytes": 9009,
+      "sha256": "63201b70fa6c56ec935514a3eca1fb3f3d8eee248f42de4d007ab1e490e82d7d"
+    }
+  ],
+  "moduleDeltas": [
+    {
+      "commit": "b0f52aa72c4e2a8ab66c02871942063b9f2102bf",
+      "driveFileId": "1M3vFe4dhr2LJeSyDQQvxmsBhHxG0pteR",
+      "bytes": 4938,
+      "sha256": "fe6d64ce3bc3fa59cfd9b1c792861c0b607185d72dfe545b4d8db61fc5f45f36"
+    },
+    {
+      "commit": "d7d95b359c2e5ea5d7d00d447e457b3e873647f5",
+      "driveFileId": "1mDudKlBZubCdbMNkZI4jf_yVvOAtrtrq",
+      "bytes": 7005,
+      "sha256": "7aba325ca9722cd533c6b069fb12132c96160e3319015a10816fa24008ddf1dd"
+    }
+  ],
+  "previousRefs": "TASK_RECOVERY_REFS_118_1616.json",
+  "taskPrompt": "Current119/1859 prompt saved; schedule remains08/20 Asia/Shanghai",
+  "freshRun": {
+    "startedAt": "2026-10-19T19:38:04Z",
+    "status": "RUNNING_RESULTS_PENDING",
+    "holdsCleared": true
+  },
+  "priorLoop": {
+    "newSuccessAndWeb": 28,
+    "automaticBackups": 28,
+    "skippedSameSlot": 3,
+    "held": 5
+  },
+  "limits": [
+    "No full unattended acceptance",
+    "Novartis noOmissionVerified=false retained",
+    "Merck previous duplicate73/72 remains HOLD; new candidate is not success",
+    "Organon incomplete observations remain HOLD; typecheck not full PASS and two Novo dynamic-total failures uninvestigated",
+    "AbbVie162101 upload remains UNKNOWN pending read-only reconciliation",
+    "Drive LATEST remains verified99; dependencies/Prisma51 recovery chain unchanged"
+  ]
+}

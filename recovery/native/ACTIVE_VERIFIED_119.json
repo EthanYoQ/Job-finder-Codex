@@ -1,0 +1,19 @@
+{
+  "nativeCandidate": 119,
+  "nativeCommit": "98a1341b2b8051e3e645167caeaa45072255b2b4",
+  "registeredAt": "2026-10-19T19:36:46.222Z",
+  "readyCheckedAt": "2026-10-19T19:37:25.565650Z",
+  "official16FieldsMatched": true,
+  "nativeClean": true,
+  "moduleCommit": "d7d95b359c2e5ea5d7d00d447e457b3e873647f5",
+  "runtimeFilesExact": 63,
+  "entrySha256": "e2fccabf67c3e21befd25d95e50f0aff2ae929f81220b9ed314d61eebea0cd01",
+  "bindingSha256": "392cfdfb277cf019250fe0bfac750e0da36f9b39b65a9cde8ba445460ead386c",
+  "preStart": {
+    "activeTransactions": 0,
+    "liveBatches": 0,
+    "formalHolderEmpty": true,
+    "localProducers": 0,
+    "unansweredRelayRequests": 0
+  }
+}
