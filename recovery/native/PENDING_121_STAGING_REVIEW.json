@@ -18,5 +18,17 @@
   },
   "readonlyInvocationReconciliation": "No merck121-stage invocation; latest relevant invocation was read-only preflight",
   "userQuestionSent": "Root reported specific approval question sent20:49UTC; response pending",
-  "credentialsOrPrivateToolTextIncluded": false
+  "credentialsOrPrivateToolTextIncluded": false,
+  "readonlyAfterBlock": {
+    "checkedAt": "2026-10-19T20:49:55Z",
+    "fourStageFilesExist": false,
+    "originalServiceHashesUnchanged": true,
+    "processesUnchanged": true,
+    "restartCounts": [
+      24,
+      40
+    ],
+    "readyHttpStatus": 200,
+    "originalNginxHashAndUpstream3036Unchanged": true
+  }
 }
