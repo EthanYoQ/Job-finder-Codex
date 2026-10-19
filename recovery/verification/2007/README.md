@@ -1,0 +1,13 @@
+# JNJ and Pfizer bounded visibility waits, inactive
+
+Base: active/backed-up external1859 (`d7d95b`), reconstructed from `automation-backup-files-1859-INACTIVE.json`. All edits are isolated. The active module, native source, running collection and original failure evidence were not changed.
+
+The only wait changes are JNJ's existing exact list heading and Pfizer's existing detail `jobPostingHeader` selector. Both call one small function in the existing `cspc-dom-runtime-functions.js`. The existing Functions entry prepends that file through its already-used browserSource concatenation pattern. The pre-existing CSPC functions remain byte-for-byte unchanged.
+
+The shared function follows the existing BI bounded-wait pattern. Its single window ends at the earlier of the source deadline and 30 seconds from its initial call. Each attempt receives only the remaining time. It continues only for the existing explicit selector-timeout messages while time remains, on the same locator and tab. It never resets the 30-second window, navigates, clicks, refreshes, or waits for a new navigation. Other exceptions and terminal timeouts still fail; the existing runtime/Functions failure evidence and HOLD paths remain. No ID/category rules, expected heading, page order, URL, total, completeness or publication checks change.
+
+The original Pfizer failure records `detail-title-wait`; a later read-only observation found its unchanged header selector visible at the same URL. The original JNJ failure expected page 8 while its captured URL remained page 7; a later independent one-click 7-to-8 observation succeeded. These later observations do not prove the original root cause. This patch does not turn either old failed batch into a successful collection. `EVIDENCE_REFS.json` records hashes of the originals without including production DOM.
+
+`self-check.mjs` runs the exact two changed call-site expressions against the same helper with artificial time and locators. It checks early-timeout continuation within one window, source-deadline termination with the original error, and immediate rejection of a non-timeout error. It also checks that all other runtime bytes and the original CSPC helper are unchanged, and that both entry paths load the helper. Runtime syntax, Functions-body syntax and whitespace checks pass. The first check required only a cross-VM test-object comparison correction; production code did not change afterward.
+
+Only the four files in `changes.json` belong in the candidate. No real browser, HTTP or database calls were made, and no production DOM is included. The parent owns private GitHub backup/readback and activation. Fresh-site acceptance remains untested; later visibility alone is not evidence of a tool root cause.

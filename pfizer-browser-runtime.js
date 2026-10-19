@@ -95,7 +95,7 @@ var pfizerDomRuntime = (() => {
       stage = 'detail-accessibility';
       await detail.getAXState({emit:false});
       stage = 'detail-title-wait';
-      await detail.playwright.locator('[data-automation-id="jobPostingHeader"]').waitFor({state:'visible',timeoutMs:30000});
+      await waitOriginalDomVisible(detail.playwright.locator('[data-automation-id="jobPostingHeader"]'),deadline);
       stage = 'detail-apply-wait';
       await detail.playwright.getByRole('button',{name:'Apply',exact:true}).waitFor({state:'visible',timeoutMs:30000});
       stage = 'detail-observation';

@@ -1,3 +1,21 @@
+// Reuse the original 30s budget when a selector wait reports timeout early.
+async function waitOriginalDomVisible(locator, deadline) {
+  const until=Math.min(deadline,Date.now()+30000);
+  let waitError;
+  for(;;) {
+    const remaining=until-Date.now();
+    if(remaining<=0)throw waitError??Error('ORIGINAL_DOM_VISIBLE_WAIT_DEADLINE');
+    try {
+      await locator.waitFor({state:'visible',timeoutMs:remaining});
+      if(Date.now()>=until)throw Error('ORIGINAL_DOM_VISIBLE_WAIT_DEADLINE');
+      return;
+    } catch(error) {
+      if(!/selector deadline exceeded|locator\.waitFor\(visible\) timed out/.test(String(error))||Date.now()>=until)throw error;
+      waitError=error;
+    }
+  }
+}
+
 // Inactive, reusable cloud-cdp DOM diagnostic helper.
 // The core navigation loop was exercised successfully in five batches in this session.
 // This packaging is not yet an end-to-end tested production adapter.

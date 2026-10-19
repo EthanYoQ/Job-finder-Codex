@@ -20,7 +20,7 @@ var jnjDomRuntime = (() => {
     try {
       await list.playwright.locator('#js-job-search-results').waitFor({state:'visible',timeoutMs:30000});
       headingLocator = list.playwright.getByRole('heading',{name:total===undefined?/^Displaying 1 to \d+ of \d+ matching jobs$/:`Displaying ${(page-1)*20+1} to ${Math.min(page*20,total)} of ${total} matching jobs`,exact:true});
-      await headingLocator.waitFor({state:'visible',timeoutMs:30000});
+      await waitOriginalDomVisible(headingLocator,deadline);
     } catch(error) {
       const value={kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',page,expectedUrl:listUrl(page),error:String(error),observedAt:new Date().toISOString()};
       try { value.url=await list.url(); } catch(readError) { value.urlReadError=String(readError); }

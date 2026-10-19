@@ -52,7 +52,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  if(sourceId==='source-johnson-innovative-medicine-social'){
   const directory=run+'/native-dom';await command('mkdir -p '+q(directory));
   const {captureJnjManagedDom}=await new A(await read(D+'/jnj-functions.js'))();
-  await captureJnjManagedDom({directory,browserSource:await read(D+'/jnj-browser-runtime.js'),deadline:Date.now()+1200000});
+  await captureJnjManagedDom({directory,browserSource:await read(D+'/cspc-dom-runtime-functions.js')+'\n'+await read(D+'/jnj-browser-runtime.js'),deadline:Date.now()+1200000});
   const manifest=directory+'/manifest.json',manifestSha=(await command('sha256sum '+q(manifest))).split(' ')[0];
   const prepared=run+'/current-capture';await command(q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/prepare-jnj-dom-current-capture.ts')+' '+q(directory)+' '+q(manifestSha)+' '+q(prepared));
   const path=prepared+'/current-capture.json';currentCapture={path,sha256:(await command('sha256sum '+q(path))).split(' ')[0]};
@@ -74,7 +74,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  if(sourceId==='source-pfizer-china-social'){
   const directory=run+'/independent-dom';await command('mkdir -p '+q(directory));
   const {capturePfizerManagedDom}=await new A(await read(D+'/pfizer-functions.js'))();
-  await capturePfizerManagedDom({directory,browserSource:await read(D+'/pfizer-browser-runtime.js'),deadline:Date.now()+1200000});
+  await capturePfizerManagedDom({directory,browserSource:await read(D+'/cspc-dom-runtime-functions.js')+'\n'+await read(D+'/pfizer-browser-runtime.js'),deadline:Date.now()+1200000});
   const validationDirectory=run+'/independent-validation';await command(q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/capture-pfizer-b-source.ts')+' dom '+q(validationDirectory)+' '+q(directory+'/managed-browser-capture.json'));
   const path=validationDirectory+'/independent-validation.json';independentValidation={path,sha256:(await command('sha256sum '+q(path))).split(' ')[0]};
  }

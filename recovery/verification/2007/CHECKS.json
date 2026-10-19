@@ -1,0 +1,26 @@
+{
+  "status": "PASS",
+  "isolated": true,
+  "baseExternal": "external1859",
+  "baseCommitPrefix": "d7d95b",
+  "baseMapSha256": "d983f244b64e7d1bdf599a886156975a27d955708209af639c413a84313f8b32",
+  "activeFilesUnchanged": true,
+  "originalEvidenceRetained": true,
+  "checks": [
+    "Focused artificial shared-wait check using both original call-site parameters",
+    "node --check after runtime files",
+    "Functions body syntax via AsyncFunction",
+    "git diff --no-index --check before after"
+  ],
+  "productionDeltaFiles": [
+    "cspc-dom-runtime-functions.js",
+    "jnj-browser-runtime.js",
+    "pfizer-browser-runtime.js",
+    "run-original-functions.js"
+  ],
+  "realBrowserCalls": 0,
+  "httpCalls": 0,
+  "databaseCalls": 0,
+  "productionRawIncluded": false,
+  "activation": "NOT_ACTIVATED"
+}
