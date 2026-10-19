@@ -1,0 +1,1539 @@
+{
+  "taskTitle": "采集并核验招聘岗位",
+  "updateSucceededAt": "2026-10-19T04:16Z",
+  "enabled": true,
+  "schedule": {
+    "timezone": "Asia/Shanghai",
+    "dailyHours": [
+      8,
+      20
+    ]
+  },
+  "nativeCandidate": 115,
+  "nativeCommit": "631a549ba23f294ac58eb628eac7afb4a5a7456d",
+  "registeredAt": "2026-10-19T04:14:24.786Z",
+  "independent16Fields": "PASS",
+  "connectorValidate": "PASS",
+  "nativeDelta": {
+    "base": "bfb69f7c42d43a354682dfd7cf699a76a087cc5f",
+    "driveFileId": "14u3mPt7Hnmio7SoNXfAlBJA_ar_7-OOL",
+    "bytes": 2637,
+    "sha256": "f837b4fd8e5bbd7a2373f1fdc6be0b5326e89ad70bc22e019864ca6a067a83a2",
+    "restoredTree": "c46d1f266ba7c60c79df20345bdaf5a10edb7650",
+    "rawCommitExact": true
+  },
+  "moduleVersion": "0325",
+  "moduleCommit": "c013de32be9067012d827ae4a5c2e1fb455c4df4",
+  "moduleAppliedAt": "2026-10-19T03:37:16.652911Z",
+  "runtimeFiles": 63,
+  "readOnly36": {
+    "checkedAt": "2026-10-19T03:02:52.469850Z",
+    "recent": 33,
+    "due": 3
+  },
+  "evidenceBackup": {
+    "jnj159": "AUTOMATIC_REMOTE_RESTORE_VERIFIED",
+    "sanofi119": "AUTOMATIC_UPLOAD_FAILED_MANUALLY_RECOVERED"
+  },
+  "limits": [
+    "Original Novo108 automatic web/backup failures retained; later independent manual recovery is not automatic success",
+    "No full36 or unattended acceptance",
+    "Reader startup memory/timeouts remain risks",
+    "Fixed LATEST remains99; prior evidence-loss gaps retained",
+    "1303 Biogen has no real packet available: static/syntax checks only; Hengrui real archive review passed. Next due-source production validation remains pending."
+  ],
+  "oldNovo074422": "FAILED_NOT_DISPATCHED_DIAGNOSTIC_ONLY_NO_REPLAY",
+  "oldNovo080715": "RECONCILED_OFFLINE_DIAGNOSTIC_ONLY_NOT_PUBLISHED",
+  "persistedNovoClosures": "Four existing CLOSED verifications preserved; no revival",
+  "entrySha256": "8b577c7142aa17ef3a1373cc4cdca91ca04568348957f312ae73be72e686da66",
+  "pairedActivationRequired": true,
+  "taskInstructions": "Sections1–6 and schedule unchanged; section7 retains current refs, source exceptions and acceptance limits",
+  "deployedReaders": {
+    "repositorySha256": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
+    "domainSha256": "8d31a7206da617d9b4e586ac1e8f52822c69e9495f8c3bea773323891fad4a6d",
+    "mainHeapMiB": 320,
+    "fallbackHeapMiB": 320,
+    "persistedHeapsMatch": true
+  },
+  "independentWebRecovery": {
+    "novoJobs": 37,
+    "sanofiJobs": 119,
+    "allFieldsMatch": true,
+    "originalAutomaticFailureUnchanged": true,
+    "novoSupplementDriveId": "1sxSm4IYAvGJ7-3Ild3R0wn2M3Ivt17GW"
+  },
+  "lightReaderVerification": {
+    "differentSourcesCompared": 13,
+    "existingReaderPlans": 41,
+    "existingPublicJobs": 4915,
+    "coreNetLinesRemoved": 49,
+    "observedMainPeakReductionPercent": 34.7,
+    "observedFallbackPeakReductionPercent": 40.5,
+    "limits": "Existing reader projection checks, not expanded collection scope or newly published jobs. Single observed production startup peaks, not a long-term guarantee."
+  },
+  "deploymentReceiptCommit": "4a8883c78a89ee37438875f7d3dfc917f9411c11",
+  "moduleBaseRecovery": {
+    "version": "0838",
+    "commit": "32fa560c0fe45d62289861610aeab7ec518bc774",
+    "driveFileId": "1Ik-fB_reO0Bz25hRPMHLyU_pRVUbeS5U",
+    "sha256": "687a7fd47c64b797d4688f018e2df2dd2307e7055b7ceb83ea13347290c4f267"
+  },
+  "moduleDelta": {
+    "driveFileId": "1d_seWyEv3DQygvUyvWlmd2nlMmxsSsMw",
+    "bytes": 3386,
+    "sha256": "30393b3bce49a5af108d0f190e14520428dfb11934a9f55ffdd8594cd2e0e7b2",
+    "parentCommit": "eb7faed9ed826aa255fb51a4d5e6ce6df8ddf7d7",
+    "restoredRuntimeFiles": 63,
+    "exact": true
+  },
+  "activationScope": "Pfizer ID-only category handling installed; existing UNKNOWN historical fields/timestamps preserved, noOmissionVerified=false boundary retained. New-field strict offline verification requires native114 parser; deployed lightweight readers unchanged.",
+  "latestScheduledRound": {
+    "localDate": "2026-10-18",
+    "localHour": 20,
+    "timezone": "Asia/Shanghai",
+    "skippedRecent": 34,
+    "heldSources": [
+      "BI",
+      "Novartis"
+    ],
+    "newSuccess": 0,
+    "unknownSubmissions": 0,
+    "fullAcceptance": false
+  },
+  "previousNativeDelta": {
+    "base": "ac70c21b686c498c4c6a28dbe5bd0f423922d140",
+    "driveFileId": "1Qz5z9PbN-N2h53Ruiz1meTzGicL0Uw2V",
+    "sha256": "e7abf3b4236e9d2dc4dd160aa2921546e882dec2a9c8631c99bc88bdf2f61d1a",
+    "bytes": 12425,
+    "restoredTree": "92fb4fce57b29a449b93e77e66da633c9ef72b81"
+  },
+  "novartisProduction": {
+    "batch": "dot-auto-novartis-20261018T123719665Z",
+    "jobs": 169,
+    "membership": "CURRENT",
+    "status": "SUCCESS",
+    "verification": "VERIFIED",
+    "atomicCommitState": "COMMITTED",
+    "crawledAt": "2026-10-18T12:37:41.190Z",
+    "finishedAt": "2026-10-18T12:39:02.896Z",
+    "webVerifiedAt": "2026-10-18T12:39:26.963Z",
+    "allFieldsMatch": true,
+    "automaticBackup": {
+      "status": "REMOTE_RESTORE_VERIFIED",
+      "driveFileId": "19unsu2Y6E9OqDwYnCWIrR20HmrNYQnKR",
+      "bytes": 1911092,
+      "sha256": "e4dde2679febae31fb3e00b86c899887bfdadf0c54164a15f5201545165d1d16",
+      "rawFiles": 51,
+      "members": 12,
+      "verifiedAt": "2026-10-18T12:40:06.376Z"
+    }
+  },
+  "latestExecution": {
+    "execution": 30,
+    "status": "RUNNING",
+    "startedAt": "2026-10-19T03:37Z",
+    "fullAcceptance": false
+  },
+  "moduleDeltaChain": [
+    {
+      "driveFileId": "1myIrk1W99OSIL-Ggd3CFgkFxjfpyzlBD",
+      "sha256": "00cae60c39deaeb9c4c94ebdad0829cac16c45ced13af75ef2e5c71330f133e0",
+      "bytes": 10275,
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1zSuYDEIXVWMu_d1Kkvf1tlxIGEkmN6zM",
+      "sha256": "40f5c5f5f5d4e8d4425286850b63f6f56de9bdd7dcf2b48b2645d056ba822f03",
+      "bytes": 11859,
+      "parentCommit": "decda27f823985086758fcde801d203cb6104808",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1XG-sjvHPmxn_I0x5WRJHyN6Kh9Yz3sMV",
+      "sha256": "060603bf1f29932eec0a1f9b93086f2977ca1b2ae77c196e9b6dafa078e9ac25",
+      "bytes": 3747,
+      "parentCommit": "65cae6f882ecf7e186d044a08fd99e9ea0634547",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1hmQd82a_QD4-sZjFMHjJR61k0tlr6nGm",
+      "sha256": "1d810e23a7017b94b0d18df394276869a02e09f2679df2cf7fa95efe36a23dcd",
+      "bytes": 7609,
+      "parentCommit": "e0bc3ab81045abf283bb8462640199251c091865",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1QUBucKxUt1Aw_Hd27_wBL8wvaKUuR-K0",
+      "sha256": "1ec1eeed58930f1e335a223dacc0f3557c7e716b06639b5977733357a9d0551e",
+      "bytes": 4898,
+      "parentCommit": "413569e0a2e52afcff099277f8ab73777728c97c",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1Kphl3iMXf9hLMGd6FUAw0oeQKfrE4oAS",
+      "bytes": 4387,
+      "sha256": "73f5774f773f4aaa1b4fd0da2ce42600fae7cb10fb132cd27cb4117143ac2d22",
+      "parentCommit": "50376672c07ac435431908d98d913a193e6503ff",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "1PSYh3-pENDMAQfUd1-Ee_e_H6CsnX-mR",
+      "bytes": 7617,
+      "sha256": "621e1da1444ee84abd00a4de8f6aebb0d11fdd02031ca411e001b9e2f7f8ef21",
+      "parentCommit": "cd1b12a922a47259d19b90f4c86907621cefa292",
+      "restoredRuntimeFiles": 61,
+      "exact": true
+    },
+    {
+      "driveFileId": "15zn8fZcfa0yEy_kBLNWxVTsj_J2FMqkV",
+      "bytes": 7292,
+      "sha256": "970d73814a2798864d3a237f752192d49062b1e7bce9e1d8a3115a1401472955",
+      "parentCommit": "4a873af944e0e942eed746c7f887a4f2e6223f4e",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1idkqsEbZLCdEr-fTerl8bl82bZxZQxta",
+      "bytes": 2725,
+      "sha256": "ad6ae57f6af1f8ace78941c886b649b1cd4118746c334f17177571a93a17686f",
+      "parentCommit": "f94fb96d45aa072c8278a8edba1ca15027df67da",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1ZZxIN4wtaiPD-TLERiXD0nqhPFvNP4i4",
+      "bytes": 2114,
+      "sha256": "bd40983e803e798637976848ebb45766b37cb70ec1daa30090c437339d5d20d8",
+      "parentCommit": "93fc9d9fe3fe596a7c14574aa39fdf7310734490",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1fcI1OZEwLxua6HTqOa5otanhG-xlHjGS",
+      "bytes": 1768,
+      "sha256": "c5b27125f22ec1b7061b1fb866456841f856ff4c263d8277ee7f9458e06c5d70",
+      "parentCommit": "bb01282f238bec8a9040cb3be5f36b2918362dc9",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1bIRrxR200d_stnuXv1R3t3waUEoRHMJx",
+      "bytes": 4095,
+      "sha256": "1029392f7799b4c756a8800cf45bf0214f96de7d58aa146b27838999d109723b",
+      "parentCommit": "15c7dc23810ce421f83ccb8a3170de9718be8baa",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1Sh46CkM0ImSSXnKHKZjIGbNs4IfrQbBy",
+      "bytes": 2654,
+      "sha256": "e7af40152d1c13822780f8ec612eed9190fa867e67161d5552350bcca08ac04f",
+      "parentCommit": "08c4831b57a6b69489bc431e91ea0ff160664262",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1wgJAWexi39lxcCUtrVIwo6vEeNX9Kcls",
+      "bytes": 2813,
+      "sha256": "d89b5e1889c3ccde2c66b4bae134f2bc2733f6e585f53b2cd0b639642a38db14",
+      "parentCommit": "7e4569f9a711d866a10a040fdb407599b5a61f12",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1NLn8RsHiWXDd1mV6Zy0xSngK0xNgRb-u",
+      "bytes": 3314,
+      "sha256": "7468fe31c5867dce0f257de6ae55eb88f1711cd3cccff279fcc5f42c3ff03168",
+      "parentCommit": "9082de301e6b291eb66422311dfa7e10ceb535f4",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1Wpup_b_EBq4zrWgkUM6YdYsi_1M1byds",
+      "bytes": 2089,
+      "sha256": "d6fa918c6bdf5cf46f57eacb460c4b5324febb298b26687fa860b8f66f30039e",
+      "parentCommit": "843fc9995815a6e70975d6eee89e29aac94c2e1b",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1hUGy4wjnmWM5HNHI6NYz-R_j17Z5n_yk",
+      "bytes": 3347,
+      "sha256": "99a4afa4a1ee29000eaa26e2d3d5822b078fd796e404672cbe8808b991b0b905",
+      "parentCommit": "5a99a3c6cf20ed447826d417f091d69cd1340bcf",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1F4HNguUwDqqb-ryLel9dEw5TWmOCjpTl",
+      "bytes": 2706,
+      "sha256": "a74179fe7e72e9a6374831d9942935b8ff5354f19f34fc9f1df688b65eb941a5",
+      "parentCommit": "e4166bfc33bb739e22ccec6ef21543c2726c6424",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1j8oMAFHhuCvqq4JSKWRKS4aSTwoRm6kG",
+      "bytes": 4157,
+      "sha256": "af71a160ab40eb2c6ee5594c27054c156c0a48bf02efce0545ae5c8e9118537f",
+      "parentCommit": "eb36a6c56b8599ff53972c703635f4eac0082400",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "15qoDdNrlcO6NgKdu3HcopEpjqkfdiMFX",
+      "bytes": 3569,
+      "sha256": "3a36554256822ee52fc1f66f91ffaa8fa9df3c8013260532c9e84557697b336c",
+      "parentCommit": "f1c1ee96c0c99bc4a015466068ca645b5b8734e3",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "10_HxdP5KrAL3kwCCl27aHvt6q6JL4OrA",
+      "bytes": 1913,
+      "sha256": "7394c32fb3b7fa8a9b39a16714da16ddfd7c4632dcecd3ac4f70327a04e6406a",
+      "parentCommit": "1ce83610bc53d7836c65c71717cfa20c05444da2",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1QrETm4qIjcx1CQ64hXJiSWZcXWqWjVF0",
+      "bytes": 1823,
+      "sha256": "39f0b7ec6118196b51eadeabcadba638dea491a99ad6e9516315208fe7b2bf76",
+      "parentCommit": "0e65255fbe964a702c19a614346fa368dd1a714c",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    },
+    {
+      "driveFileId": "1bqxG7SdtWtkdq31OBJLXP0beCpIHvYLl",
+      "bytes": 7128,
+      "sha256": "823aec94c929d9031cb1e2a492b45426eb2be64c23081cad12740b35a53dc5ab",
+      "parentCommit": "f6cd341aa524bcf75c672069b369e0a9fa891248",
+      "restoredRuntimeFiles": 63,
+      "exact": true
+    }
+  ],
+  "nextActualRoundValidation": "Root30 fresh Pfizer in progress; no new success claimed",
+  "abbvie1303Production": {
+    "batch": "dot-auto-abbvie-20261018T132712732Z",
+    "jobs": 57,
+    "status": "SUCCESS",
+    "verification": "VERIFIED",
+    "atomicCommitState": "COMMITTED",
+    "crawledAt": "2026-10-18T13:27:31.088Z",
+    "finishedAt": "2026-10-18T13:28:21.889Z",
+    "webVerifiedAt": "2026-10-18T13:28:56.596Z",
+    "allFieldsMatch": true,
+    "automaticBackup": {
+      "status": "REMOTE_RESTORE_VERIFIED",
+      "driveFileId": "1FSVrEWRZ2EwsN7aW3DgXkZ79Lj2oaIXY",
+      "bytes": 235727,
+      "sha256": "6a1fbd6909ac0e531c08271c26411e8c2f41708916ae59c746526b6036071159",
+      "rawFiles": 6,
+      "members": 12,
+      "verifiedAt": "2026-10-18T13:29:57.013Z"
+    },
+    "stepwiseManualIntervention": false,
+    "scope": "This source validates the actual 1303 production chain; not Biogen, all routes, or long-term unattended acceptance."
+  },
+  "previousExecution273": {
+    "successfulSources": [
+      {
+        "sourceId": "source-amgen-china-social",
+        "jobs": 54,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1UZcofnDhdb6O2EKFaX_FH8ma12m6rmnm",
+          "bytes": 2241525,
+          "sha256": "1a3c736faad091cfe403632e90e16d87901667b4edb79b703c10fb70ef8c9d31",
+          "members": 20,
+          "sources": [
+            {
+              "source": "amgen",
+              "batch": "dot-auto-amgen-20261018T150007372Z",
+              "rawFiles": 117,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 54
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:03:33.000Z"
+        }
+      },
+      {
+        "sourceId": "source-astellas-china-social",
+        "jobs": 15,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1X_5gIzAJcls_2hJEFQzGAyCTQk5HEK7v",
+          "bytes": 2137070,
+          "sha256": "c95e3710bec24f3524b8e9c949ad63b1a6457ce2c227b1f6044257c0190c8851",
+          "members": 20,
+          "sources": [
+            {
+              "source": "astellas",
+              "batch": "dot-auto-astellas-20261018T150341739Z",
+              "rawFiles": 15,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 15
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:06:38.191Z"
+        }
+      },
+      {
+        "sourceId": "source-astrazeneca-social",
+        "jobs": 249,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1RjlnStOIn8c6RRQLVg76sQw5GnDZfN0e",
+          "bytes": 4588787,
+          "sha256": "2cd4fd58cbb5b089b3a3896373a203fa6a8a146757776adaee0db2d90a9e9a76",
+          "members": 20,
+          "sources": [
+            {
+              "source": "astrazeneca",
+              "batch": "dot-auto-astrazeneca-20261018T150649355Z",
+              "rawFiles": 267,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 249
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:10:01.473Z"
+        }
+      },
+      {
+        "sourceId": "source-bms-china-social",
+        "jobs": 33,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1jiwYwa8-ghqpskFsI2yJkbzbsXd9eR-I",
+          "bytes": 88936,
+          "sha256": "4f186f6204d9802e26debf053eec667552569158516ffd1be31cf0cc02e86e85",
+          "members": 20,
+          "sources": [
+            {
+              "source": "bms",
+              "batch": "dot-auto-bms-20261018T151134586Z",
+              "rawFiles": 4,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 33
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:13:51.067Z"
+        }
+      },
+      {
+        "sourceId": "source-cr-pharma-social",
+        "jobs": 25,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1WFdLuw3oroD_6wD8cmUkiZmw7eWy_0Um",
+          "bytes": 97357,
+          "sha256": "025448e759f4d0df3a254e5ed9d7ea349b737ebbda0b2b41a67e00c105ae7304",
+          "members": 20,
+          "sources": [
+            {
+              "source": "cr-pharma",
+              "batch": "dot-auto-cr-pharma-20261018T151426729Z",
+              "rawFiles": 3,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 25
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:16:34.331Z"
+        }
+      },
+      {
+        "sourceId": "source-csl-china-social",
+        "jobs": 4,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1z1JbXjRVyR_YiHbWCfPROYL7N8-_XpO0",
+          "bytes": 54629,
+          "sha256": "60a87423ba1a0e85a0fc4c264ab328760aca6e81b1daf7e0bae67754b55c0c64",
+          "members": 20,
+          "sources": [
+            {
+              "source": "csl",
+              "batch": "dot-auto-csl-20261018T151642542Z",
+              "rawFiles": 4,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 4
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:18:44.504Z"
+        }
+      }
+    ],
+    "skipped": 28,
+    "held": 2,
+    "allSixOfficialCommitted": true,
+    "exactRequestIdBackup": true,
+    "failedWithoutDatabaseWrite": [
+      "Biogen",
+      "BI"
+    ],
+    "fullAcceptance": false
+  },
+  "previousExecution277": {
+    "successfulSources": [
+      {
+        "sourceId": "source-biogen-china-social",
+        "jobs": 7,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1h8zenQIupihflKEgZEIxZj3jlyrmXgeO",
+          "bytes": 43756,
+          "sha256": "850996ff14a30124494e5d078ad3d02e06bc310663e35171a91d793f575c1398",
+          "members": 19,
+          "sources": [
+            {
+              "source": "biogen",
+              "batch": "dot-auto-biogen-20261018T152227643Z",
+              "rawFiles": 1,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 7
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:24:25.239Z"
+        }
+      },
+      {
+        "sourceId": "source-cttq-social",
+        "jobs": 623,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1R4fVOtvbvkmQoHMpqdUuC2H440xI4UFX",
+          "bytes": 1719970,
+          "sha256": "a19fe0dc852ec629b640f0539ba89ba8679005bad902a484d0f1b121b57be68f",
+          "members": 20,
+          "sources": [
+            {
+              "source": "cttq",
+              "batch": "dot-auto-cttq-20261018T152457167Z",
+              "rawFiles": 630,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 623
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:28:37.217Z"
+        }
+      },
+      {
+        "sourceId": "source-fosun-pharma-social",
+        "jobs": 81,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "15sDHhlQG8XQZ7tzH3ETpRj0wZBFcz9ai",
+          "bytes": 241659,
+          "sha256": "a7841a2139d24393bf54c1a4bc1c07bdc8a7981d4ea15dd50fcd7f911f411393",
+          "members": 20,
+          "sources": [
+            {
+              "source": "fosun",
+              "batch": "dot-auto-fosun-20261018T152846433Z",
+              "rawFiles": 1,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 81
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:31:03.227Z"
+        }
+      },
+      {
+        "sourceId": "source-lilly-china-social",
+        "jobs": 95,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1MxcpWXW6FD92cJb501-wXSbmugqWpWaT",
+          "bytes": 756773,
+          "sha256": "be7470c52a3e4dd8f63584d37c44d4a19338d441c6c3c47502265ef76bb8a10f",
+          "members": 20,
+          "sources": [
+            {
+              "source": "lilly",
+              "batch": "dot-auto-lilly-20261018T153112751Z",
+              "rawFiles": 98,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 95
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:33:36.716Z"
+        }
+      },
+      {
+        "sourceId": "source-msd-china-social",
+        "jobs": 121,
+        "allFieldsMatch": true,
+        "backup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1q-p3OVSnBewaWgQ2ghzyCKMjB-o-OSNM",
+          "bytes": 3889816,
+          "sha256": "79c5e2cc0eee0a5ba4ad6c0c7be05d8ac8e31a2e82c7badf8e6930b6f9c10bcb",
+          "members": 20,
+          "sources": [
+            {
+              "source": "msd",
+              "batch": "dot-auto-msd-20261018T153346948Z",
+              "rawFiles": 249,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 121
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:37:34.780Z"
+        }
+      }
+    ],
+    "allFiveOfficialCommitted": true,
+    "exactRequestIdBackup": true,
+    "failedWithoutProducerOrDatabaseWrite": [
+      "BI"
+    ],
+    "skippedRecent": 30,
+    "fullAcceptance": false
+  },
+  "execution280": {
+    "sources": [
+      {
+        "sourceId": "source-boehringer-ingelheim-china-social",
+        "status": "WEB_VERIFIED",
+        "allFieldsMatch": true,
+        "lastSuccessAt": "2026-10-18T15:39:21.484Z",
+        "uniqueJobs": 50,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1_JD10GECYQLBwZafwr8_ulbZFIw-pRGc",
+          "bytes": 111793,
+          "sha256": "caf2b5f2114f5c8f04d80d9ae402c30ea61037dd7d05a9f03c25a745623dcb2d",
+          "members": 21,
+          "sources": [
+            {
+              "source": "boehringer-ingelheim",
+              "batch": "dot-auto-boehringer-ingelheim-20261018T153849742Z",
+              "rawFiles": 2,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 50
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:41:21.555Z"
+        },
+        "webVerifiedAt": "2026-10-18T15:40:48.544Z"
+      },
+      {
+        "sourceId": "source-qilu-social",
+        "status": "WEB_VERIFIED",
+        "allFieldsMatch": true,
+        "lastSuccessAt": "2026-10-18T15:41:51.907Z",
+        "uniqueJobs": 232,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1jmtQI6XHOCEMK5v2xEh6AawuZTIe_LUg",
+          "bytes": 638522,
+          "sha256": "1e10dc01a6965c5abebeed15c6b04709d8a937346116d8471ae3bc63e1b7bc75",
+          "members": 20,
+          "sources": [
+            {
+              "source": "qilu",
+              "batch": "dot-auto-qilu-20261018T154132660Z",
+              "rawFiles": 19,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 232
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:43:56.257Z"
+        },
+        "webVerifiedAt": "2026-10-18T15:43:16.755Z"
+      },
+      {
+        "sourceId": "source-roche-china-social",
+        "status": "WEB_VERIFIED",
+        "allFieldsMatch": true,
+        "lastSuccessAt": "2026-10-18T15:44:34.705Z",
+        "uniqueJobs": 301,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1-D39WOD81aGxH-DRT7_ZPoJ-oplBbq2u",
+          "bytes": 1599093,
+          "sha256": "c6f8596333d4f9f72659c97b269431c9f24fd7b74519ccf0a63497cf774a8d42",
+          "members": 20,
+          "sources": [
+            {
+              "source": "roche",
+              "batch": "dot-auto-roche-20261018T154406848Z",
+              "rawFiles": 305,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 301
+            }
+          ],
+          "verifiedAt": "2026-10-18T15:47:05.386Z"
+        },
+        "webVerifiedAt": "2026-10-18T15:46:29.737Z"
+      }
+    ],
+    "allThreeOfficialSuccessCommitted": true,
+    "automaticExactIdBackup": true,
+    "officialCrawledAt": {
+      "source-boehringer-ingelheim-china-social": "2026-10-18T15:39:21.484Z",
+      "source-qilu-social": "2026-10-18T15:41:51.907Z",
+      "source-roche-china-social": "2026-10-18T15:44:33.412Z"
+    },
+    "rocheTimeNote": "Official committed crawledAt is 15:44:33.412Z; web result lastSuccessAt reports 15:44:34.705Z. Both values retained without conflating fields.",
+    "biSigningMaterialCheck": {
+      "checkedAt": "2026-10-18T15:44:11.041061Z",
+      "officialTotal": 50,
+      "apiUnique": 50,
+      "uiUnique": 50,
+      "exactIdsTitlesLocations": true,
+      "artifactApiUrlUnsigned": true,
+      "publicSigningScriptNotArchived": true,
+      "apiDiagnosticQueryRemoved": true,
+      "checkedRunTextFiles": 25,
+      "signingMaterialPatternFindings": 0
+    },
+    "cumulativeSourceCoverage": {
+      "sourcesWithSuccessfulHistory": 36,
+      "sameRoundAllSources": false,
+      "longTermUnattendedAcceptance": false
+    }
+  },
+  "singleStrictReplayEvidence": {
+    "historicalReportsByteEqual": [
+      {
+        "source": "JNJ",
+        "jobs": 159
+      },
+      {
+        "source": "Novartis",
+        "jobs": 169
+      },
+      {
+        "source": "BI",
+        "jobs": 50
+      }
+    ],
+    "historicalClockPinned": true,
+    "strictInvocationsPerAffectedRun": {
+      "before": 2,
+      "after": 1
+    },
+    "liveTimingMeasured": false,
+    "all36Replay": false
+  },
+  "archiveReadReuseEvidence": {
+    "sample": "Novartis",
+    "members": 20,
+    "rawFiles": 51,
+    "allMemberBytesIncludingManifestEqual": true,
+    "bothRestoreVerified": true,
+    "archiveReadsBefore": 2,
+    "archiveReadsAfter": 1,
+    "livePerformanceMeasured": false
+  },
+  "rejectedCandidate1627": {
+    "status": "NOT_ADOPTED_NOT_ACTIVATED",
+    "reason": "Historical upload errors do not distinguish permission denial from transient failure; narrowed resolved-record scan lacks sufficient benefit.",
+    "currentModuleRemains": "1624"
+  },
+  "execution297": {
+    "summary": {
+      "successes": [
+        [
+          "dot-auto-kelun-20261019T004022458Z",
+          28
+        ],
+        [
+          "dot-auto-bayer-20261019T000543753Z",
+          160
+        ],
+        [
+          "dot-auto-hengrui-20261019T002758825Z",
+          996
+        ],
+        [
+          "dot-auto-novo-nordisk-20261019T004510805Z",
+          37
+        ],
+        [
+          "dot-auto-grifols-20261019T002043790Z",
+          2
+        ],
+        [
+          "dot-auto-gsk-20261019T002249947Z",
+          70
+        ],
+        [
+          "dot-auto-merck-20261019T004235363Z",
+          72
+        ],
+        [
+          "dot-auto-jnj-20261019T003122018Z",
+          157
+        ],
+        [
+          "dot-auto-ucb-20261019T012335740Z",
+          1
+        ],
+        [
+          "dot-auto-hansoh-20261019T002521345Z",
+          300
+        ],
+        [
+          "dot-auto-viatris-20261019T012542034Z",
+          249
+        ],
+        [
+          "dot-auto-servier-20261019T011159144Z",
+          97
+        ],
+        [
+          "dot-auto-gilead-20261019T001838144Z",
+          11
+        ],
+        [
+          "dot-auto-daiichi-sankyo-20261019T001620071Z",
+          85
+        ],
+        [
+          "dot-auto-takeda-20261019T012054319Z",
+          119
+        ],
+        [
+          "dot-auto-shanghai-pharma-20261019T011823213Z",
+          70
+        ],
+        [
+          "dot-auto-organon-20261019T005952603Z",
+          6
+        ]
+      ],
+      "webVerified": 17,
+      "automaticBackups": 16,
+      "manualBackups": 1,
+      "heldWithoutCommit": [
+        "cspc",
+        "pfizer",
+        "sanofi"
+      ],
+      "relayRequests": 226,
+      "unanswered": 0,
+      "producerCount": 0,
+      "lockEmpty": true,
+      "native112Clean": true,
+      "newExternal": "eb36a6c56b8599ff53972c703635f4eac0082400"
+    },
+    "results": [
+      {
+        "sourceId": "source-bayer-healthcare-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 160,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "PENDING",
+          "stage": "PACKAGE",
+          "fileId": null,
+          "reason": "Original automatic PACKAGE step failed; retained PENDING. Authorized manual recovery recorded separately.",
+          "automaticRetry": false
+        }
+      },
+      {
+        "sourceId": "source-cspc-social",
+        "status": "HELD"
+      },
+      {
+        "sourceId": "source-daiichi-sankyo-china-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 85,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1ZLYCHsVslm1vTdi8dRlaIxnAJyPwREgO",
+          "bytes": 350706,
+          "sha256": "b4dc6c87358e9df2c1c61d1ac3b1c4d63cb6461f6a6bfe21b78c17fd63d56d12",
+          "members": 20,
+          "sources": [
+            {
+              "source": "daiichi-sankyo",
+              "batch": "dot-auto-daiichi-sankyo-20261019T001620071Z",
+              "rawFiles": 6,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 85
+            }
+          ],
+          "verifiedAt": "2026-10-19T00:18:29.298Z"
+        }
+      },
+      {
+        "sourceId": "source-gilead-china-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 11,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1e40GIWUvqO1xDvJCwCxnwKNl1RkoxsqM",
+          "bytes": 51715,
+          "sha256": "e781e48f8352d2eeaa7870a0d6b909d3b7c14a57281e9d653a818069ad64d8cb",
+          "members": 20,
+          "sources": [
+            {
+              "source": "gilead",
+              "batch": "dot-auto-gilead-20261019T001838144Z",
+              "rawFiles": 1,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 11
+            }
+          ],
+          "verifiedAt": "2026-10-19T00:20:34.652Z"
+        }
+      },
+      {
+        "sourceId": "source-grifols-china-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 2,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1TpZ2G47w1c2_dM9bqKyIPq5fCoqT2-Gh",
+          "bytes": 108488,
+          "sha256": "8de7b9cc6d0ced36cc7a46fffcf9bdec8ad2b088c3bf6edd675179ae5026b155",
+          "members": 20,
+          "sources": [
+            {
+              "source": "grifols",
+              "batch": "dot-auto-grifols-20261019T002043790Z",
+              "rawFiles": 3,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 2
+            }
+          ],
+          "verifiedAt": "2026-10-19T00:22:40.559Z"
+        }
+      },
+      {
+        "sourceId": "source-gsk-china-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 70,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1eN2tpxzZ-D9yKe8JPVM93jn4u02AGj8K",
+          "bytes": 640329,
+          "sha256": "f6d90a05e4e00f6218475d77eafc31d1acc2b37e99e68cdf1eeb7d5eeafe89f0",
+          "members": 20,
+          "sources": [
+            {
+              "source": "gsk",
+              "batch": "dot-auto-gsk-20261019T002249947Z",
+              "rawFiles": 5,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 70
+            }
+          ],
+          "verifiedAt": "2026-10-19T00:25:11.160Z"
+        }
+      },
+      {
+        "sourceId": "source-hansoh-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 300,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1IFrhlWvLCzRocRD_Il3H7ghHb-nhnFE_",
+          "bytes": 662788,
+          "sha256": "f9421907a0f722b7076046e3cef15268e657bc8b96cc8265c6484f40c67d662b",
+          "members": 20,
+          "sources": [
+            {
+              "source": "hansoh",
+              "batch": "dot-auto-hansoh-20261019T002521345Z",
+              "rawFiles": 3,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 300
+            }
+          ],
+          "verifiedAt": "2026-10-19T00:27:32.855Z"
+        }
+      },
+      {
+        "sourceId": "source-hengrui-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 996,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1sBr9dqqvBUKTWfACXco73GLlZocbYtXQ",
+          "bytes": 4022437,
+          "sha256": "b0cdce669420a13ca0ef63badab60bbd560bdd50110c86364aa7d436d2fbd84e",
+          "members": 19,
+          "sources": [
+            {
+              "source": "hengrui",
+              "batch": "dot-auto-hengrui-20261019T002758825Z",
+              "rawFiles": 21,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 996
+            }
+          ],
+          "verifiedAt": "2026-10-19T00:31:11.401Z"
+        }
+      },
+      {
+        "sourceId": "source-johnson-innovative-medicine-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 157,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1dx9E1s97ZoVaZeQlAdlYihnEW7djIKZ7",
+          "bytes": 2529343,
+          "sha256": "13dc2bd65ce8b256b44dbbebab90a64047bd26d7131543a3cfa2d68cbf99aa0d",
+          "members": 20,
+          "sources": [
+            {
+              "source": "jnj",
+              "batch": "dot-auto-jnj-20261019T003122018Z",
+              "rawFiles": 165,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 157
+            }
+          ],
+          "verifiedAt": "2026-10-19T00:40:12.785Z"
+        }
+      },
+      {
+        "sourceId": "source-kelun-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 28,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1NqIsLR5YOLQoel4o5r0y-jymJCDHf5Mx",
+          "bytes": 93448,
+          "sha256": "99ddb83a3fae3e3a9b611adecc9f2e7d121761bd7ff6fd3c0ee9dfa07486c67a",
+          "members": 20,
+          "sources": [
+            {
+              "source": "kelun",
+              "batch": "dot-auto-kelun-20261019T004022458Z",
+              "rawFiles": 3,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 28
+            }
+          ],
+          "verifiedAt": "2026-10-19T00:42:24.818Z"
+        }
+      },
+      {
+        "sourceId": "source-merck-china-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 72,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1KEFVFcj-f4xNcCGwwIN3a5mJHV-9iWB1",
+          "bytes": 219879,
+          "sha256": "2670c23749f4f90eaef88bd2768aa8c79a545c77972ab6124225c27cce9e1f98",
+          "members": 20,
+          "sources": [
+            {
+              "source": "merck",
+              "batch": "dot-auto-merck-20261019T004235363Z",
+              "rawFiles": 3,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 72
+            }
+          ],
+          "verifiedAt": "2026-10-19T00:45:00.836Z"
+        }
+      },
+      {
+        "sourceId": "source-novo-nordisk-china-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 37,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1pndrM5UAXzNC3lpXbzeGJBPGznAjsuc9",
+          "bytes": 1847346,
+          "sha256": "66a71cd2f6003051c7cdcad09c38dedb28f8448de947528d2c9c4ac8baa0e1ad",
+          "members": 20,
+          "sources": [
+            {
+              "source": "novo-nordisk",
+              "batch": "dot-auto-novo-nordisk-20261019T004510805Z",
+              "rawFiles": 86,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 37
+            }
+          ],
+          "verifiedAt": "2026-10-19T00:59:07.803Z"
+        }
+      },
+      {
+        "sourceId": "source-organon-china-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 6,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1mJt2SurmBAQLz7lpJ5tzhf0M4Totte5R",
+          "bytes": 161895,
+          "sha256": "6606db49b143f29f4f17f84e8492e2f1bcb407915e046046393cfb260c12b619",
+          "members": 20,
+          "sources": [
+            {
+              "source": "organon",
+              "batch": "dot-auto-organon-20261019T005952603Z",
+              "rawFiles": 8,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 6
+            }
+          ],
+          "verifiedAt": "2026-10-19T01:02:11.758Z"
+        }
+      },
+      {
+        "sourceId": "source-pfizer-china-social",
+        "status": "HELD"
+      },
+      {
+        "sourceId": "source-sanofi-china-social",
+        "status": "HELD"
+      },
+      {
+        "sourceId": "source-servier-china-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 97,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1T3KKUvPiGKGepQeGIovfqCOVveln1bhC",
+          "bytes": 6194140,
+          "sha256": "a3f24f42bd3f5f9bec024947d2e825f355f4283ec25750707a40b044596d7c21",
+          "members": 130,
+          "sources": [
+            {
+              "source": "servier",
+              "batch": "dot-auto-servier-20261019T011159144Z",
+              "rawFiles": 101,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 97
+            }
+          ],
+          "verifiedAt": "2026-10-19T01:18:13.301Z"
+        }
+      },
+      {
+        "sourceId": "source-shanghai-pharma-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 70,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1YjUCDwpqD85wuy-nUmTl0zDG9sZT-Yli",
+          "bytes": 298441,
+          "sha256": "4e4fd5763a150aba5312a24a26b7763ce8ba58501e067c3f1683137738d75a45",
+          "members": 20,
+          "sources": [
+            {
+              "source": "shanghai-pharma",
+              "batch": "dot-auto-shanghai-pharma-20261019T011823213Z",
+              "rawFiles": 71,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 70
+            }
+          ],
+          "verifiedAt": "2026-10-19T01:20:43.321Z"
+        }
+      },
+      {
+        "sourceId": "source-takeda-china-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 119,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1mh11-aJhLDZ2qLqk7JyXT1Oc9zB7UMst",
+          "bytes": 851579,
+          "sha256": "b51042fd5c1a26ee706b26613c55217c86afb4f8d0aa4ab7aab3521efc0ed941",
+          "members": 20,
+          "sources": [
+            {
+              "source": "takeda",
+              "batch": "dot-auto-takeda-20261019T012054319Z",
+              "rawFiles": 25,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 119
+            }
+          ],
+          "verifiedAt": "2026-10-19T01:23:26.229Z"
+        }
+      },
+      {
+        "sourceId": "source-ucb-china-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 1,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1Sc-Cu1kD9IWGSRID4WovyZC03AIFg8rC",
+          "bytes": 143020,
+          "sha256": "7160e42a06d1f4f2609f41662bc426d120c11ba4e4daf9a2ee2c4088bf8f5a83",
+          "members": 20,
+          "sources": [
+            {
+              "source": "ucb",
+              "batch": "dot-auto-ucb-20261019T012335740Z",
+              "rawFiles": 2,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 1
+            }
+          ],
+          "verifiedAt": "2026-10-19T01:25:30.929Z"
+        }
+      },
+      {
+        "sourceId": "source-viatris-social",
+        "status": "WEB_VERIFIED",
+        "uniqueJobs": 249,
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1xiyNPd1WVOzNlzz9C04zYjuu0DVq60Mu",
+          "bytes": 302649,
+          "sha256": "d02dd54663114eb1acde3acbf507b472c090ac795ffc1481dceaa39210556bc1",
+          "members": 20,
+          "sources": [
+            {
+              "source": "viatris",
+              "batch": "dot-auto-viatris-20261019T012542034Z",
+              "rawFiles": 25,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 249
+            }
+          ],
+          "verifiedAt": "2026-10-19T01:28:18.849Z"
+        }
+      }
+    ],
+    "bayerManualRecovery": {
+      "fileId": "1WIPt7I5bDfafNnwajwz7nVIV1IBCqgBz",
+      "bytes": 19164415,
+      "sha256": "07d085f88bbde6f8bb70eb4565d7aba393b3638a4b4ab0dc4afd3ada6b528190",
+      "verifiedMembers": 196,
+      "status": "MANUALLY_RECOVERED",
+      "originalAutomaticPendingPreserved": true
+    }
+  },
+  "taskPrompt0145Update": "CONFIRMED circa2026-10-19T02:00:20Z; superseded by0205",
+  "execution305": {
+    "hostTerminal": "LOST_CELL_NOT_FOUND",
+    "abbvie": {
+      "batch": "dot-auto-abbvie-20261019T013019981Z",
+      "official": "SUCCESS_COMMITTED",
+      "exitCode": 0,
+      "outcome": "COMMITTED_EXACT",
+      "webJobs": 57,
+      "allFieldsMatch": true,
+      "backupFileId": "1DhI2FNtiAUdUWgnu3EU6fTMdp6eVgDfh",
+      "backupStatus": "REMOTE_RESTORE_VERIFIED"
+    },
+    "cspc": {
+      "batch": "dot-auto-cspc-20261019T013247688Z",
+      "producerSessionExists": false,
+      "officialBatchExists": false,
+      "hostTerminalUnavailable": true
+    },
+    "unknownPublishObserved": false,
+    "fullLoopResultConfirmed": false
+  },
+  "execution4": {
+    "webVerified": 1,
+    "heldSources": [
+      "CSPC",
+      "Novartis",
+      "Pfizer"
+    ],
+    "sanofi": {
+      "batch": "dot-auto-sanofi-20261019T014858055Z",
+      "webJobs": 119,
+      "allFieldsMatch": true,
+      "backup": {
+        "fileId": "1lW1slqG-e2-vRwQBeanZdvg4fvd3D2aA",
+        "bytes": 43313634,
+        "sha256": "c5c7c5541a3e316ffc1f2f16d82f0dc8dbab692c2d577977e3ff07a8e57f16bb",
+        "members": 287,
+        "rawFiles": 264,
+        "verifiedAt": "2026-10-19T01:57:57.115Z"
+      }
+    },
+    "fullAcceptance": false,
+    "twoSourceDecisionsPending": true
+  },
+  "updateTimePrecision": "minute per root confirmation",
+  "pendingUserDecisions": [],
+  "previousNativeDelta112": {
+    "base": "c44ff2790fa9e5e9edd51d04be116b2da356eca2",
+    "driveFileId": "17KahomnNTiejojQvtFwpz545JIa3SmZx",
+    "bytes": 10823,
+    "sha256": "eddb3d6763cba9aa98270f6269d55e6be794c562577b5476d6c42f65e7e07895",
+    "restoredTree": "636e9a2882691d47184b08f48b242bf8647bfbf5",
+    "rawCommitExact": true
+  },
+  "registrationTimePrecision": "second per root confirmation",
+  "cspcManualBackup": {
+    "batch": "dot-auto-cspc-20261019T021204146Z",
+    "status": "MANUALLY_RECOVERED",
+    "fileId": "1oPozMzPUk9surkFvuOGXXnkSm4YOH-tA",
+    "bytes": 439828,
+    "sha256": "974de7978acfce7bbfeb018609884936d8901b4371f378cde35fc9565a242a0d",
+    "verifiedMembers": 54,
+    "rawFiles": 4,
+    "webJobs": 31,
+    "originalAutomaticPendingPreserved": true
+  },
+  "previousNativeDelta113": {
+    "base": "b9ef32f269b1e7433d65a0c5a20710ccc59da282",
+    "driveFileId": "1RTVEFK9j3YoPpTKB47fVdZscrRx1jzqa",
+    "bytes": 18795,
+    "sha256": "d1fe23af8fd1ae2107da4fa64130cbc6cb05841aa653f26ad38cfdf3e3518543",
+    "restoredTree": "accef57025a53a637c2ca25861d02949c109c9f2",
+    "rawCommitExact": true
+  },
+  "registrationVerifiedAt": "2026-10-19T03:37:16.652911Z",
+  "moduleAppliedTimeMeaning": "Verified active by READY time",
+  "bindingSha256": "9a6c1863222f67a657b73c85e7702d6daa4490562aa793939f9f752681134fae",
+  "taskPrompt114Update": "CONFIRMED; schedule08/20 Asia/Shanghai unchanged",
+  "native115PrecedingDelta": {
+    "base": "9f902d47ca82097009771d179fb425acf9e471e7",
+    "commit": "bfb69f7c42d43a354682dfd7cf699a76a087cc5f",
+    "driveFileId": "1Iz5oZzQzyKyV8Qta3PFTGaYrsj31ugEo",
+    "bytes": 4134,
+    "sha256": "0fdfa48a6c6681f7f6b6857f11a3bc84f9febc8ff2e782c2fdbe31a68ef2d57b",
+    "restoredTree": "f29a34292f77a2e511022ab810023684c9ead6b0",
+    "rawCommitExact": true
+  },
+  "native114Delta": {
+    "base": "590aef17ecd775a854c0f99bc5c383235c2cf687",
+    "driveFileId": "1C-XdTencCtKL76UEPgnELl5jakVRbdH1",
+    "bytes": 9072,
+    "sha256": "73914681af213583b7934064817a1205eed37303ac7ea4df38000fc1b76e50d9",
+    "restoredTree": "ead6f16f70234aa053613f33c00684b97f1ae9a2",
+    "rawCommitExact": true
+  },
+  "root30": {
+    "counts": {
+      "SKIPPED": 25,
+      "WEB_VERIFIED": 8,
+      "HELD": 3
+    },
+    "successes": [
+      {
+        "sourceId": "source-astellas-china-social",
+        "uniqueJobs": 15,
+        "lastSuccessAt": "2026-10-19T03:38:25.419Z",
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1Sr0Yf-SSkYxB_QLOd2yxj980DVUcFbGO",
+          "bytes": 2297349,
+          "sha256": "4ba88a24bdea52c0fdd2643f10574a27b91f8d436a268d5b7b925b8832e2ae12",
+          "members": 20,
+          "sources": [
+            {
+              "source": "astellas",
+              "batch": "dot-auto-astellas-20261019T033801949Z",
+              "rawFiles": 16,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 15
+            }
+          ],
+          "verifiedAt": "2026-10-19T03:40:56.647Z"
+        }
+      },
+      {
+        "sourceId": "source-astrazeneca-social",
+        "uniqueJobs": 249,
+        "lastSuccessAt": "2026-10-19T03:41:44.192Z",
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "16tyLpVAKUsK_z55H_79zt9qW1okNi0un",
+          "bytes": 4585761,
+          "sha256": "95c727acf59cf4ffef84c17be6229459e6b67501cf741adeb69bd511db903b4c",
+          "members": 20,
+          "sources": [
+            {
+              "source": "astrazeneca",
+              "batch": "dot-auto-astrazeneca-20261019T034110821Z",
+              "rawFiles": 267,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 249
+            }
+          ],
+          "verifiedAt": "2026-10-19T03:45:09.300Z"
+        }
+      },
+      {
+        "sourceId": "source-biogen-china-social",
+        "uniqueJobs": 7,
+        "lastSuccessAt": "2026-10-19T03:45:43.503Z",
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1nPZ3nkzEnmg9Q6kQoVAunn-hBLZYoowp",
+          "bytes": 45160,
+          "sha256": "b2dbe871d9d27bcd7080b3283e9fc5f7fafdcc203c1ac01fd54a1e2afbb77da2",
+          "members": 19,
+          "sources": [
+            {
+              "source": "biogen",
+              "batch": "dot-auto-biogen-20261019T034521039Z",
+              "rawFiles": 1,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 7
+            }
+          ],
+          "verifiedAt": "2026-10-19T03:47:49.854Z"
+        }
+      },
+      {
+        "sourceId": "source-bms-china-social",
+        "uniqueJobs": 33,
+        "lastSuccessAt": "2026-10-19T03:48:27.652Z",
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1iCEWklkidVLun9vMZXxCUlHprayceToQ",
+          "bytes": 91920,
+          "sha256": "7bea19dccaeb16031d791f97dacd75deb3ea150b6031b2153df260515038daf4",
+          "members": 20,
+          "sources": [
+            {
+              "source": "bms",
+              "batch": "dot-auto-bms-20261019T034802319Z",
+              "rawFiles": 4,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 33
+            }
+          ],
+          "verifiedAt": "2026-10-19T03:50:27.222Z"
+        }
+      },
+      {
+        "sourceId": "source-cr-pharma-social",
+        "uniqueJobs": 25,
+        "lastSuccessAt": "2026-10-19T03:51:08.159Z",
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1SCD5nqY1LbRLfkPJtT7orVvzkVUWYMXc",
+          "bytes": 96273,
+          "sha256": "3729c36549a2684aec8d5bd6dd0f38c38630bbc6ebd6a9ecb8221ab9fa08eaf0",
+          "members": 20,
+          "sources": [
+            {
+              "source": "cr-pharma",
+              "batch": "dot-auto-cr-pharma-20261019T035039732Z",
+              "rawFiles": 3,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 25
+            }
+          ],
+          "verifiedAt": "2026-10-19T03:53:25.104Z"
+        }
+      },
+      {
+        "sourceId": "source-cttq-social",
+        "uniqueJobs": 623,
+        "lastSuccessAt": "2026-10-19T03:54:56.086Z",
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1i0ndSmWCr-uAv608IyihAgAvJ7pNL-8I",
+          "bytes": 1719450,
+          "sha256": "d4016f3d4889437306fd7f59d77f7100857f39ed11df114612e7ef298828f657",
+          "members": 20,
+          "sources": [
+            {
+              "source": "cttq",
+              "batch": "dot-auto-cttq-20261019T035423376Z",
+              "rawFiles": 630,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 623
+            }
+          ],
+          "verifiedAt": "2026-10-19T04:01:19.758Z"
+        }
+      },
+      {
+        "sourceId": "source-fosun-pharma-social",
+        "uniqueJobs": 81,
+        "lastSuccessAt": "2026-10-19T04:01:47.293Z",
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1LSXB2t8aoQRkh3KAHA_8el_Xl2mSJOVu",
+          "bytes": 241809,
+          "sha256": "f61cb5254fc378b80d4864b5f7b7794d3fc1a7bd67e3f93049c9a7e88896a23d",
+          "members": 20,
+          "sources": [
+            {
+              "source": "fosun",
+              "batch": "dot-auto-fosun-20261019T040129067Z",
+              "rawFiles": 1,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 81
+            }
+          ],
+          "verifiedAt": "2026-10-19T04:03:50.869Z"
+        }
+      },
+      {
+        "sourceId": "source-msd-china-social",
+        "uniqueJobs": 121,
+        "lastSuccessAt": "2026-10-19T04:05:14.314Z",
+        "allFieldsMatch": true,
+        "evidenceBackup": {
+          "status": "REMOTE_RESTORE_VERIFIED",
+          "fileId": "1fxr8_AGZ0mQxutzfCAShBClVms3hkUt7",
+          "bytes": 3900614,
+          "sha256": "565595c7fd6e88fa75e441d6d64ec0258f4e41339303e81f92baefddf062fa73",
+          "members": 20,
+          "sources": [
+            {
+              "source": "msd",
+              "batch": "dot-auto-msd-20261019T040439565Z",
+              "rawFiles": 249,
+              "webStatus": "WEB_VERIFIED",
+              "webJobs": 121
+            }
+          ],
+          "verifiedAt": "2026-10-19T04:11:39.813Z"
+        }
+      }
+    ],
+    "heldSources": [
+      "source-csl-china-social",
+      "source-lilly-china-social",
+      "source-pfizer-china-social"
+    ]
+  },
+  "current115Acceptance": "Root33 fresh running; no new115 production success established. Static checks and registration do not establish collection success."
+}

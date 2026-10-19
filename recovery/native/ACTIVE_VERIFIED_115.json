@@ -1,0 +1,17 @@
+{
+  "nativeCandidate": 115,
+  "nativeCommit": "631a549ba23f294ac58eb628eac7afb4a5a7456d",
+  "externalCommit": "c013de32be9067012d827ae4a5c2e1fb455c4df4",
+  "filesVerified": 63,
+  "entrySha256": "8b577c7142aa17ef3a1373cc4cdca91ca04568348957f312ae73be72e686da66",
+  "bindingSha256": "9a6c1863222f67a657b73c85e7702d6daa4490562aa793939f9f752681134fae",
+  "registeredAt": "2026-10-19T04:14:24.786Z",
+  "independent16FieldsMatch": true,
+  "connectorValidate": true,
+  "nativeClean": true,
+  "checkedAt": "2026-10-19T04:15:22.509201Z",
+  "taskUpdatedAt": "2026-10-19T04:16Z",
+  "scheduleUnchanged": true,
+  "source": "Owner READY and root task-update confirmation",
+  "freshProductionValidation": "PENDING"
+}
