@@ -1,0 +1,22 @@
+{
+  "activatedAt": "2026-10-19T16:19:39.299004+00:00",
+  "commit": "c4a10931c5f8a24d83cc49aba5f09badda7d4a32",
+  "parent": "33ba54d9056bbd05bbdd5fcc437057571a9cd0f4",
+  "native": 117,
+  "nativeClean": true,
+  "officialSafetyCheckedAt": "2026-10-19T16:19:08.245368Z",
+  "holder": "",
+  "live": 0,
+  "manual": 0,
+  "relayCount": 309,
+  "pending": 0,
+  "producer": 0,
+  "changed": [
+    "run-original-functions.js"
+  ],
+  "runtimeFilesExact": 63,
+  "entrySha256": "e2fccabf67c3e21befd25d95e50f0aff2ae929f81220b9ed314d61eebea0cd01",
+  "productionValidation": "PENDING_FRESH_RUN",
+  "taskUpdatedAt": "2026-10-19T16:20:23Z",
+  "taskChange": "prompt only; schedule unchanged"
+}
