@@ -1,6 +1,6 @@
 {
   "taskTitle": "采集并核验招聘岗位",
-  "updateSucceededAt": "2026-10-19T03:05Z",
+  "updateSucceededAt": "2026-10-19T03:38Z",
   "enabled": true,
   "schedule": {
     "timezone": "Asia/Shanghai",
@@ -11,7 +11,7 @@
   },
   "nativeCandidate": 114,
   "nativeCommit": "9f902d47ca82097009771d179fb425acf9e471e7",
-  "registeredAt": null,
+  "registeredAt": "2026-10-19T03:36:10Z",
   "independent16Fields": "PASS",
   "connectorValidate": "PASS",
   "nativeDelta": {
@@ -129,7 +129,9 @@
     }
   },
   "latestExecution": {
-    "status": "READY_NOT_STARTED",
+    "execution": 30,
+    "status": "RUNNING",
+    "startedAt": "2026-10-19T03:37Z",
     "fullAcceptance": false
   },
   "moduleDeltaChain": [
@@ -317,7 +319,7 @@
       "exact": true
     }
   ],
-  "nextActualRoundValidation": "READY; new fresh batch acceptance pending",
+  "nextActualRoundValidation": "Root30 fresh Pfizer in progress; no new success claimed",
   "abbvie1303Production": {
     "batch": "dot-auto-abbvie-20261018T132712732Z",
     "jobs": 57,
@@ -1294,7 +1296,7 @@
     "restoredTree": "636e9a2882691d47184b08f48b242bf8647bfbf5",
     "rawCommitExact": true
   },
-  "registrationTimePrecision": "Exact registration timestamp not included in sanitized READY; official16fields verified by stated time",
+  "registrationTimePrecision": "second per root confirmation",
   "cspcManualBackup": {
     "batch": "dot-auto-cspc-20261019T021204146Z",
     "status": "MANUALLY_RECOVERED",
@@ -1317,5 +1319,5 @@
   "registrationVerifiedAt": "2026-10-19T03:37:16.652911Z",
   "moduleAppliedTimeMeaning": "Verified active by READY time",
   "bindingSha256": "1a6718bc0dac290f9c95f356658c413b7fc9626d8e34c9e73edfb938fa0482f3",
-  "taskPrompt114Update": "Not yet reported; previous113 task update timestamp retained"
+  "taskPrompt114Update": "CONFIRMED; schedule08/20 Asia/Shanghai unchanged"
 }
