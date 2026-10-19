@@ -1,0 +1,29 @@
+{
+  "activatedAt": "2026-10-19T01:29:19.634939+00:00",
+  "canonical": "eb36a6c56b8599ff53972c703635f4eac0082400",
+  "previousCanonical": "7e4569f9a711d866a10a040fdb407599b5a61f12",
+  "nativeCommit": "b9ef32f269b1e7433d65a0c5a20710ccc59da282",
+  "nativeVersion": 112,
+  "filesVerified": 63,
+  "changedPaths": [
+    "pfizer-browser-runtime.js",
+    "cspc-functions.js",
+    "pfizer-functions.js",
+    "run-original-functions.js",
+    "cspc-browser-runtime.js",
+    "support/transport/sanofi-reader-before-original.sql",
+    "evidence-backup-functions.js",
+    "package-success-evidence.py"
+  ],
+  "entrySha256": "9b050e53ed5318ce4e3b82b2eea8fcc0a8a736d4dd46bf15143a41d500d2a17b",
+  "safetyWindow": {
+    "root297": "terminal",
+    "holder": "",
+    "liveRunning": 0,
+    "manual": 0,
+    "producerCount": 0,
+    "relayRequests": 226,
+    "unanswered": 0
+  },
+  "producerStarted": false
+}
