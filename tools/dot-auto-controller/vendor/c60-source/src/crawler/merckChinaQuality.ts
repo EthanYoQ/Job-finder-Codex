@@ -60,6 +60,7 @@ const MAINLAND_LOCATIONS = [
   ["Beijing", "Beijing", "北京", "39.9075", "116.39723"],
   ["Guangzhou", "Guangdong", "广州", "23.11667", "113.25"],
   ["Suzhou", "Jiangsu", "苏州", "31.30408", "120.59538"],
+  ["Wuxi", "Jiangsu", "无锡", "31.56887", "120.28857"],
   ["Nantong", "Jiangsu", "南通", "32.03028", "120.87472"],
   ["Shenzhen", "Guangdong", "深圳", "22.54554", "114.0683"]
 ] as const;
