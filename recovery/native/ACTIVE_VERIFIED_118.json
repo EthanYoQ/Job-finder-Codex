@@ -1,0 +1,15 @@
+{
+  "candidate": 118,
+  "nativeCommit": "37f882d486161bbe9ed3bd35548ec78e84d7b5d3",
+  "externalCommit": "c4a10931c5f8a24d83cc49aba5f09badda7d4a32",
+  "registeredAt": "2026-10-19T17:24:24.957Z",
+  "checkedAt": "2026-10-19T17:25:14.218541Z",
+  "official16FieldsMatched": true,
+  "nativeClean": true,
+  "externalFilesMatched": 63,
+  "entrySha256": "e2fccabf67c3e21befd25d95e50f0aff2ae929f81220b9ed314d61eebea0cd01",
+  "bindingSha256": "fb050d4b02831ea5755758fb71e6fd04183fe538ff6b2736f5d2f7f51f7ac3a1",
+  "rootFreshStartedAt": "2026-10-19T17:25:51Z",
+  "productionAcceptance": "PENDING",
+  "bayerHold": "PREVIOUS_BATCH_EXPIRED_NO_WRITE_PENDING_FRESH_REVIEW; previous publication expired and official no batch/commit."
+}
