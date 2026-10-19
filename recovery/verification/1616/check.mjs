@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const code=fs.readFileSync(new URL('./after/run-original-functions.js',import.meta.url),'utf8');
+const A=Object.getPrototypeOf(async function(){}).constructor;new A(code);
+const logic=code.slice(code.indexOf('const slotStartMs='),code.indexOf("if(load('originalRelayReadOnly')"));
+const evaluate=new Function('states',logic+'return {slotStart,slotEnd,succeededInSlot};');
+for(const [time,start] of [['2026-10-19T11:59:59Z','2026-10-19T00:00:00.000Z'],['2026-10-19T12:00:00Z','2026-10-19T12:00:00.000Z'],['2026-10-20T00:00:00Z','2026-10-20T00:00:00.000Z']])assert.equal(evaluate([{checkedAt:time}]).slotStart,start);
+const slot=evaluate([{checkedAt:'2026-10-19T16:00:00Z'}]);
+assert.ok(!slot.succeededInSlot({crawledAt:'2026-10-19T04:50:03Z'}));
+assert.ok(slot.succeededInSlot({crawledAt:'2026-10-19T12:00:00Z'}));
+assert.ok(slot.succeededInSlot({crawledAt:'2026-10-19T16:00:00Z'}));
+assert.ok(!slot.succeededInSlot({crawledAt:'2026-10-20T00:00:00Z'}));
+const guard=code.match(/if\(!recent.sameSlot\)throw Error\('SCHEDULE_SLOT_ENDED:'\+slotStart\);if\(recent.fresh\)throw Error\('NEW_SUCCESS_BEFORE_DISPATCH'\);/)[0];
+const check=new Function('recent','slotStart',guard);
+assert.throws(()=>check({sameSlot:false,fresh:false},slot.slotStart),/SCHEDULE_SLOT_ENDED/);
+assert.throws(()=>check({sameSlot:true,fresh:true},slot.slotStart),/NEW_SUCCESS_BEFORE_DISPATCH/);
+check({sameSlot:true,fresh:false},slot.slotStart);
+console.log(JSON.stringify({syntax:'PASS',slotBoundaries:'PASS',sameSlotRestart:'SKIP',priorSlot:'DUE',crossSlot:'HOLD',concurrentSuccess:'HOLD',productionWrites:0}));
