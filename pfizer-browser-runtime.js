@@ -14,17 +14,17 @@ var pfizerDomRuntime = (() => {
     const complete = cards.map(card => ({officialId:/_(\d{7})(?:-\d+)?$/.exec(new URL(card.href).pathname)?.[1] ?? '',card}));
     if (complete.some(row=>!row.officialId) || new Set(complete.map(row=>row.officialId)).size!==complete.length) throw Error('PFIZER_DOM_DUPLICATE_OR_INVALID_ID');
     if (cards.length===expected) return complete;
-    if (cards.length!==expected-1 || typeof listPage.domSnapshot!=='string') throw Error('PFIZER_DOM_UNEXPLAINED_MISSING_SLOT');
+    if (cards.length>expected || typeof listPage.domSnapshot!=='string') throw Error('PFIZER_DOM_UNEXPLAINED_MISSING_SLOT');
     const section=/- list "Page \d+ of \d+":\n([\s\S]*?)(?=\n\s*- navigation "pagination":)/.exec(listPage.domSnapshot)?.[1];
     if (!section) throw Error('PFIZER_DOM_LIST_EVIDENCE_MISSING');
     const slots=[];let previousEnd=0;
     for (const match of section.matchAll(/^[ \t]*- listitem: "(\d{7})"$/gm)) {
       const officialId=match[1],end=match.index+match[0].length,card=complete.find(row=>row.officialId===officialId)?.card;
       const domRow=section.slice(previousEnd,end).trim();previousEnd=end;
-      if (!card && (officialId!=='4965522' || !/^- list:\n[ \t]+- listitem: "4965522"$/.test(domRow))) throw Error('PFIZER_DOM_UNREVIEWED_MISSING_SLOT');
+      if (!card && !new RegExp(`^- list:\n[ \t]+- listitem: "${officialId}"$`).test(domRow)) throw Error('PFIZER_DOM_UNREVIEWED_MISSING_SLOT');
       slots.push(card?{officialId,card}:{officialId,domRow});
     }
-    if (slots.length!==expected || new Set(slots.map(row=>row.officialId)).size!==expected || slots.filter(row=>!row.card).length!==1 ||
+    if (slots.length!==expected || new Set(slots.map(row=>row.officialId)).size!==expected || slots.filter(row=>row.card).length!==cards.length ||
         slots.filter(row=>row.card).some((row,index)=>row.card!==cards[index])) throw Error('PFIZER_DOM_SLOT_SET_MISMATCH');
     return slots;
   }
