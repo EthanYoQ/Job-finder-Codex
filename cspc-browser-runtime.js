@@ -44,7 +44,7 @@ var cspcDomRuntime = (() => {
     let application=null;
     if(row.detailSections.every(s=>s.trim()==='1')) {
       const tab=await cua.getTab(row.tabId,{browser:'cdp'});
-      application={...await captureCspcApplicationEntry(tab),officialId:row.officialId,
+      application={...await captureCspcApplicationEntry(tab,deadline),officialId:row.officialId,
         sourceJobId:row.sourceJobId,detailState:'DETAIL_INSUFFICIENT'};
       if(identity(application.url)!==row.officialId)throw Error('CSPC_APPLICATION_ID_DRIFT');
       applications.push(application);

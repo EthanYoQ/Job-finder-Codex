@@ -1,0 +1,4 @@
+# CSPC bounded login readiness (inactive)
+Parent0114/eb36a6c56b8599ff53972c703635f4eac0082400. Only two runtime files change. Reuse the existing same-tab, exact-heading wait within the earlier of the original source deadline and30-second login budget. The original application click runs once. No login, data entry or application submission occurs.
+Offline mocks cover capped wait continuation, original budget exhaustion, earlier source deadline, unrelated error propagation, unchanged evidence keys/login-only state, and actual caller deadline forwarding. No live success or root-cause fix is claimed. Current running loop remains untouched.
+Restore63 module files from0114 plus this downloaded patch. Actual activation belongs to the original owner after the current loop reaches a safe terminal state.

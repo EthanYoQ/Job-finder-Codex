@@ -104,13 +104,13 @@ async function readCspcListObservation(listTab) {
     readCompletedAt:new Date().toISOString(),url,listFilters,terminal,rows,snapshot,rootHtml,frameHtml};
 }
 
-async function captureCspcApplicationEntry(tab) {
+async function captureCspcApplicationEntry(tab, deadline=Infinity) {
   const clickStartedAt = new Date().toISOString();
   await tab.playwright.frameLocator('#recruit-content-iframe').getByRole('button',{name:'投递',exact:true}).first().click();
   const clickCompletedAt = new Date().toISOString();
   await tab.getAXState({emit:false});
   // The four inspected entries currently open this login gate; never enter data.
-  await tab.playwright.getByRole('heading',{name:'登录',exact:true}).waitFor({state:'visible',timeoutMs:30000});
+  await waitCspcDomReady(tab,tab.playwright.getByRole('heading',{name:'登录',exact:true}),Math.min(deadline,Date.now()+30000));
   const readStartedAt = new Date().toISOString();
   const snapshot = await tab.playwright.domSnapshot();
   const rootHtml = await tab.playwright.evaluate(() => document.documentElement.outerHTML);
