@@ -4583,16 +4583,11 @@ async function fetchPhenomWidgets({
           assertOfficialHtmlMime(response);
           const detail = phenomArtifact({id: `lilly-detail-${raw.reqId}`, kind: "OFFICIAL_COMPANY_PAGE",
             requestedUrl, response, extractorLocator: "lilly-workday-jobposting-v1"});
-          const native = lillyNativeDetail(raw, detail, capturedAt);
-          if (!native) throw Error("LILLY_NATIVE_DETAIL_INVALID");
-          return {detail, native, sourceJobId: persistentOfficialJsonJobId(raw.jobSeqNo as string)};
+          return {detail, native: lillyNativeDetail(raw, detail, capturedAt), sourceJobId: persistentOfficialJsonJobId(raw.jobSeqNo as string)};
         }));
-        for (const {detail, native, sourceJobId} of details) {
-          artifacts.push(detail);
-          const job = jobs.find(job => job.sourceJobId === sourceJobId)!;
-          job.cities = native.cities;
-          job.locationRaw = native.locationRaw;
-        }
+        artifacts.push(...details.map(value => value.detail));
+        if (details.some(value => !value.native)) throw Error("LILLY_NATIVE_DETAIL_INVALID");
+        for (const {native, sourceJobId} of details) Object.assign(jobs.find(job => job.sourceJobId === sourceJobId)!, native);
       }
     } catch {
       return phenomFailure(capturedAt, "Lilly native job detail or application validation failed", artifacts, pages, counts, losses, declaredCompleteness);
