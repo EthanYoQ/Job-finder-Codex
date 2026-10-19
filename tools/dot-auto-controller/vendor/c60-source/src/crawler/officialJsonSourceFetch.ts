@@ -5,7 +5,7 @@ import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFail
 import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl } from "./rocheChinaQuality";
 import { acquireBeisenDetailDates } from "./beisenDetailDates";
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
-import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail } from "./organonChinaQuality";
+import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
@@ -4532,7 +4532,7 @@ async function fetchPhenomWidgets({
       "ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD", artifacts, pages, counts, losses, declaredCompleteness);
     try {
       // The original listed native URLs use the same public Workday HTML proof as Lilly.
-      for (const raw of rows) {
+      for (const [rowIndex, raw] of rows.entries()) {
         const requestedUrl = raw.applyUrl as string;
         const response = await http({url: requestedUrl, method: "GET", headers: {Accept: "text/html", "User-Agent": "job-search-crawler/0.1"}});
         assertOfficialJsonEvidenceResponse(response, {requestedUrl, crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime()});
@@ -4540,7 +4540,16 @@ async function fetchPhenomWidgets({
         const detail = phenomArtifact({id: `organon-detail-${raw.reqId}`, kind: "OFFICIAL_COMPANY_PAGE",
           requestedUrl, response, extractorLocator: "organon-workday-jobposting-v1"});
         artifacts.push(detail);
-        if (!organonNativeDetail(raw, detail, capturedAt)) throw Error("ORGANON_NATIVE_DETAIL_UNKNOWN");
+        const native = organonNativeDetail(raw, detail, capturedAt);
+        if (!native) throw Error("ORGANON_NATIVE_DETAIL_UNKNOWN");
+        if (native === "CLOSED") {
+          const pageSequence = Math.floor(rowIndex / pageSize), sourceJobId = persistentOfficialJsonJobId(raw.jobSeqNo as string);
+          losses.push(organonClosedLoss(raw, pageSequence, rowIndex % pageSize, detail.capturedAt));
+          counts.validCount -= 1;
+          counts.validationDiscardCount += 1;
+          jobs.splice(jobs.findIndex(job => job.sourceJobId === sourceJobId), 1);
+          pages[pageSequence]!.validJobIds = pages[pageSequence]!.validJobIds.filter(id => id !== irreversibleOfficialJsonEvidenceId(sourceJobId));
+        }
       }
     } catch {
       return phenomFailure(capturedAt, "ORGANON_NATIVE_DETAIL_UNKNOWN_PRESERVE_LAST_GOOD", artifacts, pages, counts, losses, declaredCompleteness);
@@ -4609,7 +4618,7 @@ async function fetchPhenomWidgets({
     finalized = finalizeOfficialJsonEvidenceBundle({
       artifacts, pages, fetchCounts: counts, fetchLosses: losses,
       ...(declaredCompleteness ? { declaredCompleteness } : {}),
-      ...(preserveLillyQuality ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+      ...(preserveLillyQuality || preserveOrganonQuality ? { allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
         allowIndependentlyVerifiedProfileBoundExclusions: true } : {}),
       ...(exactRocheRequestBoundOmittedOffset &&
         config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1"

@@ -5,7 +5,8 @@ import { isDeepStrictEqual } from "node:util";
 import { reviewedMainlandCity } from "./reviewedMainlandCity";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
-import type { SourceFetchArtifactDraft } from "./sourceFetchEvidence";
+import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
+import { irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from "./officialJsonEvidence";
 
 // Reviewed source fields, not a requisition, title, or count allowlist. Unknown
 // fields (including shadow geography) require review before this policy expands.
@@ -264,13 +265,13 @@ export function organonKeywordCountryEquivalent(html: string | Uint8Array, rows:
 
 /** Reuse the existing Lilly Workday HTML proof on Organon's listed native URL.
  * Availability is observed independently from URL identity. No login or submit. */
-export function organonNativeDetail(raw: Record<string,unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt:string): boolean {
+export function organonNativeDetail(raw: Record<string,unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt:string): "ACTIVE" | "CLOSED" | undefined {
   if (!artifact || !organonOfficialIdentity(raw) || artifact.logicalKey !== `organon-detail-${raw.reqId}` ||
     artifact.kind !== "OFFICIAL_COMPANY_PAGE" || artifact.extractorLocator !== "organon-workday-jobposting-v1" ||
     artifact.requestedUrl !== raw.applyUrl || artifact.finalUrl !== raw.applyUrl || artifact.httpStatus !== 200 ||
-    !/^text\/html(?:;|$)/iu.test(artifact.contentType ?? "") || artifact.bodyRepresentation === "REDACTED" || typeof artifact.body !== "string") return false;
+    !/^text\/html(?:;|$)/iu.test(artifact.contentType ?? "") || artifact.bodyRepresentation === "REDACTED" || typeof artifact.body !== "string") return undefined;
   const time=Date.parse(artifact.capturedAt), start=Date.parse(startedAt);
-  if (!Number.isFinite(time) || !Number.isFinite(start) || time < start || time > start + 30 * 60_000) return false;
+  if (!Number.isFinite(time) || !Number.isFinite(start) || time < start || time > start + 30 * 60_000) return undefined;
   try {
     const $=load(artifact.body), clean=(text:string)=>load(text).text().replace(/\s+/gu," ").trim();
     const jobs=$('script[type="application/ld+json"]').toArray().map(node=>{
@@ -304,19 +305,40 @@ export function organonNativeDetail(raw: Record<string,unknown>, artifact: Sourc
     const properties=object?.type === "ObjectExpression" ? object.properties : [];
     const keys=properties.map((property:any)=>property.key?.name??property.key?.value);
     const literal=(key:string)=>properties.find((property:any)=>(property.key?.name??property.key?.value) === key)?.value;
-    const available=!overwritten && topLevel.has(assignment) && properties.length > 0 && properties.every((property:any)=>property.type === "ObjectProperty" && !property.computed && !property.method) &&
+    const bound=!overwritten && topLevel.has(assignment) && properties.length > 0 && properties.every((property:any)=>property.type === "ObjectProperty" && !property.computed && !property.method) &&
       new Set(keys).size === keys.length && literal("tenant")?.type === "StringLiteral" && literal("tenant").value === "organon" &&
       literal("siteId")?.type === "StringLiteral" && literal("siteId").value === "SearchJobs" &&
-      literal("postingAvailable")?.type === "BooleanLiteral" && literal("postingAvailable").value === true;
+      literal("postingAvailable")?.type === "BooleanLiteral";
+    if (!bound) return undefined;
+    // A closed shell must bind its own URL and cannot also contain a job posting.
+    if (literal("postingAvailable").value === false) return $('script[type="application/ld+json"]').length === 0 &&
+      $('meta[property="og:url"]').length === 1 && $('meta[property="og:url"]').attr("content") === raw.applyUrl ? "CLOSED" : undefined;
     const job=jobs.length === 1 ? jobs[0] : undefined;
-    if (!available || !record(job) || !record(job.identifier) || job.identifier.value !== raw.reqId ||
+    if (!record(job) || !record(job.identifier) || job.identifier.value !== raw.reqId ||
       typeof job.title !== "string" || typeof raw.title !== "string" || clean(job.title) !== clean(raw.title) ||
       typeof job.description !== "string" || !clean(job.description) ||
       typeof job.datePosted !== "string" || phenomOfficialPostedDate(raw.postedDate)?.slice(0,10) !== job.datePosted ||
-      !record(job.jobLocation) || !record(job.jobLocation.address)) return false;
+      !record(job.jobLocation) || !record(job.jobLocation.address)) return undefined;
     const address=job.jobLocation.address;
     // The native primary cannot erase an additional mainland list location.
     const primary=new URL(raw.applyUrl as string).pathname.split("/")[3]!.replaceAll("---"," - ");
-    return address.addressCountry === "China" && address.addressLocality === primary;
-  } catch { return false; }
+    return address.addressCountry === "China" && address.addressLocality === primary ? "ACTIVE" : undefined;
+  } catch { return undefined; }
+}
+
+export function organonClosedLoss(raw: Record<string, unknown>, pageSequence: number, recordIndex: number,
+  recordedAt: string): PersistentSourceFetchEvidence["fetchLosses"][number] {
+  return {stage: "VALIDATION", reason: "Organon official application explicitly no longer accepts applicants",
+    rawLocator: `phenom-page-${String(pageSequence).padStart(4, "0")}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId([recordIndex, raw])}`,
+    details: {code: "ORGANON_OFFICIAL_APPLICATION_CLOSED", pageSequence, recordIndex}, recordedAt};
+}
+
+/** Only consumed after the complete source and exact closure ledger have passed replay. */
+export function organonClosedSourceJobIds(evidence: PersistentSourceFetchEvidence): Set<string> {
+  return new Set(evidence.fetchLosses.filter(loss => loss.details?.code === "ORGANON_OFFICIAL_APPLICATION_CLOSED").map(loss => {
+    const page = evidence.artifacts.find(artifact => artifact.logicalKey === `phenom-page-${String(loss.details!.pageSequence).padStart(4, "0")}`)!;
+    const raw = JSON.parse(typeof page.body === "string" ? page.body : Buffer.from(page.body).toString("utf8"))
+      .refineSearch.data.jobs[loss.details!.recordIndex as number];
+    return persistentOfficialJsonJobId(raw.jobSeqNo);
+  }));
 }

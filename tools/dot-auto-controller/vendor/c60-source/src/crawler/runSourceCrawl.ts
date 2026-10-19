@@ -15,7 +15,7 @@ import { auditRedseaCandidateScope } from "./redseaCandidateScope";
 import { hasBeisenDetailDatePlan, replayBeisenDetailDates } from "./beisenDetailDates";
 import { replayWorkdayMainlandQuality } from "./workdayMainlandQuality";
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap, organonBootstrapLocator } from "./organonOfficialPostedDate";
-import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail } from "./organonChinaQuality";
+import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
@@ -617,9 +617,10 @@ function strictCompletenessGate(
     // partition and its exact exclusion ledger. No other source inherits this opt-in.
     const yelloScopeProof = exactGileadPublicAgePlan(plan);
     const lillyScopeProof = exactLillyChinaQualityPlan(plan);
+    const organonScopeProof = exactOrganonPostedDatePlan(plan);
     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
-    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !lillyScopeProof && !kelunScopeProof) {
+    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
     }
     if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) {
@@ -673,7 +674,7 @@ function strictCompletenessGate(
       : artifactUrlBindings?.get(artifact.logicalKey);
     if (!declaredArtifactRules) return strictGateTrace(plan, "DECLARATION_URL_RULE");
     if (declared.kind === "OFFICIAL_TOTAL_COUNT") {
-      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof || yelloScopeProof || lillyScopeProof) &&
+      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof || yelloScopeProof || lillyScopeProof || organonScopeProof) &&
         replayPolicy?.allowIndependentlyVerifiedProfileBoundExclusions === true &&
         declared.value === evidence.fetchCounts.rawCount &&
         ledger.rawInputCount === evidence.fetchCounts.validCount;
@@ -2266,6 +2267,8 @@ function strictPhenomRequestContracts(
   let organonPreviousCapture = organonEntryTime;
   const organonOutputs = new Map<string, StrictUcbDateOutput>();
   const organonRows: Record<string,unknown>[] = [];
+  const organonIds = new Set<string>();
+  const organonLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   const preserveLillyQuality = requiresLillyChinaQuality(plan);
   if (preserveLillyQuality && (!exactLillyChinaQualityPlan(plan) || !exactLillyChinaBootstrap(pageConfig))) return false;
   const lillyOutputs = new Map<string, StrictUcbDateOutput>();
@@ -2467,19 +2470,25 @@ function strictPhenomRequestContracts(
         page.nextPageSignalAfter !== (last ? null : `offset:${offset + pageSize}`) ||
         page.termination !== (total === 0 ? "EMPTY_PAGE" : last ? "NEXT_ABSENT" : "CONTINUE")) return false;
       const rawIds: string[] = [], validIds: string[] = [];
-      for (const value of envelope.jobs) {
+      for (const [recordIndex, value] of envelope.jobs.entries()) {
         const raw = strictRecord(value);
         const cities = raw && organonOfficialCities(raw);
+        const nativeArtifact = raw && artifacts.get(`organon-detail-${raw.reqId}`);
+        const native = raw && organonNativeDetail(raw, nativeArtifact, capturedAt);
         const date = raw && phenomOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        if (!raw || !cities || !date || !title || !organonOfficialIdentity(raw) ||
-          !organonNativeDetail(raw, artifacts.get(`organon-detail-${raw.reqId}`), capturedAt)) return false;
+        if (!raw || !cities || !date || !title || !organonOfficialIdentity(raw) || !native) return false;
         organonRows.push(raw);
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
-        if (organonOutputs.has(sourceJobId)) return false;
+        if (organonIds.has(sourceJobId)) return false;
+        organonIds.add(sourceJobId);
+        rawIds.push(irreversibleOfficialJsonEvidenceId(rawId));
+        if (native === "CLOSED") {
+          organonLosses.push(organonClosedLoss(raw, pageIndex, recordIndex, nativeArtifact!.capturedAt));
+          continue;
+        }
         organonOutputs.set(sourceJobId, {rawId, sourceJobId, cities, officialPublishedAt: date, title,
           officialUrl: raw.applyUrl as string, locationRaw: raw.location as string});
-        rawIds.push(irreversibleOfficialJsonEvidenceId(rawId));
         validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
       }
       if (JSON.stringify(page.rawJobIds) !== JSON.stringify(rawIds) || JSON.stringify(page.validJobIds) !== JSON.stringify(validIds)) return false;
@@ -2718,11 +2727,11 @@ function strictPhenomRequestContracts(
       }))) &&
     merckReplayMatches &&
     (!preserveOrganonQuality || (organonKeywordCountryEquivalent(entry!.body, organonRows) &&
-      organonOutputs.size === pageRawCount && outputJobs.length === pageRawCount &&
-      new Set(outputJobs.map(job => job.sourceJobId)).size === pageRawCount &&
+      organonIds.size === pageRawCount && organonOutputs.size + organonLosses.length === pageRawCount &&
+      outputJobs.length === organonOutputs.size && new Set(outputJobs.map(job => job.sourceJobId)).size === organonOutputs.size &&
       evidence.fetchCounts.rawCount === pageRawCount && evidence.fetchCounts.parsedCount === pageRawCount &&
-      evidence.fetchCounts.validCount === pageRawCount && evidence.fetchCounts.parseDiscardCount === 0 &&
-      evidence.fetchCounts.validationDiscardCount === 0 && evidence.fetchLosses.length === 0 &&
+      evidence.fetchCounts.validCount === organonOutputs.size && evidence.fetchCounts.parseDiscardCount === 0 &&
+      evidence.fetchCounts.validationDiscardCount === organonLosses.length && isDeepStrictEqual(evidence.fetchLosses, organonLosses) &&
       outputJobs.every(job => {
         const expected = job.sourceJobId && organonOutputs.get(job.sourceJobId);
         return expected && typeof job.isBaseline === "boolean" && isDeepStrictEqual(job, {
@@ -4796,7 +4805,7 @@ function strictPositiveOfficialTotalReplayPolicy(
     if (strategy.exactDuplicateReconciliationPolicy !== undefined && !exactRocheDuplicatePolicy) return undefined;
     return {
       allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
-      ...(exactLillyChinaQualityPlan(plan) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
+      ...(exactLillyChinaQualityPlan(plan) || exactOrganonPostedDatePlan(plan) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
       ...(exactRocheDuplicatePolicy ? { allowRawIdOverlapAcrossPages: true as const } : {})
     };
   }

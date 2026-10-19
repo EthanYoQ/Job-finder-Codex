@@ -13,12 +13,14 @@ import { createOwnedSourceQualityFetch, getSourceQualityPolicy, issueSourceQuali
 import { archiveSourceEvidence } from "../../src/crawler/artifactArchive";
 import { bindRuntimeEvidenceArtifactIds } from "../../src/crawler/runtimeAtomicEvidence";
 import { buildSourceQualityJobCommands } from "../../src/crawler/sourceQualityPublication";
+import { buildJobDedupeKey } from "../../src/crawler/normalizedJob";
 
 const capturedAt = "2026-10-02T00:00:00.000Z";
 import { organonBootstrap as bootstrap, organonRow as row, organonKeywordEntry, organonNativeHtml } from "../fixtures/organonChinaQuality";
+const closedBody = (raw:Record<string,unknown>) => `<meta property="og:url" content="${raw.applyUrl}"><script>window.workday = window.workday || {tenant:"organon",siteId:"SearchJobs",postingAvailable:false};</script>`;
 function plan() { return getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies),"source-organon-china-social")!; }
 afterEach(()=>{vi.unstubAllGlobals();vi.useRealTimers();});
-async function capture(rows: Record<string,unknown>[] = [row()], options: {plan?:SourceCrawlPlan;owned?:boolean;pages?:Record<string,unknown>[][];totals?:number[];offsets?:unknown[];bootstrap?:Record<string,unknown>;keywordRows?:Record<string,unknown>[];keywordTotal?:number;keywords?:string;nativeChanges?:Record<string,unknown>;nativeAvailable?:boolean} = {}) {
+async function capture(rows: Record<string,unknown>[] = [row()], options: {plan?:SourceCrawlPlan;owned?:boolean;pages?:Record<string,unknown>[][];totals?:number[];offsets?:unknown[];bootstrap?:Record<string,unknown>;keywordRows?:Record<string,unknown>[];keywordTotal?:number;keywords?:string;nativeChanges?:Record<string,unknown>;nativeAvailable?:boolean;closedIds?:string[]} = {}) {
   vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(new Date(capturedAt));
   const p=options.plan??plan(),pages=options.pages??[rows];let requests=0;
   vi.stubGlobal("fetch",async(url:string,init:RequestInit)=>{
@@ -27,7 +29,7 @@ async function capture(rows: Record<string,unknown>[] = [row()], options: {plan?
       const raw=pages.flat().find(row=>row.applyUrl===String(url));
       if(!raw || init.method!=="GET")throw Error("Unexpected native fixture request; no network fallback");
       return {status:200,url:String(url),headers:new Headers({"content-type":"text/html"}),
-        text:async()=>organonNativeHtml(raw,options.nativeChanges,options.nativeAvailable)};
+        text:async()=>options.closedIds?.includes(raw.reqId as string) ? closedBody(raw) : organonNativeHtml(raw,options.nativeChanges,options.nativeAvailable)};
     }
     if(index>=pages.length)throw Error("Unexpected fixture request; no network fallback");
     if(init.method==="POST"){
@@ -67,12 +69,46 @@ describe("Organon China exact raw source quality",()=>{
     const raw=row(),body=organonNativeHtml(raw);
     for(const html of [body.replace("postingAvailable:true",'postingAvailable:true,"postingAvailable":false'),
       body.replace(";</script>",';window.workday.postingAvailable=false;</script>')]){
-      expect(organonNativeDetail(raw,{logicalKey:`organon-detail-${raw.reqId}`,kind:"OFFICIAL_COMPANY_PAGE",requestedUrl:raw.applyUrl as string,
-        finalUrl:raw.applyUrl as string,httpStatus:200,contentType:"text/html",capturedAt,body:html,extractorLocator:"organon-workday-jobposting-v1"},capturedAt)).toBe(false);
+      expect(organonNativeDetail(raw,{id:`organon-detail-${raw.reqId}`,logicalKey:`organon-detail-${raw.reqId}`,kind:"OFFICIAL_COMPANY_PAGE",requestedUrl:raw.applyUrl as string,
+        finalUrl:raw.applyUrl as string,httpStatus:200,contentType:"text/html",capturedAt,body:html,extractorLocator:"organon-workday-jobposting-v1"},capturedAt)).toBeUndefined();
     }
   });
-  it("keeps unavailable native status on HOLD",async()=>{
+  it("keeps contradictory unavailable status plus JobPosting on HOLD",async()=>{
     const input=await capture([row()],{nativeAvailable:false});expect(input.result.truth.completenessVerified).toBe(false);expect(input.result.jobs).toEqual([]);
+  });
+  it("requires a same-URL closed shell and keeps unbound or contradictory status UNKNOWN",()=>{
+    const raw=row(),body=closedBody(raw),artifact={id:`organon-detail-${raw.reqId}`,logicalKey:`organon-detail-${raw.reqId}`,kind:"OFFICIAL_COMPANY_PAGE" as const,
+      requestedUrl:raw.applyUrl as string,finalUrl:raw.applyUrl as string,httpStatus:200,contentType:"text/html",capturedAt,
+      body,extractorLocator:"organon-workday-jobposting-v1"};
+    expect(organonNativeDetail(raw,artifact,capturedAt)).toBe("CLOSED");
+    for(const changed of [body.replace("og:url","og:unbound"),body.replace(String(raw.applyUrl),String(raw.applyUrl).replace("R700001","R999999")),
+      body.replace('tenant:"organon"','tenant:"other"'),body.replace("postingAvailable:false",'postingAvailable:"false"'),
+      body+`<meta property="og:url" content="${raw.applyUrl}">`,body+'<script type="application/ld+json">{}</script>',
+      body.replace(";</script>",';window.workday.postingAvailable=true;</script>')])
+      expect(organonNativeDetail(raw,{...artifact,body:changed},capturedAt)).toBeUndefined();
+  });
+  it("replays exact CLOSED losses and removes a previously visible closed ID without grace",async()=>{
+    const rows=[row(),row(2)],prior=await archived(await capture(rows,{owned:true}));
+    const current=await archived(await capture(rows,{owned:true,closedIds:[rows[1]!.reqId as string]}));
+    try{
+      const priorAdmission=await issueSourceQualityAdmission(prior),admission=await issueSourceQualityAdmission(current);
+      expect(priorAdmission.status).toBe("ACCEPTED");expect(admission.status).toBe("ACCEPTED");
+      if(priorAdmission.status!=="ACCEPTED"||admission.status!=="ACCEPTED")throw Error("admission");
+      expect(current.result.observation.expectedJobCount).toBe(2);expect(current.result.jobs).toHaveLength(1);
+      expect(current.result.fetchEvidence!.fetchCounts).toEqual({rawCount:2,parsedCount:2,validCount:1,parseDiscardCount:0,validationDiscardCount:1});
+      expect(current.result.fetchEvidence!.fetchLosses).toMatchObject([{details:{code:"ORGANON_OFFICIAL_APPLICATION_CLOSED",pageSequence:0,recordIndex:1}}]);
+      expect(replay(current)).toBe(true);
+      const altered=structuredClone(current.result.fetchEvidence!);altered.fetchLosses[0]!.details!.recordIndex=0;
+      expect(replay(current,current.result.jobs,altered)).toBe(false);
+      const revived=structuredClone(current.result.fetchEvidence!);revived.artifacts.find(a=>a.logicalKey===`organon-detail-${rows[1]!.reqId}`)!.body=organonNativeHtml(rows[1]!);
+      expect(replay(current,current.result.jobs,revived)).toBe(false);
+      const previousJobs=prior.result.jobs.map(record=>({dedupeKey:buildJobDedupeKey(record),record,lifecycleStatus:"ACTIVE" as const,
+        missingSuccessfulCrawlCount:0,firstSeenAt:priorAdmission.receipt.issuedAt,lastSeenAt:priorAdmission.receipt.issuedAt}));
+      const firstAcceptedCurrentPolicyReceipt={receipt:priorAdmission.receipt,receiptSha256:priorAdmission.receiptSha256,expectedBinding:priorAdmission.receipt.binding};
+      const commands=buildSourceQualityJobCommands({...current,admission,previousJobs,firstAcceptedCurrentPolicyReceipt,baselineCompletedBeforeCrawl:true}).jobCommands;
+      expect(commands).toHaveLength(1);expect(commands[0]!.record.sourceJobId).toBe(prior.result.jobs[0]!.sourceJobId);
+      expect(commands[0]!.missingSuccessfulCrawlCount).toBe(0);
+    }finally{await rm(prior.archive.workspaceRoot,{recursive:true,force:true});await rm(current.archive.workspaceRoot,{recursive:true,force:true});}
   });
   it("preserves a shared-reviewed additional mainland city as city pending",async()=>{
     const r=row(),nested={country:"China",city:"Tianjin",state:"Tianjin",cityState:"Tianjin, Tianjin",location:"Tianjin, Tianjin, China",

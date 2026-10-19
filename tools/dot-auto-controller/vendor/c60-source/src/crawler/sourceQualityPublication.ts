@@ -1,3 +1,5 @@
+import { exactOrganonPostedDatePlan } from "./organonOfficialPostedDate";
+import { organonClosedSourceJobIds } from "./organonChinaQuality";
 import { exactLillyChinaQualityPlan, lillyClosedSourceJobIds } from "./lillyChinaQuality";
 import { hasNovartisPartitionEvidence, replayNovartisNativePartitions } from "./novartisNativePartitions";
 import { exactNovoChinaQualityPlan, novoSourceJobExclusions } from "./novoChinaQuality";
@@ -53,9 +55,11 @@ export function buildSourceQualityJobCommands(input:SourceQualityPublicationInpu
     ?novoSourceJobExclusions(input.result.fetchEvidence):{closed:new Set<string>(),insufficient:new Set<string>()};
   const lillyClosed=exactLillyChinaQualityPlan(input.plan)&&input.result.fetchEvidence
     ?lillyClosedSourceJobIds(input.result.fetchEvidence):new Set<string>();
+  const organonClosed=exactOrganonPostedDatePlan(input.plan)&&input.result.fetchEvidence
+    ?organonClosedSourceJobIds(input.result.fetchEvidence):new Set<string>();
   const closedUrls=hasNovartisOfficialPresencePlan(input.plan)
     ?replayNovartisOfficialPresence(input.plan,input.result.fetchEvidence!).closedUrls:new Set<string>();
-  const previous=input.previousJobs.filter(job=>!closedUrls.has(job.record.officialUrl)&&!novoExclusions.closed.has(job.record.sourceJobId??"")&&!lillyClosed.has(job.record.sourceJobId??"")&&(currentKeys.has(job.dedupeKey)||
+  const previous=input.previousJobs.filter(job=>!closedUrls.has(job.record.officialUrl)&&!novoExclusions.closed.has(job.record.sourceJobId??"")&&!lillyClosed.has(job.record.sourceJobId??"")&&!organonClosed.has(job.record.sourceJobId??"")&&(currentKeys.has(job.dedupeKey)||
     priorReceipt!==null&&Date.parse(job.lastSeenAt)>=floor));
   // The existing atomic protocol cannot retain a listed UNKNOWN as current.
   // Hold known public rows; never fabricate an absence or refresh their old time.
