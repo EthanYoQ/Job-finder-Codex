@@ -1,0 +1,239 @@
+{
+  "counts": {
+    "SKIPPED": 35,
+    "WEB_VERIFIED": 1
+  },
+  "lilly": {
+    "sourceId": "source-lilly-china-social",
+    "uniqueJobs": 92,
+    "lastSuccessAt": "2026-10-19T04:50:04.187Z",
+    "allFieldsMatch": true,
+    "evidenceBackup": {
+      "status": "REMOTE_RESTORE_VERIFIED",
+      "fileId": "1r1VCEDlqNLYL4ycieqgU3zV7bwzJedkm",
+      "bytes": 737531,
+      "sha256": "c0fe93fbb4220be74742147e4678beff7bc39cd079920231eaa86f496a06f9f5",
+      "members": 20,
+      "sources": [
+        {
+          "source": "lilly",
+          "batch": "dot-auto-lilly-20261019T044929984Z",
+          "rawFiles": 95,
+          "webStatus": "WEB_VERIFIED",
+          "webJobs": 92
+        }
+      ],
+      "verifiedAt": "2026-10-19T04:52:16.592Z"
+    }
+  },
+  "official": {
+    "checkedAt": "2026-10-19T04:53:35.037203+00:00",
+    "batchId": "dot-auto-lilly-20261019T044929984Z",
+    "official": "COMMITTED",
+    "crawledAt": "2026-10-19T04:50:03.955Z",
+    "listRows": 92,
+    "nativeBodies": 92,
+    "closedCount": 0,
+    "R102929InList": false,
+    "R102929OfficialOffline": true,
+    "R102929LastSeenAt": "2026-10-18T15:31:46.570Z",
+    "relayCount": 309,
+    "pending": [],
+    "producer": [],
+    "all36Recent": true,
+    "earliestSuccess": "2026-10-19T00:09:46.115Z",
+    "singleFullScheduledRun": false
+  },
+  "readonly36": {
+    "count": 36,
+    "allLocksEmpty": true,
+    "observations": [
+      {
+        "sourceId": "source-abbvie-china-social",
+        "checkedAt": "2026-10-19 04:53:25.059173+00",
+        "crawledAt": "2026-10-19 01:30:39.094"
+      },
+      {
+        "sourceId": "source-amgen-china-social",
+        "checkedAt": "2026-10-19 04:53:25.110218+00",
+        "crawledAt": "2026-10-19 03:04:53.076"
+      },
+      {
+        "sourceId": "source-astellas-china-social",
+        "checkedAt": "2026-10-19 04:53:25.136273+00",
+        "crawledAt": "2026-10-19 03:38:25.419"
+      },
+      {
+        "sourceId": "source-astrazeneca-social",
+        "checkedAt": "2026-10-19 04:53:25.166554+00",
+        "crawledAt": "2026-10-19 03:41:40.029"
+      },
+      {
+        "sourceId": "source-bayer-healthcare-social",
+        "checkedAt": "2026-10-19 04:53:25.178645+00",
+        "crawledAt": "2026-10-19 00:09:46.115"
+      },
+      {
+        "sourceId": "source-biogen-china-social",
+        "checkedAt": "2026-10-19 04:53:25.203234+00",
+        "crawledAt": "2026-10-19 03:45:43.503"
+      },
+      {
+        "sourceId": "source-bms-china-social",
+        "checkedAt": "2026-10-19 04:53:25.226351+00",
+        "crawledAt": "2026-10-19 03:48:27.652"
+      },
+      {
+        "sourceId": "source-boehringer-ingelheim-china-social",
+        "checkedAt": "2026-10-19 04:53:25.246681+00",
+        "crawledAt": "2026-10-19 04:16:20.504"
+      },
+      {
+        "sourceId": "source-cr-pharma-social",
+        "checkedAt": "2026-10-19 04:53:25.271518+00",
+        "crawledAt": "2026-10-19 03:51:03.404"
+      },
+      {
+        "sourceId": "source-csl-china-social",
+        "checkedAt": "2026-10-19 04:53:25.288115+00",
+        "crawledAt": "2026-10-19 04:19:04.861"
+      },
+      {
+        "sourceId": "source-cspc-social",
+        "checkedAt": "2026-10-19 04:53:25.29845+00",
+        "crawledAt": "2026-10-19 02:22:26.173"
+      },
+      {
+        "sourceId": "source-cttq-social",
+        "checkedAt": "2026-10-19 04:53:25.312125+00",
+        "crawledAt": "2026-10-19 03:54:50.657"
+      },
+      {
+        "sourceId": "source-daiichi-sankyo-china-social",
+        "checkedAt": "2026-10-19 04:53:25.320918+00",
+        "crawledAt": "2026-10-19 00:16:39.569"
+      },
+      {
+        "sourceId": "source-fosun-pharma-social",
+        "checkedAt": "2026-10-19 04:53:25.328377+00",
+        "crawledAt": "2026-10-19 04:01:47.293"
+      },
+      {
+        "sourceId": "source-gilead-china-social",
+        "checkedAt": "2026-10-19 04:53:25.345118+00",
+        "crawledAt": "2026-10-19 00:18:56.018"
+      },
+      {
+        "sourceId": "source-grifols-china-social",
+        "checkedAt": "2026-10-19 04:53:25.355725+00",
+        "crawledAt": "2026-10-19 00:21:01.28"
+      },
+      {
+        "sourceId": "source-gsk-china-social",
+        "checkedAt": "2026-10-19 04:53:25.365296+00",
+        "crawledAt": "2026-10-19 00:23:08.483"
+      },
+      {
+        "sourceId": "source-hansoh-social",
+        "checkedAt": "2026-10-19 04:53:25.375163+00",
+        "crawledAt": "2026-10-19 00:25:41.051"
+      },
+      {
+        "sourceId": "source-hengrui-social",
+        "checkedAt": "2026-10-19 04:53:25.382865+00",
+        "crawledAt": "2026-10-19 00:28:23.343"
+      },
+      {
+        "sourceId": "source-johnson-innovative-medicine-social",
+        "checkedAt": "2026-10-19 04:53:25.390098+00",
+        "crawledAt": "2026-10-19 00:31:36.471"
+      },
+      {
+        "sourceId": "source-kelun-social",
+        "checkedAt": "2026-10-19 04:53:25.391752+00",
+        "crawledAt": "2026-10-19 00:40:40.781"
+      },
+      {
+        "sourceId": "source-lilly-china-social",
+        "checkedAt": "2026-10-19 04:53:25.398113+00",
+        "crawledAt": "2026-10-19 04:50:03.955"
+      },
+      {
+        "sourceId": "source-merck-china-social",
+        "checkedAt": "2026-10-19 04:53:25.404443+00",
+        "crawledAt": "2026-10-19 00:42:55.49"
+      },
+      {
+        "sourceId": "source-msd-china-social",
+        "checkedAt": "2026-10-19 04:53:25.412322+00",
+        "crawledAt": "2026-10-19 04:05:02.314"
+      },
+      {
+        "sourceId": "source-novartis-social",
+        "checkedAt": "2026-10-19 04:53:25.422131+00",
+        "crawledAt": "2026-10-19 03:11:11.012"
+      },
+      {
+        "sourceId": "source-novo-nordisk-china-social",
+        "checkedAt": "2026-10-19 04:53:25.425738+00",
+        "crawledAt": "2026-10-19 00:45:29.647"
+      },
+      {
+        "sourceId": "source-organon-china-social",
+        "checkedAt": "2026-10-19 04:53:25.432463+00",
+        "crawledAt": "2026-10-19 01:00:10.693"
+      },
+      {
+        "sourceId": "source-pfizer-china-social",
+        "checkedAt": "2026-10-19 04:53:25.440445+00",
+        "crawledAt": "2026-10-19 04:26:46.109"
+      },
+      {
+        "sourceId": "source-qilu-social",
+        "checkedAt": "2026-10-19 04:53:25.443122+00",
+        "crawledAt": "2026-10-19 04:31:20.542"
+      },
+      {
+        "sourceId": "source-roche-china-social",
+        "checkedAt": "2026-10-19 04:53:25.447741+00",
+        "crawledAt": "2026-10-19 04:34:07.154"
+      },
+      {
+        "sourceId": "source-sanofi-china-social",
+        "checkedAt": "2026-10-19 04:53:25.451045+00",
+        "crawledAt": "2026-10-19 01:51:01.777"
+      },
+      {
+        "sourceId": "source-servier-china-social",
+        "checkedAt": "2026-10-19 04:53:25.453117+00",
+        "crawledAt": "2026-10-19 01:14:32.044"
+      },
+      {
+        "sourceId": "source-shanghai-pharma-social",
+        "checkedAt": "2026-10-19 04:53:25.459081+00",
+        "crawledAt": "2026-10-19 01:18:42.168"
+      },
+      {
+        "sourceId": "source-takeda-china-social",
+        "checkedAt": "2026-10-19 04:53:25.463289+00",
+        "crawledAt": "2026-10-19 01:21:13.621"
+      },
+      {
+        "sourceId": "source-ucb-china-social",
+        "checkedAt": "2026-10-19 04:53:25.469471+00",
+        "crawledAt": "2026-10-19 01:23:53.866"
+      },
+      {
+        "sourceId": "source-viatris-social",
+        "checkedAt": "2026-10-19 04:53:25.474598+00",
+        "crawledAt": "2026-10-19 01:26:02.223"
+      }
+    ]
+  },
+  "limits": [
+    "Not a single full scheduled run",
+    "Three-day unattended acceptance not completed",
+    "Earlier manual exception recoveries retained",
+    "R102929 absent from this list and official OFFLINE; closed-branch production behavior not exercised"
+  ]
+}
