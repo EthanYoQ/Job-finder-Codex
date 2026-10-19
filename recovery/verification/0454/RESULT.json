@@ -1,0 +1,14 @@
+{
+  "entrySyntax": "PASS",
+  "singleRunSuccessfulLoads": 1,
+  "twoSourceArgumentsIndependent": true,
+  "loadFailureNotCached": true,
+  "crossRunCache": false,
+  "productionFiles": 1,
+  "productionAddedLines": 2,
+  "productionRemovedLines": 1,
+  "helperBytes": 2888,
+  "observed17BackupsReadCallsSaved": 16,
+  "observed17BackupsReadBytesSaved": 46208,
+  "businessCallsExecuted": 0
+}
