@@ -4,7 +4,7 @@ import {mkdtemp,rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {syntheticLillyRow,lillyPlan,lillyBootstrap} from "../helpers/lillyPhenom";
-import {lillyNativeDetail,lillyClosedSourceJobIds} from "../../src/crawler/lillyChinaQuality";
+import {lillyNativeDetail,lillyClosedSourceJobIds,lillyOfficialCities} from "../../src/crawler/lillyChinaQuality";
 import {runSourceCrawl,replayStrictSourceQualityEvidence} from "../../src/crawler/runSourceCrawl";
 import {createOwnedSourceQualityFetch,issueSourceQualityAdmission} from "../../src/crawler/sourceQualityAdmission";
 import {archiveSourceEvidence} from "../../src/crawler/artifactArchive";
@@ -45,6 +45,19 @@ async function admit(input:Awaited<ReturnType<typeof capture>>,workspaceRoot:str
 }
 
 describe("Lilly exact official application closure",()=>{
+  it("allows absent derived parser text and keeps newly observed mainland URL localities pending",()=>{
+    const row=syntheticLillyRow();delete row.ml_job_parser;
+    expect(lillyOfficialCities(row)).toEqual(["上海"]);
+    expect(lillyOfficialCities({...row,ml_job_parser:null})).toBeUndefined();
+    expect(lillyOfficialCities({...row,descriptionTeaser:"Work location: Singapore."})).toBeUndefined();
+    for(const token of ["China-Nan-Yang-","China-Tai-An-"]){
+      const next={...row,applyUrl:String(row.applyUrl).replace("China-Shang-Hai-",token)};
+      expect(lillyOfficialCities(next)).toEqual(["城市待核"]);
+      expect(lillyOfficialCities({...next,country:"Singapore"})).toBeUndefined();
+      expect(lillyNativeDetail(next,undefined,new Date().toISOString())).toBeUndefined();
+    }
+    expect(lillyOfficialCities({...row,applyUrl:String(row.applyUrl).replace("China-Shang-Hai-","China-Hong-Kong-")})).toBeUndefined();
+  });
   it("requires the same-ID official shell and rejects UNKNOWN or contradictory responses",()=>{
     const row=syntheticLillyRow(),time=new Date().toISOString();
     const artifact:SourceFetchArtifactDraft={id:"lilly-detail-R-800000",logicalKey:"lilly-detail-R-800000",kind:"OFFICIAL_COMPANY_PAGE",requestedUrl:String(row.applyUrl),finalUrl:String(row.applyUrl),httpStatus:200,contentType:"text/html",capturedAt:time,body:closedBody(row),extractorLocator:"lilly-workday-jobposting-v1"};

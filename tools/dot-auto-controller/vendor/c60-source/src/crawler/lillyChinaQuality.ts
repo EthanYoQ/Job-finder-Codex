@@ -55,7 +55,7 @@ const URL_MAINLAND_LOCATIONS = new Set([
   "China-Urumuqi-", "China-Wu-Hai-", "China-Wu-Han-", "China-Xi-An-", "China-Xia-Men-", "China-Yue-Yang-",
   "China-Zheng-Zhou-", "China-Zhu-Hai-", "China-Zhu-Ma-Dian-",
   "China-Chang-Chun-", "China-Chang-De-", "China-Chen-Zhou-", "China-Cheng-Du-", "China-Fo-Shan-",
-  "China-Ka-Shi-", "China-Lan-Zhou-", "China-Xiao-Gan-", "China-Zhong-Shan-"
+  "China-Ka-Shi-", "China-Lan-Zhou-", "China-Xiao-Gan-", "China-Zhong-Shan-", "China-Nan-Yang-", "China-Tai-An-"
 ]);
 const RAW_FIELDS = new Set(["address", "applyUrl", "badge", "category", "city", "cityState", "cityStateCountry", "country",
   "dateCreated", "descriptionTeaser", "externalApply", "hiringManager", "isMultiCategory", "isMultiLocation", "jobId",
@@ -117,18 +117,20 @@ const LOCATION_SIGNAL = /\blocation\b|\bworkplace\b|\boffice\b|\bremote\b|\bbase
 
 function textCityScope(raw: Record<string, unknown>): "AGREES" | "PENDING" | undefined {
   if (typeof raw.title !== "string" || !raw.title.trim() ||
-    typeof raw.descriptionTeaser !== "string" || !record(raw.ml_job_parser) ||
-    !exactFields(raw.ml_job_parser, ["descriptionTeaser", ...Object.keys(NESTED_INTROS)]) ||
-    raw.ml_job_parser.descriptionTeaser !== raw.descriptionTeaser) return undefined;
+    typeof raw.descriptionTeaser !== "string") return undefined;
   const title = raw.title.replace(/\s+/gu, " ").trim();
   const texts: string[] = [title, raw.descriptionTeaser];
   let pending = false;
-  for (const [key, reviewed] of Object.entries(NESTED_INTROS)) {
-    const value = raw.ml_job_parser[key];
-    if (typeof value !== "string") return undefined;
-    texts.push(value);
-    // Novel prose survives, but does not silently inherit the old city confidence.
-    if (!reviewed.includes(value)) pending = true;
+  if (Object.hasOwn(raw, "ml_job_parser")) {
+    if (!record(raw.ml_job_parser) || !exactFields(raw.ml_job_parser, ["descriptionTeaser", ...Object.keys(NESTED_INTROS)]) ||
+      raw.ml_job_parser.descriptionTeaser !== raw.descriptionTeaser) return undefined;
+    for (const [key, reviewed] of Object.entries(NESTED_INTROS)) {
+      const value = raw.ml_job_parser[key];
+      if (typeof value !== "string") return undefined;
+      texts.push(value);
+      // Novel prose survives, but does not silently inherit the old city confidence.
+      if (!reviewed.includes(value)) pending = true;
+    }
   }
   for (const key of ["category", "type", "workerSubType", "badge"]) {
     if (Object.hasOwn(raw, key)) {

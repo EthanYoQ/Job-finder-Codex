@@ -99,7 +99,7 @@ describe("Lilly China source quality", () => {
     expect(input.result.truth.completenessVerified).toBe(false); expect(input.result.jobs).toEqual([]);
   });
   it.each(["country", "city", "state", "location", "cityState", "cityStateCountry", "address", "latitude", "longitude", "multi_location", "multi_location_array", "isMultiLocation",
-    "reqId", "jobId", "jobSeqNo", "siteType", "visibilityType", "jobVisibility", "externalApply", "locale", "descriptionTeaser", "ml_job_parser", "postedDate"])("holds missing required raw field %s", async field => {
+    "reqId", "jobId", "jobSeqNo", "siteType", "visibilityType", "jobVisibility", "externalApply", "locale", "descriptionTeaser", "postedDate"])("holds missing required raw field %s", async field => {
     const row = syntheticLillyRow(); delete row[field]; const input = await captureSyntheticLilly([row]);
     expect(input.result.truth.completenessVerified).toBe(false); expect(input.result.jobs).toEqual([]);
   });
