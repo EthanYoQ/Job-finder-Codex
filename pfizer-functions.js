@@ -28,6 +28,7 @@ async function runPfizerManagedDom({directory,browserSource,sampleOnly,deadline}
       const packet=await call(emit('await pfizerDomRuntime.readPage('+sampleOnly+')'));
       stage='archive-page';
       await put('page-'+String(page).padStart(3,'0')+'.json',packet);
+      if(packet.failure) throw Error(packet.failure);
       packets.push(packet);
       if(sampleOnly || !packet.listPage.nextControlPresent) {
         const capture={captureKind:sampleOnly?'MANAGED_BROWSER_DOM_JSONLD_SAMPLE_ONLY':'MANAGED_BROWSER_DOM_JSONLD',

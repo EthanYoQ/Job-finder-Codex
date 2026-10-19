@@ -42,7 +42,7 @@ var pfizerDomRuntime = (() => {
     total ??= Number(count[1]); totalPages ??= Number(label[2]);
     if (Number(count[1])!==total || Number(label[2])!==totalPages || totalPages!==Math.ceil(total/20) || totalPages>20 ||
         listPage.cards.length!==Math.min(20,total-(pageNumber-1)*20) ||
-        listPage.nextControlPresent!==(pageNumber<totalPages)) throw Error('PFIZER_DOM_PAGE_DRIFT_OR_TERMINAL');
+        listPage.nextControlPresent!==(pageNumber<totalPages)) return {listPage,rows:[],failure:'PFIZER_DOM_PAGE_DRIFT_OR_TERMINAL',expected:{pageNumber,total,totalPages,cardCount:Math.min(20,total-(pageNumber-1)*20),nextControlPresent:pageNumber<totalPages}};
     const rows = [];
     for (const card of sampleOnly ? listPage.cards.slice(0,1) : listPage.cards) {
       checkTime();

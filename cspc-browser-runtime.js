@@ -68,10 +68,17 @@ var cspcDomRuntime = (() => {
     return {dom,applications:{schema:'dot-cloud-cdp-application-entry-observation-v1',sourceId,
       tool:'mcp__cua_repl__js',observations:applications}};
   }
+  async function failureState() {
+    if(!list) return {readError:'CSPC_LIST_HANDLE_UNAVAILABLE_AFTER_START_FAILURE'};
+    const value={};
+    try { value.url=await list.url(); } catch(error) { value.urlReadError=String(error?.message??error); }
+    try { value.domSnapshot=await list.playwright.domSnapshot(); } catch(error) { value.domReadError=String(error?.message??error); }
+    return value;
+  }
   async function close() {
     for(const id of owned){const tab=await cua.getTab(id,{browser:'cdp'});await tab.close();}
     if(list)await list.close();
   }
-  return {start,readRow,finish,close};
+  return {start,readRow,finish,failureState,close};
 })();
 

@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const root=new URL('./after/',import.meta.url);const read=n=>fs.readFileSync(new URL(n,root),'utf8');
+for(const n of ['pfizer-browser-runtime.js','pfizer-functions.js','cspc-browser-runtime.js','cspc-functions.js'])new Function(read(n));
+let s=read('pfizer-browser-runtime.js');const a=s.indexOf('  async function listState() {'),b=s.indexOf('  async function start(',a);
+s=s.slice(0,a)+'  async function listState(){return fixture;}\n'+s.slice(b);
+const fixture={pageLabel:'Page 1 of 11',totalText:'209 JOBS FOUND',cards:[],nextControlPresent:true,domSnapshot:'actual failing fixture'};
+const runtime=new Function('cua','fixture',s+'\nreturn pfizerDomRuntime;')({createBrowserTab:async()=>({})},fixture);
+await runtime.start(Date.now()+60000);const packet=await runtime.readPage();assert.equal(packet.failure,'PFIZER_DOM_PAGE_DRIFT_OR_TERMINAL');assert.equal(packet.listPage,fixture);assert.equal(packet.expected.cardCount,20);assert.equal(packet.rows.length,0);
+const cspc=new Function(read('cspc-browser-runtime.js')+'\nreturn cspcDomRuntime;')();assert.deepEqual(await cspc.failureState(),{readError:'CSPC_LIST_HANDLE_UNAVAILABLE_AFTER_START_FAILURE'});
+const p=read('pfizer-functions.js');assert(p.indexOf("await put('page-'")<p.indexOf('if(packet.failure)'));const c=read('cspc-functions.js');assert(c.indexOf("await put('capture-error.json'")<c.indexOf('if(initialized)await call'));
+console.log('PASS actual failed-page packet retains values; caller archives before HOLD; unavailable CSPC handle explicit; syntax all four PASS');

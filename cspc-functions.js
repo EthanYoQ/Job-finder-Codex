@@ -29,6 +29,12 @@ async function runCspcDomObservation({directory,browserSource,runStartedAt,dispa
     await put('navigation-evidence.json',result.dom);
     await put('application-observations.json',result.applications);
     return result;
+  } catch(error) {
+    let state;
+    try { state=await call(emit('await cspcDomRuntime.failureState()')); }
+    catch(readError) { state={readError:String(readError?.message??readError)}; }
+    await put('capture-error.json',{error:String(error?.message??error),observedAt:new Date().toISOString(),state});
+    throw error;
   } finally {
     if(initialized)await call('await cspcDomRuntime.close();'+emit('{closed:true}'));
   }
