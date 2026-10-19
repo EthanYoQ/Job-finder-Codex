@@ -16,9 +16,17 @@ var jnjDomRuntime = (() => {
   }
   async function readList() {
     checkTime();
-    await list.playwright.locator('#js-job-search-results').waitFor({state:'visible',timeoutMs:30000});
-    const headingLocator = list.playwright.getByRole('heading',{name:total===undefined?/^Displaying 1 to \d+ of \d+ matching jobs$/:`Displaying ${(page-1)*20+1} to ${Math.min(page*20,total)} of ${total} matching jobs`,exact:true});
-    await headingLocator.waitFor({state:'visible',timeoutMs:30000});
+    let headingLocator;
+    try {
+      await list.playwright.locator('#js-job-search-results').waitFor({state:'visible',timeoutMs:30000});
+      headingLocator = list.playwright.getByRole('heading',{name:total===undefined?/^Displaying 1 to \d+ of \d+ matching jobs$/:`Displaying ${(page-1)*20+1} to ${Math.min(page*20,total)} of ${total} matching jobs`,exact:true});
+      await headingLocator.waitFor({state:'visible',timeoutMs:30000});
+    } catch(error) {
+      const value={kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',page,expectedUrl:listUrl(page),error:String(error),observedAt:new Date().toISOString()};
+      try { value.url=await list.url(); } catch(readError) { value.urlReadError=String(readError); }
+      try { value.dom=await list.playwright.domSnapshot(); } catch(readError) { value.domReadError=String(readError); }
+      return {file:'jnj-list-page-'+page+'.json',raw:raw(value),failure:value.error};
+    }
     const heading = await headingLocator.innerText();
     const fragment = await list.playwright.locator('#js-job-search-results').evaluate(e=>({html:e.outerHTML,htmlLength:e.outerHTML.length,
       items:Array.from(e.children).map(e=>({text:e.innerText,links:Array.from(e.querySelectorAll('a[href*="/jobs/r-"]')).map(a=>({title:a.textContent.trim(),url:a.href}))}))}));
