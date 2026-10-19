@@ -60,9 +60,11 @@ const CITIES: Readonly<Record<string, string>> = {
   Yichang: "宜昌", Jiaozuo: "焦作", Kaifeng: "开封", Zhumadian: "驻马店", Zhoukou: "周口", Liuzhou: "柳州", Wuhu: "芜湖",
   Shantou: "汕头", "Xi'an": "西安", Xiamen: "厦门", Urumqi: "乌鲁木齐"
 };
+const CSL_FIELD_SALES = "APAC, CN, Field Sales, CSL Behring";
 const PENDING_NAMES = new Set(["Taizhou", "JTaizhou", "Longnan", "Fuyang", "Field/Remote", "Xing'an Meng", "Zhaoqing", "Xinxiang", "Jingmen", "Neijiang", "Nanchong"]);
 function descriptorCity(p: Profile, descriptor: unknown): string | undefined {
   if (!text(descriptor)) return undefined;
+  if (p.tenant === "csl" && descriptor === CSL_FIELD_SALES) return CITY_PENDING;
   const name = p.tenant === "amgen" ? /^China\s+- ([A-Za-z'() /]+)$/u.exec(descriptor)?.[1]
     : /^APAC, CN, ([A-Za-z'() ]+), CSL Behring$/u.exec(descriptor)?.[1];
   if (!name) return undefined;
@@ -101,7 +103,7 @@ export function parseWorkdayMainlandRow(plan: SourceCrawlPlan, candidate: unknow
   if (opaqueCount !== undefined && (!Number.isSafeInteger(opaqueCount) || opaqueCount > 100)) return undefined;
   const title = normalizedText(raw.title);
   return { raw, path: raw.externalPath, reqId, title, ...(opaqueCount !== undefined ? { opaqueCount } : {}),
-    ...(listCity ? { listCity } : {}), requiresDetail: opaqueCount !== undefined || (listCity !== CITY_PENDING && !!listCity && conflict(title, [listCity])) };
+    ...(listCity ? { listCity } : {}), requiresDetail: opaqueCount !== undefined || (p.tenant === "csl" && raw.locationsText === CSL_FIELD_SALES) || (listCity !== CITY_PENDING && !!listCity && conflict(title, [listCity])) };
 }
 export function workdayMainlandDetailUrl(plan: SourceCrawlPlan, row: MainlandWorkdayRow): string {
   const p = profile(plan)!; return `${new URL(p.entry).origin}/wday/cxs/${p.tenant}/${p.site}${row.path}`;
