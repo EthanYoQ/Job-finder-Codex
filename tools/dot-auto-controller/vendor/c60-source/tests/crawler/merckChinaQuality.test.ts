@@ -66,7 +66,7 @@ describe("Merck China source-specific raw date and geography proof", () => {
     expect(input.result.fetchEvidence?.fetchLosses).toEqual([]);
     expect(replay(input)).toBe(true);
     expect(getSourceQualityPolicy(input.plan)).toBe("PLAN_BOUND_SOURCE_QUALITY_V1");
-    expect(sourcePlanConfigSha256(input.plan)).toBe("3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38");
+    expect(sourcePlanConfigSha256(input.plan)).toBe("1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212");
   });
   it("normalizes the supported Suzhou/Jiangsu pair to the city only", async () => {
     const input = await capture([merckRow({city:"Suzhou",state:"Jiangsu",location:"Suzhou, Jiangsu, China",cityState:"Suzhou, Jiangsu",
@@ -113,13 +113,13 @@ describe("Merck China source-specific raw date and geography proof", () => {
     expect(replayStrictSourceQualityEvidence({plan:input.plan,evidence:coherent,paginationEvaluation:evaluation,reconciliation:input.result.reconciliation!,jobs:input.result.jobs,capturedAt})).toBe(false);
   });
   it("binds two omitted-offset pages to full request cardinalities and unique raw IDs",async()=>{
-    const rows=Array.from({length:55},(_,i)=>merckRow({reqId:String(304084+i),jobId:String(304084+i),jobSeqNo:`MQAEGZUS${304084+i}EXTERNALENUS`}));
-    const input=await capture(rows,{pages:[rows.slice(0,50),rows.slice(50)]});
-    expect(input.result.truth.completenessVerified).toBe(true);expect(input.result.jobs).toHaveLength(55);expect(replay(input)).toBe(true);
+    const rows=Array.from({length:105},(_,i)=>merckRow({reqId:String(304084+i),jobId:String(304084+i),jobSeqNo:`MQAEGZUS${304084+i}EXTERNALENUS`}));
+    const input=await capture(rows,{pages:[rows.slice(0,100),rows.slice(100)]});
+    expect(input.result.truth.completenessVerified).toBe(true);expect(input.result.jobs).toHaveLength(105);expect(replay(input)).toBe(true);
   });
   it("rejects underfilled first pages even when the same total can eventually close",async()=>{
-    const rows=Array.from({length:55},(_,i)=>merckRow({reqId:String(304084+i),jobId:String(304084+i),jobSeqNo:`MQAEGZUS${304084+i}EXTERNALENUS`}));
-    const input=await capture(rows,{pages:[rows.slice(0,49),rows.slice(49)]});expect(input.result.truth.completenessVerified).toBe(false);
+    const rows=Array.from({length:105},(_,i)=>merckRow({reqId:String(304084+i),jobId:String(304084+i),jobSeqNo:`MQAEGZUS${304084+i}EXTERNALENUS`}));
+    const input=await capture(rows,{pages:[rows.slice(0,99),rows.slice(99)]});expect(input.result.truth.completenessVerified).toBe(false);
   });
   it.each(["postedDatePolicy","cityScopePolicy","publicVisibilityPolicy"])("rejects a removed source-specific policy %s",async field=>{
     const changed=structuredClone(plan()); if(changed.adapterId!=="official-json"||changed.officialJsonFetch?.kind!=="phenom")throw Error("plan");
@@ -169,9 +169,12 @@ describe("Merck China source-specific raw date and geography proof", () => {
   });
 
   it("rejects total drift and repeated omitted-offset pages on the owned route",async()=>{
-    const rows=Array.from({length:55},(_,i)=>merckRow({reqId:String(304084+i),jobId:String(304084+i),jobSeqNo:`MQAEGZUS${304084+i}EXTERNALENUS`}));
-    expect((await capture(rows,{pages:[rows.slice(0,50),rows.slice(50)],perPageTotals:[55,56]})).result.truth.completenessVerified).toBe(false);
-    expect((await capture(rows,{pages:[rows.slice(0,50),rows.slice(0,5)]})).result.truth.completenessVerified).toBe(false);
+    const rows=Array.from({length:105},(_,i)=>merckRow({reqId:String(304084+i),jobId:String(304084+i),jobSeqNo:`MQAEGZUS${304084+i}EXTERNALENUS`}));
+    expect((await capture(rows,{pages:[rows.slice(0,100),rows.slice(100)],perPageTotals:[105,106]})).result.truth.completenessVerified).toBe(false);
+    const repeated=(await capture(rows,{pages:[rows.slice(0,100),rows.slice(0,5)]})).result;
+    expect(repeated.truth.completenessVerified).toBe(false);expect(repeated.jobs).toEqual([]);
+    expect(repeated.fetchEvidence?.fetchLosses.map(loss=>loss.details?.code)).toContain("DUPLICATE_OFFICIAL_ID");
+    expect(repeated.paginationEvaluation?.derivedAnomalyCodes).toContain("RAW_ID_OVERLAP_ACROSS_PAGES");
   });
   it("rejects a changed request-contract locator despite unchanged valid raw rows",async()=>{
     const input=await capture(),evidence=structuredClone(input.result.fetchEvidence!);
@@ -182,7 +185,7 @@ describe("Merck China source-specific raw date and geography proof", () => {
     const changed=structuredClone(plan());if(changed.adapterId!=="official-json"||changed.officialJsonFetch?.kind!=="phenom")throw Error("plan");
     if(field==="source")changed.source.companyId="company-other";
     if(field==="country filter")changed.officialJsonFetch.countryFilter="Singapore";
-    if(field==="page size")changed.officialJsonFetch.pageSize=100;
+    if(field==="page size")changed.officialJsonFetch.pageSize=50;
     if(field==="category filter")changed.officialJsonFetch.facetScope={countryIncludeDescriptor:"China",categoryExcludeDescriptors:["Student"]};
     if(field==="date output")delete changed.json.fields.officialPublishedAt;
     if(field==="copied policy")changed.source.id="source-other-social";
