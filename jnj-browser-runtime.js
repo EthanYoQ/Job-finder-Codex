@@ -77,7 +77,9 @@ var jnjDomRuntime = (() => {
   }
   async function advance() {
     checkTime();
-    await list.playwright.getByRole('link',{name:'Next page',exact:true}).click();
+    const nextUrl=await list.playwright.getByRole('link',{name:'Next page',exact:true}).evaluate(e=>e.href);
+    if(nextUrl!==listUrl(page+1))throw Error('JNJ_DOM_PAGINATION');
+    await list.goto(nextUrl);
     await list.getAXState({emit:false});
     page++;
     return {page};
