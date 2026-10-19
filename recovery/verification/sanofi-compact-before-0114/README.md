@@ -1,0 +1,5 @@
+# Sanofi reader-before compact context parity (inactive)
+Parent0106/e4166bfc33bb739e22ccec6ef21543c2726c6424. Only external support/transport/sanofi-reader-before-original.sql changes.
+Reuse current native cloudPilotSqlControl publicationContextQuery artifact projection verbatim: same tuple, compact artifact set, old full-B oracle/detail selection, byteCount and capturedAt representation. Matching retains original full-B schema and also accepts current Sanofi compact schema. Native, writes and independent LIVE_BEFORE_CONTEXT_CHANGED equality remain unchanged.
+One official read-only diagnostic using fixed template returned context exactly equal to this failed batch's original compiler context excluding existing checkedAt/snapshotSha256 diagnostic fields. Old before first/latest null; new both identify existing committed073250999. No data changes, no producer, no old PUBLISH. Current loop files untouched.
+GH whitelist: after/sanofi-reader-before-original.sql and README.md only. RECONCILED_CONTEXT.json and diagnostic query/result are local diagnostic evidence, never upload to GH. Original failed packet remains NOT_DISPATCHED.

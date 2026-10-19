@@ -2,19 +2,20 @@ BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY; SET LOCAL statement
 WITH publication AS (
 WITH matching AS (
  SELECT r.*,coalesce((SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id),'[]'::jsonb) AS observations,coalesce((
- SELECT jsonb_agg(jsonb_build_object('releaseCandidateId',a."releaseCandidateId",'batchId',a."batchId",'sourceResultId',a."sourceResultId",'sourceId',a."sourceId",'kind',a.kind,'extractorLocator',a."extractorLocator",'sha256',a.sha256) ORDER BY a.kind,a."extractorLocator",a.id)
+ SELECT jsonb_agg(jsonb_build_object('releaseCandidateId',a."releaseCandidateId",'batchId',a."batchId",'sourceResultId',a."sourceResultId",'sourceId',a."sourceId",'kind',a.kind,'extractorLocator',a."extractorLocator",'sha256',a.sha256,'byteCount',a."byteCount",'capturedAt',to_char(a."capturedAt",'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) ORDER BY a.kind,a."extractorLocator",a.id)
  FROM public."EvidenceArtifact" a
  WHERE a."releaseCandidateId"=r."releaseCandidateId" AND a."batchId"=r."batchId" AND a."sourceResultId"=r.id AND a."sourceId"=r."sourceId"
- AND ((a.kind='ORACLE_RESULT' AND a."extractorLocator"='sanofi-cn-module-anomalies-v2') OR (a.kind='ATS_PAGE' AND a."extractorLocator" IN (
+ AND ((((CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END)->>'schemaVersion')=E'sanofi-cn-dual-chain-attestation-v1') OR
+ (((CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END)->>'schemaVersion')='b-grade-independent-traversal-v2' AND ((a.kind='ORACLE_RESULT' AND a."extractorLocator"='sanofi-cn-module-anomalies-v2') OR (a.kind='ATS_PAGE' AND a."extractorLocator" IN (
  SELECT 'sanofi-cn-detail-v2|request-contract-v2|sha256:'||encode(extensions.digest(convert_to(
  '{"body":null,"coordinate":{"id":'||to_json(h->>'id')::text||'},"family":"html","method":"GET","role":"sanofi-cn-detail","url":'||to_json(h->>'officialUrl')::text||',"v":2}','UTF8'),'sha256'),'hex')
  FROM jsonb_array_elements(coalesce(((CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END)#>>'{mainTraversal,sanofiIdentityProof,oracleBody}')::jsonb->'entries','[]'::jsonb)) h
  WHERE h->>'code'='SANOFI_CN_FOREIGN_HEADER_NATIVE_AUTHORITY'
- )))),'[]'::jsonb) AS "evidenceArtifacts" FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
+ )))))),'[]'::jsonb) AS "evidenceArtifacts" FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
  WHERE r."sourceId"=E'source-viatris-social' AND r."sourceConfigHash"=E'5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9'
  AND r."completenessState"='VERIFIED' AND r."atomicCommitState"='COMMITTED'
  AND r."completenessCertificateSha256" IS NOT NULL
- AND (CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END)->>'schemaVersion'=E'__ORIGINAL_CERTIFICATE_SCHEMA__' AND (NOT __ORIGINAL_REQUIRES_PORTABLE_POLICY__ OR (CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END)->>'policyId'=E'PLAN_BOUND_SOURCE_QUALITY_V1') AND b.kind<>'MANUAL_SOURCE'
+ AND (CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END)->>'schemaVersion' IN (E'__ORIGINAL_CERTIFICATE_SCHEMA__',E'sanofi-cn-dual-chain-attestation-v1') AND (NOT __ORIGINAL_REQUIRES_PORTABLE_POLICY__ OR (CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END)->>'policyId'=E'PLAN_BOUND_SOURCE_QUALITY_V1') AND b.kind<>'MANUAL_SOURCE'
  ), jobs AS (
  SELECT j."dedupeKey",j."companyId",j."sourceId",j."sourceJobId",j."officialTitle",j."auxiliaryChineseTitle",j."officialUrl",j."listUrl",j."locationRaw",j.city,j.cities,j.category,j."officialPublishedAt",j."firstSeenAt",j."lastSeenAt",j."missingSuccessCount",j."lifecycleStatus",j."visibleInFrontend",j."isNew",
  jsonb_build_object('atsKind',s."atsKind",'kind',s.kind,'status',s.status,'officialEntryUrl',s."officialEntryUrl",'officialChainEvidenceUrl',s."officialChainEvidenceUrl") AS source,
