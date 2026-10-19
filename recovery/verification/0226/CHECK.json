@@ -1,0 +1,38 @@
+{
+  "baseCanonical": "0e65255fbe964a702c19a614346fa368dd1a714c",
+  "baseSha256": "08a98a79396e2f5423a5822ac4d4cfec7a0cc505664452794b8aec75241562fd",
+  "candidateSha256": "f0395b0846432e9261432fad926c988b924195a3f28a849150ca15e19423b231",
+  "originalPack": "SECRET_IN_EVIDENCE",
+  "newPack": "PASS",
+  "restoreVerify": {
+    "verifiedMembers": 54,
+    "sha256": "974de7978acfce7bbfeb018609884936d8901b4371f378cde35fc9565a242a0d"
+  },
+  "checksPassed": [
+    "known-expression-1",
+    "known-expression-2",
+    "known-expression-3",
+    "literal-or-unreviewed-1",
+    "literal-or-unreviewed-2",
+    "literal-or-unreviewed-3",
+    "literal-or-unreviewed-4",
+    "literal-or-unreviewed-5",
+    "literal-or-unreviewed-6",
+    "literal-or-unreviewed-7",
+    "literal-or-unreviewed-8",
+    "literal-or-unreviewed-9",
+    "literal-or-unreviewed-10",
+    "literal-other-field",
+    "other-html-field-no-exception",
+    "other-source-no-exception",
+    "other-member-no-exception",
+    "sql-json-literal"
+  ],
+  "selectedMemberBytesUnchanged": 50,
+  "rawArchiveBytesUnchanged": true,
+  "activeUnchanged": true,
+  "sourceFilesModified": [
+    "package-success-evidence.py"
+  ],
+  "uploadsPerformed": false
+}

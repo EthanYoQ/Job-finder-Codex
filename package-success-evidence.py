@@ -80,9 +80,18 @@ def pack(runs, relay, output, request_ids):
             if kind in ['PUBLISH','READ_OUTCOME']:
                 selected['official/'+kind+'.json'] = pairs[-1][1]
         for name, value in selected.items():
-            data = (json.dumps(clean(value), ensure_ascii=False, indent=2)+'\n').encode()
+            value = clean(value)
+            data = (json.dumps(value, ensure_ascii=False, indent=2)+'\n').encode()
+            scan = data
+            if source == 'cspc' and (re.fullmatch(r'independent-dom/row-\d+\.json', name) or name == 'independent-dom/application-observations.json'):
+                # Mask only these public JS expressions in the scan copy; archive bytes stay unchanged.
+                for application in [value.get('application')] + value.get('observations', []):
+                    if application is not None:
+                        for expression in ["password = $('#password').val();", 'password: hex_md5(password),', 'formData.password = hex_md5(formData.password);']:
+                            application['rootHtml'] = application['rootHtml'].replace(expression, '[public JS expression]')
+                scan = (json.dumps(value, ensure_ascii=False, indent=2)+'\n').encode()
             # SQL can contain escaped JSON credentials that recursive key removal cannot see.
-            assert not re.search(rb'-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|(?-i:AKIA[0-9A-Z]{16})|Bearer\s+[^\s"\\]+|(?:^|[^a-z0-9])(?:api[._-]?key|client[._-]?secret|access[._-]?token|refresh[._-]?token|token|secret|password|passwd|pwd|credential|private[._-]?key|auth|authorization|cookies?|session(?:id)?|jwt|bearer|basic)["\\\']*\s*[:=]\s*\S+', data, re.I), 'SECRET_IN_EVIDENCE'
+            assert not re.search(rb'-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|(?-i:AKIA[0-9A-Z]{16})|Bearer\s+[^\s"\\]+|(?:^|[^a-z0-9])(?:api[._-]?key|client[._-]?secret|access[._-]?token|refresh[._-]?token|token|secret|password|passwd|pwd|credential|private[._-]?key|auth|authorization|cookies?|session(?:id)?|jwt|bearer|basic)["\\\']*\s*[:=]\s*\S+', scan, re.I), 'SECRET_IN_EVIDENCE'
             members[source+'/'+name] = data
         archive_path = next((run/'artifacts').glob('*.archive.json'))
         archive_bytes = archive_path.read_bytes()
