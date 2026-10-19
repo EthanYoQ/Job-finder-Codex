@@ -37,8 +37,14 @@
   },
   "registeredAt": "2026-10-19T20:16:12.443Z",
   "status": "ACTIVE_READY_PRODUCTION_VALIDATION_PENDING",
-  "taskUpdateReceipt": "NOT_YET_PROVIDED",
+  "taskUpdateReceipt": "Prompt update confirmed; precise updatedAt not supplied",
   "schedule": "08:00/20:00 Asia/Shanghai unchanged",
   "previousRefs": "TASK_RECOVERY_REFS_119_1859.json",
-  "fixedDriveLatest": "Verified99 baseline unchanged"
+  "fixedDriveLatest": "Verified99 baseline unchanged",
+  "taskPromptRecoveryFile": "TASK_CURRENT_PROMPT_120_2007.txt",
+  "freshRun": {
+    "startedAt": "2026-10-19T20:17:54Z",
+    "holds": {},
+    "status": "RUNNING_PRODUCTION_VALIDATION_PENDING"
+  }
 }

@@ -324,3 +324,5 @@ Root fresh entry started19:38:04Z with temporary holds cleared; results pending.
 ## Current120/2007 — 2026-10-19 20:17 UTC
 Native120 `de6598eb37c13f40a51be4f34e58bf5ed173d115` registered20:16:12.443Z; clean,16fields exact and connectorPASS. External2007 `c1f3fbb702705f816f4cf3a2a0c1399e02a877cf` is applied with63files exact. [Current refs](TASK_RECOVERY_REFS_120_2007.json) give both downloaded/restored Drive deltas on119/1859. Entry `3861484edc94b6a500c16dededf7868b381192323a3df3877daff627e029d3b0`.
 At20:17:20 readiness:36routes,33same-slot successful,JNJ/Merck/Pfizer due,formalholder empty/live0/manual0. New production validation remainsPENDING. Task update receipt not yet supplied; no invented update time. Original08/20schedule,dependencies/Prisma51 and fixedLATEST99 unchanged. Merckpage100 and bounded wait changes have only their recorded checks until a fresh run succeeds.
+
+20:18 owner update: root's unique fresh entry started20:17:54Z with holds={} using120/2007. Task prompt update confirmed and recovery text saved asTASK_CURRENT_PROMPT_120_2007.txt; exact task updatedAt not supplied. Production result remainspending.
