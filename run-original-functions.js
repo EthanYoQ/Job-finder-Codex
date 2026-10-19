@@ -14,6 +14,7 @@ if(load('originalRelayReadOnly')===true)return states.map(s=>({sourceId:s.source
 return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const state=stateById[sourceId];
  if(state.crawledAt&&Date.parse(state.checkedAt)-Date.parse(state.crawledAt)<43200000)return {skip:'REAL_OBSERVATION_WITHIN_12H:'+state.crawledAt};
+ const hold=load('originalSourceHolds')?.[sourceId];if(hold)throw Error('PENDING_USER_DECISION:'+hold);
  
  if(!sourceFolders[sourceId])throw Error('ROUTE_NOT_CONNECTED:'+routeById[sourceId].route);
  if(state.holder||Number(state.running)||Number(state.manual))throw Error('EXISTING_WRITER_RECONCILE_ONLY');

@@ -1,0 +1,13 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const A=Object.getPrototypeOf(async function(){}).constructor;
+const D='/workspace/scratch/5e9614251709/original-relay-automation-20261017T0609Z';
+const src=fs.readFileSync(D+'/automatic-relay-functions.js','utf8');
+const {runOriginalSerial}=await new A(src)();
+const entry=fs.readFileSync(new URL('./after/run-original-functions.js',import.meta.url),'utf8');new A(entry);
+const line=entry.split('\n').find(l=>l.includes("const hold=load('originalSourceHolds')"));
+const prepare=new A('sourceId','load',line+"return {skip:'fixture-ready'};");
+const ids=['source-pfizer-china-social','source-novartis-social','source-cspc-social'];
+const holds={[ids[0]]:'incomplete official card awaiting decision',[ids[1]]:'partition total awaiting decision'};
+const r=await runOriginalSerial(ids,id=>prepare(id,()=>holds));
+assert.equal(r.length,3);assert.deepEqual(r.map(x=>x.status),['HELD','HELD','SKIPPED']);assert(r[0].reason.includes('PENDING_USER_DECISION'));assert(r[1].reason.includes('PENDING_USER_DECISION'));
+const untouched=await runOriginalSerial(ids,id=>prepare(id,()=>undefined));assert(untouched.every(x=>x.reason==='fixture-ready'));console.log('PASS full enumeration, explicit holds, CSPC reached, absent holds unchanged');
