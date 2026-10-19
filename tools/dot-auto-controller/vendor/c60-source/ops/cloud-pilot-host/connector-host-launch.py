@@ -43,7 +43,7 @@ finally:
 # A fixed, reviewed catalogue, never a JSON-selected path or executable. Node's
 # binding loader independently verifies the same bytes, closed keys and source.
 CATALOG = PRODUCER.parent.parent / 'config/native-catalog.json'
-CATALOG_SHA = 'adb1005c61597e75261462595cb2c74e7bc46cda2c03e16134b46a1d048df61a'
+CATALOG_SHA = 'af454395e5ad10c605445f63c520bbda2115bf445505486c6dfa28b33c31a2d7'
 for p in CATALOG.parents:
     st = p.lstat()
     if not stat.S_ISDIR(st.st_mode) or st.st_mode & 0o022 or st.st_uid not in [uid, 0]:

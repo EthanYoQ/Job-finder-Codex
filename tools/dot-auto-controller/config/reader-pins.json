@@ -1,10 +1,10 @@
 {
   "main": {
     "readerFileHashes": {
-      "src/domain/portablePublicSnapshot.ts": "8d31a7206da617d9b4e586ac1e8f52822c69e9495f8c3bea773323891fad4a6d",
+      "src/domain/portablePublicSnapshot.ts": "5c93bd297301d8409a9dbce02beeb00d66b07ba769b7afb4bbe7bc55dcd2f19e",
       "src/domain/jobProjectionDeltaReceipt.ts": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
-      "src/db/portablePublicSnapshotRepository.ts": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
-      "src/crawler/sourceQualityAdmission.ts": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",
+      "src/db/portablePublicSnapshotRepository.ts": "42365fe85a4c2fa455be50043ee3e063f646187baceb2ea5e95d744896d89659",
+      "src/crawler/sourceQualityAdmission.ts": "84edda80b03ea5f72209e99e2b00486fa59a5ad7f9257ed2454f70e002bde5fb",
       "src/crawler/sourcePlan.ts": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
       "src/data/companyRegistry.ts": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
       "src/crawler/runSourceCrawl.ts": "65d37ef93af0c0d28088a03b4f67cf0948b1cbac53bf805ba237da1549da3d76",
@@ -38,10 +38,10 @@
   },
   "fallback": {
     "readerFileHashes": {
-      "src/domain/portablePublicSnapshot.ts": "8d31a7206da617d9b4e586ac1e8f52822c69e9495f8c3bea773323891fad4a6d",
+      "src/domain/portablePublicSnapshot.ts": "5c93bd297301d8409a9dbce02beeb00d66b07ba769b7afb4bbe7bc55dcd2f19e",
       "src/domain/jobProjectionDeltaReceipt.ts": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
-      "src/db/portablePublicSnapshotRepository.ts": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
-      "src/crawler/sourceQualityAdmission.ts": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",
+      "src/db/portablePublicSnapshotRepository.ts": "42365fe85a4c2fa455be50043ee3e063f646187baceb2ea5e95d744896d89659",
+      "src/crawler/sourceQualityAdmission.ts": "84edda80b03ea5f72209e99e2b00486fa59a5ad7f9257ed2454f70e002bde5fb",
       "src/crawler/sourcePlan.ts": "1f1345f74ad41adaa0778eaf301f6b1c38ca68f091d81b116556771d18c71987",
       "src/data/companyRegistry.ts": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
       "src/crawler/runSourceCrawl.ts": "65d37ef93af0c0d28088a03b4f67cf0948b1cbac53bf805ba237da1549da3d76",

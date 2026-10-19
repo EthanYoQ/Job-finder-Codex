@@ -125,6 +125,13 @@ function fresh(iso: string, options: PortableSnapshotOptions): boolean {
 function supportsPublicAGrade(plan: SourceCrawlPlan): boolean {
   return A_GRADE_PUBLIC_CONFIGS[plan.source.id] === sourcePlanConfigSha256(plan);
 }
+/** Merck's reviewed page-capacity change preserves the same China publication scope.
+ * Old commits remain readable only under this exact successor; issuer policy stays current. */
+export function portableCommittedConfigHashes(plan: SourceCrawlPlan): readonly string[] {
+  const current = sourcePlanConfigSha256(plan);
+  return plan.source.id === "source-merck-china-social" && current === "1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212"
+    ? [current, "3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38"] : [current];
+}
 export function supportsPublicBGrade(plan: SourceCrawlPlan): boolean {
   return B_GRADE_PUBLIC_CONFIGS[plan.source.id] === sourcePlanConfigSha256(plan);
 }
@@ -173,7 +180,7 @@ function readCommittedSource(row: PortableSourceResultRow, plan: SourceCrawlPlan
     receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? historicalSanofi || supportsPublicAGrade(plan) :
     isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && supportsPublicBGrade(plan);
   // Keep the read boundary and current publication rules; COMMITTED owns evidence admission.
-  if (!supported || row.sourceId !== plan.source.id || (!historicalSanofi && row.sourceConfigHash !== sourcePlanConfigSha256(plan)) ||
+  if (!supported || row.sourceId !== plan.source.id || (!historicalSanofi && !portableCommittedConfigHashes(plan).includes(row.sourceConfigHash)) ||
       row.batch.id !== row.batchId || row.batch.releaseCandidateId !== row.releaseCandidateId || row.batch.kind !== "SCHEDULED" ||
       row.transportState !== "SUCCEEDED" || row.adapterState !== "SUCCEEDED" || row.completenessState !== "VERIFIED" || row.atomicCommitState !== "COMMITTED" ||
       row.failureCode || row.failureReason || row.blockerCode || row.blockerReason ||
@@ -225,6 +232,7 @@ export function selectPortableSourceSnapshots(
     if (ids.has(plan.source.id) || plan.company.id !== plan.source.companyId) throw new Error("INVALID_PORTABLE_PUBLICATION_PLAN_SET");
     ids.add(plan.source.id);
     const currentConfigSha256 = sourcePlanConfigSha256(plan);
+    const committedConfigHashes = portableCommittedConfigHashes(plan);
     const policyId = getSourceQualityPolicy(plan) ?? (supportsPublicBGrade(plan) ? B_GRADE_PUBLIC_POLICY : supportsPublicAGrade(plan) ? A_GRADE_PUBLIC_POLICY : null);
     const base: PortableSourceSelection = {companyId: plan.company.id, sourceId: plan.source.id, currentConfigSha256, policyId,
       state: "HOLD", health: "UNVERIFIED", freshness: "UNKNOWN", reasons: [], visibilityFloor: null,
@@ -236,7 +244,7 @@ export function selectPortableSourceSnapshots(
     // All scheduled writers are visible during this one-source transition. An
     // unknown successor can replace mutable jobs even without a usable receipt.
     const attempts = rows.filter(row => row.sourceId === plan.source.id &&
-      (row.sourceConfigHash === currentConfigSha256 || sanofiTransition) && row.batch.kind === "SCHEDULED");
+      (committedConfigHashes.includes(row.sourceConfigHash) || sanofiTransition) && row.batch.kind === "SCHEDULED");
     const accepted: NonNullable<PortableSourceSelection["selected"]>[] = [];
     let integrityHold = false;
     const invalidCertifiedHistory: PortableSourceResultRow[] = [];

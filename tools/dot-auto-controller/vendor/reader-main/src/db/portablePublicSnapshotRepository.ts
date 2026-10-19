@@ -11,7 +11,7 @@ import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256, type SourceCrawlPl
 import { candidateCompanies } from "../data/companyRegistry";
 import { getPortableCoverageScope, PORTABLE_COVERAGE_POLICY_ID } from "../release/portableCoveragePolicy";
 import { P0_LAUNCH_MANIFEST, selectLaunchCompanies, validateLaunchManifest } from "../release/launchManifest";
-import { supportsPublicBGrade, compactCommittedCertificate, verifiedMembers, selectPortableSourceSnapshots, projectPortableSourceJobs, type PortableProjectedSource, type PortablePublicJob, type PortableSnapshotOptions } from "../domain/portablePublicSnapshot";
+import { portableCommittedConfigHashes, supportsPublicBGrade, compactCommittedCertificate, verifiedMembers, selectPortableSourceSnapshots, projectPortableSourceJobs, type PortableProjectedSource, type PortablePublicJob, type PortableSnapshotOptions } from "../domain/portablePublicSnapshot";
 import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "../domain/publicationEligibility";
 import { PortableSnapshotCache, PORTABLE_SNAPSHOT_VERSION_SQL, portableSnapshotVersion, portableSnapshotValidUntil } from "./portableSnapshotCache";
@@ -50,8 +50,9 @@ export function compactCommittedSourceResult(row: PortableSourceResultRow): Port
  * their complete CURRENT/GRACE/VISIBLE commitments already live on the parent. */
 export function portableCommittedResultsSql(plans: readonly SourceCrawlPlan[]): string {
   const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'";
-  const scope = plans.map(plan => `(r."sourceId"=${quote(plan.source.id)}${isSanofiPublicTransitionPlan(plan) ? "" : ` AND r."sourceConfigHash"=${quote(sourcePlanConfigSha256(plan))}`})`).join(" OR ") || "FALSE";
-  const candidateScope = plans.map(plan => `(r."sourceId"=${quote(plan.source.id)} AND (r."sourceConfigHash"=${quote(sourcePlanConfigSha256(plan))}${isSanofiPublicTransitionPlan(plan) ? ` OR r.id=${quote(SANOFI_HISTORICAL_PUBLIC_RECEIPT.binding.sourceResultId)}` : ""}))`).join(" OR ") || "FALSE";
+  const configScope = (plan: SourceCrawlPlan) => portableCommittedConfigHashes(plan).map(hash => `r."sourceConfigHash"=${quote(hash)}`).join(" OR ");
+  const scope = plans.map(plan => `(r."sourceId"=${quote(plan.source.id)}${isSanofiPublicTransitionPlan(plan) ? "" : ` AND (${configScope(plan)})`})`).join(" OR ") || "FALSE";
+  const candidateScope = plans.map(plan => `(r."sourceId"=${quote(plan.source.id)} AND (${configScope(plan)}${isSanofiPublicTransitionPlan(plan) ? ` OR r.id=${quote(SANOFI_HISTORICAL_PUBLIC_RECEIPT.binding.sourceResultId)}` : ""}))`).join(" OR ") || "FALSE";
   const scalars = Object.entries(portableSourceResultSelect).filter(([key, value]) => value === true && key !== "completenessCertificate").map(([key]) => `r."${key}"`).join(",");
   const object = (alias: string, fields: object) => `jsonb_build_object(${Object.keys(fields).map(key => `${quote(key)},${alias}."${key}"`).join(",")})`;
   const legacy = `jsonb_build_object('schemaVersion',c.value->'schemaVersion','policyId',c.value->'policyId','observedAt',c.value->'observedAt',
@@ -205,7 +206,7 @@ export async function readPortablePublicSnapshotWithStatus(
   // Validate the options and duplicate source ownership before starting any I/O.
   const emptySelections = selectPortableSourceSnapshots(immutablePlans, [], readOptions);
   const requiredPlans = immutablePlans.filter(plan => !excludedSourceIds.has(plan.source.id));
-  const identities = new Map(requiredPlans.map(plan => [plan.source.id, {companyId: plan.company.id, config: sourcePlanConfigSha256(plan), sanofiTransition: isSanofiPublicTransitionPlan(plan)}]));
+  const identities = new Map(requiredPlans.map(plan => [plan.source.id, {companyId: plan.company.id, configs: portableCommittedConfigHashes(plan), sanofiTransition: isSanofiPublicTransitionPlan(plan)}]));
   const cacheScope = JSON.stringify({plans: immutablePlans.map(plan => [plan.company.id, plan.source.id, sourcePlanConfigSha256(plan)]),
     freshnessMaximumMs: readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS});
   const transactionStartedAt = performance.now();
@@ -238,8 +239,8 @@ export async function readPortablePublicSnapshotWithStatus(
     const rawResults = tx.$queryRawUnsafe
       ? await tx.$queryRawUnsafe(portableCommittedResultsSql(requiredPlans))
       : await tx.crawlBatchSourceResult.findMany({
-        where: {OR: requiredPlans.map(plan => isSanofiPublicTransitionPlan(plan) ? {sourceId: plan.source.id} :
-          {sourceId: plan.source.id, sourceConfigHash: sourcePlanConfigSha256(plan)}), batch: {is: {kind: "SCHEDULED"}}},
+        where: {OR: requiredPlans.flatMap(plan => isSanofiPublicTransitionPlan(plan) ? [{sourceId: plan.source.id}] :
+          portableCommittedConfigHashes(plan).map(sourceConfigHash => ({sourceId: plan.source.id, sourceConfigHash}))), batch: {is: {kind: "SCHEDULED"}}},
         select: portableSourceResultSelect, orderBy: [{startedAt: "asc"}, {id: "asc"}]
       });
     if (!Array.isArray(rawResults)) throw new Error("INVALID_PORTABLE_SOURCE_RESULT_ROWS");
@@ -252,7 +253,7 @@ export async function readPortablePublicSnapshotWithStatus(
     const candidates = new Map<string, {result: PortableSourceResultRow; floor: Date; companyId: string}>();
     for (const row of results) {
       const identity = identities.get(row.sourceId);
-      if (!identity || (row.sourceConfigHash !== identity.config &&
+      if (!identity || (!identity.configs.includes(row.sourceConfigHash) &&
           !(identity.sanofiTransition && isSanofiHistoricalPublicCandidate(row))) || row.batch.kind !== "SCHEDULED" || row.atomicCommitState !== "COMMITTED" || row.completenessState !== "VERIFIED" ||
           !(row.finishedAt instanceof Date) || !Number.isFinite(row.finishedAt.getTime())) continue;
       const prior = candidates.get(row.sourceId);
