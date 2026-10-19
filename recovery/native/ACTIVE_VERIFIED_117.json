@@ -1,0 +1,15 @@
+{
+  "candidate": 117,
+  "commit": "92df0f97af037c138281700ecc56c76aaf73c75d",
+  "externalCommit": "c013de32be9067012d827ae4a5c2e1fb455c4df4",
+  "registeredAt": "2026-10-19T04:48:12.688Z",
+  "checkedAt": "2026-10-19T04:49:01.222588Z",
+  "officialFieldsMatched": 16,
+  "connectorValidate": "PASS",
+  "gitClean": true,
+  "externalFilesMatched": 63,
+  "entrySha256": "8b577c7142aa17ef3a1373cc4cdca91ca04568348957f312ae73be72e686da66",
+  "taskUpdatedAt": "2026-10-19T04:49Z",
+  "scheduleUnchanged": true,
+  "freshProductionAcceptance": "PENDING_ROOT40"
+}
