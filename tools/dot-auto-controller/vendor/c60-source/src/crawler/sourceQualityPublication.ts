@@ -1,3 +1,4 @@
+import { hasNovartisPartitionEvidence, replayNovartisNativePartitions } from "./novartisNativePartitions";
 import { exactNovoChinaQualityPlan, novoSourceJobExclusions } from "./novoChinaQuality";
 import { hasNovartisOfficialPresencePlan, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
 import { buildIngestionCommands, type IngestionCommand } from "./ingestion";
@@ -57,9 +58,16 @@ export function buildSourceQualityJobCommands(input:SourceQualityPublicationInpu
   // Hold known public rows; never fabricate an absence or refresh their old time.
   if(previous.some(job=>job.lifecycleStatus==="ACTIVE"&&novoExclusions.insufficient.has(job.record.sourceJobId??"")))
     throw new Error("NOVO_PREVIOUS_JOB_DETAIL_UNKNOWN_PRESERVE_LAST_GOOD");
+  const unknownUrls=input.result.fetchEvidence&&hasNovartisPartitionEvidence(input.result.fetchEvidence)
+    ?replayNovartisNativePartitions(input.plan,input.result.fetchEvidence).unknownUrls:new Set<string>();
   const lifecycle=applyCrawlObservation(previous.filter(job=>!novoExclusions.insufficient.has(job.record.sourceJobId??"")),input.result.jobs,{
     observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:receipt.issuedAt,
     baselineCompletedBeforeCrawl:input.baselineCompletedBeforeCrawl
+  }).map(decision=>{
+    if(!unknownUrls.has(decision.record.officialUrl))return decision;
+    const old=previous.find(job=>job.dedupeKey===decision.dedupeKey);
+    if(!old||currentKeys.has(decision.dedupeKey))throw Error("NOVARTIS_UNKNOWN_CURRENT_CONTRADICTION");
+    return {...old,missingSuccessfulCrawlCount:old.lifecycleStatus==="ACTIVE"?1:old.missingSuccessfulCrawlCount,isNew:false};
   });
   return {jobCommands:buildIngestionCommands(input.result,lifecycle).filter(
     (command):command is Extract<IngestionCommand,{type:"UPSERT_JOB"}>=>command.type==="UPSERT_JOB"),visibilityFloor};

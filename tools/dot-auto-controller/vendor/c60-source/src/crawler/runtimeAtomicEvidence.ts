@@ -1,3 +1,6 @@
+import { isDeepStrictEqual } from "node:util";
+import { isPfizerWorkdayTraversalPlan, pfizerQuarantinedOfficialIds, pfizerSourceJobId, PFIZER_ENTRY } from "./pfizerWorkdayTraversal";
+import { hasNovartisPartitionEvidence, replayNovartisNativePartitions } from "./novartisNativePartitions";
 import type {SanofiIndependentArchiveBinding} from "./traversalCertificate";
 import { assertServierUnknownLifecyclePreserved } from "./servierMokaScope";
 import { hasNovartisOfficialPresencePlan, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
@@ -559,6 +562,25 @@ export function buildAtomicRuntimeCommit(input: {
   const manualPreview = identity.batchKind === "MANUAL_SOURCE";
   if (completenessVerified && !manualPreview && hasNovartisOfficialPresencePlan(plan)) replayNovartisOfficialPresence(plan,evidence);
   if (completenessVerified && !manualPreview) assertServierUnknownLifecyclePreserved(plan, evidence, input.previousJobs.map(job => job.record));
+  const unknownKeys=new Set<string>();
+  if(completenessVerified&&!manualPreview){
+    if(hasNovartisPartitionEvidence(evidence)){
+      const urls=replayNovartisNativePartitions(plan,evidence).unknownUrls;
+      for(const old of input.previousJobs)if(urls.has(old.record.officialUrl))unknownKeys.add(old.dedupeKey);
+    }
+    if(isPfizerWorkdayTraversalPlan(plan)){
+      for(const id of pfizerQuarantinedOfficialIds(evidence)){
+        const matches=input.previousJobs.filter(old=>{
+          if(!old.record.officialUrl.startsWith(PFIZER_ENTRY+"/job/"))return false;
+          const path=old.record.officialUrl.slice(PFIZER_ENTRY.length);
+          return new RegExp(`_${id}(?:-\\d+)?$`,"u").test(path)&&old.record.sourceId===plan.source.id&&old.record.sourceJobId===pfizerSourceJobId(path);
+        });
+        if(matches.length>1)throw Error("PFIZER_UNKNOWN_PRIOR_IDENTITY_AMBIGUOUS");
+        for(const old of matches)unknownKeys.add(old.dedupeKey);
+      }
+    }
+    if(currentKeys.some(key=>unknownKeys.has(key)))throw Error("UNKNOWN_JOB_CANNOT_BE_CURRENT");
+  }
   const currentKeySet=new Set(currentKeys);
   const reducedLifecycle = !qualityRequired && sourceBindingVerified && !manualPreview ? applyCrawlObservation(
     input.previousJobs,
@@ -570,7 +592,11 @@ export function buildAtomicRuntimeCommit(input: {
       observedAt: finishedAt.toISOString(),
       baselineCompletedBeforeCrawl: input.baselineCompletedBeforeCrawl
     }
-  ) : [];
+  ).map(decision=>{
+    if(!unknownKeys.has(decision.dedupeKey))return decision;
+    const old=input.previousJobs.find(job=>job.dedupeKey===decision.dedupeKey)!;
+    return {...old,missingSuccessfulCrawlCount:old.lifecycleStatus==="ACTIVE"?1:old.missingSuccessfulCrawlCount,isNew:false};
+  }) : [];
   const qualityCommands = qualityAccepted && completenessVerified ? buildSourceQualityJobCommands({
     plan, result, admission: qualityAdmission, previousJobs: input.previousJobs,
     firstAcceptedCurrentPolicyReceipt: input.firstAcceptedCurrentPolicyReceipt!,
@@ -581,6 +607,12 @@ export function buildAtomicRuntimeCommit(input: {
     : lastGoodMode || completenessAnomalyTriggerCodes.length > 0
       ? []
       : reducedLifecycle.filter(({ dedupeKey }) => currentKeySet.has(dedupeKey)));
+  // Only source-replayed UNKNOWN identities may retain old ACTIVE membership.
+  for(const held of lifecycle.filter(x=>["source-novartis-social","source-pfizer-china-social"].includes(plan.source.id)&&x.lifecycleStatus==="ACTIVE"&&x.missingSuccessfulCrawlCount===1)){
+    const old=input.previousJobs.find(job=>job.dedupeKey===held.dedupeKey);
+    if(!unknownKeys.has(held.dedupeKey)||!old||old.lifecycleStatus!=="ACTIVE"||held.lastSeenAt!==old.lastSeenAt||
+      !isDeepStrictEqual(held.record,old.record))throw Error("UNKNOWN_GRACE_REQUIRES_PRIOR_ACTIVE_IDENTITY");
+  }
   const graceKeys = lifecycle.filter((x) => !currentKeySet.has(x.dedupeKey) && x.lifecycleStatus === "ACTIVE" &&
     x.missingSuccessfulCrawlCount === 1).map((x) => x.dedupeKey);
   const visibleKeys = lifecycle.filter((x) => x.lifecycleStatus === "ACTIVE").map((x) => x.dedupeKey);

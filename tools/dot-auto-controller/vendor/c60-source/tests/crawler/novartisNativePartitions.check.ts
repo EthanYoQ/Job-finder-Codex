@@ -34,7 +34,7 @@ for(const [name,mutate] of [
  ['apply identity changed',(x:any)=>{const a=x.artifacts.find((a:any)=>a.logicalKey.includes('detail-'));a.body=a.body.replace('job_number=REQ-10000003','job_number=REQ-10000099')}],
  ['ledger forged',(x:any)=>{x.fetchCounts.validCount=2}]
 ] as const){const x=structuredClone(e);mutate(x);assert.throws(()=>replayNovartisNativePartitions(plan,x));console.log('PASS rejects',name);}
-assert.equal((await capture('unknown')).fetched.ok,false);const closed=await capture('closed');assert(closed.fetched.ok);assert.equal(closed.fetched.fetchEvidence!.fetchCounts.validCount,2);console.log('PASS unknown HOLD and explicit closed exclusion');
+const unknownCapture=await capture('unknown');assert(unknownCapture.fetched.ok);assert.equal(replayNovartisNativePartitions(plan,unknownCapture.fetched.fetchEvidence!).audit.noOmissionVerified,false);const closed=await capture('closed');assert(closed.fetched.ok);assert.equal(closed.fetched.fetchEvidence!.fetchCounts.validCount,2);console.log('PASS unknown audited exclusion and explicit closed exclusion');
 const workspace=await mkdtemp(join(tmpdir(),'novartis-partition-issuer-'));const digest=(v:Uint8Array|string)=>createHash('sha256').update(v).digest('hex');
 const bytes=serialize(c.fetched),path=join(workspace,'original.v8');await writeFile(path,bytes);
 const manifest=JSON.stringify({schemaVersion:2,sourceId:plan.source.id,sourceConfigSha256:sourcePlanConfigSha256(plan),startedAt:c.at,finishedAt:c.at,fetched:{path,sha256:digest(bytes),encoding:'v8'}});const manifestPath=join(workspace,'retained.json');await writeFile(manifestPath,manifest);
@@ -44,3 +44,42 @@ const batchId='novartis-partition-'+Date.now(),pending=buildPendingRuntimeBatch(
 const archive=await archiveSourceEvidence({workspaceRoot:workspace,evidenceSubdirectory,...binding,sourceId:plan.source.id,captureTool:result.fetchEvidence!.captureTool,artifacts:bindRuntimeEvidenceArtifactIds({...binding,sourceId:plan.source.id,artifacts:result.fetchEvidence!.artifacts})});
 const input={plan,result,binding,identity,batchId,pending,archive:{workspaceRoot:workspace,evidenceSubdirectory,artifacts:archive.artifacts}};const admission=await issueSourceQualityAdmission(input);console.log('admission',admission.status);assert.equal(admission.status,'ACCEPTED');
 const commit=buildAtomicRuntimeCommit({...input,artifacts:archive.artifacts,previousJobs:[],baselineCompletedBeforeCrawl:false,sourceAdmissionPolicy:'PLAN_BOUND_SOURCE_QUALITY_V1',sourceQualityAdmission:admission,firstAcceptedCurrentPolicyReceipt:null});await verifyAtomicRuntimeCommitForPersistence(commit);assert.equal(commit.commands.filter(c=>c.type==='UPSERT_JOB').length,3);console.log('PASS original issuer and atomic persistence verifier (offline fixtures, no database)',workspace);
+
+// A later UNKNOWN keeps only the exact old identity; never renew its observation.
+const {buildJobDedupeKey}=await import('../../src/crawler/normalizedJob');
+const {compilePortableAtomicSourceEvidenceSql}=await import('../../src/db/ingestionRepository');
+const {acquirePortableCrawlLease}=await import('../../src/crawler/portableCrawlLease');
+const u=await capture('unknown');assert(u.fetched.ok);
+const udir=await mkdtemp(join(tmpdir(),'novartis-unknown-'));const ubytes=serialize(u.fetched),upath=join(udir,'original.v8');await writeFile(upath,ubytes);
+const um=JSON.stringify({schemaVersion:2,sourceId:plan.source.id,sourceConfigSha256:sourcePlanConfigSha256(plan),startedAt:u.at,finishedAt:u.at,fetched:{path:upath,sha256:digest(ubytes),encoding:'v8'}});const ump=join(udir,'retained.json');await writeFile(ump,um);
+const ur=await runSourceCrawl(plan,{fetch:await createReviewedRetainedSourceFetch(ump,digest(um)),isBaseline:false});assert(ur.truth.completenessVerified);
+const ubid='unknown-'+Date.now(),upending=buildPendingRuntimeBatch(ubid,[plan],identity,new Date(u.at)).sources[0]!;
+const ubinding={...binding,batchId:ubid,sourceResultId:upending.id};
+const ua=await archiveSourceEvidence({workspaceRoot:udir,evidenceSubdirectory,...ubinding,sourceId:plan.source.id,captureTool:ur.fetchEvidence!.captureTool,artifacts:bindRuntimeEvidenceArtifactIds({...ubinding,sourceId:plan.source.id,artifacts:ur.fetchEvidence!.artifacts})});
+const ui={plan,result:ur,binding:ubinding,identity,batchId:ubid,pending:upending,archive:{workspaceRoot:udir,evidenceSubdirectory,artifacts:ua.artifacts}};
+const uq=await issueSourceQualityAdmission(ui);assert.equal(uq.status,'ACCEPTED');assert(admission.status==='ACCEPTED');
+const olds=result.jobs.map(record=>({dedupeKey:buildJobDedupeKey(record),record,lifecycleStatus:'ACTIVE' as const,missingSuccessfulCrawlCount:0,firstSeenAt:admission.receipt.issuedAt,lastSeenAt:admission.receipt.issuedAt}));
+const prior={receipt:admission.receipt,receiptSha256:admission.receiptSha256,expectedBinding:admission.receipt.binding};
+for(const state of ['ACTIVE','OFFLINE'] as const){
+ const previousJobs=olds.map(p=>p.record.officialUrl===url(ids[2]!)?{...p,lifecycleStatus:state,missingSuccessfulCrawlCount:state==='OFFLINE'?3:0}:p);
+ const held=buildAtomicRuntimeCommit({...ui,artifacts:ua.artifacts,previousJobs,baselineCompletedBeforeCrawl:true,sourceAdmissionPolicy:'PLAN_BOUND_SOURCE_QUALITY_V1',publicationPolicy:'SOURCE_ATOMIC_LAST_GOOD_V1',sourceQualityAdmission:uq,firstAcceptedCurrentPolicyReceipt:prior});
+ await verifyAtomicRuntimeCommitForPersistence(held);
+ const command=held.commands.find(c=>c.type==='UPSERT_JOB'&&c.record.officialUrl===url(ids[2]!));assert(command&&command.type==='UPSERT_JOB');assert.equal(command.lifecycleStatus,state);assert.equal(command.lastSeenAt,olds[0]!.lastSeenAt);assert.equal(command.missingSuccessfulCrawlCount,state==='ACTIVE'?1:3);
+ const lease=await acquirePortableCrawlLease({$transaction:work=>work({$queryRawUnsafe:async<T>(_sql:string,...values:unknown[])=>[{holderId:values[1]}] as T})});
+ const sql=await compilePortableAtomicSourceEvidenceSql(held,lease);assert(sql.includes('Job'));
+ if(state==='ACTIVE'){
+   const {buildJobProjectionDeltaReceipt}=await import('../../src/db/jobProjectionDeltaCompiler');
+   const projectionForCommand=(c:any)=>({companyId:c.record.companyId,sourceId:c.record.sourceId,dedupeKey:c.dedupeKey,sourceJobId:c.record.sourceJobId??null,officialTitle:c.record.officialTitle,officialUrl:c.record.officialUrl,listUrl:c.record.listUrl??null,locationRaw:c.record.locationRaw,city:c.record.cities[0],cities:c.record.cities,officialPublishedAt:c.record.officialPublishedAt??null,missingSuccessCount:c.missingSuccessfulCrawlCount,lifecycleStatus:c.lifecycleStatus,visibleInFrontend:c.visibleInFrontend,isNew:c.isNew});
+   const first=buildJobProjectionDeltaReceipt({sourceResult:commit.sourceResult,commands:commit.commands,previousAccepted:null,projectionForCommand});
+   const firstRow={...commit.sourceResult,completenessCertificate:first.receipt,completenessCertificateSha256:first.sha256};
+   const second=buildJobProjectionDeltaReceipt({sourceResult:held.sourceResult,commands:held.commands,previousAccepted:firstRow,projectionForCommand});
+   const thirdAt=new Date(Date.parse(second.receipt.verifiedAt)+1000).toISOString();
+   const thirdSource={...held.sourceResult,id:held.sourceResult.id+'-third',finishedAt:new Date(thirdAt)};
+   const thirdCommands=held.commands.map(c=>c.type==='UPSERT_JOB'&&c.missingSuccessfulCrawlCount===0?{...c,lastSeenAt:thirdAt}:c);
+   const secondRow={...held.sourceResult,completenessCertificate:second.receipt,completenessCertificateSha256:second.sha256};
+   const third=buildJobProjectionDeltaReceipt({sourceResult:thirdSource,commands:thirdCommands,previousAccepted:secondRow,projectionForCommand});
+   const member=third.receipt.members.find(m=>m.setKind==='GRACE')!;assert(member);assert.equal(member.lastPresentResultId,commit.sourceResult.id);assert.equal(member.lifecycleLastSeenAt,admission.receipt.issuedAt);assert.equal(member.lastConfirmedObservedAt,first.receipt.observedAt);
+   console.log('PASS repeated UNKNOWN GRACE retains original true CURRENT anchor and both old timestamps');
+ }
+ console.log('PASS original SQL preparation, UNKNOWN prior',state,'preserves old fields/time and does not revive');
+}

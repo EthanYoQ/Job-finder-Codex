@@ -10,7 +10,7 @@ import { evaluatePaginationEvidence } from "./paginationEvidence";
 import { retryableHttpTransportFailure, retryableTransportFailureFromError, type SourceTransportFailure } from "./sourceFetchFailure";
 
 const ORIGIN = "https://www.novartis.com.cn", PATH = "/careers/career-search";
-export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"1" };
+export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"2" };
 export const NOVARTIS_PARTITION_PAGINATION = { allowCompleteTraversalOfEmptyFirstPage:true } as const;
 const FAIL = "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE", AUDIT = "novartis-partitions-audit";
 const FIELDS = ["FN","BS","CM","CA","DD","FA","HR","IT","NN","LI","MA","MM","OT","PR","QA","RD","SA","TO","EE","ZZ"].map(s=>`FCT_${s}`);
@@ -111,24 +111,25 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[]) {
     requireValue(terminal&&own.length===declared&&new Set(own.map(r=>r.id)).size===declared);
     partitionAudit.push({field,declaredTotal:declared,uniqueCount:own.length});rows.push(...own);
   }
-  requireValue(rows.length===indexTotal&&new Set(rows.map(r=>r.id)).size===indexTotal);
+  requireValue(new Set(rows.map(r=>r.id)).size===rows.length);
   const primaryIds=new Set(rows.map(r=>r.id)),defaults=new Map<string,Row>(),defaultTotals:number[]=[];let url=NOVARTIS_DEFAULT_ENTRY,terminal=false;
   // Default is discovery only. Its varying totals and repeated rows never certify a missing job.
   for(let p=0;p<100;p++){const a=take(`novartis-partitions-default-${p}`,url,"novartis-partition-default-discovery-v1");
     const parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1");defaultTotals.push(parsed.count);
     for(const row of parsed.rows){const prev=defaults.get(row.id);requireValue(!prev||prev.url===row.url);defaults.set(row.id,row);}
     if(!parsed.next){terminal=true;break;}url=parsed.next;}
-  requireValue(terminal);const differences:Array<{officialId:string;officialUrl:string;status:"OBSERVED_PRESENT"|"EXPLICITLY_CLOSED"}>=[];
+  requireValue(terminal);const differences:Array<{officialId:string;officialUrl:string;status:"OBSERVED_PRESENT"|"EXPLICITLY_CLOSED"|"UNKNOWN"}>=[];
   for(const row of [...defaults.values()].filter(r=>!primaryIds.has(r.id)).sort((a,b)=>a.id.localeCompare(b.id))){
     const a=take(`novartis-partitions-detail-${row.id}`,row.url,"novartis-partition-same-id-detail-v1"),status=detailStatus(a,row);
-    requireValue(status!=="UNKNOWN","NOVARTIS_OFFICIAL_PRESENCE_UNKNOWN_PRESERVE_LAST_GOOD");differences.push({officialId:row.id,officialUrl:row.url,status});
+    differences.push({officialId:row.id,officialUrl:row.url,status});
     if(status==="OBSERVED_PRESENT"){rows.push(row);addPage(a,[row],`novartis:presence:${row.id}`,null,null,null,null);}
   }
   requireValue(artifacts.every(a=>used.has(a.logicalKey)||a.logicalKey===AUDIT));
   const audit={indexDeclaredTotal:indexTotal,primaryUniqueCount:primaryIds.size,partitions:partitionAudit,
     defaultObservedUniqueCount:defaults.size,defaultReportedTotals:defaultTotals,defaultCompletenessClaim:false,
-    differences,observedUniqueCount:rows.length};
-  return {html:`<table class="views-table"><tbody>${rows.map(r=>r.html).join("")}</tbody></table>`,pages,counts:counts(rows.length),audit,closedUrls:new Set(differences.filter(d=>d.status==="EXPLICITLY_CLOSED").map(d=>d.officialUrl))};
+    differences,observedUniqueCount:rows.length,noOmissionVerified:indexTotal===primaryIds.size&&!differences.some(d=>d.status==="UNKNOWN"),
+    anomalyCodes:[...(indexTotal!==primaryIds.size?["NOVARTIS_ROOT_PARTITION_COUNT_MISMATCH"]:[]),...(differences.some(d=>d.status==="UNKNOWN")?["NOVARTIS_DEFAULT_DETAIL_UNKNOWN"]:[])]};
+  return {html:`<table class="views-table"><tbody>${rows.map(r=>r.html).join("")}</tbody></table>`,pages,counts:counts(rows.length),audit,unknownUrls:new Set(differences.filter(d=>d.status==="UNKNOWN").map(d=>d.officialUrl)),closedUrls:new Set(differences.filter(d=>d.status==="EXPLICITLY_CLOSED").map(d=>d.officialUrl))};
 }
 export function hasNovartisPartitionEvidence(e:PersistentSourceFetchEvidence):boolean {return e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name;}
 export function replayNovartisNativePartitions(plan:SourceCrawlPlan,e:PersistentSourceFetchEvidence) {

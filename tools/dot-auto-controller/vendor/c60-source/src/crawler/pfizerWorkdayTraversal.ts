@@ -31,6 +31,22 @@ export function isPfizerWorkdayTraversalPlan(plan: SourceCrawlPlan): boolean {
         plan.executionAuthority === "STAGED" && isDeepStrictEqual(config, { tenant: "pfizer", site: "PfizerCareers", laterZeroTotalPolicy: "PFIZER_AUDITED_EXACT_RECONCILIATION", appliedFacets: { Location_Country: [PFIZER_CHINA] }, pageSize: 20, maxPages: 20 }) &&
         isDeepStrictEqual(plan.expectedChannels, [{ channelId: PFIZER_CHANNEL, kind: "SOCIAL" }]);
 }
+// Only the individually reviewed current incident is quarantined; every other malformed row still stops traversal.
+export const PFIZER_LIST_ROW_UNKNOWN = "PFIZER_LIST_ROW_UNKNOWN";
+export function pfizerQuarantinedRowId(raw: unknown): string | undefined {
+    return isDeepStrictEqual(raw, { bulletFields: ["4965522"] }) ? "4965522" : undefined;
+}
+export function pfizerQuarantinedEvidenceKey(id: string): string { return `pfizer-unresolved:${id}`; }
+function quarantineLoss(id: string, pageSequence: number, recordIndex: number, capturedAt: string | undefined) {
+    return { stage: "VALIDATION" as const, reason: "Official Pfizer list row has only its ID; prior job requires review",
+        rawLocator: `pfizer-page-${pageSequence}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId(id)}`,
+        details: { code: PFIZER_LIST_ROW_UNKNOWN, pageSequence, recordIndex, noteCode: "NO_OMISSION_NOT_VERIFIED" }, recordedAt: capturedAt };
+}
+/** Read the current raw pages, never a previous posting or an issuer-supplied allowlist. Full replay remains the caller's admission boundary. */
+export function pfizerQuarantinedOfficialIds(evidence: PersistentSourceFetchEvidence): string[] {
+    return evidence.pages.flatMap(page => parse(evidence.artifacts.find(a => a.logicalKey === page.artifactLogicalKey)!.body).jobPostings
+        .flatMap((raw: unknown) => { const id = pfizerQuarantinedRowId(raw); return id ? [id] : []; }));
+}
 export function pfizerSourceJobId(externalPath: string): string {
     return `workday:sha256:${createHash("sha256").update(externalPath).digest("hex")}`;
 }
@@ -134,7 +150,14 @@ export async function fetchPfizerWorkdayTraversal(plan: SourceCrawlPlan, deps: W
                 throw Error("Pfizer list total or continuation changed");
             const valid: string[] = [], raw: string[] = [];
             for (let recordIndex = 0; recordIndex < root.jobPostings.length; recordIndex++) {
-                const row = root.jobPostings[recordIndex], { id, path } = identity(row);
+                const row = root.jobPostings[recordIndex], quarantinedId = pfizerQuarantinedRowId(row);
+                if (quarantinedId) {
+                    if (seen.has(quarantinedId)) throw Error("Pfizer duplicate official ID");
+                    seen.add(quarantinedId); raw.push(irreversibleOfficialJsonEvidenceId(quarantinedId));
+                    losses.push(quarantineLoss(quarantinedId, index, recordIndex, pageArtifact.capturedAt));
+                    continue;
+                }
+                const { id, path } = identity(row);
                 if (seen.has(id))
                     throw Error("Pfizer duplicate official ID");
                 seen.add(id);
@@ -208,7 +231,14 @@ export function replayPfizerWorkdayTraversal(plan: SourceCrawlPlan, evidence: Pe
                 return false;
             const raw: string[] = [], valid: string[] = [];
             for (let n = 0; n < root.jobPostings.length; n++) {
-                const row = root.jobPostings[n], { id, path } = identity(row);
+                const row = root.jobPostings[n], quarantinedId = pfizerQuarantinedRowId(row);
+                if (quarantinedId) {
+                    if (seen.has(quarantinedId)) return false;
+                    seen.add(quarantinedId); raw.push(irreversibleOfficialJsonEvidenceId(quarantinedId));
+                    losses.push(quarantineLoss(quarantinedId, index, n, a.capturedAt));
+                    continue;
+                }
+                const { id, path } = identity(row);
                 if (seen.has(id))
                     return false;
                 seen.add(id);
@@ -239,5 +269,5 @@ export function replayPfizerWorkdayTraversal(plan: SourceCrawlPlan, evidence: Pe
 /** Call only after strict main replay; preserve native paths for excluded identities as well. */
 export function pfizerMainSourceJobIds(evidence: PersistentSourceFetchEvidence): string[] {
   return evidence.pages.flatMap(page => parse(evidence.artifacts.find(a => a.logicalKey === page.artifactLogicalKey)!.body).jobPostings
-    .map((raw: unknown) => pfizerSourceJobId(identity(raw).path)));
+    .map((raw: unknown) => { const id = pfizerQuarantinedRowId(raw); return id ? pfizerQuarantinedEvidenceKey(id) : pfizerSourceJobId(identity(raw).path); }));
 }
