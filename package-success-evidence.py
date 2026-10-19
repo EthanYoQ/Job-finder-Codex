@@ -82,7 +82,7 @@ def pack(runs, relay, output, request_ids):
         for name, value in selected.items():
             data = (json.dumps(clean(value), ensure_ascii=False, indent=2)+'\n').encode()
             # SQL can contain escaped JSON credentials that recursive key removal cannot see.
-            assert not re.search(rb'-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|AKIA[0-9A-Z]{16}|Bearer\s+[^\s"\\]+|(?:^|[^a-z0-9])(?:api[._-]?key|client[._-]?secret|access[._-]?token|refresh[._-]?token|token|secret|password|passwd|pwd|credential|private[._-]?key|auth|authorization|cookies?|session(?:id)?|jwt|bearer|basic)["\\\']*\s*[:=]\s*\S+', data, re.I), 'SECRET_IN_EVIDENCE'
+            assert not re.search(rb'-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|(?-i:AKIA[0-9A-Z]{16})|Bearer\s+[^\s"\\]+|(?:^|[^a-z0-9])(?:api[._-]?key|client[._-]?secret|access[._-]?token|refresh[._-]?token|token|secret|password|passwd|pwd|credential|private[._-]?key|auth|authorization|cookies?|session(?:id)?|jwt|bearer|basic)["\\\']*\s*[:=]\s*\S+', data, re.I), 'SECRET_IN_EVIDENCE'
             members[source+'/'+name] = data
         archive_path = next((run/'artifacts').glob('*.archive.json'))
         archive_bytes = archive_path.read_bytes()
