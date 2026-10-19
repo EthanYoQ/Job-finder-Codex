@@ -1,0 +1,65 @@
+{
+  "status": "PASS",
+  "realFixture": "dot-auto-novartis-20261018T123719665Z",
+  "results": [
+    {
+      "scenario": "success",
+      "mode": "before",
+      "status": "REMOTE_RESTORE_VERIFIED",
+      "stage": null,
+      "execCalls": 4,
+      "uploads": 1,
+      "members": 20
+    },
+    {
+      "scenario": "success",
+      "mode": "after",
+      "status": "REMOTE_RESTORE_VERIFIED",
+      "stage": null,
+      "execCalls": 2,
+      "uploads": 1,
+      "members": 20
+    },
+    {
+      "scenario": "package_failure",
+      "mode": "before",
+      "status": "PENDING",
+      "stage": "PACKAGE",
+      "execCalls": 1,
+      "uploads": 0,
+      "members": null
+    },
+    {
+      "scenario": "package_failure",
+      "mode": "after",
+      "status": "PENDING",
+      "stage": "PACKAGE",
+      "execCalls": 1,
+      "uploads": 0,
+      "members": null
+    },
+    {
+      "scenario": "download_failure",
+      "mode": "before",
+      "status": "PENDING",
+      "stage": "READBACK",
+      "execCalls": 3,
+      "uploads": 1,
+      "members": null
+    },
+    {
+      "scenario": "download_failure",
+      "mode": "after",
+      "status": "PENDING",
+      "stage": "READBACK",
+      "execCalls": 2,
+      "uploads": 1,
+      "members": null
+    }
+  ],
+  "noExternalUpload": true,
+  "noNetworkHttp": true,
+  "collectionStarted": false,
+  "activeSourceUnchanged": true,
+  "oldNewAll20MembersByteEqual": true
+}

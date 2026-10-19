@@ -3,8 +3,7 @@ async function backupSuccessfulSource({command,save,q,D,run,relay,requestIds}) {
  const directory=run+'/backup',archive=directory+'/success-evidence.tar.gz';
  let stage='PACKAGE',fileId=null;
  try {
-  await command('mkdir -p '+q(directory));
-  const packed=JSON.parse(await command('python3 '+q(D+'/package-success-evidence.py')+' --run '+q(run)+' --relay '+q(relay)+' --output '+q(archive)+requestIds.map(id=>' --request-id '+q(id)).join('')));
+  const packed=JSON.parse(await command('mkdir -p '+q(directory)+' && python3 '+q(D+'/package-success-evidence.py')+' --run '+q(run)+' --relay '+q(relay)+' --output '+q(archive)+requestIds.map(id=>' --request-id '+q(id)).join('')));
   await save(directory+'/LOCAL_PACKAGE.json',packed);
   stage='UPLOAD';
   await save(directory+'/UPLOAD_STARTED.json',{startedAt:new Date().toISOString(),sha256:packed.sha256});
@@ -21,8 +20,7 @@ async function backupSuccessfulSource({command,save,q,D,run,relay,requestIds}) {
   const downloadUrl=fetched.structuredContent?.file_uri?.download_url;
   if(fetched.isError||typeof downloadUrl!=='string')throw Error('DRIVE_READBACK_UNAVAILABLE');
   const downloaded=directory+'/remote-readback.tar.gz';
-  await command('python3 -c '+q("import shutil,urllib.request;\nwith urllib.request.urlopen("+JSON.stringify(downloadUrl)+") as response, open("+JSON.stringify(downloaded)+",'wb') as output: shutil.copyfileobj(response,output)"));
-  const restored=JSON.parse(await command('python3 '+q(D+'/package-success-evidence.py')+' --verify '+q(downloaded)));
+  const restored=JSON.parse(await command('python3 -c '+q("import shutil,urllib.request;\nwith urllib.request.urlopen("+JSON.stringify(downloadUrl)+") as response, open("+JSON.stringify(downloaded)+",'wb') as output: shutil.copyfileobj(response,output)")+' && '+'python3 '+q(D+'/package-success-evidence.py')+' --verify '+q(downloaded)));
   if(restored.sha256!==packed.sha256||restored.verifiedMembers!==packed.members)throw Error('DRIVE_READBACK_MISMATCH');
   const receipt={status:'REMOTE_RESTORE_VERIFIED',fileId,...packed,verifiedAt:new Date().toISOString()};
   await save(directory+'/REMOTE_BACKUP_READBACK.json',receipt);
