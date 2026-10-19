@@ -326,3 +326,8 @@ Native120 `de6598eb37c13f40a51be4f34e58bf5ed173d115` registered20:16:12.443Z; cl
 At20:17:20 readiness:36routes,33same-slot successful,JNJ/Merck/Pfizer due,formalholder empty/live0/manual0. New production validation remainsPENDING. Task update receipt not yet supplied; no invented update time. Original08/20schedule,dependencies/Prisma51 and fixedLATEST99 unchanged. Merckpage100 and bounded wait changes have only their recorded checks until a fresh run succeeds.
 
 20:18 owner update: root's unique fresh entry started20:17:54Z with holds={} using120/2007. Task prompt update confirmed and recovery text saved asTASK_CURRENT_PROMPT_120_2007.txt; exact task updatedAt not supplied. Production result remainspending.
+
+
+## Current120/2024 — 2026-10-19 20:31 UTC
+External2024 `46ac03df383fd28e9ca2fe515dc10d33e5d48bac` applied and observed20:30:57.815245Z:63files exact, native120clean, entry3861484edc94b6a500c16dededf7868b381192323a3df3877daff627e029d3b0 unchanged. [Current refs](TASK_RECOVERY_REFS_120_2024.json) preserve2007 parent and exact downloaded/restored2024delta.
+Root unique fresh entry started20:31:27Z; JNJ exact-next-URL navigation production validation pending. Merck is held for required catalog/reader-plan alignment; Pfizer detail-loading timeout is held until next schedule. These are operational holds, not pending user approval. Task prompt update confirmed with recovery text TASK_CURRENT_PROMPT_120_2024.txt; exact update time not supplied. Merck successor remains isolated/unfrozen. Schedule08/20 and verified99LATEST unchanged.

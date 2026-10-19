@@ -1,0 +1,21 @@
+{
+  "observedAt": "2026-10-19T20:30:57.815245Z",
+  "externalCommit": "46ac03df383fd28e9ca2fe515dc10d33e5d48bac",
+  "nativeCommit": "de6598eb37c13f40a51be4f34e58bf5ed173d115",
+  "runtimeFilesExact": 63,
+  "entrySha256": "3861484edc94b6a500c16dededf7868b381192323a3df3877daff627e029d3b0",
+  "nativeClean": true,
+  "jnjConnectorValidated": true,
+  "preActivationSafety": {
+    "observedAt": "2026-10-19T20:30:40.370679Z",
+    "holderEmpty": true,
+    "live": 0,
+    "manual": 0,
+    "unresponded": 0
+  },
+  "operationalHolds": {
+    "Merck": "CATALOG_AND_READER_PLAN_ALIGNMENT_PENDING",
+    "Pfizer": "DETAIL_LOADING_TIMEOUT_PENDING_NEXT_SCHEDULE",
+    "pendingUserApproval": false
+  }
+}
