@@ -74,9 +74,20 @@ console.log('PASS: exact ID lookup keeps request/response guards; three original
 
 const callbackStart=entry.indexOf('reviewPublication:async ')+ 'reviewPublication:'.length;
 const callbackText=entry.slice(callbackStart,entry.indexOf(',\n  readback:',callbackStart));
-let callbackCommand, recentQueries=0;const reviewedRequest={requestId:'publish-id',requestSha256:'publish-hash'};
-const reviewCallback=await new A('command','q','sourceId','N','V','D','run','relay','sql','return '+callbackText)(async cmd=>{callbackCommand=cmd;return JSON.stringify(reviewedRequest);},s=>"'"+s+"'",'source-test','/node','/vendor','/module','/run','/relay',async()=>{recentQueries++;return [{fresh:false}];});
+const callbackCommands=[],recentQueries=[];const reviewedRequest={requestId:'publish-id',requestSha256:'publish-hash'};
+const slotStart='2026-10-27T00:00:00.000Z',slotEnd='2026-10-27T12:00:00.000Z';
+let recentState={sameSlot:true,fresh:false};
+const reviewCallback=await new A('command','q','sourceId','N','V','D','run','relay','sql','slotStart','slotEnd','return '+callbackText)(async cmd=>{callbackCommands.push(cmd);return JSON.stringify(cmd.includes('review-original-publication.mjs')?reviewedRequest:{firstHttpObservedAt:null,lastHttpObservedAt:null});},s=>"'"+s+"'",'source-test','/node','/vendor','/module','/run','/relay',async query=>{recentQueries.push(query);return [recentState];},slotStart,slotEnd);
 assert.deepEqual(await reviewCallback(reviewedRequest,{},contextId),reviewedRequest);
-assert(callbackCommand.includes("'/module/review-original-publication.mjs' '/run' 'publish-id' '/relay' '"+contextId+"' > "));
-assert.equal(recentQueries,1);
-console.log('PASS: actual Functions review callback passes context ID into the original command and keeps the final recent-success gate');
+assert(callbackCommands[0].includes("'/module/review-original-publication.mjs' '/run' 'publish-id' '/relay' '"+contextId+"' > "));
+assert.equal(recentQueries.length,1);
+assert(recentQueries[0].includes(`clock_timestamp()<'${slotEnd}'::timestamptz`));
+assert(recentQueries[0].includes(`o."crawledAt">='${slotStart}'::timestamptz`));
+assert(recentQueries[0].includes(`o."crawledAt"<'${slotEnd}'::timestamptz`));
+for(const [state,error] of [[{sameSlot:true,fresh:true},/NEW_SUCCESS_BEFORE_DISPATCH/],[{sameSlot:false,fresh:false},/SCHEDULE_SLOT_ENDED/],[{sameSlot:false,fresh:true},/SCHEDULE_SLOT_ENDED/]]){
+ recentState=state;const before=callbackCommands.length;
+ await assert.rejects(reviewCallback(reviewedRequest,{},contextId),error);
+ assert.equal(callbackCommands.length,before+1); // Rejection must stop before capture notices or dispatch.
+}
+assert.equal(recentQueries.length,4);
+console.log('PASS: actual Functions review passes context ID, permits only a due source in the same slot, and rejects current-slot success or a crossed slot');

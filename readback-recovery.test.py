@@ -6,9 +6,9 @@ def run(final):
   calls.append(req.full_url);return io.BytesIO(json.dumps({'snapshotRefresh':next(replies),'companies':[]}).encode())
  with tempfile.TemporaryDirectory() as d,m.patch('urllib.request.urlopen',get),m.patch.object(sys,'argv',[str(script),d,'company-test']):
   try:runpy.run_path(str(script),run_name='__main__')
-  except SystemExit as e:assert e.code==0
-  except AssertionError:
-   assert final=='FAILED'
+  except SystemExit as e:assert final=='CURRENT' and e.code==0
+  except RuntimeError as e:
+   assert final=='FAILED' and str(e)=='WEB_REFRESH_FAILED'
   else:raise AssertionError('script did not exit')
   assert len(calls)==4
   assert 'check' not in json.loads((pathlib.Path(d)/'WEB_REFRESH_INITIAL_FAILURE.json').read_text())

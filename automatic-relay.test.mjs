@@ -58,7 +58,7 @@ assert.equal((await serviceOriginalRelay(failedContext.job)).status,'HELD');asse
 console.log('PASS: only the same job successful publication-context request is passed to review; missing/failed read cannot dispatch');
 
 // Exercise the actual launcher catch, not an invented pre-launch error classification.
-const launchStart=entry.indexOf(' let started;'),launchEnd=entry.indexOf('\n let process=started;',launchStart);assert(launchStart>=0&&launchEnd>launchStart);
+const launchStart=entry.indexOf(' let started;'),launchEnd=entry.indexOf('\n let process=started,',launchStart);assert(launchStart>=0&&launchEnd>launchStart);
 const launch=new AsyncFunction('tools','q','sourceId','R','N','V','run','digest','config','S','relay',entry.slice(launchStart,launchEnd)+';return started;');
 for(const phase of ['launch-response-lost','prepublish-session-lost']){
  let secondPrepareCount=0;
