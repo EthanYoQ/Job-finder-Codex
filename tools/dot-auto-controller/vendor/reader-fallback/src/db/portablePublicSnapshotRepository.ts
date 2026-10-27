@@ -14,7 +14,7 @@ import { P0_LAUNCH_MANIFEST, selectLaunchCompanies, validateLaunchManifest } fro
 import { supportsPublicBGrade, compactCommittedCertificate, verifiedMembers, selectPortableSourceSnapshots, projectPortableSourceJobs, type PortableProjectedSource, type PortablePublicJob, type PortableSnapshotOptions } from "../domain/portablePublicSnapshot";
 import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "../domain/publicationEligibility";
-import { PortableSnapshotCache, PORTABLE_SNAPSHOT_VERSION_SQL, portableSnapshotVersion, portableSnapshotValidUntil } from "./portableSnapshotCache";
+import { PortableSnapshotCache, portableSnapshotSourceVersionSql, portableSnapshotSourceVersions, portableSnapshotValidUntil } from "./portableSnapshotCache";
 
 export const portableSourceResultSelect = {
   id: true, releaseCandidateId: true, batchId: true, sourceId: true, sourceConfigHash: true, adapterVersion: true,
@@ -215,11 +215,16 @@ export async function readPortablePublicSnapshotWithStatus(
     // Check freshness in the same database snapshot used on a miss. Failure of
     // this query rejects the public request, including the opt-in display path.
     let version: string | undefined;
+    let sourceVersions: Map<string,string> | undefined;
     if (cache && tx.$queryRawUnsafe) {
       const versionStartedAt = performance.now();
-      const rows = await tx.$queryRawUnsafe(PORTABLE_SNAPSHOT_VERSION_SQL);
+      const sourceIds=requiredPlans.map(plan=>plan.source.id);
+      const rows = await tx.$queryRawUnsafe(portableSnapshotSourceVersionSql(sourceIds));
       timing?.record("versionSQL", performance.now() - versionStartedAt);
-      version = portableSnapshotVersion(rows);
+      sourceVersions=portableSnapshotSourceVersions(rows,sourceIds);
+      // Novo closure references can reach historical rows outside ordinary ownership.
+      if(sourceVersions.has(NOVO_CLOSURE_SOURCE))sourceVersions.set(NOVO_CLOSURE_SOURCE,sourceVersions.get('@global')!);
+      version = JSON.stringify([...sourceVersions]);
     }
     const cloneStartedAt = performance.now();
     const cached = version === undefined ? undefined : cache!.getRead(version, cacheScope, readOptions.currentTime.getTime());
@@ -235,16 +240,18 @@ export async function readPortablePublicSnapshotWithStatus(
       timing?.record("cacheClone", performance.now() - cloneStartedAt);
       return {cached: previous, refreshRequired: true};
     }
-    const rawResults = tx.$queryRawUnsafe
-      ? await tx.$queryRawUnsafe(portableCommittedResultsSql(requiredPlans))
+    const reused=sourceVersions ? cache!.getReusableSources(cacheScope,readOptions.currentTime.getTime(),sourceVersions) : undefined;
+    const readPlans=reused ? requiredPlans.filter(plan=>!reused.sources.some(source=>source.sourceId===plan.source.id)) : requiredPlans;
+    const rawResults = readPlans.length===0 ? [] : tx.$queryRawUnsafe
+      ? await tx.$queryRawUnsafe(portableCommittedResultsSql(readPlans))
       : await tx.crawlBatchSourceResult.findMany({
-        where: {OR: requiredPlans.map(plan => isSanofiPublicTransitionPlan(plan) ? {sourceId: plan.source.id} :
+        where: {OR: readPlans.map(plan => isSanofiPublicTransitionPlan(plan) ? {sourceId: plan.source.id} :
           {sourceId: plan.source.id, sourceConfigHash: sourcePlanConfigSha256(plan)}), batch: {is: {kind: "SCHEDULED"}}},
         select: portableSourceResultSelect, orderBy: [{startedAt: "asc"}, {id: "asc"}]
       });
     if (!Array.isArray(rawResults)) throw new Error("INVALID_PORTABLE_SOURCE_RESULT_ROWS");
     const results = (rawResults as PortableSourceResultRow[]).map(compactCommittedSourceResult);
-    const novoClosed = requiredPlans.some(plan => plan.source.id === NOVO_CLOSURE_SOURCE)
+    const novoClosed = readPlans.some(plan => plan.source.id === NOVO_CLOSURE_SOURCE)
       ? await readNovoSingleClosures(tx as Parameters<typeof readNovoSingleClosures>[0],readOptions.currentTime) : [];
     // Prefetch candidates only, never publication authority. A publishing selection must be
     // the newest committed/verified row: a later invalid or unclaimed receipt forces a hold.
@@ -294,7 +301,7 @@ export async function readPortablePublicSnapshotWithStatus(
       if (!Array.isArray(rawJobs)) throw new Error("INVALID_PORTABLE_JOB_ROWS");
       jobs = rawJobs as PortableJobRow[];
     }
-    return {results, members, jobs, version, novoClosed};
+    return {results, members, jobs, version, novoClosed, sourceVersions, reused, readPlans};
   }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 30_000});
   timing?.record("tx", performance.now() - transactionStartedAt);
   if (data.cached) {
@@ -302,7 +309,7 @@ export async function readPortablePublicSnapshotWithStatus(
     const {snapshot, ...identity} = data.cached;
     return {snapshot, snapshotRefresh: {state, ...identity}};
   }
-  const {results, members, jobs, version, novoClosed} = data;
+  const {results, members, jobs, version, novoClosed, sourceVersions, reused, readPlans} = data;
   const rebuildStartedAt = performance.now();
   // Current membership and mutable Job projection checks use the same owned snapshot.
   // Original source evidence was admitted by the atomic publisher.
@@ -312,12 +319,12 @@ export async function readPortablePublicSnapshotWithStatus(
     // Plan ownership/options were validated together before I/O. Each source
     // consumes the same owned transaction rows and fixed time, in its original
     // history order. Never expose partial work or update the cache at a yield.
-    for (const plan of requiredPlans) {
+    for (const plan of readPlans) {
       selections.push(...selectPortableSourceSnapshots([plan], results, readOptions));
       await yieldAfterSource();
     }
     selections.sort((left, right) => Buffer.compare(Buffer.from(left.sourceId), Buffer.from(right.sourceId)));
-  } else selections = selectPortableSourceSnapshots(requiredPlans, results, readOptions);
+  } else selections = selectPortableSourceSnapshots(readPlans, results, readOptions);
   // Closure identity is backed by the original committed metadata and complete
   // membership set, not a title match or mutable Job.visible flag.
   for (const closure of novoClosed) {
@@ -330,7 +337,7 @@ export async function readPortablePublicSnapshotWithStatus(
       throw Error("NOVO_CLOSURE_HISTORY_INVALID");
     }
   }
-  const sources: PortableProjectedSource[] = [];
+  const sources: PortableProjectedSource[] = [...(reused?.sources ?? [])];
   for (const source of selections) {
     const projected = projectPortableSourceJobs(source,
       members.filter(member => member.sourceResultId === source.selectedSourceResultId), jobs, readOptions, members);
@@ -374,8 +381,8 @@ export async function readPortablePublicSnapshotWithStatus(
     coverage: {companyCount: companies.length, requiredCompanyCount: scope.requiredCompanyIds.length, excludedCompanyCount: scope.exclusions.length, requiredSourceCount: scope.requiredSourceIds.length, excludedSourceCount: scope.exclusions.length, expectedSourceCount: P0_LAUNCH_MANIFEST.companies.length, sourceCount: sources.length,
       unplannedSourceCount: P0_LAUNCH_MANIFEST.companies.filter(company => !sources.some(source => source.sourceId === company.source.sourceId)).length, publishingSourceCount: published.length,
       unsupportedSourceCount: sources.filter(source => source.policyId === null && source.state !== "EXCLUDED").length, heldSourceCount: sources.filter(source => source.state === "HOLD").length}};
-  const identity = version !== undefined ? cache!.setRead(version, cacheScope, portableSnapshotValidUntil({results, jobs},
-    readOptions.currentTime.getTime(), readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS, snapshot), snapshot) : portableSnapshotIdentities(snapshot);
+  const identity = version !== undefined ? cache!.setRead(version, cacheScope, Math.min(reused?.until ?? Infinity,portableSnapshotValidUntil({results, jobs},
+    readOptions.currentTime.getTime(), readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS, snapshot)), snapshot, sourceVersions) : portableSnapshotIdentities(snapshot);
   timing?.record("rebuild", performance.now() - rebuildStartedAt);
   return {snapshot, snapshotRefresh: {state: "CURRENT", ...identity}};
 }

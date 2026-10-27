@@ -1,0 +1,304 @@
+{
+  "pass": true,
+  "scope": "OFFLINE_FROZEN_41_SOURCE_QUERY_FIXTURE_NOT_LIVE_SQL",
+  "coldEquivalent": true,
+  "warmHasNoDataQueries": true,
+  "baselineColdBytes": 18781592,
+  "candidateColdBytes": 18781592,
+  "scenarioCount": 13,
+  "scenarios": [
+    {
+      "name": "one-source metadata only",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-abbvie-china-social",
+          "source-novo-nordisk-china-social"
+        ]
+      ],
+      "baselineBytes": 18781616,
+      "candidateBytes": 415298
+    },
+    {
+      "name": "mutable Job changed",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-abbvie-china-social",
+          "source-novo-nordisk-china-social"
+        ]
+      ],
+      "baselineBytes": 18781600,
+      "candidateBytes": 415282
+    },
+    {
+      "name": "delete current Job",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-abbvie-china-social",
+          "source-novo-nordisk-china-social"
+        ]
+      ],
+      "baselineBytes": 18780872,
+      "candidateBytes": 414554
+    },
+    {
+      "name": "Job moved A to B",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-abbvie-china-social",
+          "source-amgen-china-social",
+          "source-novo-nordisk-china-social"
+        ]
+      ],
+      "baselineBytes": 18780872,
+      "candidateBytes": 638229
+    },
+    {
+      "name": "all source rows deleted",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-abbvie-china-social",
+          "source-novo-nordisk-china-social"
+        ]
+      ],
+      "baselineBytes": 18560190,
+      "candidateBytes": 193872
+    },
+    {
+      "name": "wrong-source member retained owner invalidation",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-abbvie-china-social",
+          "source-amgen-china-social",
+          "source-novo-nordisk-china-social"
+        ]
+      ],
+      "baselineBytes": 18781591,
+      "candidateBytes": 638948
+    },
+    {
+      "name": "Novo closure artifact changed",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-novo-nordisk-china-social"
+        ]
+      ],
+      "baselineBytes": 18781592,
+      "candidateBytes": 193872
+    },
+    {
+      "name": "time boundary expired",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-johnson-innovative-medicine-social",
+          "source-abbvie-china-social",
+          "source-msd-china-social",
+          "source-roche-china-social",
+          "source-pfizer-china-social",
+          "source-astrazeneca-social",
+          "source-novartis-social",
+          "source-bms-china-social",
+          "source-sanofi-china-social",
+          "source-novo-nordisk-china-social",
+          "source-lilly-china-social",
+          "source-gsk-china-social",
+          "source-amgen-china-social",
+          "source-takeda-china-social",
+          "source-gilead-china-social",
+          "source-boehringer-ingelheim-china-social",
+          "source-bayer-healthcare-social",
+          "source-csl-china-social",
+          "source-viatris-social",
+          "source-teva-china-social",
+          "source-astellas-china-social",
+          "source-daiichi-sankyo-china-social",
+          "source-sandoz-china-social",
+          "source-merck-china-social",
+          "source-otsuka-china-social",
+          "source-biogen-china-social",
+          "source-grifols-china-social",
+          "source-organon-china-social",
+          "source-ucb-china-social",
+          "source-servier-china-social",
+          "source-cr-pharma-social",
+          "source-qilu-social",
+          "source-grand-pharma-social",
+          "source-fosun-pharma-social",
+          "source-cspc-social",
+          "source-hengrui-social",
+          "source-cttq-social",
+          "source-shanghai-pharma-social",
+          "source-kelun-social",
+          "source-hansoh-social"
+        ]
+      ],
+      "baselineBytes": 18781592,
+      "candidateBytes": 18781592
+    },
+    {
+      "name": "clock backwards",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-johnson-innovative-medicine-social",
+          "source-abbvie-china-social",
+          "source-msd-china-social",
+          "source-roche-china-social",
+          "source-pfizer-china-social",
+          "source-astrazeneca-social",
+          "source-novartis-social",
+          "source-bms-china-social",
+          "source-sanofi-china-social",
+          "source-novo-nordisk-china-social",
+          "source-lilly-china-social",
+          "source-gsk-china-social",
+          "source-amgen-china-social",
+          "source-takeda-china-social",
+          "source-gilead-china-social",
+          "source-boehringer-ingelheim-china-social",
+          "source-bayer-healthcare-social",
+          "source-csl-china-social",
+          "source-viatris-social",
+          "source-teva-china-social",
+          "source-astellas-china-social",
+          "source-daiichi-sankyo-china-social",
+          "source-sandoz-china-social",
+          "source-merck-china-social",
+          "source-otsuka-china-social",
+          "source-biogen-china-social",
+          "source-grifols-china-social",
+          "source-organon-china-social",
+          "source-ucb-china-social",
+          "source-servier-china-social",
+          "source-cr-pharma-social",
+          "source-qilu-social",
+          "source-grand-pharma-social",
+          "source-fosun-pharma-social",
+          "source-cspc-social",
+          "source-hengrui-social",
+          "source-cttq-social",
+          "source-shanghai-pharma-social",
+          "source-kelun-social",
+          "source-hansoh-social"
+        ]
+      ],
+      "baselineBytes": 18781592,
+      "candidateBytes": 18781592
+    },
+    {
+      "name": "scope option change",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-johnson-innovative-medicine-social",
+          "source-abbvie-china-social",
+          "source-msd-china-social",
+          "source-roche-china-social",
+          "source-pfizer-china-social",
+          "source-astrazeneca-social",
+          "source-novartis-social",
+          "source-bms-china-social",
+          "source-sanofi-china-social",
+          "source-novo-nordisk-china-social",
+          "source-lilly-china-social",
+          "source-gsk-china-social",
+          "source-amgen-china-social",
+          "source-takeda-china-social",
+          "source-gilead-china-social",
+          "source-boehringer-ingelheim-china-social",
+          "source-bayer-healthcare-social",
+          "source-csl-china-social",
+          "source-viatris-social",
+          "source-teva-china-social",
+          "source-astellas-china-social",
+          "source-daiichi-sankyo-china-social",
+          "source-sandoz-china-social",
+          "source-merck-china-social",
+          "source-otsuka-china-social",
+          "source-biogen-china-social",
+          "source-grifols-china-social",
+          "source-organon-china-social",
+          "source-ucb-china-social",
+          "source-servier-china-social",
+          "source-cr-pharma-social",
+          "source-qilu-social",
+          "source-grand-pharma-social",
+          "source-fosun-pharma-social",
+          "source-cspc-social",
+          "source-hengrui-social",
+          "source-cttq-social",
+          "source-shanghai-pharma-social",
+          "source-kelun-social",
+          "source-hansoh-social"
+        ]
+      ],
+      "baselineBytes": 18781592,
+      "candidateBytes": 18781592
+    },
+    {
+      "name": "B latest RUNNING",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-novo-nordisk-china-social",
+          "source-pfizer-china-social"
+        ]
+      ],
+      "baselineBytes": 18785453,
+      "candidateBytes": 959603
+    },
+    {
+      "name": "B latest FAILED",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-novo-nordisk-china-social",
+          "source-pfizer-china-social"
+        ]
+      ],
+      "baselineBytes": 18785476,
+      "candidateBytes": 959626
+    },
+    {
+      "name": "two-source batch metadata update",
+      "pass": true,
+      "error": null,
+      "readSources": [
+        [
+          "source-abbvie-china-social",
+          "source-amgen-china-social",
+          "source-novo-nordisk-china-social"
+        ]
+      ],
+      "baselineBytes": 18781592,
+      "candidateBytes": 638949
+    }
+  ],
+  "filesChanged": [
+    "portableSnapshotCache.ts",
+    "portablePublicSnapshotRepository.ts"
+  ],
+  "databaseQueriesExecuted": 0,
+  "postBuildVersionCheckPreserved": true,
+  "failedPartialDoesNotPublish": true,
+  "liveSqlValidation": false
+}

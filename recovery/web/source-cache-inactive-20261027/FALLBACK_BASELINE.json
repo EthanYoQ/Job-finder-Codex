@@ -1,0 +1,8 @@
+{
+  "baseCommit": "de6598eb37c13f40a51be4f34e58bf5ed173d115",
+  "beforeSha256": "3d93cfbe831b94532f5896fad5722c56d5377478156bffa140edd87dc40fb570",
+  "afterSha256": "5789700acfa3fac37b17d8a03f63767164b400b1636422c8caf22e06eb043748",
+  "existingMainFallbackDifferencePreserved": true,
+  "differences": "fallback omits getDisplayVersion and has its original getDuringRefresh comment",
+  "status": "INACTIVE"
+}

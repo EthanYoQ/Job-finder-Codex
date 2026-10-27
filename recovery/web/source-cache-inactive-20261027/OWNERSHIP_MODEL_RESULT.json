@@ -1,0 +1,65 @@
+{
+  "pass": true,
+  "scope": "INDEPENDENT_OWNERSHIP_MODEL_NOT_SQL_EXECUTION",
+  "cases": [
+    {
+      "name": "shared batch update invalidates both sources",
+      "changed": [
+        "A",
+        "B",
+        "NOVO"
+      ],
+      "pass": true
+    },
+    {
+      "name": "wrong-source observation invalidates direct and owner",
+      "changed": [
+        "A",
+        "B",
+        "NOVO"
+      ],
+      "pass": true
+    },
+    {
+      "name": "wrong-source artifact invalidates direct and owner",
+      "changed": [
+        "A",
+        "C",
+        "NOVO"
+      ],
+      "pass": true
+    },
+    {
+      "name": "null-source observation retains owner",
+      "changed": [
+        "A",
+        "NOVO"
+      ],
+      "pass": true
+    },
+    {
+      "name": "Job source migration invalidates both sides",
+      "changed": [
+        "A",
+        "B",
+        "NOVO"
+      ],
+      "pass": true
+    },
+    {
+      "name": "deleting last Job invalidates old source",
+      "changed": [
+        "A",
+        "NOVO"
+      ],
+      "pass": true
+    },
+    {
+      "name": "off-roster closure dependency still invalidates Novo",
+      "changed": [
+        "NOVO"
+      ],
+      "pass": true
+    }
+  ]
+}

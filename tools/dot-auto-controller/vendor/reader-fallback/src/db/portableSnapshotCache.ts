@@ -39,6 +39,33 @@ export function portableSnapshotVersion(rows: unknown): string {
   return PORTABLE_SNAPSHOT_VERSION_TABLES.map(table => `${table}:${versions.get(table)}`).join("|");
 }
 
+// Child rows affect both their declared source and the result they are joined to.
+export function portableSnapshotSourceVersionSql(sourceIds: readonly string[]): string {
+  const quote=(value:string)=>"'"+value.replaceAll("'","''")+"'";
+  const requested=sourceIds.map(quote).join(',');
+  const tuple="t.tableoid::text || '/' || t.ctid::text || '/' || t.xmin::text";
+  const parts=PORTABLE_SNAPSHOT_VERSION_TABLES.map(table=>{
+    const batch=table==='CrawlBatch', direct=table==='Job'||table==='CrawlBatchSourceResult';
+    const owner=batch?'JOIN "CrawlBatchSourceResult" r ON r."batchId"=t.id':direct?'':'LEFT JOIN "CrawlBatchSourceResult" r ON r.id=t."sourceResultId"';
+    const sources=batch?'SELECT r."sourceId"':direct?'SELECT t."sourceId"':'SELECT t."sourceId" UNION SELECT r."sourceId"';
+    return `SELECT DISTINCT owners."sourceId",${quote(table)}::text AS relation,${tuple} AS tuple FROM "${table}" t ${owner}
+      CROSS JOIN LATERAL (${sources}) owners WHERE owners."sourceId" IN (${requested||'NULL'})`;
+  });
+  return `WITH physical AS (${parts.join(' UNION ALL ')}), grouped AS (
+    SELECT "sourceId",relation,count(*)::text AS count,encode(sha256(convert_to(string_agg(tuple,',' ORDER BY tuple),'UTF8')),'hex') AS digest
+    FROM physical GROUP BY "sourceId",relation), global_versions AS (${PORTABLE_SNAPSHOT_VERSION_SQL})
+    SELECT (txid_snapshot_xmax(txid_current_snapshot()) / 4294967296)::text AS epoch,s."sourceId",r.relation,
+      coalesce(g.count,'0') AS count,coalesce(g.digest,encode(sha256(convert_to('','UTF8')),'hex')) AS digest
+    FROM unnest(ARRAY[${requested}]::text[]) s("sourceId") CROSS JOIN unnest(ARRAY[${PORTABLE_SNAPSHOT_VERSION_TABLES.map(quote).join(',')}]::text[]) r(relation)
+    LEFT JOIN grouped g ON g."sourceId"=s."sourceId" AND g.relation=r.relation
+    UNION ALL SELECT epoch,'@global'::text AS "sourceId",relation,count,digest FROM global_versions`;
+}
+export function portableSnapshotSourceVersions(rows: unknown, sourceIds: readonly string[]): Map<string,string> {
+  const expected=[...sourceIds,'@global'];
+  if(!Array.isArray(rows)||new Set(expected).size!==expected.length||rows.length!==expected.length*PORTABLE_SNAPSHOT_VERSION_TABLES.length||rows.some(row=>!expected.includes(row?.sourceId)))throw Error('INVALID_PORTABLE_SOURCE_VERSIONS');
+  return new Map(expected.map(id=>[id,portableSnapshotVersion(rows.filter(row=>row.sourceId===id))]));
+}
+
 /** Cache only inside a time interval in which every time comparison is unchanged.
  * This includes future receipt/capture timestamps, B validation expiry, and the
  * exact projected source/job freshness boundary. Inspect nested evidence as well
@@ -80,7 +107,7 @@ export function portableDisplayVersion(snapshot: PortablePublicSnapshot): string
 
 /** One owned, verified projection per reader, bounded independently of DB size. */
 export class PortableSnapshotCache {
-  private entry: { version: string; scope: string; from: number; until: number; snapshot: PortablePublicSnapshot; identity: PortableSnapshotIdentity } | undefined;
+  private entry: { version: string; scope: string; from: number; until: number; snapshot: PortablePublicSnapshot; identity: PortableSnapshotIdentity; sourceVersions: Map<string,string> | undefined } | undefined;
   private buildSequence = 0;
   constructor(private readonly maximumBytes = 16 * 1024 * 1024) {}
 
@@ -103,6 +130,13 @@ export class PortableSnapshotCache {
     const entry = this.entry;
     if (!entry || entry.scope !== scope || now < entry.from) return undefined;
     return {snapshot: structuredClone(entry.snapshot), ...entry.identity};
+  }
+
+  getReusableSources(scope: string, now: number, versions: Map<string,string>): {sources: PortablePublicSnapshot['sources']; until: number} | undefined {
+    const entry=this.entry;
+    if(!entry?.sourceVersions||entry.scope!==scope||now<entry.from||now>=entry.until)return undefined;
+    return {until:entry.until,sources:structuredClone(entry.snapshot.sources.filter(source=>
+      versions.has(source.sourceId)&&entry.sourceVersions!.get(source.sourceId)===versions.get(source.sourceId)))};
   }
 
   hasSnapshot(): boolean {
@@ -135,7 +169,7 @@ export class PortableSnapshotCache {
     return this.setRead(version, scope, until, snapshot).version;
   }
 
-  setRead(version: string, scope: string, until: number, snapshot: PortablePublicSnapshot): PortableSnapshotIdentity {
+  setRead(version: string, scope: string, until: number, snapshot: PortablePublicSnapshot, sourceVersions?: Map<string,string>): PortableSnapshotIdentity {
     const serialized = JSON.stringify(snapshot);
     const identity = portableSnapshotIdentities(snapshot, serialized);
     if (!Number.isSafeInteger(this.buildSequence + 1)) throw new Error("PORTABLE_SNAPSHOT_BUILD_SEQUENCE_EXHAUSTED");
@@ -145,7 +179,7 @@ export class PortableSnapshotCache {
       return identity;
     }
     const owned = structuredClone(snapshot);
-    this.entry = {version, scope, from: Date.parse(snapshot.generatedAt), until, snapshot: owned, identity};
+    this.entry = {version, scope, from: Date.parse(snapshot.generatedAt), until, snapshot: owned, identity, sourceVersions:sourceVersions ? new Map(sourceVersions) : undefined};
     return {...identity};
   }
 }

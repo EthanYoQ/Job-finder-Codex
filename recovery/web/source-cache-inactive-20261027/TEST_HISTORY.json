@@ -1,0 +1,40 @@
+{
+  "productionDatabaseOperations": 0,
+  "productionDeployments": 0,
+  "attempts": [
+    {
+      "runtime": "Node 24.19.0 default cloud runtime",
+      "result": "PASS",
+      "coverage": "initial 12 frozen-fixture comparisons"
+    },
+    {
+      "runtime": "original Node 22.23.3",
+      "result": "TEST_FIXTURE_FAILED",
+      "reason": "New two-source batch test assigned FAILED to an AbbVie historical batch already FAILED, so no real mutation occurred and expected reread scope was wrong.",
+      "productionCodeChangedToFix": false
+    },
+    {
+      "runtime": "original Node 22.23.3",
+      "result": "PASS",
+      "coverage": "13 frozen-fixture scenarios, postbuild version-change deferral/rebuild, failed partial preserves cache",
+      "fixtureFix": "Flip each batch's real status rather than assigning a potentially unchanged constant."
+    },
+    {
+      "runtime": "original Node 22.23.3 independent reviewer",
+      "result": "PASS",
+      "reportedAt": "2026-10-27T09:13:04Z",
+      "coverage": "Final 13 scenarios including explicit B RUNNING/FAILED HOLD assertions plus postbuild and partial failure"
+    }
+  ],
+  "additionalChecks": {
+    "typecheck": "PASS, no diagnostics",
+    "ownershipModel": "7 PASS, model only, not PostgreSQL execution"
+  },
+  "notValidated": [
+    "PostgreSQL statement execution/syntax",
+    "database execution plan/latency under 30 seconds",
+    "live concurrent publication",
+    "billed egress savings",
+    "deployment reader pins"
+  ]
+}

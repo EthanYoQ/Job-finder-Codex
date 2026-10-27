@@ -1,0 +1,24 @@
+{
+  "status": "INACTIVE_NOT_DEPLOYED",
+  "base": "historical deployed light reader 20261018 d6832ee9 repository / 8d31a720 domain; exact local deployed-source materialization",
+  "changedFiles": {
+    "src/db/portableSnapshotCache.ts": {
+      "beforeSha256": "3c132ee01cee8e90526d5eb3781be38238257fe688705f3f8616444aa38b999e",
+      "afterSha256": "8fa534f38329d5066d4bea6e88c1718caac007af374edcb0d3be35dc3f1dfbbc"
+    },
+    "src/db/portablePublicSnapshotRepository.ts": {
+      "beforeSha256": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
+      "afterSha256": "42d683e3064bbe0fd548977d6c3b35598f205c9141f3d4f98000889c1bb7b249"
+    }
+  },
+  "typecheck": {
+    "command": "connector-host-runtime/node node_modules/typescript/bin/tsc --noEmit",
+    "node": "22.23.3",
+    "exitCode": 0,
+    "diagnostics": []
+  },
+  "databaseQueriesExecuted": 0,
+  "newServices": 0,
+  "schemaChanges": 0,
+  "sourceScopeChanges": 0
+}
