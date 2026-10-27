@@ -65,7 +65,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  if(['source-servier-china-social','source-sanofi-china-social','source-bayer-healthcare-social','source-hengrui-social'].includes(sourceId)){
   const {readOriginalReaderBefore}=await new A(await read(D+'/reader-before-functions.js'))();
   before=await readOriginalReaderBefore(query,sql,['source-bayer-healthcare-social','source-hengrui-social'].includes(sourceId)?'15s':'8s');
- }else before=(await sql(query))[0].reader_before;
+ }else {const {readOriginalReaderBeforeSingle}=await new A(await read(D+'/reader-before-functions.js'))();before=await readOriginalReaderBeforeSingle(query,sql);}
  await save(S+'/READER_BEFORE.json',before);await save(S+'/expected-candidate.json',before.publicationContext.candidateRow);
  const batchId='dot-auto-'+sourceFolders[sourceId]+'-'+new Date().toISOString().replace(/[-:.]/g,''),run=S+'/'+batchId;
  await command('mkdir -p '+q(run+'/artifacts'));
