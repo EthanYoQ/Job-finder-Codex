@@ -1,0 +1,37 @@
+{
+  "recordedAt": "2026-10-27T08:40:49Z",
+  "status": "OFFLINE_TEST_FIXTURES_BACKED_UP_NOT_RUNTIME_ACTIVATION",
+  "nativeCandidate": 120,
+  "productionExternalCommit": "46ac03df383fd28e9ca2fe515dc10d33e5d48bac",
+  "testOnlyCommit": "89da867420a071f1d09fe242207c7451edab6059",
+  "testOnlyTree": "3c2cae58d3a7dad6e015f1eb4ef7425bccede4af",
+  "githubFourFilesByteEqual": true,
+  "files": [
+    "automatic-relay.test.mjs",
+    "host-session.test.mjs",
+    "explicit-review-rejection.test.mjs",
+    "readback-recovery.test.py"
+  ],
+  "drive": {
+    "fileId": "1dM4ss25T8U52vz0eJuOCejG6AxemqSLM",
+    "bytes": 8483,
+    "sha256": "bbf217d0e3ce4891e4f376e9e2c9f5ec07ab101d5f8eff78ba04dc559d96b3a5",
+    "downloadHashVerified": true,
+    "extractedMembers": 5,
+    "restoredFileHashesVerified": 4
+  },
+  "testsPassed": [
+    "automatic-relay.test.mjs",
+    "host-session.test.mjs",
+    "explicit-review-rejection.test.mjs",
+    "readback-recovery.test.py",
+    "novo-hook.test.mjs",
+    "novo-verification.test.mjs",
+    "bms-request-identity.test.mts"
+  ],
+  "entrySha256Unchanged": "3861484edc94b6a500c16dededf7868b381192323a3df3877daff627e029d3b0",
+  "officialSqlCalls": 0,
+  "productionEnabled": false,
+  "fixedLatestChanged": false,
+  "limits": "Offline fixtures only. Existing source, runtime dependencies, current official state and permissions still require verification before production. This is not fresh collection or unattended recovery acceptance."
+}
