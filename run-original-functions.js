@@ -10,7 +10,34 @@ const {runOriginalSerial}=await new A(await read(D+'/automatic-relay-functions.j
 let backupSuccessfulSource;
 const sourceFolders={'source-bayer-healthcare-social':'bayer','source-servier-china-social':'servier','source-pfizer-china-social':'pfizer','source-ucb-china-social':'ucb','source-viatris-social':'viatris','source-biogen-china-social':'biogen','source-hengrui-social':'hengrui','source-hansoh-social':'hansoh','source-takeda-china-social':'takeda','source-merck-china-social':'merck','source-fosun-pharma-social':'fosun','source-cspc-social':'cspc','source-abbvie-china-social':'abbvie','source-bms-china-social':'bms','source-boehringer-ingelheim-china-social':'boehringer-ingelheim','source-gilead-china-social':'gilead','source-kelun-social':'kelun','source-novartis-social':'novartis','source-novo-nordisk-china-social':'novo-nordisk','source-organon-china-social':'organon','source-amgen-china-social':'amgen','source-cr-pharma-social':'cr-pharma','source-csl-china-social':'csl','source-cttq-social':'cttq','source-daiichi-sankyo-china-social':'daiichi-sankyo','source-gsk-china-social':'gsk','source-lilly-china-social':'lilly','source-msd-china-social':'msd','source-roche-china-social':'roche','source-sanofi-china-social':'sanofi','source-shanghai-pharma-social':'shanghai-pharma','source-qilu-social':'qilu','source-grifols-china-social':'grifols','source-astellas-china-social':'astellas','source-johnson-innovative-medicine-social':'jnj','source-astrazeneca-social':'astrazeneca'};
 const routes=JSON.parse(await read(D+'/sources.json')).rows,routeById=Object.fromEntries(routes.map(row=>[row.sourceId,row]));
-const states=await sql(`SELECT requested.id AS "sourceId",clock_timestamp() AS "checkedAt",(SELECT max(o."crawledAt") FROM public."CrawlObservation" o JOIN public."CrawlBatchSourceResult" r ON r.id=o."sourceResultId" JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE o."sourceId"=requested.id AND o.successful AND r."atomicCommitState"='COMMITTED' AND b.status::text='SUCCESS') AS "crawledAt",(SELECT CASE WHEN "heartbeatAt">clock_timestamp()-interval '300 seconds' THEN "holderId" ELSE '' END FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS holder,(SELECT count(*) FROM public."CrawlBatch" WHERE status::text='RUNNING' AND "heartbeatAt">clock_timestamp()-interval '300 seconds') AS running,(SELECT count(*) FROM public."ManualCrawlRequest" WHERE status::text='RUNNING' AND ("leaseExpiresAt" IS NULL OR "leaseExpiresAt">clock_timestamp())) AS manual FROM unnest(ARRAY[${routes.map(row=>"'"+row.sourceId.replaceAll("'","''")+"'").join(",")} ]::text[]) requested(id);`),stateById=Object.fromEntries(states.map(row=>[row.sourceId,row]));
+async function resumeTail(sourceId,run){
+ const {resumeCommittedTail}=await new A(await read(D+'/committed-tail-functions.js'))();
+ return resumeCommittedTail({
+  verifyCommitted:async()=>{
+   if(!run.startsWith(R+'/'+sourceFolders[sourceId]+'/dot-auto-')||run.includes('/../'))throw Error('RESUME_RUN_SCOPE');
+   const checkpoint=JSON.parse(await read(run+'/relay-checkpoint.json'));if(checkpoint.sourceId!==sourceId||checkpoint.batchId!==run.split('/').at(-1))throw Error('RESUME_SOURCE_OR_BATCH');
+   return JSON.parse(await command('python3 '+q(D+'/package-success-evidence.py')+' --verify-committed --run '+q(run)+' --relay '+q(relay)+checkpoint.requestIds.map(id=>' --request-id '+q(id)).join('')));
+  },
+  readback:async()=>JSON.parse(await command('python3 '+q(D+'/readback-original-web.py')+' '+q(run))),
+  verifyUploaded:async()=>{
+   const uploaded=JSON.parse(await read(run+'/backup/UPLOADED.json'));
+   const fetched=await tools.mcp__codex_apps__google_drive_fetch({url:'https://drive.google.com/file/d/'+uploaded.fileId+'/view',download_raw_file:true,include_base64:false});
+   const downloadUrl=fetched.structuredContent?.file_uri?.download_url;if(fetched.isError||typeof downloadUrl!=='string')throw Error('DRIVE_READBACK_UNAVAILABLE');
+   const downloaded=run+'/backup/remote-readback.tar.gz';
+   const restored=JSON.parse(await command('python3 -c '+q("import shutil,urllib.request;\nwith urllib.request.urlopen("+JSON.stringify(downloadUrl)+") as response, open("+JSON.stringify(downloaded)+",'wb') as output: shutil.copyfileobj(response,output)")+' && python3 '+q(D+'/package-success-evidence.py')+' --verify '+q(downloaded)));
+   const packed=JSON.parse(await read(run+'/backup/LOCAL_PACKAGE.json'));
+   if(packed.sources?.length!==1||packed.sources[0].source!==run.split('/').at(-2)||packed.sources[0].batch!==run.split('/').at(-1))throw Error('BACKUP_BATCH_BINDING');
+   if(restored.sha256!==uploaded.sha256||restored.sha256!==packed.sha256||restored.verifiedMembers!==packed.members)throw Error('DRIVE_READBACK_MISMATCH');
+   const receipt={status:'REMOTE_RESTORE_VERIFIED',fileId:uploaded.fileId,...packed,verifiedAt:new Date().toISOString(),recoveredTail:true};
+   await save(run+'/backup/REMOTE_BACKUP_READBACK.json',receipt);return receipt;
+  }
+ });
+}
+// Explicit completed-tail recovery returns here even across a schedule boundary.
+// It cannot enter preparation, launch a producer, replay SQL, or upload.
+const tail=load('originalCommittedTailResume');if(tail)return await resumeTail(tail.sourceId,tail.runDirectory);
+
+const states=(await sql(`SELECT requested.id AS "sourceId",clock_timestamp() AS "checkedAt",(SELECT jsonb_build_object('crawledAt',o."crawledAt",'successfulBatchId',b.id) FROM public."CrawlObservation" o JOIN public."CrawlBatchSourceResult" r ON r.id=o."sourceResultId" JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE o."sourceId"=requested.id AND o.successful AND r."atomicCommitState"='COMMITTED' AND b.status::text='SUCCESS' ORDER BY o."crawledAt" DESC,b.id DESC LIMIT 1) AS "successfulObservation",(SELECT CASE WHEN "heartbeatAt">clock_timestamp()-interval '300 seconds' THEN "holderId" ELSE '' END FROM public."CrawlCoordinatorLock" WHERE id='formal-crawl') AS holder,(SELECT count(*) FROM public."CrawlBatch" WHERE status::text='RUNNING' AND "heartbeatAt">clock_timestamp()-interval '300 seconds') AS running,(SELECT count(*) FROM public."ManualCrawlRequest" WHERE status::text='RUNNING' AND ("leaseExpiresAt" IS NULL OR "leaseExpiresAt">clock_timestamp())) AS manual FROM unnest(ARRAY[${routes.map(row=>"'"+row.sourceId.replaceAll("'","''")+"'").join(",")} ]::text[]) requested(id);`)).map(({successfulObservation,...state})=>({...state,...(successfulObservation??{})})),stateById=Object.fromEntries(states.map(row=>[row.sourceId,row]));
 // Asia/Shanghai 08:00/20:00 are UTC 00:00/12:00; freeze this run's official-time slot.
 const slotStartMs=Math.floor(Date.parse(states[0].checkedAt)/43200000)*43200000,slotEndMs=slotStartMs+43200000,slotStart=new Date(slotStartMs).toISOString(),slotEnd=new Date(slotEndMs).toISOString();
 const succeededInSlot=s=>s.crawledAt&&Date.parse(s.crawledAt)>=slotStartMs&&Date.parse(s.crawledAt)<slotEndMs;
@@ -18,7 +45,11 @@ if(load('originalRelayReadOnly')===true)return states.map(s=>({sourceId:s.source
 return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const state=stateById[sourceId];
  if(Date.now()>=slotEndMs)throw Error('SCHEDULE_SLOT_ENDED:'+slotStart);
- if(succeededInSlot(state))return {skip:'REAL_OBSERVATION_IN_SCHEDULE_SLOT:'+slotStart+':'+state.crawledAt};
+ if(succeededInSlot(state)){
+  const pending=JSON.parse(await command('python3 -c '+q("import pathlib,json,sys; root=pathlib.Path(sys.argv[1]); batch=sys.argv[2]; assert batch.startswith('dot-auto-') and '/' not in batch and '..' not in batch; run=root/batch; print(json.dumps(str(run) if (run/'relay-checkpoint.json').exists() else None))")+' '+q(R+'/'+sourceFolders[sourceId])+' '+q(state.successfulBatchId)));
+  const tailRecovery=pending?await resumeTail(sourceId,pending):undefined;
+  return {skip:'REAL_OBSERVATION_IN_SCHEDULE_SLOT:'+slotStart+':'+state.crawledAt,...(tailRecovery?{tailRecovery}:{})};
+ }
  const hold=load('originalSourceHolds')?.[sourceId];if(hold)throw Error('PENDING_USER_DECISION:'+hold);
  
  if(!sourceFolders[sourceId])throw Error('ROUTE_NOT_CONNECTED:'+routeById[sourceId].route);
@@ -86,6 +117,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  catch(error){error.producerStateUnconfirmed=true;throw error;}
  let process=started, terminalRecorded=false;
  return {stage,sourceId,runDirectory:run,relayDirectory:relay,deadline:Date.now()+1800000,
+  checkpoint:requestIds=>save(run+'/relay-checkpoint.json',{sourceId,batchId,requestIds}),
   pollProducer:async()=>{if(process.session_id)process=await tools.write_stdin({session_id:process.session_id,chars:'',yield_time_ms:1000,max_output_tokens:1000});let outcome=null;try{outcome=process.exit_code===0?JSON.parse(await read(run+'/artifacts/'+batchId+'.outcome.json')):null;}finally{if(process.exit_code!==undefined&&process.exit_code!==null&&!terminalRecorded){await save(run+'/producer-session.json',{sessionId:started.session_id??null,exitCode:process.exit_code,outcomeState:outcome?.state??null,recordedAt:new Date().toISOString()});terminalRecorded=true;}}return {exitCode:process.exit_code??null,outcomeState:outcome?.state,diagnostic:process.exit_code?process.output?.trim()||await command('python3 '+q(D+'/failure-summary.py')+' '+q(run)):process.output?.slice(-1200)};},
   reviewPublication:async (request,prepared,publicationContextRequestId)=>{const reviewed=JSON.parse((await command('JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+' '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(D+'/review-original-publication.mjs')+' '+q(run)+' '+q(request.requestId)+' '+q(relay)+' '+q(publicationContextRequestId??'')+' > '+q(run+'/review-command.log')+' 2>&1; code=$?; printf \"%s\\n\" \"$code\" > '+q(run+'/review-command.exit')+'; cat '+q(run+'/review-command.log')+'; exit \"$code\"')).trim().split('\n').at(-1));
    const [recent]=await sql(`SELECT clock_timestamp()<'${slotEnd}'::timestamptz AS "sameSlot",EXISTS(SELECT 1 FROM public."CrawlObservation" o JOIN public."CrawlBatchSourceResult" r ON r.id=o."sourceResultId" JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE o."sourceId"='${sourceId}' AND o.successful AND r."atomicCommitState"='COMMITTED' AND b.status::text='SUCCESS' AND o."crawledAt">='${slotStart}'::timestamptz AND o."crawledAt"<'${slotEnd}'::timestamptz) AS fresh;`);if(!recent.sameSlot)throw Error('SCHEDULE_SLOT_ENDED:'+slotStart);if(recent.fresh)throw Error('NEW_SUCCESS_BEFORE_DISPATCH');

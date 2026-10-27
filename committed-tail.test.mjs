@@ -1,0 +1,14 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const A=Object.getPrototypeOf(async function(){}).constructor;
+const {resumeCommittedTail}=await new A(fs.readFileSync(new URL('./committed-tail-functions.js',import.meta.url),'utf8'))();
+const fixture=(proof={state:'COMMITTED_EXACT',backupUploaded:true})=>{const calls=[];return {calls,job:{verifyCommitted:async()=>{calls.push('verify');return proof;},readback:async()=>{calls.push('web');return {status:'WEB_VERIFIED'};},verifyUploaded:async()=>{calls.push('download');return {status:'REMOTE_RESTORE_VERIFIED'};}}};};
+const ok=fixture();assert.equal((await resumeCommittedTail(ok.job)).evidenceBackup.status,'REMOTE_RESTORE_VERIFIED');assert.deepEqual(ok.calls,['verify','web','download']);
+const missing=fixture();missing.job.verifyCommitted=async()=>{throw Error('missing response');};assert.equal((await resumeCommittedTail(missing.job)).reason,'COMMITTED_TAIL_PROOF_INCOMPLETE');assert.deepEqual(missing.calls,[]);
+const unknown=fixture({state:'UNKNOWN'});assert.equal((await resumeCommittedTail(unknown.job)).reason,'UNKNOWN_PUBLICATION');assert.deepEqual(unknown.calls,['verify']);
+const upload=fixture({state:'COMMITTED_EXACT',backupStarted:true});assert.equal((await resumeCommittedTail(upload.job)).evidenceBackup.stage,'UNKNOWN_UPLOAD_READONLY_RECONCILE');assert.deepEqual(upload.calls,['verify','web']);
+const none=fixture({state:'COMMITTED_EXACT'});assert.equal((await resumeCommittedTail(none.job)).evidenceBackup.stage,'NOT_UPLOADED');assert.deepEqual(none.calls,['verify','web']);
+const old=fixture({state:'COMMITTED_EXACT',backupVerified:true,dispatchBefore:'2000-01-01T00:00:00Z'});assert.equal((await resumeCommittedTail(old.job)).status,'WEB_VERIFIED');assert.deepEqual(old.calls,['verify','web']);
+const entry=fs.readFileSync(new URL('./run-original-functions.js',import.meta.url),'utf8');new A(entry);
+assert(entry.indexOf("if(tail)return await resumeTail")<entry.indexOf('const states='));
+assert(!fs.readFileSync(new URL('./committed-tail-functions.js',import.meta.url),'utf8').includes('sqlDispatch'));
+console.log('PASS: committed tail web/download; missing/unknown HOLD; unknown uploads never upload; expired write not executed; explicit cross-slot branch returns before source SQL/launch.');

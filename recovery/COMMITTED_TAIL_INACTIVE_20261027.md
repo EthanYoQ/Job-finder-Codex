@@ -1,0 +1,15 @@
+# INACTIVE: committed tail recovery candidate
+
+No production source changed, registration, SQL, web call or upload was executed.
+
+Scope: retain exact consumed request IDs before handling, on same-slot successful skip inspect the exact successful observation batch checkpoint and attempt only completed-tail work. Explicit recovery returns before production SQL/enumeration and cannot start a new source across slots. Existing original four-kind request/response/tuple/hash validation is extracted from pack into shared verified_committed_records; requires recorded producer exit0/COMMITTED_EXACT. No reconstruction of owned WeakMap/IPC handles, no renewed expired control or request, no PUBLISH capability in recovery.
+
+Allowed tail: existing committed proof -> original web reader; existing UPLOADED receipt -> download and archive/hash verification. UNKNOWN or missing response stays HOLD. UPLOAD_STARTED without ID stays UNKNOWN_UPLOAD_READONLY_RECONCILE. No prior upload stays NOT_UPLOADED, not automatic completion. Existing REMOTE_BACKUP_READBACK status/id/hash/member/source+batch is checked against LOCAL_PACKAGE and UPLOADED; completed prior web receipt is checked against expected metadata. Previously verified complete tails do not trigger web/download again.
+
+Limits: only newly checkpointed runs are discovered automatically; no global historical relay scan. Exact official successfulBatchId only; no latest-directory heuristic. Older unresolved tails and full UNKNOWN recovery remain unsupported. Existing full36/no-omission/three-day acceptance is unchanged. Same-slot skip remains SKIPPED with a separate tailRecovery; not a new collection success. This candidate cannot clear approval-preview denial or Merck121 deployment block.
+
+Checks performed: original pinned Node22.23.3 compiled Functions entry and passed committed-tail.test.mjs cases; Python helper compiled. Historical JNJ203143387 four real relay pairs and COMMITTED_EXACT proof accepted; new/old packaging20 members including manifest byte-identical. Missing/UNKNOWN READ_OUTCOME negative fixture rejected. These are offline existing evidence, not live source validation.
+
+Before activation: independent diff/security review; original private GitHub exact-file backup and readback; private Drive no-secret code delta download/restore and all runtime files equality; update recovery refs/task only after authorized activation. Native untouched, but external runtime hashes/manifest must be updated. Fresh official candidate/lock/dedupe readiness and approval-preview recovery still required before any production run. Never activate candidate121 or deployAliyun based on this candidate.
+
+Files for code backup ONLY: automatic-relay-functions.js, run-original-functions.js, package-success-evidence.py, committed-tail-functions.js, committed-tail.test.mjs, committed-tail-adapter.test.mjs, committed-proof.test.py, this README, candidate.patch. DO NOT upload historical evidence tarballs or proof-negative-fixture to GitHub; raw evidence remains local/privateDrive only.

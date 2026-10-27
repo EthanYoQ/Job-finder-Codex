@@ -6,7 +6,7 @@ async function runOriginalSerial(sources, prepareSource, afterSource) {
   let job;
   try {
    job = await prepareSource(sourceId);
-   if (job.skip) { results.push({sourceId, status: 'SKIPPED', reason: job.skip}); continue; }
+   if (job.skip) { results.push({sourceId, status: 'SKIPPED', reason: job.skip, ...(job.tailRecovery?{tailRecovery:job.tailRecovery}:{})}); continue; }
    results.push({sourceId, ...await serviceOriginalRelay(job)});
   } catch (error) {
    results.push({sourceId, status: 'HELD', reason: String(error), ...(error?.producerStateUnconfirmed?{producerStateUnconfirmed:true}:{})});
@@ -42,6 +42,7 @@ async function serviceOriginalRelay(job) {
     throw Error('UNSUPPORTED_RELAY_KIND');
    handled.add(request.requestId);
    job.relayRequestIds.push(request.requestId);
+   if(job.checkpoint)await job.checkpoint(job.relayRequestIds);
    const prepared = await stage.handle(request, relayDirectory);
    if (request.kind === 'READ_PUBLICATION_CONTEXT') publicationContextRequestId = prepared.status === 'SUCCEEDED' ? request.requestId : undefined;
    if (request.kind === 'PUBLISH') {

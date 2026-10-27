@@ -17,9 +17,7 @@ def raw_files(archive):
         assert not re.search(rb'-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----|AKIA[0-9A-Z]{16}', raw)
     return len(archive['files'])
 
-def pack(runs, relay, output, request_ids):
-    # shortcut: the runtime backs up one completed source; use separate calls for separate runs.
-    assert len(runs) == 1, 'ONE_RUN_PER_PACKAGE_REQUIRED'
+def verified_committed_records(run, relay, request_ids):
     assert request_ids and len(request_ids) == len(set(request_ids)), 'RELAY_REQUEST_IDS_REQUIRED'
     requests = {}
     for request_id in request_ids:
@@ -34,6 +32,43 @@ def pack(runs, relay, output, request_ids):
         requests.setdefault(request['kind'], []).append((request,response))
     assert set(requests) == {'READ_CONTEXT','READ_PUBLICATION_CONTEXT','PUBLISH','READ_OUTCOME'}, 'RELAY_KINDS_INCOMPLETE'
     assert len(requests['PUBLISH']) == 1, 'RELAY_PUBLICATION_COUNT'
+    batch = run.name
+    outcome = json.loads(next((run/'artifacts').glob('*.outcome.json')).read_text())
+    review = json.loads((run/'review/PACKET_REVIEW.json').read_text())
+    selected = {}
+    publication, published = requests['PUBLISH'][0]
+    assert review['requestId'] == publication['requestId'] and review['requestSha256'] == publication['requestSha256'], 'REVIEW_REQUEST_BINDING'
+    assert review['sqlSha256'] == hashlib.sha256(publication['payload']['sql'].encode()).hexdigest(), 'REVIEW_SQL_BINDING'
+    tuple_ = review['tuple']
+    assert tuple_['batchId'] == batch and all(tuple_[key] == outcome[key] for key in ['batchId','sourceId','sourceResultId']), 'OUTCOME_TUPLE_BINDING'
+    publish_result = published['result']
+    assert publish_result.get('status') == 'SUCCEEDED' or (publish_result.get('status') == 'FAILED' and publish_result.get('outcome') == 'UNKNOWN'), 'PUBLICATION_NOT_COMMITTED'
+    assert outcome['state'] == 'COMMITTED_EXACT', 'OUTCOME_NOT_COMMITTED'
+    for kind, pairs in requests.items():
+        for request, response in pairs:
+            result = response['result']
+            if kind in ['READ_CONTEXT','READ_PUBLICATION_CONTEXT']:
+                if kind == 'READ_PUBLICATION_CONTEXT':
+                    assert result['status'] == 'SUCCEEDED' and len(result['rows']) == 1, 'PUBLICATION_CONTEXT_INCOMPLETE'
+                    context = result['rows'][0]['context']
+                else:
+                    context = result
+                    assert request['payload']['sourceId'] == tuple_['sourceId'] and request['payload']['sourceConfigSha256'] == context['sourceConfigSha256'], 'CONTEXT_REQUEST_BINDING'
+                assert context['sourceId'] == tuple_['sourceId'] and context['candidateRow']['id'] == tuple_['releaseCandidateId'], 'CONTEXT_TUPLE_BINDING'
+            if kind == 'READ_OUTCOME':
+                assert result['status'] == 'SUCCEEDED' and len(result['rows']) == 1, 'READ_OUTCOME_INCOMPLETE'
+                row, batch_row = result['rows'][0]['row'], result['rows'][0]['batch']
+                assert row['id'] == tuple_['sourceResultId'] and all(row[key] == tuple_[key] for key in ['releaseCandidateId','batchId','sourceId']), 'READ_OUTCOME_TUPLE_BINDING'
+                assert row['atomicCommitState'] == 'COMMITTED' and batch_row['id'] == batch and batch_row['releaseCandidateId'] == tuple_['releaseCandidateId'] and batch_row['status'] == 'SUCCESS', 'READ_OUTCOME_NOT_COMMITTED'
+            selected['official/'+request['requestId']+'.request.json'] = request
+            selected['official/'+request['requestId']+'.response.json'] = response
+        if kind in ['PUBLISH','READ_OUTCOME']:
+            selected['official/'+kind+'.json'] = pairs[-1][1]
+    return selected, outcome, review
+
+def pack(runs, relay, output, request_ids):
+    # shortcut: the runtime backs up one completed source; use separate calls for separate runs.
+    assert len(runs) == 1, 'ONE_RUN_PER_PACKAGE_REQUIRED'
     members, summary = {}, []
     for run in runs:
         source, batch = run.parent.name, run.name
@@ -51,34 +86,8 @@ def pack(runs, relay, output, request_ids):
             selected['independent-validation-certificate.json'] = path
         selected = {name:json.loads(path.read_text()) for name,path in selected.items()}
         outcome, review = selected['OUTCOME.json'], selected['review/PACKET_REVIEW.json']
-        publication, published = requests['PUBLISH'][0]
-        assert review['requestId'] == publication['requestId'] and review['requestSha256'] == publication['requestSha256'], 'REVIEW_REQUEST_BINDING'
-        assert review['sqlSha256'] == hashlib.sha256(publication['payload']['sql'].encode()).hexdigest(), 'REVIEW_SQL_BINDING'
-        tuple_ = review['tuple']
-        assert tuple_['batchId'] == batch and all(tuple_[key] == outcome[key] for key in ['batchId','sourceId','sourceResultId']), 'OUTCOME_TUPLE_BINDING'
-        publish_result = published['result']
-        assert publish_result.get('status') == 'SUCCEEDED' or (publish_result.get('status') == 'FAILED' and publish_result.get('outcome') == 'UNKNOWN'), 'PUBLICATION_NOT_COMMITTED'
-        assert outcome['state'] == 'COMMITTED_EXACT', 'OUTCOME_NOT_COMMITTED'
-        for kind, pairs in requests.items():
-            for request, response in pairs:
-                result = response['result']
-                if kind in ['READ_CONTEXT','READ_PUBLICATION_CONTEXT']:
-                    if kind == 'READ_PUBLICATION_CONTEXT':
-                        assert result['status'] == 'SUCCEEDED' and len(result['rows']) == 1, 'PUBLICATION_CONTEXT_INCOMPLETE'
-                        context = result['rows'][0]['context']
-                    else:
-                        context = result
-                        assert request['payload']['sourceId'] == tuple_['sourceId'] and request['payload']['sourceConfigSha256'] == context['sourceConfigSha256'], 'CONTEXT_REQUEST_BINDING'
-                    assert context['sourceId'] == tuple_['sourceId'] and context['candidateRow']['id'] == tuple_['releaseCandidateId'], 'CONTEXT_TUPLE_BINDING'
-                if kind == 'READ_OUTCOME':
-                    assert result['status'] == 'SUCCEEDED' and len(result['rows']) == 1, 'READ_OUTCOME_INCOMPLETE'
-                    row, batch_row = result['rows'][0]['row'], result['rows'][0]['batch']
-                    assert row['id'] == tuple_['sourceResultId'] and all(row[key] == tuple_[key] for key in ['releaseCandidateId','batchId','sourceId']), 'READ_OUTCOME_TUPLE_BINDING'
-                    assert row['atomicCommitState'] == 'COMMITTED' and batch_row['id'] == batch and batch_row['releaseCandidateId'] == tuple_['releaseCandidateId'] and batch_row['status'] == 'SUCCESS', 'READ_OUTCOME_NOT_COMMITTED'
-                selected['official/'+request['requestId']+'.request.json'] = request
-                selected['official/'+request['requestId']+'.response.json'] = response
-            if kind in ['PUBLISH','READ_OUTCOME']:
-                selected['official/'+kind+'.json'] = pairs[-1][1]
+        official, _, _ = verified_committed_records(run, relay, request_ids)
+        selected.update(official)
         for name, value in selected.items():
             value = clean(value)
             data = (json.dumps(value, ensure_ascii=False, indent=2)+'\n').encode()
@@ -130,8 +139,38 @@ if __name__ == '__main__':
     parser.add_argument('--request-id', action='append')
     parser.add_argument('--output', type=pathlib.Path)
     parser.add_argument('--verify', type=pathlib.Path)
+    parser.add_argument('--verify-committed', action='store_true')
     args = parser.parse_args()
-    if args.verify: print(json.dumps(verify(args.verify)))
+    if args.verify_committed:
+        assert len(args.run or []) == 1
+        run = args.run[0]
+        official, outcome, review = verified_committed_records(run, args.relay, args.request_id)
+        terminal = json.loads((run/'producer-session.json').read_text())
+        assert terminal.get('exitCode') == 0 and terminal.get('outcomeState') == 'COMMITTED_EXACT', 'PRODUCER_TERMINAL_UNCONFIRMED'
+        checkpoint = json.loads((run/'relay-checkpoint.json').read_text())
+        assert checkpoint['sourceId'] == outcome['sourceId'] and checkpoint['batchId'] == outcome['batchId'] == run.name, 'CHECKPOINT_TUPLE_MISMATCH'
+        assert checkpoint['requestIds'] == args.request_id, 'CHECKPOINT_REQUESTS_MISMATCH'
+        backup_verified = False
+        packed = None
+        if (run/'backup/LOCAL_PACKAGE.json').exists():
+            packed = json.loads((run/'backup/LOCAL_PACKAGE.json').read_text())
+            assert len(packed['sources']) == 1 and packed['sources'][0]['source'] == run.parent.name and packed['sources'][0]['batch'] == run.name, 'BACKUP_BATCH_BINDING'
+        if (run/'backup/REMOTE_BACKUP_READBACK.json').exists():
+            receipt = json.loads((run/'backup/REMOTE_BACKUP_READBACK.json').read_text())
+            uploaded = json.loads((run/'backup/UPLOADED.json').read_text())
+            packed = json.loads((run/'backup/LOCAL_PACKAGE.json').read_text())
+            assert receipt['sources'] == packed['sources'], 'BACKUP_RECEIPT_BATCH_BINDING'
+            assert receipt['status'] == 'REMOTE_RESTORE_VERIFIED' and receipt['fileId'] == uploaded['fileId'], 'BACKUP_RECEIPT_BINDING'
+            assert receipt['sha256'] == uploaded['sha256'] == packed['sha256'] and receipt['members'] == packed['members'], 'BACKUP_RECEIPT_HASH'
+            backup_verified = True
+        web_verified = False
+        if (run/'WEB_READBACK_VERIFIED.json').exists():
+            web = json.loads((run/'WEB_READBACK_VERIFIED.json').read_text())
+            expected = json.loads((run/'review/EXPECTED_TARGET_API.json').read_text())
+            assert web['status'] == 'WEB_VERIFIED' and web['allFieldsMatch'] is True and web['uniqueJobs'] == len(expected['after']['jobs']) and web['lastSuccessAt'] == expected['afterCoverage']['lastSuccessAt'], 'WEB_RECEIPT_BINDING'
+            web_verified = True
+        print(json.dumps({'webVerified':web_verified,'state':'COMMITTED_EXACT','sourceId':outcome['sourceId'],'batchId':outcome['batchId'],'backupUploaded':(run/'backup/UPLOADED.json').exists(),'backupStarted':(run/'backup/UPLOAD_STARTED.json').exists(),'backupVerified':backup_verified}))
+    elif args.verify: print(json.dumps(verify(args.verify)))
     else:
         if not args.run or not args.relay or not args.output or not args.request_id: parser.error('--run, --relay, --output and --request-id required')
         print(json.dumps(pack(args.run, args.relay, args.output, args.request_id)))
