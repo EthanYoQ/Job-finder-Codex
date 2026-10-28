@@ -91,9 +91,12 @@ async function next(dir){
  if(r.requestId!==meta.requestId||r.requestSha256!==meta.requestSha256||r.kind!==meta.kind)throw Error("HOST_NEXT_REQUEST_CHANGED");
  return {...r,expired:meta.expired,dispatchRecorded:meta.dispatchRecorded};
 }
+// One helper belongs to one source; compilation and dispatch still verify the live binding.
+let validatedBinding;
 async function binding(){
+ if(validatedBinding)return validatedBinding;
  const b=JSON.parse(await cmd("node "+q(cfg.root+"/host-files.mts")+" connector-validate"));
- if(b.root!==cfg.root||b.repo!==cfg.repo||b.project!==cfg.project||b.mode!==cfg.mode||b.sourceId!==sourceId)throw Error("HOST_CONFIG_BINDING");return b;
+ if(b.root!==cfg.root||b.repo!==cfg.repo||b.project!==cfg.project||b.mode!==cfg.mode||b.sourceId!==sourceId)throw Error("HOST_CONFIG_BINDING");validatedBinding=b;return b;
 }
 return {cfg,q,cmd,readFile,rows,mark,respond,sqlDispatch,next,binding,responseDigest};
 

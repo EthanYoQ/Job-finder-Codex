@@ -91,3 +91,25 @@ for(const [state,error] of [[{sameSlot:true,fresh:true},/NEW_SUCCESS_BEFORE_DISP
 }
 assert.equal(recentQueries.length,4);
 console.log('PASS: actual Functions review passes context ID, permits only a due source in the same slot, and rejects current-slot success or a crossed slot');
+
+// Exercise the real helper, not a replacement cache implementation.
+let bindingCalls=0,failBinding=true,mismatchBinding=false;
+const bindingTools={exec_command:async()=>{
+ bindingCalls++;
+ if(failBinding)return {exit_code:1,output:'binding unavailable'};
+ return {exit_code:0,output:JSON.stringify({...config,sourceId:mismatchBinding?'source-other':config.sourceId})};
+}};
+const cached=await new A('load','tools',source)(()=>config,bindingTools);
+await assert.rejects(cached.binding(),/HOST_COMMAND:binding unavailable/);
+failBinding=false;mismatchBinding=true;
+await assert.rejects(cached.binding(),/HOST_CONFIG_BINDING/);
+mismatchBinding=false;
+const checked=await cached.binding();
+for(let request=0;request<4;request++)assert.strictEqual(await cached.binding(),checked);
+assert.equal(bindingCalls,3); // Two failures are retried; four request handles reuse success.
+const nextConfig={...config,sourceId:'source-next',bindingSha256:'b'.repeat(64)};
+const nextHelper=await new A('load','tools',source)(()=>nextConfig,{exec_command:async()=>{bindingCalls++;return {exit_code:0,output:JSON.stringify(nextConfig)};}});
+assert.equal((await nextHelper.binding()).sourceId,'source-next');
+assert.equal(bindingCalls,4);
+assert.equal((await cached.binding()).sourceId,'source-test');
+console.log('PASS: successful binding is reused only inside one helper; command and scope failures are not cached; a new source verifies independently');
