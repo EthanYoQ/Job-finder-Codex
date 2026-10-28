@@ -45,6 +45,7 @@ export function astraZenecaListCity(raw:string):string|undefined{
 }
 export function astraZenecaListLocation(raw:string):{city:string;region:string}|undefined{
   if(raw==='Multiple locations'||isAstraZenecaChina(raw))return undefined;
+  const province=astraZenecaRegion(raw);if(province)return {city:'',region:province};
   const parts=raw.trim().split(/\s+/u);const region=parts.shift()??'',city=parts.join(' ');
   if(!city||!region)throw Error('ASTRAZENECA_LIST_COUNTRY_INVALID');
   try{assertAstraZenecaMainlandParts(city,region);}catch{throw Error('ASTRAZENECA_LIST_COUNTRY_INVALID');}

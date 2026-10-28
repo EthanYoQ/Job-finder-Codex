@@ -1,0 +1,29 @@
+{
+  "baseCommit": "de6598eb37c13f40a51be4f34e58bf5ed173d115",
+  "isolatedOnly": true,
+  "registered": false,
+  "backupUploaded": false,
+  "files": [
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/workdayMainlandQuality.ts",
+      "before": "3b2684f3cd87fd44e18d2004068117740b5303455e0548e8f70f7267ad35d936",
+      "after": "4eca23075daf78916a190672b8449b69c6bbd155490388929e37f944e706f8ce"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaLocations.ts",
+      "before": "3e96088a8c3a2fd6c25d69841349ce247fda75fbb3fb401b2c808fd954621212",
+      "after": "26d6231abd066e054369df349effa8950ef411bb4ea763c66cd4ef8f79bf21a8"
+    }
+  ],
+  "validation": {
+    "recordedAt": "2026-10-28T15:36:33.704998+00:00",
+    "astraExistingTests": 82,
+    "amgenExistingTests": 65,
+    "testFiles": 6,
+    "passed": true,
+    "realRawOfflineAstraUniqueCount": 327,
+    "realRawNewCollection": false,
+    "amgenRealAffectedLocationProjection": "PASS",
+    "sourceCompleteNewRun": false
+  }
+}
