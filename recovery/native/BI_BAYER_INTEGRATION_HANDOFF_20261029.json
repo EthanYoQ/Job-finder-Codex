@@ -1,0 +1,53 @@
+{
+  "status": "FROZEN_OFFLINE_VERIFIED_PENDING_PRIVATE_BACKUP_NOT_ENABLED",
+  "parent": "faa13735708c4ffb30c3d9ba427ab364f0e6b1cf",
+  "integratedBiCommit": "8be8484f0c278b970cf8a20b39b6e4e8eb812684",
+  "externalUnchangedCommit": "92740ef402ddddecfff93e79c134f5e4827f5fab",
+  "sourceWhitelist": [
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/biSemanticCompleteness.ts",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/biSemanticCompleteness.test.ts",
+    "recovery/native/BI_GEOGRAPHY_FIX_20261029.json"
+  ],
+  "testSummary": {
+    "passed": 119,
+    "skipped": 1,
+    "biActualRawAndOutputCount": 52,
+    "biBeforeQuality": false,
+    "biAfterQuality": true,
+    "bayerOriginalJobs": 175,
+    "bayerMutationTests": 8
+  },
+  "parentPathsUnchanged": 12,
+  "doubleReaderDeployment": "NOT_DEPLOYED",
+  "productionChanged": false,
+  "excludedFromCodeBackup": [
+    "OFFLINE_COMPACT_RECEIPT.json",
+    "OFFLINE_FULL_PACKET.json",
+    "offline-original-archive-*",
+    "node_modules",
+    "tools/dot-auto-controller/vendor/synthetic-atomic-packet.json"
+  ],
+  "testCaveats": [
+    "Initial BI test fixture missing; rerun with original BI_RETAINED_EVIDENCE_PATH passed without fixture changes",
+    "Initial copied offline script still referenced previous inactive candidate and re-produced its same offline summaries; corrected new independent path then replayed successfully; verified recovery trees and active code unchanged",
+    "Prior native full tsc and nonformal heavy-reader/release-audit limitations remain; not claimed fixed",
+    "Initial full compiler default source was Lilly and correctly rejected Bayer; rerun binds JOBFINDER_CLOUD_SOURCE_ID to source-bayer-healthcare-social, without gate changes"
+  ],
+  "fullCompile": {
+    "classification": "OFFLINE_ONLY_HISTORICAL_IDENTITIES_NOT_AUTHORITY",
+    "batch": "dot-auto-bayer-20261029T122800159Z",
+    "sqlBytes": 420752,
+    "packetBytes": 1300789,
+    "originalSqlBytes": 3207382,
+    "oldCaptureStartedAt": "2026-10-29T12:31:49.236Z",
+    "compactCaptureStartedAt": "2026-10-29T12:28:15.451Z",
+    "expiresAt": "2026-10-29T12:58:15.451Z",
+    "exactFullRecompile": true,
+    "oneAtomicTransaction": true,
+    "lockExpiryContextPreserved": true,
+    "acceptedCompactContextReadPassed": true,
+    "contextMutationTests": 3,
+    "jobCount": 175
+  },
+  "frozenAt": "2026-10-29T13:23:20Z"
+}

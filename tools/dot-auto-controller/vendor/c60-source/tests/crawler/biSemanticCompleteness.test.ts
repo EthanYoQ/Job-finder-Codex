@@ -100,6 +100,14 @@ describe("BI reconstructed source semantic completeness, not acquisition or form
     expect(result.truth.completenessVerified).toBe(true);
     expect(result.observation.expectedJobCount).toBe(43);
   });
+  it.each([["合肥", "Hefei"], ["乌鲁木齐", "Urumqi"], ["张掖", "Zhangye"]])("accepts exact official locality %s/%s and rejects English mismatch", async (location, english) => {
+    const mutate = (rows: Row[], name: string) => Object.assign(rows[0]!, { jobareaname: location, workareaname: location, ejobareaname: name, eworkareaname: name });
+    const accepted = await crawl({ rows: rows => { mutate(rows, english); } });
+    expect(accepted.truth.completenessVerified).toBe(true);
+    const rejected = await crawl({ rows: rows => { mutate(rows, "Shanghai"); } });
+    expect(rejected.truth.completenessVerified).toBe(false);
+  });
+
   it.each(["上海市·Singapore", "上海HongKong", "香港", "新城市", "上海、北京"])("rejects coherent raw/output unknown full location %s", async location => {
     const result = await crawl({ rows: rows => { rows[0]!.jobareaname = location; rows[0]!.workareaname = location; } });
     expect(result.truth.completenessVerified).toBe(false);
