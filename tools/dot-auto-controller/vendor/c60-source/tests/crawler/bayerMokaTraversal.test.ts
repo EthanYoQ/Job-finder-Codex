@@ -1,7 +1,7 @@
 import { assertBGradePublicSnapshot } from "../helpers/assertBGradePublicSnapshot";
 import { assertBGradePilotContext } from "../helpers/assertBGradePilotContext";
 import { captureBayerIndependentDetails, type BayerDomCapture } from "../../src/crawler/bayerMokaRenderedTraversal";
-import { replayBayerMedicalTraversal } from "../../src/crawler/bayerMokaScope";
+import { bayerIndependentDetailScope, replayBayerMedicalTraversal } from "../../src/crawler/bayerMokaScope";
 import { createCipheriv, createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createMokaSourceFetch, type MokaHttpClient } from "../../src/crawler/mokaSourceFetch";
@@ -59,6 +59,30 @@ async function collect(options: { changeList?: (rows: any[]) => void; changeDeta
 }
 
 describe("Bayer medical native-scope B traversal", () => {
+  it("accepts a blank custom country only with positive mainland locations", async () => {
+    const { result, plan } = await collect({ changeDetails: details => details.forEach(d => {
+      d.customFields["290891"].value = "";
+      d.locations = [{ country: "中国", countryDescription: "中国", provinceName: "陕西", cityName: "西安市", cityId: 610100 }];
+    }) });
+    expect(result.truth.completenessVerified).toBe(true);
+    expect(result.jobs).toHaveLength(2);
+    expect(replayBayerMedicalTraversal(plan, result.fetchEvidence!, result.jobs)).toEqual({ excludedCount: 1 });
+  });
+  it.each(["missing-country", "foreign-country", "missing-locations", "empty-locations", "foreign-location", "conflicting-province", "unknown-city", "non-medical"])(
+    "rejects missing or contradictory evidence despite blank country: %s", kind => {
+      const d: any = detail(1);
+      d.customFields["290891"].value = "";
+      d.locations = [{ country: "中国", countryDescription: "中国", provinceName: "陕西", cityName: "西安市", cityId: 610100 }];
+      if (kind === "missing-country") delete d.customFields["290891"];
+      if (kind === "foreign-country") d.customFields["290891"].value = "Germany";
+      if (kind === "missing-locations") delete d.locations;
+      if (kind === "empty-locations") d.locations = [];
+      if (kind === "foreign-location") d.locations[0].country = "Germany";
+      if (kind === "conflicting-province") d.locations[0].provinceName = "广东";
+      if (kind === "unknown-city") d.locations[0].cityName = "未知城市";
+      if (kind === "non-medical") d.customFields["283170"].value = "Crop Science";
+      expect(() => bayerIndependentDetailScope({ id: d.id, title: d.title }, d)).toThrow();
+    });
   it("requests the official division filter and reconciles paused originals without rewriting the official total", async () => {
     const { requests, fetched, result } = await collect();
     expect(fetched.ok, !fetched.ok ? fetched.failureReason : undefined).toBe(true);

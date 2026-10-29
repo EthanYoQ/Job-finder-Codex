@@ -1,0 +1,38 @@
+{
+  "status": "OFFLINE_CANDIDATE_NOT_ENABLED",
+  "baseCommit": "63cdedd64e178449774e2dae5607e6841af675b7",
+  "fix": "Accept explicitly empty Bayer custom country only when existing required mainland locations provide positive geography; missing field or conflicting nonempty country still rejected",
+  "modifiedFiles": [
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/bayerMokaScope.ts",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/bayerMokaTraversal.test.ts"
+  ],
+  "patchSha256": "3ae4be0145fb62325491ccb079130a85314479e859cc0942d0d6ca78043b9b10",
+  "tests": {
+    "combinedFiles": 6,
+    "combinedPassed": 127,
+    "bayerPassed": 53,
+    "newBayerCases": 9,
+    "realFailureOriginalAgainstOldNew": "PASS"
+  },
+  "constraints": {
+    "activeCodeChanged": false,
+    "nativeRegistration": false,
+    "freshCollection": false,
+    "productionDatabaseWrite": false,
+    "webDeployment": false,
+    "backupUploaded": false
+  },
+  "evidence": "BAYER_COUNTRY_OFFLINE_RESULT.json",
+  "testLog": "BAYER_COMBINED_TEST.log",
+  "notEstablished": "Only first detail captured; number of other affected Bayer jobs unknown. Full fresh 175-list/detail and dual-chain production run still required.",
+  "files": [
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/bayerMokaScope.ts",
+      "sha256": "c718226f0fd2e7325174ce18dd2c89fc7f60fa1ac89c2d36bdd67d4ec90f5eac"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/tests/crawler/bayerMokaTraversal.test.ts",
+      "sha256": "8881f62609972a02f3b3d3d49f89897cfa56da52fb35663b874b4f7217b349c7"
+    }
+  ]
+}
