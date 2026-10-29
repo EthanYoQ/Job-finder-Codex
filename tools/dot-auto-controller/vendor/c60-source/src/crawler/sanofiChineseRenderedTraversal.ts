@@ -1,3 +1,5 @@
+import { ajingaRoute, captureSanofiChineseAjinga, replaySanofiChineseAjinga } from "./sanofiChineseAjinga";
+import type { SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import { load } from "cheerio";
 import { isDeepStrictEqual as same } from "node:util";
 import type { HttpHtmlClient } from "./httpHtmlSourceFetch";
@@ -53,10 +55,11 @@ export async function captureSanofiChineseIndependent(input:{dom:SanofiChineseDo
     const domPage=input.dom.pages[pageIndex]!,rawRows:OfficialJsonRenderedPageCapture["rawRows"][number][]=[];
     const collect=async(row:SanofiChineseRow,recordIndex:number)=>{
       const detailResponse=await get(row.url,input.dom.pages.at(-1)!.capturedAt),detail=parseSanofiChineseDetail(detailResponse.body,row);
-      const nativeResponse=detail.countryScope==="MAINLAND"?await get(detail.applyUrl,detailResponse.capturedAt,"error"):undefined;
-      const native=nativeResponse?parseSanofiChineseNative(nativeResponse.body,detail):undefined,state=native?.state??"OUTSIDE",id=sanofiPersistentJobId(detail.reqId);
+      const ajingaArtifacts=detail.countryScope==="MAINLAND"&&ajingaRoute(detail)?await captureSanofiChineseAjinga(detail,input.dom.observedAt,http,async a=>{await input.onReceipt?.({method:"GET",url:a.requestedUrl!,finalUrl:a.finalUrl??"",status:a.httpStatus!,contentType:a.contentType??"",capturedAt:a.capturedAt,body:String(a.body),bodySha256:sanofiHash(String(a.body))},ordinal++);}):undefined;
+      const nativeResponse=detail.countryScope==="MAINLAND"&&!ajingaArtifacts?await get(detail.applyUrl,detailResponse.capturedAt,"error"):undefined;
+      const native=ajingaArtifacts?replaySanofiChineseAjinga(detail,input.dom.observedAt,ajingaArtifacts):nativeResponse?parseSanofiChineseNative(nativeResponse.body,detail):undefined,state=native?.state??"OUTSIDE",id=sanofiPersistentJobId(detail.reqId);
       return {sourceJobId:id,rawEvidenceId:sanofiRawEvidenceId(row.id),recordIndex,scopeMarker:state,scopeDecision:state==="PUBLISHING"?"INCLUDED_MAINLAND" as const:"EXCLUDED_AUDITED" as const,
-        rawPayload:{captureMethod:SANOFI_CN_INDEPENDENT_PATH,domPage,domRow:row,detailResponse,...(nativeResponse?{nativeResponse}:{}),...(native?.descriptionAnomaly?{descriptionAnomaly:native.descriptionAnomaly}:{})}};
+        rawPayload:{captureMethod:SANOFI_CN_INDEPENDENT_PATH,domPage,domRow:row,detailResponse,...(nativeResponse?{nativeResponse}:{}),...(ajingaArtifacts?{ajingaArtifacts}:{}),...(native?.descriptionAnomaly?{descriptionAnomaly:native.descriptionAnomaly}:{})}};
     };
     for(let offset=0;offset<own.length;offset+=4){const settled=await Promise.allSettled(own.slice(offset,offset+4).map((row,i)=>collect(row,offset+i)));
       const failed=settled.find((r):r is PromiseRejectedResult=>r.status==="rejected");if(failed)throw failed.reason;
@@ -75,7 +78,8 @@ export function replaySanofiChineseIndependent(pages:readonly OfficialJsonRender
       const v=r.rawPayload,row=v.domRow as SanofiChineseRow;assert(v.captureMethod===SANOFI_CN_INDEPENDENT_PATH&&r.recordIndex===index&&same(v.domPage,domPage));
       const detailResponse=v.detailResponse as NativeReceipt;validateReceipt(detailResponse,row.url,domPage.capturedAt);const detail=parseSanofiChineseDetail(detailResponse.body,row);
       const native=v.nativeResponse as NativeReceipt|undefined;let parsed:ReturnType<typeof parseSanofiChineseNative>|undefined;
-      if(detail.countryScope==="OUTSIDE"){assert(native===undefined);}else{validateReceipt(native,detail.applyUrl,detailResponse.capturedAt);parsed=parseSanofiChineseNative(native.body,detail);}
+      const ajingaArtifacts=v.ajingaArtifacts as SourceFetchArtifactDraft[]|undefined;
+      if(detail.countryScope==="OUTSIDE"){assert(native===undefined&&ajingaArtifacts===undefined);}else if(ajingaRoute(detail)){assert(native===undefined&&ajingaArtifacts);parsed=replaySanofiChineseAjinga(detail,dom.observedAt,ajingaArtifacts!);}else{assert(ajingaArtifacts===undefined);validateReceipt(native,detail.applyUrl,detailResponse.capturedAt);parsed=parseSanofiChineseNative(native.body,detail);}
       const decision=sanofiChineseDecision(detail,parsed),state=decision.state,descriptionAnomaly=parsed?.descriptionAnomaly;
       assert(same(v.descriptionAnomaly,descriptionAnomaly));if(descriptionAnomaly)descriptionAnomalies.push(descriptionAnomaly);
       const id=sanofiPersistentJobId(detail.reqId),rawId=sanofiRawEvidenceId(row.id),included=state==="PUBLISHING";
@@ -94,5 +98,5 @@ export function sanofiChineseIndependentObservedAt(pages:readonly OfficialJsonRe
   const at=(pages[0]?.rawRows[0]?.rawPayload.domPage as SanofiChineseDomPage|undefined)?.capturedAt;assert(at&&time(at));return at!;
 }
 export function sanofiChineseIndependentFinishedAt(pages:readonly OfficialJsonRenderedPageCapture[]):string {
-  const times=pages.flatMap(p=>p.rawRows.flatMap(r=>[(r.rawPayload.detailResponse as NativeReceipt)?.capturedAt,...(r.rawPayload.nativeResponse?[(r.rawPayload.nativeResponse as NativeReceipt).capturedAt]:[])]));assert(times.length>0&&times.every(time));return times.sort().at(-1)!;
+  const times=pages.flatMap(p=>p.rawRows.flatMap(r=>[(r.rawPayload.detailResponse as NativeReceipt)?.capturedAt,...(r.rawPayload.nativeResponse?[(r.rawPayload.nativeResponse as NativeReceipt).capturedAt]:[]),...((r.rawPayload.ajingaArtifacts as SourceFetchArtifactDraft[]|undefined)??[]).map(a=>a.capturedAt)]));assert(times.length>0&&times.every(time));return times.sort().at(-1)!;
 }

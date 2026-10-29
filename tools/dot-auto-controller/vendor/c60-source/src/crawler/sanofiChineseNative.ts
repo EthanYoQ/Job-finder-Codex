@@ -1,3 +1,4 @@
+import { ajingaRoute, captureSanofiChineseAjinga, replaySanofiChineseAjinga, sanofiAjingaKeys } from "./sanofiChineseAjinga";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual as same } from "node:util";
 import { load } from "cheerio";
@@ -114,7 +115,7 @@ function parseChineseDetail(html:string,row:SanofiChineseRow,allowForeignHeader:
       chineseDescriptionSha256:sanofiHash(description),mainArtifactBodySha256:sanofiHash(html),foreignId:foreignId!,foreignReq:foreignReq!,foreignTitle,foreignApplyUrl,
       foreignDescriptionSha256:sanofiHash(sanofiDescription(jd.text())),foreignHeaderSha256:sanofiHash($.html(header)),foreignModuleSha256:sanofiHash($.html(module))};
   }
-  requireValue(applyUrl===tupu||outside&&applyUrl===`https://jobs.sanofi.cn/sys/apply/job/application/2649/${row.id}`);
+  requireValue(applyUrl===tupu||ownHeader&&mainland&&ajingaRoute({applyUrl,reqId:reqId as string})||outside&&applyUrl===`https://jobs.sanofi.cn/sys/apply/job/application/2649/${row.id}`);
   let anomaly:SanofiModuleAnomaly|undefined;
   if(!headerAnomaly&&(!parseSanofiDetail(html,row.url,row.id)||(main.find(".job-description.section7-details").attr("data-job-id")!==undefined&&main.find(".job-description.section7-details").attr("data-job-id")!==row.id))){
     const detail=main.find(".job-description.section7-details"),jd=detail.find(".ats-description"),foreignId=detail.attr("data-job-id"),bottom=detail.find('[data-selector-name="job-apply-link"]');
@@ -250,6 +251,7 @@ function project(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,primary:
     let native:SanofiChineseNativeResult|undefined;
     let excluded:string|undefined,reason:string|undefined,location:{locationRaw:string;cities:string[]}|undefined;
     if(detail.countryScope==="OUTSIDE"){excluded="SANOFI_CN_OFFICIAL_OUTSIDE_MAINLAND";reason="Sanofi Chinese official detail explicitly places the job outside mainland China";}
+    else if(ajingaRoute(detail)){const own=sanofiAjingaKeys(detail.reqId).map(key=>{used.add(key);return map.get(key)!;});requireValue(own.every(Boolean));native=replaySanofiChineseAjinga(detail,start,own);location={locationRaw:native.locationRaw!,cities:native.cities!};}
     else {const tKey=`sanofi-cn-tupu-${detail.reqId}`,t=map.get(tKey);requireValue(exactArtifact(t,detail.applyUrl,detail.headerAnomaly?"native-no-redirect":"native",detail.reqId,start));used.add(tKey);
       native=parseSanofiChineseNative(body(t!),detail);if(native.descriptionAnomaly)anomalies.push(native.descriptionAnomaly);if(native.state==="CLOSED"){excluded="SANOFI_CN_NATIVE_CLOSED";reason="Sanofi Chinese native application explicitly closes this requisition";closedIds.add(sanofiPersistentJobId(detail.reqId));}
       else location={locationRaw:native.locationRaw!,cities:native.cities!};
@@ -270,7 +272,7 @@ export function replaySanofiChineseNative(plan:SourceCrawlPlan,input:PersistentS
   const audit=anomaly?parseJson(body(anomaly)):undefined,independentArtifactSha256=audit?.independentArtifactSha256;
   requireValue(independentArtifactSha256===undefined||typeof independentArtifactSha256==="string"&&/^[a-f0-9]{64}$/u.test(independentArtifactSha256));
   requireValue(anomaly?.kind==="ORACLE_RESULT"&&anomaly.bodyRepresentation==="EXACT"&&anomaly.extractorLocator===ANOMALIES&&
-    anomaly.capturedAt===e.artifacts.filter(a=>a.kind==="ATS_PAGE").at(-1)!.capturedAt&&same(audit,{schemaVersion:3,entries:result.anomalies,decisions:result.decisions,...(independentArtifactSha256===undefined?{}:{independentArtifactSha256})}));
+    anomaly.capturedAt===e.artifacts.filter(a=>a.kind==="ATS_PAGE"||a.kind==="ATS_API_RESPONSE").at(-1)!.capturedAt&&same(audit,{schemaVersion:3,entries:result.anomalies,decisions:result.decisions,...(independentArtifactSha256===undefined?{}:{independentArtifactSha256})}));
   requireValue(same(e.pages,result.pages)&&same(e.fetchCounts,result.counts)&&same(e.fetchLosses,result.losses)&&
     same(e.declaredCompleteness,{...primary.declaredCompleteness,kind:"COMPLETE_PAGE_TRAVERSAL",value:primary.pages.length}));return result;
 }
@@ -310,7 +312,8 @@ export function createSanofiChineseSourceFetch(deps:SanofiChineseSourceFetchDeps
       const rows=listRows(primary);
       for(let offset=0;offset<rows.length;offset+=4){const results=await Promise.allSettled(rows.slice(offset,offset+4).map(async row=>{
         const a=await get(row.url,`sanofi-cn-detail-${row.id}`,"detail",row.id),detail=parseSanofiChineseMainDetail(body(a),row);
-        if(detail.countryScope==="MAINLAND"){const native=await get(detail.applyUrl,`sanofi-cn-tupu-${detail.reqId}`,detail.headerAnomaly?"native-no-redirect":"native",detail.reqId);parseSanofiChineseNative(body(native),detail);}
+        if(detail.countryScope==="MAINLAND"&&ajingaRoute(detail)){await captureSanofiChineseAjinga(detail,capturedAt,http,a=>{artifacts.push(a);});}
+        else if(detail.countryScope==="MAINLAND"){const native=await get(detail.applyUrl,`sanofi-cn-tupu-${detail.reqId}`,detail.headerAnomaly?"native-no-redirect":"native",detail.reqId);parseSanofiChineseNative(body(native),detail);}
       }));const failed=results.find((r):r is PromiseRejectedResult=>r.status==="rejected");if(failed)throw failed.reason;}
       const last=artifacts.at(-1)!.capturedAt;artifacts.push({id:ANOMALIES,logicalKey:ANOMALIES,kind:"ORACLE_RESULT",capturedAt:last,body:"{}",bodyRepresentation:"EXACT",extractorLocator:ANOMALIES});
       const projected=project(plan,primary,artifacts,true);artifacts.at(-1)!.body=JSON.stringify({schemaVersion:3,entries:projected.anomalies,decisions:projected.decisions});

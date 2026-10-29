@@ -329,3 +329,26 @@ describe("Sanofi Chinese-only native source contract",()=>{
     for(const html of [company,company+'<div class="card-body">未知错误</div>',company+'<div class="card-body">该职位已下线，可能需要登录</div>',company+'<div class="card-body">该职位已下线</div><input id="positionStatus" value="PUBLISHING">'])expect(()=>parseSanofiChineseNative(html,d)).toThrow();
   });
 });
+
+// New official Ajinga chain uses the existing exact identity/status projection.
+describe("Sanofi Chinese Ajinga compatibility",()=>{
+ it("captures and replays both existing Chinese paths without pretending JSON is Tupu HTML",async()=>{
+  const apply=(i:number)=>`https://www.ajinga.com/ats/job-detail-new/13537/${req(i)}/c/?show_policy_popup=1&aj_source=sanofi_careersite&aj_code=radancyjoblist`;
+  const http:HttpHtmlClient=async r=>{
+   const u=new URL(r.url);let body:string,finalUrl=r.url,contentType="text/html";
+   if(r.url===SANOFI_CN_ENTRY)body='<section id="search-results" data-ajax-url="/search-results" data-total-pages="1" data-total-job-results="3" data-records-per-page="15" data-active-facet-id="0"></section><div id="search-filters"></div>';
+   else if(u.pathname==="/search-results"){body=JSON.stringify({results:results(),filters:'<section id="search-filters"><input class="filter-checkbox"></section>',hasJobs:true,hasContent:false});contentType="application/json";}
+   else if(u.hostname==="jobs.sanofi.cn"){const i=Number(u.pathname.split('/').at(-1))-100;body=detail(i).replaceAll(`https://careersite.tupu360.com/sanofi/position/detail?exid=${req(i)}`,apply(i));}
+   else if(u.pathname.startsWith("/ats/")){const i=Number(/R900000(\d)/u.exec(r.url)![1]);body="<html>Official SPA</html>";finalUrl=`https://www.ajinga.com/recruiting/company/13537/job/${1000+i}/job-detail`;}
+   else if(u.pathname.includes("/info/")){const id=Number(u.searchParams.get("job_id")),i=id-1000;body=JSON.stringify({code:200,data:{data:{is_in_china:true,company:{id:13965,root_company:{id:13537}},job:{id,root_company_id:13537,company:{id:13965},i18n_name:`${req(i)} ${title(i)}`,description:description(i),job_visibility:"IE",short_unique_id:`s${i}`,job_locations:[{city:{cn_name:"嘉兴市"}}]}}}});contentType="application/json";}
+   else if(u.pathname.endsWith("/apply-status/")){const id=1000+Number(u.searchParams.get("short_id")!.slice(1));body=JSON.stringify({code:200,data:{show_apply:1,normal_share_url:`https://www.ajinga.com/recruiting/company/13965/job/${id}/job-detail`}});contentType="application/json";}
+   else throw Error("unexpected fixture URL");return {status:200,body,finalUrl,contentType,capturedAt:AT};
+  };
+  const p=plan(),fetched=await createSanofiChineseSourceFetch({http,now:()=>new Date(AT)})(p);expect(fetched.ok).toBe(true);
+  const result=await runSourceCrawl(p,{fetch:()=>fetched,isBaseline:false});expect(result.jobs).toHaveLength(3);
+  const replay=replaySanofiChineseNative(p,result.fetchEvidence!,false);expect(replay.jobs).toHaveLength(3);
+  const independent=await captureSanofiChineseIndependent({dom:dom(),http,now:()=>new Date(AT)});
+  expect(replaySanofiChineseIndependent(independent.pages).decisions).toEqual(replay.decisions);
+  expect(independent.pages[0]!.rawRows.every(r=>r.rawPayload.ajingaArtifacts&&!r.rawPayload.nativeResponse)).toBe(true);
+ });
+});

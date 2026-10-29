@@ -1,0 +1,38 @@
+{
+  "status": "INDEPENDENT_INTEGRATION_TESTED_NOT_ENABLED",
+  "parentCommit": "85d8d78b961af5c0ca87e7019e615c6bec66eccc",
+  "commonBase": "55eb1f9bacc77d79d934271e179778fd354917e7",
+  "productionAndTestPaths": [
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/sanofiChineseAjinga.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/sanofiChineseNative.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/sanofiChineseRenderedTraversal.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/sanofiNativeQuality.ts",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/sanofiChineseNative.test.ts"
+  ],
+  "nonoverlap": true,
+  "parentTrackedFilesCompared": 2011,
+  "allOtherParentFilesUnchanged": true,
+  "tests": {
+    "suites": 9,
+    "passed": 385,
+    "sanofiOriginalCaptureReplay": "PASS",
+    "sanofiNegativeMutations": 9,
+    "organonOriginalListRows": 11,
+    "organonNegativeMutations": 16,
+    "gitDiffCheck": "PASS"
+  },
+  "limitations": [
+    "No fresh full traversal or publication",
+    "Organon proof covers list identity/geography, not native detail or application state",
+    "Existing baseline TypeScript errors not changed or claimed passed",
+    "Current cell263/source123 unchanged"
+  ],
+  "backupWhitelist": [
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/sanofiChineseAjinga.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/sanofiChineseNative.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/sanofiChineseRenderedTraversal.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/sanofiNativeQuality.ts",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/sanofiChineseNative.test.ts",
+    "recovery/SANOFI_ORGANON_INTEGRATION_20261029.json"
+  ]
+}
