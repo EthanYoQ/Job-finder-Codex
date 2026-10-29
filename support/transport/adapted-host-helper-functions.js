@@ -2,6 +2,7 @@
 const loaded=load("cloudPilotHostConfig");
 if(!["TAKEDA_PORTABLE_CONNECTOR_V1","NATIVE_PORTABLE_CONNECTOR_V1","NATIVE_AB_CONNECTOR_V1"].includes(loaded?.mode))throw Error("HOST_CONFIG_REQUIRED");
 const cfg=Object.freeze({...loaded});
+if(cfg.roundId!==undefined&&!/^round-[a-f0-9]{32}$/.test(cfg.roundId))throw Error("HOST_ROUND_SELECTOR");
 const sourceId=cfg?.sourceId??(cfg.mode==="TAKEDA_PORTABLE_CONNECTOR_V1"?"source-takeda-china-social":undefined);
 if(!/^source-[a-z0-9-]+$/.test(sourceId??""))throw Error("HOST_SOURCE_ENV");
 if(!/^[a-f0-9]{64}$/.test(cfg.bindingSha256??""))throw Error("HOST_CONFIG_REQUIRED");
@@ -10,7 +11,7 @@ async function cmd(command,max=10000){
  const script=["host-files.mts","relay-files.mjs"].find(name=>command.startsWith("node "+q(cfg.root+"/"+name)+" "));
  if(!script)throw Error("HOST_COMMAND_SCOPE");
  command="/usr/bin/python3 -I "+q(cfg.root+"/connector-host-launch.py")+" "+q(script)+command.slice(("node "+q(cfg.root+"/"+script)).length);
- let r=await tools.exec_command({cmd:"JOBFINDER_CONNECTOR_HOST_SHA256="+q(cfg.bindingSha256)+" JOBFINDER_CLOUD_SOURCE_ID="+q(sourceId)+" "+command,workdir:cfg.repo,max_output_tokens:max,yield_time_ms:10000}),output=r.output;while(r.session_id){r=await tools.write_stdin({session_id:r.session_id,chars:"",yield_time_ms:1000,max_output_tokens:max});output+=r.output;}if(r.exit_code!==0)throw Error("HOST_COMMAND:"+output);return output;}
+ let r=await tools.exec_command({cmd:"JOBFINDER_CONNECTOR_HOST_SHA256="+q(cfg.bindingSha256)+" JOBFINDER_CLOUD_SOURCE_ID="+q(sourceId)+(cfg.roundId?" JOBFINDER_CONNECTOR_ROUND_ID="+q(cfg.roundId):"")+" "+command,workdir:cfg.repo,max_output_tokens:max,yield_time_ms:10000}),output=r.output;while(r.session_id){r=await tools.write_stdin({session_id:r.session_id,chars:"",yield_time_ms:1000,max_output_tokens:max});output+=r.output;}if(r.exit_code!==0)throw Error("HOST_COMMAND:"+output);return output;}
 async function readFile(path){let offset=0,parts=[],hash,total;while(true){const r=JSON.parse(await cmd("node "+q(cfg.root+"/host-files.mts")+" connector-read "+q(path)+" "+offset,100000));if(hash&&hash!==r.sha256)throw Error("HOST_READ_CHANGED");hash=r.sha256;total=r.charCount;parts.push(r.text);if(r.next===null)break;offset=r.next;}const text=parts.join("");if(text.length!==total)throw Error("HOST_READ_INCOMPLETE");return {text,hash};}
 function rows(result){if(result.isError)throw Error("HOST_SQL_TOOL_ERROR:"+JSON.stringify(result));const t=result.structuredContent?.result??JSON.parse(result.content.find(x=>x.type==="text").text).result; if(typeof t!=="string")throw Error("HOST_SQL_RESULT_SHAPE");const m=t.match(/\n<untrusted-data-[^>]+>\n([\s\S]*?)\n<\/untrusted-data-/);if(!m)throw Error("HOST_SQL_ROWS_MISSING");const r=JSON.parse(m[1]);if(!Array.isArray(r))throw Error("HOST_SQL_ROWS_INVALID");return r;}
 async function mark(r,dir){const current=JSON.parse((await readFile(dir+"/"+r.requestId+".request.json")).text);const {expired,dispatchRecorded,...expected}=r;if(JSON.stringify(current)!==JSON.stringify(expected))throw Error("HOST_REQUEST_CHANGED");await cmd("node "+q(cfg.root+"/relay-files.mjs")+" mark-dispatch "+q(dir)+" "+q(r.requestId)+" "+q(r.requestSha256));}

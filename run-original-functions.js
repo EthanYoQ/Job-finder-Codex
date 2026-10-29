@@ -1,5 +1,8 @@
 // Existing Functions runtime entry. Concrete source adapters reuse their original packet and raw-review functions.
-const B='/workspace/scratch/5e9614251709',R=B+'/takeda-original-recovery-20261017T0417Z',D=B+'/original-relay-automation-20261017T0609Z',P=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller',V=P+'/vendor/c60-source',N=B+'/connector-host-runtime/node',relay=B+'/connector-host-task/relay';
+const B='/workspace/scratch/5e9614251709',R=B+'/takeda-original-recovery-20261017T0417Z',D=B+'/original-relay-automation-20261017T0609Z',P=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller',V=P+'/vendor/c60-source',N=B+'/connector-host-runtime/node';
+const roundId=load('originalRelayRoundId');
+if(roundId!==undefined&&!/^round-[a-f0-9]{32}$/.test(roundId))throw Error('HOST_ROUND_SELECTOR');
+const defaultRelay=B+'/connector-host-task/relay',relay=roundId?B+'/rounds/'+roundId+'/connector-host-task/relay':defaultRelay;
 const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'",A=Object.getPrototypeOf(async function(){}).constructor;
 async function command(cmd){let r=await tools.exec_command({cmd,max_output_tokens:200000}),output=r.output;while(r.session_id){r=await tools.write_stdin({session_id:r.session_id,chars:'',yield_time_ms:1000,max_output_tokens:200000});output+=r.output;}if(r.exit_code!==0)throw Error('LOCAL_STEP:exit='+String(r.exit_code)+'; '+output);return output;}
 const read=p=>command('cat '+q(p)),save=async(p,x)=>{const r=await tools.apply_patch('*** Begin Patch\n*** Add File: '+p+'\n'+JSON.stringify(x).split('\n').map(s=>'+'+s).join('\n')+'\n*** End Patch');if(r?.isError)throw Error('SAVE_FAILED');};
@@ -15,8 +18,11 @@ async function resumeTail(sourceId,run){
  return resumeCommittedTail({
   verifyCommitted:async()=>{
    if(!run.startsWith(R+'/'+sourceFolders[sourceId]+'/dot-auto-')||run.includes('/../'))throw Error('RESUME_RUN_SCOPE');
-   const checkpoint=JSON.parse(await read(run+'/relay-checkpoint.json'));if(checkpoint.sourceId!==sourceId||checkpoint.batchId!==run.split('/').at(-1))throw Error('RESUME_SOURCE_OR_BATCH');
-   return JSON.parse(await command('python3 '+q(D+'/package-success-evidence.py')+' --verify-committed --run '+q(run)+' --relay '+q(relay)+checkpoint.requestIds.map(id=>' --request-id '+q(id)).join('')));
+   const checkpoint=JSON.parse(await read(run+'/relay-checkpoint.json'));
+   const batchRelay=checkpoint.relayDirectory??defaultRelay;
+   if(batchRelay!==defaultRelay&&!new RegExp('^'+B+'/rounds/round-[a-f0-9]{32}/connector-host-task/relay$').test(batchRelay))throw Error('RESUME_RELAY_SCOPE');
+   if(checkpoint.sourceId!==sourceId||checkpoint.batchId!==run.split('/').at(-1))throw Error('RESUME_SOURCE_OR_BATCH');
+   return JSON.parse(await command('python3 '+q(D+'/package-success-evidence.py')+' --verify-committed --run '+q(run)+' --relay '+q(batchRelay)+checkpoint.requestIds.map(id=>' --request-id '+q(id)).join('')));
   },
   readback:async()=>JSON.parse(await command('python3 '+q(D+'/readback-original-web.py')+' '+q(run))),
   verifyUploaded:async()=>{
@@ -42,6 +48,7 @@ const states=(await sql(`SELECT requested.id AS "sourceId",clock_timestamp() AS 
 const slotStartMs=Math.floor(Date.parse(states[0].checkedAt)/43200000)*43200000,slotEndMs=slotStartMs+43200000,slotStart=new Date(slotStartMs).toISOString(),slotEnd=new Date(slotEndMs).toISOString();
 const succeededInSlot=s=>s.crawledAt&&Date.parse(s.crawledAt)>=slotStartMs&&Date.parse(s.crawledAt)<slotEndMs;
 if(load('originalRelayReadOnly')===true)return states.map(s=>({sourceId:s.sourceId,checkedAt:s.checkedAt,crawledAt:s.crawledAt,status:succeededInSlot(s)?'SKIPPED_CURRENT_SLOT':'DUE_READ_ONLY'}));
+if(roundId)await command('python3 -c '+q("import pathlib,sys; p=pathlib.Path(sys.argv[1]); [d.mkdir(mode=0o700,exist_ok=True) for d in [p.parents[2],p.parents[1],p.parent,p]]")+' '+q(relay));
 return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const state=stateById[sourceId];
  if(Date.now()>=slotEndMs)throw Error('SCHEDULE_SLOT_ENDED:'+slotStart);
@@ -57,7 +64,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const active=await command("python3 -c "+q("import pathlib; print(any((p.read_bytes().split(b'\\0')[0].endswith(b'/node') and any(a.endswith(b'/run-with-http-diagnostics.mjs') or a.endswith(b'/p0-cloud-portable-source-pilot.ts') or a.endswith(b'/p0-cloud-source-pilot.ts') for a in p.read_bytes().split(b'\\0'))) for p in pathlib.Path('/proc').glob('[0-9]*/cmdline') if p.exists()))"));if(active.trim()==='True')throw Error('EXISTING_CLOUD_PRODUCER_RECONCILE_ONLY');
  const {config,control,binding}=JSON.parse(await command('python3 '+q(D+'/prepare-original-source.py')+' '+q(sourceId)+' '+q(sourceFolders[sourceId])));
  const S=R+'/'+sourceFolders[sourceId];
- store('cloudPilotHostConfig',{mode:config.mode,bindingSha256:binding.sha256,root:V+'/ops/cloud-pilot-host',repo:V,project:'yiopvxysxrtrnvqxwgbx',sourceId});
+ store('cloudPilotHostConfig',{mode:config.mode,bindingSha256:binding.sha256,root:V+'/ops/cloud-pilot-host',repo:V,roundId,project:'yiopvxysxrtrnvqxwgbx',sourceId});
  const stage=await new A(load('cloudPilotHostStages'))();await stage.h.binding();if(await stage.h.next(relay))throw Error('EXISTING_RELAY_RECONCILE_ONLY'); // Existing identity validator rejects stale source/build bindings.
  const template=await read(R+'/transport/'+(sourceId==='source-sanofi-china-social'?'sanofi-reader-before-original.sql':'viatris-reader-before-original.sql'));
  const query=template.replaceAll('__ORIGINAL_CERTIFICATE_SCHEMA__',routeById[sourceId].route==='PORTABLE'?'plan-bound-source-quality-v1':routeById[sourceId].route==='TRUE_A'?'a-grade-official-total-v2':'b-grade-independent-traversal-v2').replaceAll('__ORIGINAL_REQUIRES_PORTABLE_POLICY__',String(routeById[sourceId].route==='PORTABLE')).replaceAll('source-viatris-social',sourceId).replaceAll('company-viatris',routeById[sourceId].companyId).replaceAll('5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9',config.sourceConfigSha256).replaceAll('dot-cloud-native-c2b39d9-20261016',control.candidate.id).replaceAll('viatris-reader-before-v1',sourceFolders[sourceId]+'-reader-before-v1');
@@ -113,11 +120,11 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  await save(run+'/bootstrap.json',{schemaVersion:1,checkedAt:new Date(fresh.checkedAt).toISOString(),candidateRows:[fresh.candidate],batchId,...(currentCapture?{currentCapture}:{}),...(independentValidation?{independentValidation}:{})});
  const digest=(await command('sha256sum '+q(run+'/bootstrap.json'))).split(' ')[0];
  let started;
- try{started=await tools.exec_command({cmd:'PYTHONDONTWRITEBYTECODE=1 TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+' python3 '+q(R+'/capture-simple-guard.py')+' -- '+q(N)+' '+q(V+'/scripts/run-with-http-diagnostics.mjs')+' '+q(run+'/diagnostics')+' 1800000 -- '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/'+(config.route==='PORTABLE'?'p0-cloud-portable-source-pilot.ts':'p0-cloud-source-pilot.ts'))+' '+q(run+'/bootstrap.json')+' '+digest+' '+q(run+'/artifacts')+' '+q(relay)+' --db-started-control '+q(S+'/control-base.json'),yield_time_ms:1000,max_output_tokens:1000});await save(run+'/producer-session.json',{sessionId:started.session_id??null,exitCode:started.exit_code??null,recordedAt:new Date().toISOString()});}
+ try{started=await tools.exec_command({cmd:'PYTHONDONTWRITEBYTECODE=1 TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+(roundId?' JOBFINDER_CONNECTOR_ROUND_ID='+q(roundId):'')+' python3 '+q(R+'/capture-simple-guard.py')+' -- '+q(N)+' '+q(V+'/scripts/run-with-http-diagnostics.mjs')+' '+q(run+'/diagnostics')+' 1800000 -- '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/'+(config.route==='PORTABLE'?'p0-cloud-portable-source-pilot.ts':'p0-cloud-source-pilot.ts'))+' '+q(run+'/bootstrap.json')+' '+digest+' '+q(run+'/artifacts')+' '+q(relay)+' --db-started-control '+q(S+'/control-base.json'),yield_time_ms:1000,max_output_tokens:1000});await save(run+'/producer-session.json',{sessionId:started.session_id??null,exitCode:started.exit_code??null,recordedAt:new Date().toISOString()});}
  catch(error){error.producerStateUnconfirmed=true;throw error;}
  let process=started, terminalRecorded=false;
  return {stage,sourceId,runDirectory:run,relayDirectory:relay,deadline:Date.now()+1800000,
-  checkpoint:requestIds=>save(run+'/relay-checkpoint.json',{sourceId,batchId,requestIds}),
+  checkpoint:requestIds=>save(run+'/relay-checkpoint.json',{sourceId,batchId,requestIds,relayDirectory:relay}),
   pollProducer:async()=>{if(process.session_id)process=await tools.write_stdin({session_id:process.session_id,chars:'',yield_time_ms:1000,max_output_tokens:1000});let outcome=null;try{outcome=process.exit_code===0?JSON.parse(await read(run+'/artifacts/'+batchId+'.outcome.json')):null;}finally{if(process.exit_code!==undefined&&process.exit_code!==null&&!terminalRecorded){await save(run+'/producer-session.json',{sessionId:started.session_id??null,exitCode:process.exit_code,outcomeState:outcome?.state??null,recordedAt:new Date().toISOString()});terminalRecorded=true;}}return {exitCode:process.exit_code??null,outcomeState:outcome?.state,diagnostic:process.exit_code?process.output?.trim()||await command('python3 '+q(D+'/failure-summary.py')+' '+q(run)):process.output?.slice(-1200)};},
   reviewPublication:async (request,prepared,publicationContextRequestId)=>{const reviewed=JSON.parse((await command('JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+' '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(D+'/review-original-publication.mjs')+' '+q(run)+' '+q(request.requestId)+' '+q(relay)+' '+q(publicationContextRequestId??'')+' > '+q(run+'/review-command.log')+' 2>&1; code=$?; printf \"%s\\n\" \"$code\" > '+q(run+'/review-command.exit')+'; cat '+q(run+'/review-command.log')+'; exit \"$code\"')).trim().split('\n').at(-1));
    const [recent]=await sql(`SELECT clock_timestamp()<'${slotEnd}'::timestamptz AS "sameSlot",EXISTS(SELECT 1 FROM public."CrawlObservation" o JOIN public."CrawlBatchSourceResult" r ON r.id=o."sourceResultId" JOIN public."CrawlBatch" b ON b.id=r."batchId" WHERE o."sourceId"='${sourceId}' AND o.successful AND r."atomicCommitState"='COMMITTED' AND b.status::text='SUCCESS' AND o."crawledAt">='${slotStart}'::timestamptz AND o."crawledAt"<'${slotEnd}'::timestamptz) AS fresh;`);if(!recent.sameSlot)throw Error('SCHEDULE_SLOT_ENDED:'+slotStart);if(recent.fresh)throw Error('NEW_SUCCESS_BEFORE_DISPATCH');

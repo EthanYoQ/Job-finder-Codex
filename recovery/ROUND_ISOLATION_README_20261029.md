@@ -1,0 +1,9 @@
+# Inactive round-isolation wiring
+
+Restore external parent 8976854cef6901b01850791d4abcbb409632684b, then overlay this delta. The manifest maps the complete 64 runtime files; this delta is not a standalone project. Native120 and dependencies remain unchanged. Existing restore-module.py maps support/ to the original recovery module and other runtime files to original-relay-automation. Copy recovery/round-isolation.test.mjs to the restored layout root to run the focused test.
+
+This wires the native existing JOBFINDER_CONNECTOR_ROUND_ID option through the original Functions entry, helper and producer. New checkpoints bind their own relay directory; old checkpoints retain the original default. No old request is deleted, rewritten, replayed, marked successful or treated as canceled. The unresolved source remains HOLD. New requests retain the original official connector, current candidate binding, real atomic coordinator, same-slot dedup, SQL expiry and publication checks. The optional round ID is used only after official reconciliation and producer checks establish the separate recovery run is safe.
+
+The old SQL checks database clock expiry before and after lock acquisition, before writes and finalization, with a 120-second statement timeout. Official read-only observation showed no old batch/result, no other active transaction and an empty coordinator holder. This is not a tool terminal receipt or a production-success claim.
+
+Fixed Node22 host-session, automatic-relay and round-isolation tests passed. Original native connector validation accepted the new round and returned an empty queue. The old unresolved request bytes remained unchanged. Production collection/publication validation and activation are not included in this backup. No credentials, cookies, raw browser data, secret material or internal conversation/session content is included. LATEST remains unchanged.

@@ -59,7 +59,13 @@ console.log('PASS: only the same job successful publication-context request is p
 
 // Exercise the actual launcher catch, not an invented pre-launch error classification.
 const launchStart=entry.indexOf(' let started;'),launchEnd=entry.indexOf('\n let process=started,',launchStart);assert(launchStart>=0&&launchEnd>launchStart);
-const launch=new AsyncFunction('tools','q','sourceId','R','N','V','run','digest','config','S','relay',entry.slice(launchStart,launchEnd)+';return started;');
+const launch=new AsyncFunction('tools','q','sourceId','R','N','V','run','digest','config','S','relay','roundId','save',entry.slice(launchStart,launchEnd)+';return started;');
+for(const roundId of [undefined,'round-'+ 'a'.repeat(32)]){
+ let command;
+ await launch({exec_command:async args=>{command=args.cmd;return {session_id:1};}},s=>s,'source-test','/r','/node','/v','/run','digest',{route:'PORTABLE'},'/host','/relay',roundId,async()=>{});
+ assert.equal(command.includes('JOBFINDER_CONNECTOR_ROUND_ID='),roundId!==undefined);
+ if(roundId)assert(command.includes('JOBFINDER_CONNECTOR_ROUND_ID='+roundId+' '));
+}
 for(const phase of ['launch-response-lost','prepublish-session-lost']){
  let secondPrepareCount=0;
  const lost=fixture();lost.job.pollProducer=async()=>{throw Error('original producer session unavailable');};
