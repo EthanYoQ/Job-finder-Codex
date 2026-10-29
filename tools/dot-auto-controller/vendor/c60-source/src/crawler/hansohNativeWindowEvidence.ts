@@ -134,7 +134,6 @@ function realProjectedPostDate(value: unknown): boolean {
 // original location strings and output cities remain unchanged.
 const HANSOH_HIERARCHIES = new Map([
   ["江苏省·淮安市·淮安区", "江苏省·淮安市"],
-  ["上海市·浦东新区", "上海市"],
   ["江苏省·常州市·新北区", "江苏省·常州市"],
   ["云南省·大理白族自治州", "云南省·大理"]
 ]);

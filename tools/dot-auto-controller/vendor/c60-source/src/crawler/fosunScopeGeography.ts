@@ -74,6 +74,7 @@ function country(value:string):boolean { return COUNTRIES.has(value.normalize("N
 function provinceCore(value:string):string { return value.trim().replace(/(?:维吾尔自治区|壮族自治区|回族自治区|自治区|省|市)$/u, ""); }
 function segment(value:string):Place|undefined {
   const clean=value.normalize("NFKC").trim();
+  if (clean === "上海市·浦东新区") return {province:"31",city:"上海"};
   if (country(clean) || clean === "全国" || clean === "全国各地") return {};
   const hierarchy=clean.split(/[·・]/u).map(part=>part.trim());
   if(hierarchy.length>2 || hierarchy.some(part=>!part))return undefined;

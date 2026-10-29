@@ -88,6 +88,16 @@ describe("Fosun independently replayed Hong Kong exclusions",()=>{
     const {result}=await collect([{...row(1,["湖北省·武汉市"]),City:"武汉",Country:"中国"},row(2,["重庆市"]),row(3,["香港"])]);
     expect(result.truth.completenessVerified).toBe(true);expect(result.jobs).toHaveLength(2);
   });
+  it("accepts the observed Shanghai Pudong hierarchy without rewriting output",async()=>{
+    const {result}=await collect([row(1,["上海市·浦东新区"]),row(2,["香港"])]);
+    expect(result.truth.completenessVerified).toBe(true);
+    expect(result.jobs[0]?.locationRaw).toBe("上海市·浦东新区");
+    expect(result.jobs[0]?.cities).toEqual(["浦东新区"]);
+  });
+  it.each(["北京市·浦东新区","上海市·未知区","上海市·浦东新区·火星"])("rejects unproven district hierarchy %s",async location=>{
+    const {result}=await collect([row(1,[location]),row(2,["香港"])]);
+    expect(result.truth.completenessVerified).toBe(false);
+  });
   it.each(["source","company","entry","chain","pageSize","maxPages","date","display","json"])("rejects changed %s binding",async field=>{
     const {plan:p,result}=await collect();const changed=structuredClone(p) as any;
     if(field==="source")changed.source.id="source-other-social";

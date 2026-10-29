@@ -1,0 +1,37 @@
+{
+  "parent": "323e0362d9c7dcd5ccc9c9fb3b727d302ebf11a1",
+  "change": "Move exact Shanghai Pudong location recognition into existing shared geography parser; remove redundant Hansoh special case.",
+  "offline": {
+    "batchId": "dot-auto-fosun-20261029T112723754Z",
+    "rawCount": 91,
+    "outputCount": 90,
+    "hongKongExclusions": 1,
+    "before": {
+      "scope": false,
+      "quality": false
+    },
+    "after": {
+      "scope": true,
+      "quality": true
+    },
+    "originalOutputsUnchanged": true,
+    "offlineOnly": true
+  },
+  "tests": "119 passed, original candidate log",
+  "activeChanged": false,
+  "registered": false,
+  "files": [
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/fosunScopeGeography.ts",
+      "sha256": "2a67afb5f2e2573ae348ac05b925c294cca54df48a8a77ec020f0375d64518db"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/hansohNativeWindowEvidence.ts",
+      "sha256": "6bc8897cff5f8932235eed306cd33391b81a0a824dba7d942c90d98425df95cd"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/tests/crawler/fosunScopeExclusionProof.test.ts",
+      "sha256": "a4737adb2104189848b36e8af135a87c8b6b69c9df3be2e64cb7245f1fe94adb"
+    }
+  ]
+}
