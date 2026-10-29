@@ -1,7 +1,7 @@
-import sys,json,os,pathlib,hashlib
-root=pathlib.Path('/workspace/scratch/5e9614251709/connector-host-task/relay')
+import sys,json,os,pathlib,hashlib,re
+root=pathlib.Path('/workspace/scratch/5e9614251709')
 source=pathlib.Path(sys.argv[1]);dest=pathlib.Path(sys.argv[2])
-assert dest.parent==root and dest.name.endswith('.host-result.json')
+assert (dest.parent==root/'connector-host-task/relay' or re.fullmatch(r'rounds/round-[a-f0-9]{32}/connector-host-task/relay',str(dest.parent.relative_to(root)))) and dest.name.endswith('.host-result.json')
 x=json.loads(source.read_text());packet=x['packet'];meta=x['meta']
 text=json.dumps(packet,ensure_ascii=False,separators=(',',':'));raw=text.encode();u=text.encode('utf-16-le')
 assert hashlib.sha256(raw).hexdigest()==meta['sha256'] and len(raw)==meta['byteCount'] and len(u)//2==meta['charCount']
