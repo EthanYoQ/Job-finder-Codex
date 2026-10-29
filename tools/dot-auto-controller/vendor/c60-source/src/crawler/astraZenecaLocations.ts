@@ -22,7 +22,10 @@ const places: readonly [string,string,readonly string[],readonly string[]][] = [
   ['铁岭','辽宁',['Tieling','铁岭市'],['Liaoning']],['郴州','湖南',['Chenzhou','郴州市'],['Hunan']],
   ['南昌','江西',['Nanchang','南昌市'],['Jiangxi']],['锦州','辽宁',['Jinzhou','锦州市'],['Liaoning']],
   ['威海','山东',['Weihai','威海市'],['Shandong']],['哈尔滨','黑龙江',['Harbin','哈尔滨市'],['Heilongjiang']],
-  ['合肥','安徽',['Hefei','合肥市'],['Anhui']]
+  ['合肥','安徽',['Hefei','合肥市'],['Anhui']],
+  ['乐山','四川',['Leshan'],['Sichuan']],['天水','甘肃',['Tianshui'],['Gansu']],
+  ['陇南','甘肃',['Longnan'],['Gansu']],['凉山彝族自治州','四川',['Liangshan Yi Autonomous Prefecture'],['Sichuan']],
+  ['泸州','四川',['Luzhou'],['Sichuan']],['广安','四川',["Guang'an"],['Sichuan']]
 ];
 const key=(s:string)=>s.trim().toLowerCase();
 export const isAstraZenecaChina=(s:string)=>['中国','cn','china'].includes(key(s));

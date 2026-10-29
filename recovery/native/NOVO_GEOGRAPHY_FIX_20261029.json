@@ -1,0 +1,43 @@
+{
+  "status": "OFFLINE_PARTIAL_FIX_NOT_ENABLED",
+  "baseCommit": "6f71deb2dc7ae0f5cff52490a9e6d5189d0c60f0",
+  "change": "Add six exact mainland city/province identities to existing shared geography table; no new parser, no source scope changes",
+  "testsPassed": 101,
+  "testFiles": 3,
+  "offlineResults": {
+    "offlineOnly": true,
+    "notPublicationEvidence": true,
+    "rawCount": 70,
+    "contradictoryId": "348250.en_GB",
+    "results": [
+      {
+        "originalAccepted": false,
+        "diagnostic69Rows": null
+      },
+      {
+        "originalAccepted": false,
+        "diagnostic69Rows": 69
+      }
+    ]
+  },
+  "remainingBlocker": {
+    "id": "348250.en_GB",
+    "title": "\u533b\u836f\u4ee3\u8868-\u5ffb\u5dde",
+    "city": "Xinzhou",
+    "state": "Shaanxi",
+    "reason": "Official city/province contradiction; Xinzhou is Shanxi, not Shaanxi. No title overwrite or alias correction implemented."
+  },
+  "isolationAssessment": "Novo only has CLOSED and DETAIL_INSUFFICIENT exclusions. Its original parser rejects contradictory geography. Existing atomic publication explicitly holds a previously active insufficient/UNKNOWN job. A new geography quarantine preserving old fields/time needs explicit semantic approval, not automatic reuse of Pfizer exception.",
+  "activeCodeChanged": false,
+  "productionResult": "No new collection, commit or web publication established",
+  "files": [
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaLocations.ts",
+      "sha256": "eb817f7130965fad990f162c5954fef8cf6379f40a03e5ac7105b977e608c6f8"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/tests/crawler/reviewedMainlandCity.test.ts",
+      "sha256": "b287f1ce7e31a9f379d352612639cf54c3868273a8723e477fc39e1e120afe66"
+    }
+  ]
+}
