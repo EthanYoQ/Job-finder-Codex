@@ -1,8 +1,9 @@
 // Existing Functions runtime entry. Concrete source adapters reuse their original packet and raw-review functions.
 const B='/workspace/scratch/5e9614251709',R=B+'/takeda-original-recovery-20261017T0417Z',D=B+'/original-relay-automation-20261017T0609Z',P=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller',V=P+'/vendor/c60-source',N=B+'/connector-host-runtime/node';
-const roundId=load('originalRelayRoundId');
+let roundId=load('originalRelayRoundId');
 if(roundId!==undefined&&!/^round-[a-f0-9]{32}$/.test(roundId))throw Error('HOST_ROUND_SELECTOR');
-const defaultRelay=B+'/connector-host-task/relay',relay=roundId?B+'/rounds/'+roundId+'/connector-host-task/relay':defaultRelay;
+const defaultRelay=B+'/connector-host-task/relay';
+let relay=roundId?B+'/rounds/'+roundId+'/connector-host-task/relay':defaultRelay;
 const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'",A=Object.getPrototypeOf(async function(){}).constructor;
 async function command(cmd){let r=await tools.exec_command({cmd,max_output_tokens:200000}),output=r.output;while(r.session_id){r=await tools.write_stdin({session_id:r.session_id,chars:'',yield_time_ms:1000,max_output_tokens:200000});output+=r.output;}if(r.exit_code!==0)throw Error('LOCAL_STEP:exit='+String(r.exit_code)+'; '+output);return output;}
 const read=p=>command('cat '+q(p)),save=async(p,x)=>{const r=await tools.apply_patch('*** Begin Patch\n*** Add File: '+p+'\n'+JSON.stringify(x).split('\n').map(s=>'+'+s).join('\n')+'\n*** End Patch');if(r?.isError)throw Error('SAVE_FAILED');};
@@ -48,7 +49,10 @@ const states=(await sql(`SELECT requested.id AS "sourceId",clock_timestamp() AS 
 const slotStartMs=Math.floor(Date.parse(states[0].checkedAt)/43200000)*43200000,slotEndMs=slotStartMs+43200000,slotStart=new Date(slotStartMs).toISOString(),slotEnd=new Date(slotEndMs).toISOString();
 const succeededInSlot=s=>s.crawledAt&&Date.parse(s.crawledAt)>=slotStartMs&&Date.parse(s.crawledAt)<slotEndMs;
 if(load('originalRelayReadOnly')===true)return states.map(s=>({sourceId:s.sourceId,checkedAt:s.checkedAt,crawledAt:s.crawledAt,status:succeededInSlot(s)?'SKIPPED_CURRENT_SLOT':'DUE_READ_ONLY'}));
-if(roundId)await command('python3 -c '+q("import pathlib,sys; p=pathlib.Path(sys.argv[1]); [d.mkdir(mode=0o700,exist_ok=True) for d in [p.parents[2],p.parents[1],p.parent,p]]")+' '+q(relay));
+// New runs own separate queues; an unresolved newer round must still be reconciled first.
+roundId=(await command('python3 -c '+q("import pathlib,sys,hashlib,uuid\nroot=pathlib.Path(sys.argv[1]); default=root/'connector-host-task/relay'\nretired={'92ced010-7cbe-4891-bba4-53dfca11fb4c':'c55c6bdd34fb6f63e397fb2a0eb935be9e5bd59864aa526f838957c47a17f462','3f2add2e-1d37-4847-8ae5-49e86ba6985d':'2709f5467e9007d4eda5a73b37ebcf12ebb2e895fda18334f0bee5bd723b145e'}\npending=[]\nfor p in [*default.glob('*.request.ready'),*(root/'rounds').glob('round-*/connector-host-task/relay/*.request.ready')]:\n if p.with_name(p.name.replace('.request.ready','.response.json')).exists(): continue\n id=p.name.removesuffix('.request.ready'); request=p.with_name(id+'.request.json')\n if p.parent==default and id in retired and hashlib.sha256(request.read_bytes()).hexdigest()==retired[id]: continue\n pending.append(str(p))\nassert not pending,'PRIOR_ROUND_RECONCILE_ONLY:'+','.join(pending)\nprint(sys.argv[2] or 'round-'+uuid.uuid4().hex)")+' '+q(B)+' '+q(roundId??''))).trim();
+relay=B+'/rounds/'+roundId+'/connector-host-task/relay';
+await command('python3 -c '+q("import pathlib,sys; p=pathlib.Path(sys.argv[1]); [d.mkdir(mode=0o700,exist_ok=True) for d in [p.parents[2],p.parents[1],p.parent,p]]")+' '+q(relay));
 return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
  const state=stateById[sourceId];
  if(Date.now()>=slotEndMs)throw Error('SCHEDULE_SLOT_ENDED:'+slotStart);
@@ -57,7 +61,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
   const tailRecovery=pending?await resumeTail(sourceId,pending):undefined;
   return {skip:'REAL_OBSERVATION_IN_SCHEDULE_SLOT:'+slotStart+':'+state.crawledAt,...(tailRecovery?{tailRecovery}:{})};
  }
- const hold=load('originalSourceHolds')?.[sourceId];if(hold)throw Error('PENDING_USER_DECISION:'+hold);
+ const hold=sourceId==='source-cttq-social'?'UNRESOLVED_20261028_BATCH_READONLY':load('originalSourceHolds')?.[sourceId];if(hold)throw Error('PENDING_USER_DECISION:'+hold);
  
  if(!sourceFolders[sourceId])throw Error('ROUTE_NOT_CONNECTED:'+routeById[sourceId].route);
  if(state.holder||Number(state.running)||Number(state.manual))throw Error('EXISTING_WRITER_RECONCILE_ONLY');
