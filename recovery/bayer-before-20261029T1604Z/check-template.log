@@ -1,0 +1,26 @@
+[
+  {
+    "sourceId": "source-sanofi-china-social",
+    "byteIdenticalOld": true,
+    "balanced": true,
+    "bytes": 10808
+  },
+  {
+    "sourceId": "source-bayer-healthcare-social",
+    "byteIdenticalOld": false,
+    "balanced": true,
+    "bytes": 10856
+  },
+  {
+    "sourceId": "source-servier-china-social",
+    "byteIdenticalOld": true,
+    "balanced": true,
+    "bytes": 10247
+  },
+  {
+    "sourceId": "source-viatris-social",
+    "byteIdenticalOld": true,
+    "balanced": true,
+    "bytes": 10169
+  }
+]

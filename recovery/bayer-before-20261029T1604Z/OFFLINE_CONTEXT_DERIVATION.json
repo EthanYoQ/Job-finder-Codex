@@ -1,0 +1,18 @@
+{
+  "classification": "OFFLINE_EXPECTED_FIXED_QUERY_RESULT_FROM_RETAINED_ORIGINAL_INVENTORY_NOT_NEW_DB_READ",
+  "rows": [
+    {
+      "slot": "firstAccepted",
+      "resultId": "dot-bayer-b-20261002T1804Z-b57d911--source-bayer-healthcare-social",
+      "schema": "b-grade-independent-traversal-v2",
+      "selectedArtifactCount": 0
+    },
+    {
+      "slot": "latestAccepted",
+      "resultId": "dot-auto-bayer-20261019T193839593Z--source-bayer-healthcare-social",
+      "schema": "b-grade-independent-traversal-v2",
+      "selectedArtifactCount": 0
+    }
+  ],
+  "oldRunAndOriginalFilesChanged": false
+}

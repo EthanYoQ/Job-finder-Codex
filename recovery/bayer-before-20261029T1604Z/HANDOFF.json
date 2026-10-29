@@ -1,0 +1,62 @@
+{
+  "status": "FROZEN_VERIFIED_INACTIVE_PENDING_PRIVATE_BACKUP",
+  "parentExternal": "d49ca (parent to resolve full current verified SHA)",
+  "rootCause": "Bayer selected noncompact before template while native123 adds evidenceArtifacts to both accepted rows; real source data unchanged, assertion correctly held",
+  "productionFiles": [
+    {
+      "path": "original-relay-automation-20261017T0609Z/run-original-functions.js",
+      "beforeSha256": "287d2f577fd2a572d86e5eca1fd9222687bc51cf1f735220edbd9472052198fe",
+      "afterSha256": "617932f0ca980e6c9dedffff86f81f7dcfcb5d8c45f8a93065bf3c1dfe81200e"
+    },
+    {
+      "path": "takeda-original-recovery-20261017T0417Z/transport/sanofi-reader-before-original.sql",
+      "beforeSha256": "ee6d3feada41aaa431b431f56632917b9c7e7e43a978c21d54e2e19824ae3491",
+      "afterSha256": "51839bffc1ccf1e219c60d1b9edd6491c1f6fec0fa0bb19f9c1038ac7417aeb9"
+    }
+  ],
+  "noNativeOrReaderChange": true,
+  "preserved": [
+    "LIVE_BEFORE_CONTEXT_CHANGED exact assertion",
+    "Atomic transaction and official connector",
+    "Original scope/TTL/tuple/artifact verification",
+    "Sanofi original generated query byte-identical",
+    "Other source generated query unchanged"
+  ],
+  "verification": {
+    "officialMetadataOnlyProbe": "OFFICIAL_METADATA_PROBE_RESULT.json; exactly one current read-only query first/latest IDs unchanged and both artifacts=[]",
+    "queryProbeScope": "Only source-scoped first/latest artifact projections evaluated; no claim of fresh complete before snapshot",
+    "offlineContext": "Derived expected new query columns from retained original inventory, never copied packet.context; no edited observedAt or control deadline",
+    "fullOriginalReviewChainExitCode": 0,
+    "fullChainStages": [
+      "Original SQL complete recompilation",
+      "Both deployed pinned readers prospective projection",
+      "Full current-batch archive main and independent raw replay",
+      "Original public target API projection"
+    ],
+    "realRawJobs": 175,
+    "realArtifacts": 182,
+    "prospectiveJobWrites": 71,
+    "notCommitted": true,
+    "compactNextBaselineMutationTests": 4,
+    "currentFullBMissingColumnsOnly": true,
+    "sanofiServierViatrisSqlByteIdentical": true
+  },
+  "whitelistSummaries": [
+    "BAYER_READER_BEFORE_FIX.patch",
+    "HANDOFF.json",
+    "check-template.cjs",
+    "check-template.log",
+    "check-context.mts",
+    "check-context-pass.log",
+    "OFFICIAL_METADATA_PROBE_RESULT.json",
+    "OFFLINE_CONTEXT_DERIVATION.json",
+    "FULL_REVIEW_CHAIN.log"
+  ],
+  "exclude": [
+    "offline-replay/",
+    "*ACTUAL_READER_QUERY.sql",
+    "*METADATA_PROBE.sql",
+    "All retained raw/packet/receipt/API projection full evidence"
+  ],
+  "oldBatchPolicy": "47fc22e0 PUBLISH NOT_DISPATCHED; no replay. Activate only future fresh batch after parent safe swap; current cell263 untouched"
+}
