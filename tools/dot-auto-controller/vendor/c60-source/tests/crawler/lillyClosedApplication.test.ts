@@ -50,7 +50,7 @@ describe("Lilly exact official application closure",()=>{
     expect(lillyOfficialCities(row)).toEqual(["上海"]);
     expect(lillyOfficialCities({...row,ml_job_parser:null})).toBeUndefined();
     expect(lillyOfficialCities({...row,descriptionTeaser:"Work location: Singapore."})).toBeUndefined();
-    for(const token of ["China-Nan-Yang-","China-Tai-An-"]){
+    for(const token of ["China-Nan-Yang-","China-Tai-An-","China-Xin-Xiang-"]){
       const next={...row,applyUrl:String(row.applyUrl).replace("China-Shang-Hai-",token)};
       expect(lillyOfficialCities(next)).toEqual(["城市待核"]);
       expect(lillyOfficialCities({...next,country:"Singapore"})).toBeUndefined();

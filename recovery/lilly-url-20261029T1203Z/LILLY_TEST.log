@@ -1,0 +1,743 @@
+(node:8) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v3.2.7 /workspace/scratch/5e9614251709/recovery104-work/lilly-url-candidate-20261029T1203Z/tools/dot-auto-controller/vendor/c60-source
+
+(node:41) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:49) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:42) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:44) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ tests/crawler/lillyClosedApplication.test.ts (5 tests) 499ms
+   ✓ Lilly exact official application closure > keeps both pages and proves active plus exact closed equals the unchanged raw total  356ms
+(node:132) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ tests/crawler/lillyQualityAdmission.test.ts (8 tests | 7 failed) 471ms
+   × synthetic Lilly owned admission and atomic fixture > admits the exact configuration with synthetic 88 rows and exact dates 163ms
+     → SYNTHETIC_LILLY_ADMISSION_REJECTED:OWNED_ACQUISITION_REQUIRED
+   × synthetic Lilly owned admission and atomic fixture > executes the complete atomic repository route against an in-memory transaction fixture 60ms
+     → SYNTHETIC_LILLY_ADMISSION_REJECTED:OWNED_ACQUISITION_REQUIRED
+   × synthetic Lilly owned admission and atomic fixture > rejects imported evidence and coherent post-acquisition raw mutation 66ms
+     → expected { status: 'REJECTED', …(1) } to match object { status: 'REJECTED', …(1) }
+   × synthetic Lilly owned admission and atomic fixture > rejects a disappeared archived body before issuing admission 64ms
+     → expected { status: 'REJECTED', …(1) } to match object { status: 'REJECTED', …(1) }
+   × synthetic Lilly owned admission and atomic fixture > retains old exact posted dates in active atomic publication 17ms
+     → SYNTHETIC_LILLY_ADMISSION_REJECTED:OWNED_ACQUISITION_REQUIRED
+   ✓ synthetic Lilly owned admission and atomic fixture > holds invalid geography without publication commands 21ms
+   × synthetic Lilly owned admission and atomic fixture > refuses source/configuration drift and forged normalized city/country claims 44ms
+     → Cannot set properties of undefined (setting 'locationRaw')
+   × synthetic Lilly owned admission and atomic fixture > blocks a date mutation after atomic construction before entering a transaction 35ms
+     → SYNTHETIC_LILLY_ADMISSION_REJECTED:OWNED_ACQUISITION_REQUIRED
+(node:152) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ tests/crawler/lillyChinaQuality.test.ts (198 tests | 50 failed) 2118ms
+   × Lilly China source quality > preserves exact old official dates and reviewed Shanghai geometry 88ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > accepts whitespace-only title changes while retaining the exact raw body 29ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata sourceKind 30ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata atsKind 25ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata officialChineseCompanyName 18ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata listUrl 21ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata category 16ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata auxiliaryChineseTitle 17ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata extraMetadata 22ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata evidence.officialEntryUrl 16ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata evidence.officialChainEvidenceUrl 18ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata evidence.rawSnapshotRef 15ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata evidence.extraEvidence 19ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects changed or added complete-output metadata evidence.astellasPdfLocation 17ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > allows either legitimate baseline boolean without allowing missing or nonboolean metadata 15ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > keeps reviewed URL city contradictions pending without changing official text 13ms
+     → expected false to be true // Object.is equality
+   ✓ Lilly China source quality > rejects changed normalized output {"officialTitle":"Forged"} 15ms
+   ✓ Lilly China source quality > rejects changed normalized output {"officialPublishedAt":"2026-10-01T00:00:00.000Z"} 14ms
+   ✓ Lilly China source quality > rejects changed normalized output {"cities":["北京"]} 14ms
+   ✓ Lilly China source quality > rejects changed normalized output {"cities":["上海","城市待核"]} 18ms
+   ✓ Lilly China source quality > rejects changed normalized output {"officialUrl":"https://lilly.wd115.myworkdayjobs.com/LLY/job/China-Shang-Hai-/Scientist_R-999999/apply"} 13ms
+   ✓ Lilly China source quality > rejects raw source attacks {"workLocations":[{"country":"Singapore"}]} 15ms
+   ✓ Lilly China source quality > rejects raw source attacks {"siteType":"internal"} 15ms
+   ✓ Lilly China source quality > rejects raw source attacks {"visibilityType":"Internal"} 10ms
+   ✓ Lilly China source quality > rejects raw source attacks {"jobVisibility":["internal"]} 11ms
+   ✓ Lilly China source quality > rejects raw source attacks {"country":"Singapore"} 10ms
+   ✓ Lilly China source quality > rejects raw source attacks {"postedDate":"bad"} 14ms
+   ✓ Lilly China source quality > rejects appended foreign nested work location even after corporate headquarters prose 13ms
+   × Lilly China source quality > preserves contradictory Suzhou and remote Zhejiang shapes without guessing workplaces 16ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains duplicate identical alternatives as one job with one city 15ms
+     → expected false to be true // Object.is equality
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"country":"China / Singapore"} 12ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"city":"Boston"} 9ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"state":"Atlantis"} 9ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"location":"Shanghai, Singapore"} 10ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"cityState":"Shanghai, Boston"} 9ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"cityStateCountry":"China"} 10ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"address":"Workplace Singapore"} 11ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"latitude":"42.3601"} 10ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"longitude":"-71.0589"} 7ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"isMultiLocation":false} 8ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"multi_location":["Shanghai, Shanghai, China","Singapore"]} 8ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"multi_location":[]} 11ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"multi_location_array":[]} 9ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"multi_location_array":[{"location":"Shanghai, Shanghai, China","latlong":{"lat":42.3601,"lon":121.45806}}]} 8ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"multi_location_array":[{"location":"Shanghai, Shanghai, China","country":"US","latlong":{"lat":31.22222,"lon":121.45806}}]} 10ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"multi_location_array":[{"location":"Shanghai, Shanghai, China","latlong":{"lat":31.22222,"lon":121.45806,"city":"Boston"}}]} 11ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"workLocations":[]} 8ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"locations":["Shanghai"]} 8ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"countryCode":"US"} 9ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"futureUnknownField":"unknown"} 8ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"category":{"location":"Singapore"}} 9ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"ml_skills":[{"location":"Singapore"}]} 9ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"multi_category_array":[{"category":"Medical","location":"Singapore"}]} 12ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"jobId":"R-900001"} 12ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"reqId":"R-900001"} 13ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"jobSeqNo":"LILLUSR900001EXTERNALENUS"} 8ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"jobVisibility":["external","unknown"]} 9ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"jobVisibility":["external","external"]} 8ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"externalApply":true} 6ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"locale":"zh_CN"} 8ms
+   ✓ Lilly China source quality > holds unsupported identity, visibility, or geography {"dateCreated":"Work location: Singapore."} 7ms
+   ✓ Lilly China source quality > holds missing required raw field country 7ms
+   ✓ Lilly China source quality > holds missing required raw field city 6ms
+   ✓ Lilly China source quality > holds missing required raw field state 9ms
+   ✓ Lilly China source quality > holds missing required raw field location 7ms
+   ✓ Lilly China source quality > holds missing required raw field cityState 6ms
+   ✓ Lilly China source quality > holds missing required raw field cityStateCountry 7ms
+   ✓ Lilly China source quality > holds missing required raw field address 9ms
+   ✓ Lilly China source quality > holds missing required raw field latitude 7ms
+   ✓ Lilly China source quality > holds missing required raw field longitude 7ms
+   ✓ Lilly China source quality > holds missing required raw field multi_location 7ms
+   ✓ Lilly China source quality > holds missing required raw field multi_location_array 8ms
+   ✓ Lilly China source quality > holds missing required raw field isMultiLocation 6ms
+   ✓ Lilly China source quality > holds missing required raw field reqId 6ms
+   ✓ Lilly China source quality > holds missing required raw field jobId 8ms
+   ✓ Lilly China source quality > holds missing required raw field jobSeqNo 7ms
+   ✓ Lilly China source quality > holds missing required raw field siteType 6ms
+   ✓ Lilly China source quality > holds missing required raw field visibilityType 7ms
+   ✓ Lilly China source quality > holds missing required raw field jobVisibility 8ms
+   ✓ Lilly China source quality > holds missing required raw field externalApply 7ms
+   ✓ Lilly China source quality > holds missing required raw field locale 7ms
+   ✓ Lilly China source quality > holds missing required raw field descriptionTeaser 10ms
+   ✓ Lilly China source quality > holds missing required raw field postedDate 10ms
+   ✓ Lilly China source quality > rejects official URL drift http://lilly.wd115.myworkdayjobs.com/LLY/job/China-Shang-Hai-/Scientist_R-800000/apply 7ms
+   ✓ Lilly China source quality > rejects official URL drift https://lilly.wd115.myworkdayjobs.com.evil.example/LLY/job/China-Shang-Hai-/Scientist_R-800000/apply 6ms
+   ✓ Lilly China source quality > rejects official URL drift https://lilly.wd115.myworkdayjobs.com/OTHER/job/China-Shang-Hai-/Scientist_R-800000/apply 7ms
+   ✓ Lilly China source quality > rejects official URL drift https://lilly.wd115.myworkdayjobs.com/LLY/job/China-Atlantis-/Scientist_R-800000/apply 9ms
+   ✓ Lilly China source quality > rejects official URL drift https://lilly.wd115.myworkdayjobs.com/LLY/job/US-Boston/Scientist_R-800000/apply 6ms
+   ✓ Lilly China source quality > rejects official URL drift https://lilly.wd115.myworkdayjobs.com/LLY/job/China-Shang-Hai-/Scientist_R-800001/apply 7ms
+   ✓ Lilly China source quality > rejects official URL drift https://lilly.wd115.myworkdayjobs.com/LLY/job/China-Shang-Hai-/Scientist_R-800000/apply?from=other 7ms
+   ✓ Lilly China source quality > rejects official URL drift https://lilly.wd115.myworkdayjobs.com/LLY/job/China-Shang-Hai-/Scientist_R-800000/apply#other 9ms
+   ✓ Lilly China source quality > rejects official URL drift https://lilly.wd115.myworkdayjobs.com/LLY/job/China-Shang-Hai-/Scientist_R-800000/apply/ 7ms
+   ✓ Lilly China source quality > rejects unusable official dates without dateCreated fallback undefined 8ms
+   ✓ Lilly China source quality > rejects unusable official dates without dateCreated fallback null 10ms
+   ✓ Lilly China source quality > rejects unusable official dates without dateCreated fallback "" 11ms
+   ✓ Lilly China source quality > rejects unusable official dates without dateCreated fallback 0 7ms
+   ✓ Lilly China source quality > rejects unusable official dates without dateCreated fallback "2026-09-29" 7ms
+   ✓ Lilly China source quality > rejects unusable official dates without dateCreated fallback "2026-09-29T12:05:11.334" 11ms
+   ✓ Lilly China source quality > rejects unusable official dates without dateCreated fallback "2026-02-29T00:00:00.000+0000" 7ms
+   × Lilly China source quality > preserves a non-UTC old timestamp precisely without applying an age window 8ms
+     → expected undefined to be '2000-12-31T21:54:14.123Z' // Object.is equality
+   ✓ Lilly China source quality > rejects appended arbitrary work location in nested field descriptionTeaser_first200 30ms
+   ✓ Lilly China source quality > rejects appended arbitrary work location in nested field descriptionTeaser_keyword 28ms
+   ✓ Lilly China source quality > rejects appended arbitrary work location in nested field descriptionTeaser_ats 28ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: This role will work in Singapore. 7ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: Singapore-based pharmaceutical quality role. 14ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: The successful candidate will be stationed in Singapore. 15ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: Office address: Singapore. 7ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: You will work from Singapore. 6ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: 岗位驻地：新加坡。 6ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: 本职位在新加坡。 8ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: This role is physically based out of Singapore. 7ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: The job requires relocation to Singapore. 7ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: 本职位工作地点为新加坡。 7ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: Your workplace is Singapore. 10ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: 工作地点是新加坡。 7ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: 工作地点在新加坡。 6ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: Work location Singapore 6ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: Work location:Singapore. 9ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: Work location:Shanghai. Work location:Singapore. 6ms
+   ✓ Lilly China source quality > holds explicit foreign workplace prose: This role is not only based in Singapore but also in Shanghai. 7ms
+   × Lilly China source quality > retains business responsibility, collaboration, and negation without claiming a foreign workplace: The role is based in Shanghai and supports Singapore clients. 8ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains business responsibility, collaboration, and negation without claiming a foreign workplace: You will work in Shanghai on our Singapore product strategy. 10ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains business responsibility, collaboration, and negation without claiming a foreign workplace: This role requires working in close collaboration with Singapore colleagues. 7ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains business responsibility, collaboration, and negation without claiming a foreign workplace: The role is not based in Singapore; it is based in Shanghai. 8ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains title-only geography with city pending: Scientist - Singapore - Quality Assurance 9ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains title-only geography with city pending: Quality Scientist (Singapore) 8ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains title-only geography with city pending: Scientist - Atlantis 7ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: Scientist (Beijing) 7ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: 区域经理（北京） 10ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: 医药代表/北京/上海 7ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: Beijing Medical Representative 7ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: 区域经理-北京-免疫产品组 8ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: Scientist (Atlantis) 9ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > keeps reviewed professional skill context separate from workplace microsoft office 7ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > keeps reviewed professional skill context separate from workplace value-based pricing 7ms
+     → expected false to be true // Object.is equality
+   ✓ Lilly China source quality > does not exempt foreign workplace text appended to a reviewed professional skill 15ms
+   ✓ Lilly China source quality > checks appended or additional explicit workplaces: Work location: Shanghai, but the job is based in Singapore. 7ms
+   ✓ Lilly China source quality > checks appended or additional explicit workplaces: Work location: Shanghai and Singapore. 6ms
+   ✓ Lilly China source quality > holds misplaced geography prose in known ancillary fields {"category":"Work location: Singapore."} 8ms
+   ✓ Lilly China source quality > holds misplaced geography prose in known ancillary fields {"type":"Work location: Singapore."} 8ms
+   ✓ Lilly China source quality > holds misplaced geography prose in known ancillary fields {"workerSubType":"Work location: Singapore."} 8ms
+   ✓ Lilly China source quality > holds misplaced geography prose in known ancillary fields {"badge":"Work location: Singapore."} 6ms
+   ✓ Lilly China source quality > holds misplaced geography prose in known ancillary fields {"ml_skills":["Work location: Singapore."]} 8ms
+   ✓ Lilly China source quality > holds misplaced geography prose in known ancillary fields {"multi_category":["Work location: Singapore."]} 8ms
+   ✓ Lilly China source quality > holds misplaced geography prose in known ancillary fields {"multi_category_array":[{"category":"Work location: Singapore."}]} 6ms
+   ✓ Lilly China source quality > holds explicit unreviewed location in top and matching nested teaser Work location: Singapore. 7ms
+   ✓ Lilly China source quality > holds explicit unreviewed location in top and matching nested teaser This position is based in Boston. 10ms
+   ✓ Lilly China source quality > holds explicit unreviewed location in top and matching nested teaser Office location: Singapore. 7ms
+   ✓ Lilly China source quality > holds explicit unreviewed location in top and matching nested teaser 工作地点：新加坡 7ms
+   ✓ Lilly China source quality > holds explicit unreviewed location in top and matching nested teaser Singapore based Scientist 8ms
+   ✓ Lilly China source quality > holds unsupported title geography Scientist based in Singapore 8ms
+   ✓ Lilly China source quality > holds unsupported title geography Work location: Boston 7ms
+   ✓ Lilly China source quality > holds unsupported title geography Singapore based Scientist 7ms
+   ✓ Lilly China source quality > rejects mismatched, missing, and new shadow nested fields 27ms
+   × Lilly China source quality > admits a new legitimate title and new description without a text allowlist 9ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains uncertain or conflicting prose as pending: Work location: Atlantis. 8ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains uncertain or conflicting prose as pending: Remote work. 9ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains uncertain or conflicting prose as pending: 工作地点：北京 7ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains uncertain or conflicting prose as pending: at our Suzhou site 7ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > retains uncertain or conflicting prose as pending: business units in Shanghai 8ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > keeps an observed empty URL title slug and optional numeric requisition version 15ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > closes dynamic omitted-offset pages at the exact remainder and keeps an empty response honest 24ms
+     → 1: expected false to be true // Object.is equality
+   ✓ Lilly China source quality > rejects offset drift, total drift, underfilled pages, and repeated raw identities 122ms
+   ✓ Lilly China source quality > rejects effective bootstrap drift country 7ms
+   ✓ Lilly China source quality > rejects effective bootstrap drift deviceType 5ms
+   ✓ Lilly China source quality > rejects effective bootstrap drift locale 4ms
+   ✓ Lilly China source quality > rejects effective bootstrap drift refNum 4ms
+   ✓ Lilly China source quality > rejects effective bootstrap drift pageName 4ms
+   ✓ Lilly China source quality > rejects effective bootstrap drift pageId 5ms
+   ✓ Lilly China source quality > rejects effective bootstrap drift widgetApiEndpoint 5ms
+   ✓ Lilly China source quality > rejects removed plan field postedDatePolicy 5ms
+   ✓ Lilly China source quality > rejects removed plan field cityScopePolicy 4ms
+   ✓ Lilly China source quality > rejects removed plan field publicVisibilityPolicy 4ms
+   ✓ Lilly China source quality > rejects removed plan field countryFilter 4ms
+   ✓ Lilly China source quality > rejects removed plan field pageSize 6ms
+   ✓ Lilly China source quality > rejects removed plan field maxPages 4ms
+   ✓ Lilly China source quality > rejects removed plan field detailBaseUrl 2ms
+   ✓ Lilly China source quality > rejects removed plan field allowedApplyOrigins 4ms
+   ✓ Lilly China source quality > rejects response country selection drift {"country":["Singapore"]} 6ms
+   ✓ Lilly China source quality > rejects response country selection drift {"country":["China","Singapore"]} 7ms
+   ✓ Lilly China source quality > rejects response country selection drift {} 6ms
+   ✓ Lilly China source quality > rejects response country selection drift {"country":["China"],"category":["Medical"]} 6ms
+   ✓ Lilly China source quality > rejects contradictory response status/hits {"status":500} 6ms
+   ✓ Lilly China source quality > rejects contradictory response status/hits {} 7ms
+   ✓ Lilly China source quality > rejects contradictory response status/hits {"hits":0} 6ms
+   ✓ Lilly China source quality > rejects contradictory response status/hits {} 5ms
+   × Lilly China source quality > rejects replay pagination/request drift request locator 9ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects replay pagination/request drift request URL 10ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects replay pagination/request drift sequence 12ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects replay pagination/request drift returned offset 9ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects replay pagination/request drift next signal 11ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects replay pagination/request drift termination 8ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects replay pagination/request drift extra artifact 9ms
+     → expected false to be true // Object.is equality
+   × Lilly China source quality > rejects replay pagination/request drift extra page 10ms
+     → expected false to be true // Object.is equality
+   ✓ Lilly China source quality > rejects coherent raw mutation after recomputing page fingerprints {"title":"Forged"} 9ms
+   ✓ Lilly China source quality > rejects coherent raw mutation after recomputing page fingerprints {"postedDate":"2026-09-28T00:00:00.000+0000"} 10ms
+   ✓ Lilly China source quality > rejects coherent raw mutation after recomputing page fingerprints {"workLocations":[{"country":"Singapore"}]} 9ms
+   ✓ Lilly China source quality > rejects coherent raw mutation after recomputing page fingerprints {"ml_job_parser":{"descriptionTeaser":"Work location: Singapore."}} 9ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 57 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > preserves exact old official dates and reviewed Shanghai geometry
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:10:53
+      8|   it("preserves exact old official dates and reviewed Shanghai geometr…
+      9|     const input = await captureSyntheticLilly();
+     10|     expect(input.result.truth.completenessVerified).toBe(true);
+       |                                                     ^
+     11|     expect(input.result.jobs).toMatchObject([{cities: ["上海"], official…
+     12|     expect(replayLilly(input)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > accepts whitespace-only title changes while retaining the exact raw body
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:17:53
+     15|     const title = " \tSenior  Associate,\nQuality   Assurance \t";
+     16|     const input = await captureSyntheticLilly([syntheticLillyRow(0, {t…
+     17|     expect(input.result.truth.completenessVerified).toBe(true);
+       |                                                     ^
+     18|     expect(input.result.jobs[0]).toMatchObject({officialTitle: "Senior…
+     19|     const artifact = input.result.fetchEvidence!.artifacts.find(a => a…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata sourceKind
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata atsKind
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata officialChineseCompanyName
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata listUrl
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata category
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata auxiliaryChineseTitle
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata extraMetadata
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata evidence.officialEntryUrl
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata evidence.officialChainEvidenceUrl
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata evidence.rawSnapshotRef
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata evidence.extraEvidence
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects changed or added complete-output metadata evidence.astellasPdfLocation
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:31:77
+     29|     ["evidence.extraEvidence", "unreviewed"], ["evidence.astellasPdfLo…
+     30|   ])("rejects changed or added complete-output metadata %s", async (fi…
+     31|     const input = await captureSyntheticLilly(); expect(replayLilly(in…
+       |                                                                             ^
+     32|     const jobs = structuredClone(input.result.jobs), job = jobs[0]!;
+     33|     if (String(field).startsWith("evidence.")) (job.evidence as unknow…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > allows either legitimate baseline boolean without allowing missing or nonboolean metadata
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:38:77
+     36|   });
+     37|   it("allows either legitimate baseline boolean without allowing missi…
+     38|     const input = await captureSyntheticLilly(); expect(replayLilly(in…
+       |                                                                             ^
+     39|     expect(replayLilly(input, input.result.jobs.map(job => ({...job, i…
+     40|     for (const field of ["sourceKind", "atsKind", "officialChineseComp…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > keeps reviewed URL city contradictions pending without changing official text
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:50:53
+     48|     const row = syntheticLillyRow(); row.applyUrl = String(row.applyUr…
+     49|     const input = await captureSyntheticLilly([row]);
+     50|     expect(input.result.truth.completenessVerified).toBe(true);
+       |                                                     ^
+     51|     expect(input.result.jobs[0]?.cities).toEqual(["城市待核"]);
+     52|     expect(replayLilly(input)).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > preserves contradictory Suzhou and remote Zhejiang shapes without guessing workplaces
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:76:53
+     74|       multi_location: ["Zhejiang, Zhejiang, China"], multi_location_ar…
+     75|     const input = await captureSyntheticLilly([suzhou, zhejiang]);
+     76|     expect(input.result.truth.completenessVerified).toBe(true); expect…
+       |                                                     ^
+     77|     expect(replayLilly(input)).toBe(true);
+     78|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains duplicate identical alternatives as one job with one city
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:82:103
+     80|     const row = syntheticLillyRow(); (row.multi_location as unknown[])…
+     81|     (row.multi_location_array as unknown[]).push(structuredClone((row.…
+     82|     const input = await captureSyntheticLilly([row]); expect(input.res…
+       |                                                                                                       ^
+     83|     expect(input.result.jobs).toHaveLength(1); expect(input.result.job…
+     84|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > preserves a non-UTC old timestamp precisely without applying an age window
+AssertionError: expected undefined to be '2000-12-31T21:54:14.123Z' // Object.is equality
+
+- Expected: 
+"2000-12-31T21:54:14.123Z"
+
++ Received: 
+undefined
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:123:55
+    121|   it("preserves a non-UTC old timestamp precisely without applying an …
+    122|     const input = await captureSyntheticLilly([syntheticLillyRow(0, {p…
+    123|     expect(input.result.jobs[0]?.officialPublishedAt).toBe("2000-12-31…
+       |                                                       ^
+    124|   });
+    125|   it.each(["descriptionTeaser_first200", "descriptionTeaser_keyword", …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains business responsibility, collaboration, and negation without claiming a foreign workplace: The role is based in Shanghai and supports Singapore clients.
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains business responsibility, collaboration, and negation without claiming a foreign workplace: You will work in Shanghai on our Singapore product strategy.
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains business responsibility, collaboration, and negation without claiming a foreign workplace: This role requires working in close collaboration with Singapore colleagues.
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains business responsibility, collaboration, and negation without claiming a foreign workplace: The role is not based in Singapore; it is based in Shanghai.
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:142:103
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains title-only geography with city pending: Scientist - Singapore - Quality Assurance
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains title-only geography with city pending: Quality Scientist (Singapore)
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains title-only geography with city pending: Scientist - Atlantis
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:146:53
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: Scientist (Beijing)
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: 区域经理（北京）
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: 医药代表/北京/上海
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: Beijing Medical Representative
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: 区域经理-北京-免疫产品组
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > keeps conflicting or unresolved title geography pending in any segment: Scientist (Atlantis)
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:149:129
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > keeps reviewed professional skill context separate from workplace microsoft office
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > keeps reviewed professional skill context separate from workplace value-based pricing
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:153:142
+    151|   });
+    152|   it.each(["microsoft office", "value-based pricing"])("keeps reviewed…
+    153|     const input = await captureSyntheticLilly([syntheticLillyRow(0, {m…
+       |                                                                                                                                              ^
+    154|     expect(input.result.jobs[0]?.cities).toEqual(["上海"]); expect(repla…
+    155|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > admits a new legitimate title and new description without a text allowlist
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:192:103
+    190|     (row.ml_job_parser as Record<string, string>).descriptionTeaser = …
+    191|     (row.ml_job_parser as Record<string, string>).descriptionTeaser_at…
+    192|     const input = await captureSyntheticLilly([row]); expect(input.res…
+       |                                                                                                       ^
+    193|     expect(input.result.jobs[0]).toMatchObject({officialTitle: title, …
+    194|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains uncertain or conflicting prose as pending: Work location: Atlantis.
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains uncertain or conflicting prose as pending: Remote work.
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains uncertain or conflicting prose as pending: 工作地点：北京
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains uncertain or conflicting prose as pending: at our Suzhou site
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > retains uncertain or conflicting prose as pending: business units in Shanghai
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:200:103
+    198|     // A new description in a nested surface is uncertainty too; it ne…
+    199|     (row.ml_job_parser as Record<string, string>).descriptionTeaser_at…
+    200|     const input = await captureSyntheticLilly([row]); expect(input.res…
+       |                                                                                                       ^
+    201|     expect(input.result.jobs[0]?.cities).toEqual(["城市待核"]); expect(rep…
+    202|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > keeps an observed empty URL title slug and optional numeric requisition version
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:205:103
+    203|   it("keeps an observed empty URL title slug and optional numeric requ…
+    204|     const row = syntheticLillyRow(); row.applyUrl = String(row.applyUr…
+    205|     const input = await captureSyntheticLilly([row]); expect(input.res…
+       |                                                                                                       ^
+    206|   });
+    207|   it("closes dynamic omitted-offset pages at the exact remainder and k…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > closes dynamic omitted-offset pages at the exact remainder and keeps an empty response honest
+AssertionError: 1: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:210:69
+    208|     for (const size of [0, 1, 50, 55, 100]) {
+    209|       const input = await captureSyntheticLilly(Array.from({length: si…
+    210|       expect(input.result.truth.completenessVerified, String(size)).to…
+       |                                                                     ^
+    211|       expect(replayLilly(input)).toBe(true); expect(input.requests).to…
+    212|     }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/57]⎯
+
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects replay pagination/request drift request locator
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects replay pagination/request drift request URL
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects replay pagination/request drift sequence
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects replay pagination/request drift returned offset
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects replay pagination/request drift next signal
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects replay pagination/request drift termination
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects replay pagination/request drift extra artifact
+ FAIL  tests/crawler/lillyChinaQuality.test.ts > Lilly China source quality > rejects replay pagination/request drift extra page
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/crawler/lillyChinaQuality.test.ts:238:77
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/57]⎯
+
+ FAIL  tests/crawler/lillyQualityAdmission.test.ts > synthetic Lilly owned admission and atomic fixture > admits the exact configuration with synthetic 88 rows and exact dates
+Error: SYNTHETIC_LILLY_ADMISSION_REJECTED:OWNED_ACQUISITION_REQUIRED
+ ❯ buildSyntheticLillyAtomicFixture tests/helpers/lillyQualityFixture.ts:34:46
+     32|   input.binding.adapterVersion = pending.adapterVersion;
+     33|   const admission = await issueSourceQualityAdmission(input);
+     34|   if (admission.status !== "ACCEPTED") throw Error(`SYNTHETIC_LILLY_AD…
+       |                                              ^
+     35|   const commit = buildAtomicRuntimeCommit({plan: input.plan, pending, …
+     36|     previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: i…
+ ❯ tests/crawler/lillyQualityAdmission.test.ts:22:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/57]⎯
+
+ FAIL  tests/crawler/lillyQualityAdmission.test.ts > synthetic Lilly owned admission and atomic fixture > executes the complete atomic repository route against an in-memory transaction fixture
+Error: SYNTHETIC_LILLY_ADMISSION_REJECTED:OWNED_ACQUISITION_REQUIRED
+ ❯ buildSyntheticLillyAtomicFixture tests/helpers/lillyQualityFixture.ts:34:46
+     32|   input.binding.adapterVersion = pending.adapterVersion;
+     33|   const admission = await issueSourceQualityAdmission(input);
+     34|   if (admission.status !== "ACCEPTED") throw Error(`SYNTHETIC_LILLY_AD…
+       |                                              ^
+     35|   const commit = buildAtomicRuntimeCommit({plan: input.plan, pending, …
+     36|     previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: i…
+ ❯ tests/crawler/lillyQualityAdmission.test.ts:36:53
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/57]⎯
+
+ FAIL  tests/crawler/lillyQualityAdmission.test.ts > synthetic Lilly owned admission and atomic fixture > rejects imported evidence and coherent post-acquisition raw mutation
+AssertionError: expected { status: 'REJECTED', …(1) } to match object { status: 'REJECTED', …(1) }
+
+- Expected
++ Received
+
+  {
+    "codes": [
+-     "ACQUISITION_MUTATED",
++     "OWNED_ACQUISITION_REQUIRED",
+    ],
+    "status": "REJECTED",
+  }
+
+ ❯ tests/crawler/lillyQualityAdmission.test.ts:59:54
+     57|     expect(await issueSourceQualityAdmission({...input, result: struct…
+     58|     input.result.fetchEvidence!.artifacts[1]!.body = "changed";
+     59|     expect(await issueSourceQualityAdmission(input)).toMatchObject({st…
+       |                                                      ^
+     60|   });
+     61| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/57]⎯
+
+ FAIL  tests/crawler/lillyQualityAdmission.test.ts > synthetic Lilly owned admission and atomic fixture > rejects a disappeared archived body before issuing admission
+AssertionError: expected { status: 'REJECTED', …(1) } to match object { status: 'REJECTED', …(1) }
+
+- Expected
++ Received
+
+  {
+    "codes": [
+-     "ARCHIVE_VERIFICATION_FAILED",
++     "OWNED_ACQUISITION_REQUIRED",
+    ],
+    "status": "REJECTED",
+  }
+
+ ❯ tests/crawler/lillyQualityAdmission.test.ts:64:54
+     62|   it("rejects a disappeared archived body before issuing admission", a…
+     63|     const input = await capture(); await writeFile(join(input.archive.…
+     64|     expect(await issueSourceQualityAdmission(input)).toMatchObject({st…
+       |                                                      ^
+     65|   });
+     66| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/57]⎯
+
+ FAIL  tests/crawler/lillyQualityAdmission.test.ts > synthetic Lilly owned admission and atomic fixture > retains old exact posted dates in active atomic publication
+Error: SYNTHETIC_LILLY_ADMISSION_REJECTED:OWNED_ACQUISITION_REQUIRED
+ ❯ buildSyntheticLillyAtomicFixture tests/helpers/lillyQualityFixture.ts:34:46
+     32|   input.binding.adapterVersion = pending.adapterVersion;
+     33|   const admission = await issueSourceQualityAdmission(input);
+     34|   if (admission.status !== "ACCEPTED") throw Error(`SYNTHETIC_LILLY_AD…
+       |                                              ^
+     35|   const commit = buildAtomicRuntimeCommit({plan: input.plan, pending, …
+     36|     previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: i…
+ ❯ tests/crawler/lillyQualityAdmission.test.ts:68:74
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/57]⎯
+
+ FAIL  tests/crawler/lillyQualityAdmission.test.ts > synthetic Lilly owned admission and atomic fixture > refuses source/configuration drift and forged normalized city/country claims
+TypeError: Cannot set properties of undefined (setting 'locationRaw')
+ ❯ tests/crawler/lillyQualityAdmission.test.ts:83:27
+     81|     const changed = structuredClone(input.plan); if (changed.adapterId…
+     82|     changed.officialJsonFetch.countryFilter = "Singapore"; expect(getS…
+     83|     input.result.jobs[0]!.locationRaw = "Japan - Tokyo";
+       |                           ^
+     84|     expect((await issueSourceQualityAdmission(input)).status).toBe("RE…
+     85|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[23/57]⎯
+
+ FAIL  tests/crawler/lillyQualityAdmission.test.ts > synthetic Lilly owned admission and atomic fixture > blocks a date mutation after atomic construction before entering a transaction
+Error: SYNTHETIC_LILLY_ADMISSION_REJECTED:OWNED_ACQUISITION_REQUIRED
+ ❯ buildSyntheticLillyAtomicFixture tests/helpers/lillyQualityFixture.ts:34:46
+     32|   input.binding.adapterVersion = pending.adapterVersion;
+     33|   const admission = await issueSourceQualityAdmission(input);
+     34|   if (admission.status !== "ACCEPTED") throw Error(`SYNTHETIC_LILLY_AD…
+       |                                              ^
+     35|   const commit = buildAtomicRuntimeCommit({plan: input.plan, pending, …
+     36|     previousJobs: [], baselineCompletedBeforeCrawl: true, artifacts: i…
+ ❯ tests/crawler/lillyQualityAdmission.test.ts:88:53
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[24/57]⎯
+
+
+ Test Files  2 failed | 1 passed (3)
+      Tests  57 failed | 154 passed (211)
+   Start at  05:03:12
+   Duration  6.32s (transform 5.24s, setup 241ms, collect 9.81s, tests 3.09s, environment 420ms, prepare 209ms)
+
+(node:172) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)

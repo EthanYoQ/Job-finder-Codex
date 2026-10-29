@@ -1,0 +1,28 @@
+{
+  "status": "OFFLINE_CANDIDATE_NOT_ENABLED",
+  "baseCommit": "8dc09d27afe26d945dea00c4c7bac40042a5ffab",
+  "baseRestoredTree": "78f8e71da34f71b6e7d5e7527dc2a0dba6aeb8e4",
+  "modifiedFiles": [
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/lillyChinaQuality.ts",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/lillyClosedApplication.test.ts"
+  ],
+  "fileSha256": {
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/lillyChinaQuality.ts": "56d331b471e2d332ba894c6a5b4564aba5dfe9a30c18415922396fcc24f1bd58",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/lillyClosedApplication.test.ts": "ce3bec369146e8d7cc86c565696916c1bd6cb4371464da0e6604ffeeff2c08cf"
+  },
+  "change": "Add exact China-Xin-Xiang- to existing mainland URL set; result remains CITY_PENDING and same-ID native detail remains mandatory",
+  "tests": {
+    "targetedPassed": 5,
+    "broaderPassed": 154,
+    "broaderFailed": 57,
+    "baselinePassed": 154,
+    "baselineFailed": 57,
+    "failedTestNamesMatchBaseline": true,
+    "realRawCheck": "63 originals, only R-113861 changes from reject to CITY_PENDING; other62 identical; no missing detail accepted"
+  },
+  "limitations": "Old broader tests not all green; full fresh native details/atomic publication/web still required. Restored base has verified full Git tree but no local HEAD; do not register until real remote commit and runtime measured.",
+  "offlineDependencySymlink": true,
+  "activeChanged": false,
+  "registered": false,
+  "enabled": false
+}

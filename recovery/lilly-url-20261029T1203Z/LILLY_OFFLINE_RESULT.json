@@ -1,0 +1,21 @@
+{
+  "baseCommit": "8dc09d27afe26d945dea00c4c7bac40042a5ffab",
+  "batchId": "dot-auto-lilly-20261029T115842631Z",
+  "raw": 63,
+  "beforeListValid": 62,
+  "afterListValid": 63,
+  "unchangedOtherRows": 62,
+  "changed": [
+    {
+      "id": "R-113861",
+      "cities": [
+        "城市待核"
+      ],
+      "missingDetail": null
+    }
+  ],
+  "originalRawUnchanged": true,
+  "fullDetailsNotCaptured": true,
+  "missingDetailsRemainRejected": true,
+  "offlineOnly": true
+}
