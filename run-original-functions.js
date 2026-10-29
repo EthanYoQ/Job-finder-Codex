@@ -61,7 +61,7 @@ return await runOriginalSerial(routes.map(row=>row.sourceId),async sourceId=>{
   const tailRecovery=pending?await resumeTail(sourceId,pending):undefined;
   return {skip:'REAL_OBSERVATION_IN_SCHEDULE_SLOT:'+slotStart+':'+state.crawledAt,...(tailRecovery?{tailRecovery}:{})};
  }
- const hold=sourceId==='source-cttq-social'?'UNRESOLVED_20261028_BATCH_READONLY':load('originalSourceHolds')?.[sourceId];if(hold)throw Error('PENDING_USER_DECISION:'+hold);
+ const hold=sourceId==='source-cttq-social'?'UNRESOLVED_20261028_BATCH_READONLY':sourceId==='source-novo-nordisk-china-social'?'EXPIRED_20261029_DIRECT_JOB_VERIFICATION_UNKNOWN_READONLY':load('originalSourceHolds')?.[sourceId];if(hold)throw Error('PENDING_USER_DECISION:'+hold);
  
  if(!sourceFolders[sourceId])throw Error('ROUTE_NOT_CONNECTED:'+routeById[sourceId].route);
  if(state.holder||Number(state.running)||Number(state.manual))throw Error('EXISTING_WRITER_RECONCILE_ONLY');
