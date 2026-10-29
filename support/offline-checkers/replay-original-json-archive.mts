@@ -14,11 +14,12 @@ const officialJsonFetch=(deps:any)=>createOfficialJsonSourceFetch({...deps,http:
 const bi=d.terminal.sourceId==='source-boehringer-ingelheim-china-social';
 const novo=d.terminal.sourceId==='source-novo-nordisk-china-social';
 const astellas=d.terminal.sourceId==='source-astellas-china-social',astrazeneca=d.terminal.sourceId==='source-astrazeneca-social',jnj=d.terminal.sourceId==='source-johnson-innovative-medicine-social';
-const {isCurrentBGradeCertificateSchema,SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,SANOFI_INDEPENDENT_ORIGINAL_LOCATOR}=await import(V+'/src/crawler/traversalCertificate.ts');
-const compact=d.receipt.legacyCertificate.schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION;
+const {isCurrentBGradeCertificateSchema,SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,SANOFI_INDEPENDENT_ORIGINAL_LOCATOR,BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION,BAYER_INDEPENDENT_ORIGINAL_LOCATOR}=await import(V+'/src/crawler/traversalCertificate.ts');
+const bayerCompact=d.receipt.legacyCertificate.schemaVersion===BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION;
+const compact=d.receipt.legacyCertificate.schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION||bayerCompact;
 const ab=d.receipt.legacyCertificate.schemaVersion==='a-grade-official-total-v2'||isCurrentBGradeCertificateSchema(d.receipt.legacyCertificate.schemaVersion);
-const independentArtifacts=compact?a.sidecar.artifacts.filter((x:any)=>x.extractorLocator===SANOFI_INDEPENDENT_ORIGINAL_LOCATOR):[];
-if(compact){assert.equal(d.terminal.sourceId,'source-sanofi-china-social');assert.equal(independentArtifacts.length,1,'SANOFI_INDEPENDENT_ARCHIVE_REQUIRED');assert.equal(independentArtifacts[0].kind,'COMMAND_OUTPUT');assert.equal(independentArtifacts[0].bodyRepresentation,'EXACT');}
+const independentArtifacts=compact?a.sidecar.artifacts.filter((x:any)=>x.extractorLocator===(bayerCompact?BAYER_INDEPENDENT_ORIGINAL_LOCATOR:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR)):[];
+if(compact){assert.equal(d.terminal.sourceId,bayerCompact?'source-bayer-healthcare-social':'source-sanofi-china-social');assert.equal(independentArtifacts.length,1,'SANOFI_INDEPENDENT_ARCHIVE_REQUIRED');assert.equal(independentArtifacts[0].kind,'COMMAND_OUTPUT');assert.equal(independentArtifacts[0].bodyRepresentation,'EXACT');}
 const mainArtifacts=compact?a.sidecar.artifacts.filter((x:any)=>x!==independentArtifacts[0]):a.sidecar.artifacts;
 const moka=ab&&d.plan.source.atsKind==='MOKA';
 if(!ab&&!astellas)assert(['source-ucb-china-social','source-viatris-social','source-hansoh-social','source-takeda-china-social','source-merck-china-social','source-fosun-pharma-social','source-cspc-social','source-abbvie-china-social','source-bms-china-social','source-boehringer-ingelheim-china-social','source-gilead-china-social','source-kelun-social','source-novartis-social','source-novo-nordisk-china-social','source-organon-china-social','source-qilu-social','source-grifols-china-social'].includes(d.terminal.sourceId));let originalFetch:any=d.plan.adapterId==='html-table'?httpHtmlFetch:officialJsonFetch;
@@ -98,7 +99,7 @@ if(compact){
  const {bindRuntimeEvidenceArtifactIds}=await import(V+'/src/crawler/runtimeAtomicEvidence.ts');
  const tuple={releaseCandidateId:d.terminal.releaseCandidateId,batchId:d.terminal.batchId,sourceId:d.terminal.sourceId,sourceResultId:d.terminal.id};
  const original=d.receipt.legacyCertificate.independentValidation;
- const draft={id:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR,logicalKey:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR,kind:'COMMAND_OUTPUT',capturedAt:original.finishedAt,body:independent,bodyRepresentation:'EXACT',extractorLocator:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR};
+ const draft={id:bayerCompact?BAYER_INDEPENDENT_ORIGINAL_LOCATOR:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR,logicalKey:bayerCompact?BAYER_INDEPENDENT_ORIGINAL_LOCATOR:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR,kind:'COMMAND_OUTPUT',capturedAt:original.finishedAt,body:independent,bodyRepresentation:'EXACT',extractorLocator:bayerCompact?BAYER_INDEPENDENT_ORIGINAL_LOCATOR:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR};
  assertVerifiedArchivedEvidenceMetadata({...tuple,evidenceSubdirectory:a.sidecar.evidenceSubdirectory,artifacts:a.sidecar.artifacts.map((x:any)=>({...x,capturedAt:new Date(x.capturedAt)}))},bindRuntimeEvidenceArtifactIds({...tuple,artifacts:[...replay.fetchEvidence.artifacts,draft]}));
  const stored=d.decoded.filter((x:any)=>x.table==='EvidenceArtifact').flatMap((x:any)=>x.rows);assert.equal(stored.length,a.sidecar.artifacts.length);
  for(const saved of a.sidecar.artifacts){

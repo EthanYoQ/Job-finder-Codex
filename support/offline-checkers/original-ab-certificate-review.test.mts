@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {reviewOriginalABCertificate} from './original-ab-certificate-review.mts';
-const V='/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source';
+const V='/workspace/scratch/5e9614251709/recovery104-work/bayer-compact-candidate-20261029T1252Z/tools/dot-auto-controller/vendor/c60-source';
 const {candidateCompanies}=await import(V+'/src/data/companyRegistry.ts');
 const {buildStagedSourceCrawlPlans,sourcePlanConfigSha256}=await import(V+'/src/crawler/sourcePlan.ts');
 const {createAmgenManualWorkdaySourceFetch}=await import(V+'/src/crawler/amgenManualWorkdaySourceFetch.ts');
