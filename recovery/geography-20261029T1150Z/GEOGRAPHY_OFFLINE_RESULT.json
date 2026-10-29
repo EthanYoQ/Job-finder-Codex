@@ -1,0 +1,31 @@
+{
+  "baseCommit": "331d0bf101c54e7060e0c3e32cadda238996eabf",
+  "batches": {
+    "hansoh": "dot-auto-hansoh-20261029T113946782Z",
+    "hengrui": "dot-auto-hengrui-20261029T114131846Z"
+  },
+  "before": {
+    "hansohScope": false,
+    "hansohQuality": false,
+    "hengruiExclusions": null
+  },
+  "after": {
+    "hansohScope": true,
+    "hansohQuality": true,
+    "hengruiExclusions": 2
+  },
+  "hansoh": {
+    "raw": 314,
+    "output": 314,
+    "unchangedOutput": true,
+    "officialCategory1TitleCampusConflict": "d579d1b4-7d3b-4238-b33b-ed38e2e071cc retained, no title filter added"
+  },
+  "hengrui": {
+    "raw": 1016,
+    "valid": 1014,
+    "hongKongExclusions": 2,
+    "producerFailedJobsZeroNotEmptySource": true
+  },
+  "offlineOnly": true,
+  "productionNotEnabled": true
+}

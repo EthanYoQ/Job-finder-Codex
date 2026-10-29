@@ -1,0 +1,30 @@
+{
+  "status": "OFFLINE_CANDIDATE_NOT_ENABLED",
+  "baseCommit": "331d0bf101c54e7060e0c3e32cadda238996eabf",
+  "modifiedFiles": [
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/hansohNativeWindowEvidence.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/hengruiMainlandGeography.ts",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/hansohNativeWindow.test.ts",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/hengruiMainlandGeography.test.ts"
+  ],
+  "sha256": {
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/hansohNativeWindowEvidence.ts": "505ea894c2a2d8fc7593b06552a80df0438674884c6d01398c9d14cc3d8f869f",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/hengruiMainlandGeography.ts": "fb1a455c87afc4262cf78b09cdfdabc128fb7c4465265469b1ebcd53443364e3",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/hansohNativeWindow.test.ts": "104137238717c7e303931bc3e70351f6f6199fc619f5c28a9cb9da7d9d5b728e",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/hengruiMainlandGeography.test.ts": "2be131b5738a9077f43da6139f16be3faa69b6464c7e0b2564c9b42d3a139ea8"
+  },
+  "patchSha256": "d0f68e193b7b2e8006bd5245cddec5ba47802e426c18e2916a6380b3e80aba54",
+  "change": "Only extend existing exact locality maps: Hansoh Lianyungang/Lianyun and Changsha/Liuyang; Hengrui Tianchang341181 and Jieshou341282",
+  "tests": {
+    "files": 5,
+    "passed": 180,
+    "realOriginalReplay": "GEOGRAPHY_OFFLINE_RESULT.json"
+  },
+  "scope": "No new source, job title filter, protocol, schema, reader deployment, dependency, or controller",
+  "testDependencyNote": "Candidate node_modules is an offline-only symlink to existing pinned dependencies, excluded from source backup and not valid for production build attestation",
+  "officialConflict": "Hansoh d579d1b4 official Category1 social/Kind fulltime but title2027campus retained unchanged per original policy; no filtering added",
+  "limitations": "Offline proof only; new registered runtime and fresh production batches required. Hengrui failed result jobs0 is not a verified empty set.",
+  "activeChanged": false,
+  "registered": false,
+  "enabled": false
+}

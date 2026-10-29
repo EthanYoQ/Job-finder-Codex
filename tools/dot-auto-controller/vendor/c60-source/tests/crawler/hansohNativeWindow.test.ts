@@ -100,10 +100,13 @@ describe("Hansoh native half-year request and independent replay", () => {
   it.each([{Country: "美国"}, {CountryName: "火星"}, {City: "北京"}, {LocName: {}}, {Category: "校园招聘"}])("rejects conflicting raw metadata %j", async extra => {
     expect((await collect([row(1, extra)])).result.truth.completenessVerified).toBe(false);
   });
-  it.each(["上海市·浦东新区", "江苏省·常州市·新北区", "云南省·大理白族自治州", "山东省·东营市/滨州市"])("supports exact observed mainland hierarchy %s", async location => {
+  it.each(["江苏省·连云港市·连云区", "湖南省·长沙市·浏阳市", "上海市·浦东新区", "江苏省·常州市·新北区", "云南省·大理白族自治州", "山东省·东营市/滨州市"])("supports exact observed mainland hierarchy %s", async location => {
     const {result} = await collect([row(1, {LocNames: [location]})]); expect(validateStrictHansohNativeWindowEvidence(nativePlan(), result.fetchEvidence!, result.jobs)).toBe(true);
     expect(result.truth.completenessVerified).toBe(true);
     expect(result.jobs[0]?.locationRaw).toBe(location);
+    for (const extra of [{Country: "美国"}, {City: "北京"}]) {
+      expect((await collect([row(1, {LocNames: [location], ...extra})])).result.truth.completenessVerified).toBe(false);
+    }
   });
   it.each(["source", "company", "entry", "chain", "date", "display", "pageSize", "maxPages", "json", "fallback"])("rejects changed %s plan binding", async field => {
     const {plan, fetched} = await collect(); const altered = structuredClone(plan) as any;

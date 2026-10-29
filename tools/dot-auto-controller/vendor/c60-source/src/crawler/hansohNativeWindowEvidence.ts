@@ -133,6 +133,8 @@ function realProjectedPostDate(value: unknown): boolean {
 // with exact observed Hansoh hierarchy aliases. This is validation only:
 // original location strings and output cities remain unchanged.
 const HANSOH_HIERARCHIES = new Map([
+  ["江苏省·连云港市·连云区", "江苏省·连云港市"],
+  ["湖南省·长沙市·浏阳市", "湖南省·长沙市"],
   ["江苏省·淮安市·淮安区", "江苏省·淮安市"],
   ["江苏省·常州市·新北区", "江苏省·常州市"],
   ["云南省·大理白族自治州", "云南省·大理"]

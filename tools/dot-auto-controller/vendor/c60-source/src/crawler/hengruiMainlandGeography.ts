@@ -72,6 +72,7 @@ const CITY_PROVINCES = new Map<string, string>([
 // Explicit county-level and autonomous-prefecture tuples. Their official region
 // IDs are required rather than inferred from a broad country/province label.
 const ADDITIONAL_LOCALITIES = new Map<string, number>([
+  ["天长", 341181], ["界首", 341282],
   ["景洪", 532801], ["兴义", 522301], ["慈溪", 330282], ["余姚", 330281],
   ["普宁", 445281], ["开远", 532502], ["莱西", 370285], ["平度", 370283],
   ["邛崃", 510183], ["西昌", 513401], ["乐昌", 440281], ["福清", 350181],
