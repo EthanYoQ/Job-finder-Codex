@@ -1,0 +1,28 @@
+--- a/run-original-functions.js
++++ b/run-original-functions.js
+@@ -149,7 +149,7 @@
+    try{await save(job.runDirectory+'/EVIDENCE_BACKUP_PENDING.json',result.evidenceBackup);}catch{}
+   }
+  }
+- if(sourceId!=='source-novo-nordisk-china-social')return undefined;
++ if(sourceId!=='source-novo-nordisk-china-social'||result.status==='WEB_VERIFIED'||result.committedExact===true)return undefined;
+  const {verifyNovoPublishedJobs}=await new A(await read(D+'/novo-job-verification-functions.js'))();
+  return verifyNovoPublishedJobs({command,read,save,q,N,V,P,D,R,rows,
+   official:query=>tools.mcp__codex_apps__supabase_execute_sql({project_id:'yiopvxysxrtrnvqxwgbx',query})});
+--- a/novo-hook.test.mjs
++++ b/novo-hook.test.mjs
+@@ -13,3 +13,14 @@
+ assert.equal(prepared,1);assert.equal(uncertain[0].jobVerification.outcome,'UNKNOWN');
+ prepared=0;await runOriginalSerial(['one','two'],async()=>{prepared++;return terminal();},async()=>{throw Error('verification response lost');});assert.equal(prepared,1);
+ console.log('PASS: confirmed producer terminal hook; recent/prelaunch/uncertain producer skip; closure UNKNOWN/throw stop; source outcome retained');
++
++// Full-source commit already owns absence and closed-job updates; no second scan.
++const entry=readFileSync(new URL('./run-original-functions.js',import.meta.url),'utf8');
++const guard=entry.split('\n').find(line=>line.includes("if(sourceId!=='source-novo-nordisk-china-social')")||line.includes("if(sourceId!=='source-novo-nordisk-china-social'||"));
++assert.ok(guard);const shouldVerify=new A('sourceId','result',guard+'return true;');
++for(const [sourceId,result,expected] of [
++ ['source-novo-nordisk-china-social',{status:'WEB_VERIFIED'},undefined],
++ ['source-novo-nordisk-china-social',{status:'HELD',committedExact:true},undefined],
++ ['source-novo-nordisk-china-social',{status:'HELD'},true],
++ ['source-cttq-social',{status:'HELD'},undefined]]) assert.equal(await shouldVerify(sourceId,result),expected);
++console.log('PASS: successful Novo source skips duplicate verification, known source failure retains recovery');
