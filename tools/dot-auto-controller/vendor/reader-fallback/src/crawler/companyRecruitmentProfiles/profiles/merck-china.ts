@@ -17,7 +17,7 @@ export const profile_merck_china = {
               detailBaseUrl: "https://careers.emdgroup.com/us/en/job",
               countryFilter: "China",
               allowOmittedOffsetForSinglePage: true,
-              pageSize: 50,
+              pageSize: 100,
               maxPages: 10
           }
       }

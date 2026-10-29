@@ -31,7 +31,7 @@ const REVIEWED_CONFIGS: Readonly<Record<string, string>> = Object.freeze({
   "source-novo-nordisk-china-social": "40305820c3aa3f36e74f06873c0ddd1a52266cb74d277b3a36137c81fc5c604e",
   "source-organon-china-social": "d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2",
   "source-biogen-china-social": "47107a3a1f9dbd3411a1f9244866be7c4bc52422b94a1c92204dc66ac4340348",
-  "source-merck-china-social": "3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38",
+  "source-merck-china-social": "1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212",
   "source-bms-china-social": "e0d783cbc8fc887e1697db6d86cb0abb8058ca6793cd32752055271c022ca137",
   "source-ucb-china-social": "0423b01f438925ad3e34e29aeda58fe6353fbd264d4472a09bcb1fba281bd146",
   "source-grifols-china-social": "614ac95db03986792bf1a42a856a403e747165f1b3a94d8588d49f2016c522c7",

@@ -1,0 +1,83 @@
+{
+  "parent": "2cae6bbe6a351ebb5002d0a7f32e5b3c9b67af40",
+  "purpose": "Align Merck current page100 catalog and readers; preserve old committed page50 rows and Bayer compact reader",
+  "liveChanged": false,
+  "merckReadback": {
+    "checkedAt": "2026-10-29T17:54:29.04445+00:00",
+    "results": [
+      {
+        "role": "main",
+        "oldVisible": 72,
+        "newVisible": 72,
+        "state": "PUBLISHING",
+        "fieldsEqualExceptExpectedCurrentConfig": true
+      },
+      {
+        "role": "fallback",
+        "oldVisible": 72,
+        "newVisible": 72,
+        "state": "PUBLISHING",
+        "fieldsEqualExceptExpectedCurrentConfig": true
+      }
+    ]
+  },
+  "tests": {
+    "bothReaderTypechecks": 0,
+    "bothReaderCompatibility": "PASS",
+    "Bayer175CompleteProjection": "equal active vs candidate both readers"
+  },
+  "files": [
+    {
+      "path": "tools/dot-auto-controller/config/native-catalog.json",
+      "sha256": "af454395e5ad10c605445f63c520bbda2115bf445505486c6dfa28b33c31a2d7"
+    },
+    {
+      "path": "tools/dot-auto-controller/config/reader-pins.json",
+      "sha256": "f223a7fa25d10d40151d8b2f0f64ab7ce2229b22b91a5823942582ded6a84ba9"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/ops/cloud-pilot-host/connector-host-binding.mjs",
+      "sha256": "19628713a0ac1f010c08c64013516a9ca7baf7ccae6572d8aafb0b85a8a18719"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/ops/cloud-pilot-host/connector-host-launch.py",
+      "sha256": "f9ed75bff40628427e3315d30077424dd4e7a63d9a143226ed7bcab9cb661548"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/reader-fallback/src/crawler/companyRecruitmentProfiles/profiles/merck-china.ts",
+      "sha256": "34ddc21cfa35789d81c59070d410bca1d3fbb03c6d67b57526a6f3d47c66ad40"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/reader-fallback/src/crawler/sourceQualityAdmission.ts",
+      "sha256": "84edda80b03ea5f72209e99e2b00486fa59a5ad7f9257ed2454f70e002bde5fb"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/reader-fallback/src/db/portablePublicSnapshotRepository.ts",
+      "sha256": "42365fe85a4c2fa455be50043ee3e063f646187baceb2ea5e95d744896d89659"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/reader-fallback/src/domain/portablePublicSnapshot.ts",
+      "sha256": "8732e2de459afabbc2b0ff9c0cfe7740abaa7eae4fd61947a2c439937d0a3780"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/reader-main/src/crawler/companyRecruitmentProfiles/profiles/merck-china.ts",
+      "sha256": "34ddc21cfa35789d81c59070d410bca1d3fbb03c6d67b57526a6f3d47c66ad40"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/reader-main/src/crawler/sourceQualityAdmission.ts",
+      "sha256": "84edda80b03ea5f72209e99e2b00486fa59a5ad7f9257ed2454f70e002bde5fb"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/reader-main/src/db/portablePublicSnapshotRepository.ts",
+      "sha256": "42365fe85a4c2fa455be50043ee3e063f646187baceb2ea5e95d744896d89659"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/reader-main/src/domain/portablePublicSnapshot.ts",
+      "sha256": "8732e2de459afabbc2b0ff9c0cfe7740abaa7eae4fd61947a2c439937d0a3780"
+    },
+    {
+      "path": "tools/dot-auto-controller/test/merck-reader-compatibility.test.mts",
+      "sha256": "cf86470bf142726dd9fdf5dbdf16b5cb2e51e385f0f32af9720c8438ef559182"
+    }
+  ]
+}

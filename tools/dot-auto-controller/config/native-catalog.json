@@ -204,7 +204,7 @@
     {
       "sourceId": "source-merck-china-social",
       "route": "PORTABLE",
-      "sourceConfigSha256": "3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38",
+      "sourceConfigSha256": "1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212",
       "c60Use": "NO_POST_C51_PRODUCER_DELTA_IDENTIFIED_IN_AUDITED_EVIDENCE",
       "executionAuthorizedByAudit": false
     },
