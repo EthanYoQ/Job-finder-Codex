@@ -8,9 +8,11 @@ import { createMokaSourceFetch, type MokaHttpClient } from "../../src/crawler/mo
 import { runSourceCrawl } from "../../src/crawler/runSourceCrawl";
 import { buildStagedSourceCrawlPlans, type SourceCrawlPlan } from "../../src/crawler/sourcePlan";
 import { replayOfficialJsonRenderedTraversal } from "../../src/crawler/officialJsonRenderedTraversalValidator";
-import { createOfficialJsonRenderedTraversalValidation, issueBGradeTraversalCertificate } from "../../src/crawler/traversalCertificate";
+import { createOfficialJsonRenderedTraversalValidation, issueBGradeTraversalCertificate, verifyBGradeTraversalCertificateReceipt, BAYER_INDEPENDENT_ORIGINAL_LOCATOR } from "../../src/crawler/traversalCertificate";
 import { sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
 import { candidateCompanies } from "../../src/data/companyRegistry";
+import { canonicalStringSetSha256 } from "../../src/crawler/sourceFetchEvidence";
+import { hashProjectionJson } from "../../src/domain/jobProjectionDeltaReceipt";
 import { MOKA_RECENT_JSON_CONFIG } from "../../src/crawler/companyRecruitmentProfiles/shared";
 
 const NOW = "2026-10-02T17:00:00.000Z";
@@ -146,6 +148,19 @@ describe("Bayer medical native-scope B traversal", () => {
       jobs: result.jobs, independentValidation: validation, validationExecution: "CURRENT_RUN", trigger: "INITIAL_QUALIFICATION", now: new Date(NOW) });
     expect(certificate).toMatchObject({ status: "CERTIFIED", certificate: { grade: "B", schemaVersion: "b-grade-independent-traversal-v2" } });
     if (certificate.status !== "CERTIFIED") throw Error("synthetic B rejected");
+    const binding=certificate.certificate.binding,raw=JSON.stringify(validation),hash=(value:string|Uint8Array)=>createHash("sha256").update(value).digest("hex");
+    const artifacts=result.fetchEvidence!.artifacts.map(a=>({...binding,kind:a.kind,extractorLocator:a.extractorLocator!,sha256:hash(a.body),byteCount:Buffer.byteLength(a.body),capturedAt:a.capturedAt}));
+    artifacts.push({...binding,kind:"COMMAND_OUTPUT",extractorLocator:BAYER_INDEPENDENT_ORIGINAL_LOCATOR,sha256:hash(raw),byteCount:Buffer.byteLength(raw),capturedAt:NOW});
+    const input={plan,binding,transportSuccess:true,adapterSuccess:true,evidence:result.fetchEvidence!,paginationEvaluation:result.paginationEvaluation!,reconciliation:result.reconciliation!,jobs:result.jobs,
+      independentValidation:validation,validationExecution:"CURRENT_RUN" as const,trigger:"INITIAL_QUALIFICATION" as const,now:new Date(NOW),bayerArchive:{artifacts,independentOriginal:{sha256:hash(raw),byteCount:Buffer.byteLength(raw),canonicalArtifactSha256:validation.artifactSha256}}};
+    const compact=issueBGradeTraversalCertificate(input);expect(compact.status).toBe("CERTIFIED");if(compact.status!=="CERTIFIED")throw Error("compact rejected");
+    expect(compact.certificate.schemaVersion).toBe("bayer-cn-dual-chain-attestation-v1");
+    for(const key of ["binding","scope","mainTraversal","counts","output"] as const)expect(compact.certificate[key]).toEqual(certificate.certificate[key]);
+    const expected={...binding,bayerArtifacts:artifacts,canonicalRawEvidenceIdSetSha256:canonicalStringSetSha256(result.fetchEvidence!.pages.flatMap(p=>p.rawJobIds))};
+    expect(verifyBGradeTraversalCertificateReceipt({certificate:compact.certificate,certificateSha256:compact.certificateSha256,expected,now:new Date(NOW)}).status).toBe("PASS");
+    const altered=structuredClone(compact.certificate) as any;altered.independentValidation.decisions[0].state="EXCLUDED_AUDITED";
+    expect(()=>verifyBGradeTraversalCertificateReceipt({certificate:altered,certificateSha256:hashProjectionJson(altered),expected,now:new Date(NOW)})).toThrow("SET_EQUATION");
+    expect(()=>issueBGradeTraversalCertificate({...input,bayerArchive:{...input.bayerArchive,artifacts:artifacts.slice(1)}})).toThrow("MAIN_ORIGINAL_MISMATCH");
     await assertBGradePilotContext(plan, await assertBGradePublicSnapshot(plan, result, certificate.certificate));
   });
   it("drives fresh detail HTTP only from the independently enumerated DOM IDs", async () => {

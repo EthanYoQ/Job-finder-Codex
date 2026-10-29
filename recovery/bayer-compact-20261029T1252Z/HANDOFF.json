@@ -1,0 +1,79 @@
+{
+  "status": "INACTIVE_OFFLINE_VERIFIED_PENDING_BACKUP_AND_DEPLOYMENT_APPROVAL",
+  "parent": "6f71deb2dc7ae0f5cff52490a9e6d5189d0c60f0",
+  "nativeAndReaderChangedFiles": [
+    "tools/dot-auto-controller/vendor/c60-source/scripts/p0-cloud-source-pilot.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/cloudPilotContext.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/traversalCertificate.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/db/cloudPilotSqlControl.ts",
+    "tools/dot-auto-controller/vendor/c60-source/src/db/ingestionRepository.ts",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/bayerMokaTraversal.test.ts",
+    "tools/dot-auto-controller/vendor/c60-source/tests/db/cloudPilotBGradeContext.test.ts",
+    "tools/dot-auto-controller/vendor/reader-fallback/src/crawler/traversalCertificate.ts",
+    "tools/dot-auto-controller/vendor/reader-fallback/src/domain/portablePublicSnapshot.ts",
+    "tools/dot-auto-controller/vendor/reader-main/src/crawler/traversalCertificate.ts",
+    "tools/dot-auto-controller/vendor/reader-main/src/domain/portablePublicSnapshot.ts"
+  ],
+  "externalReplacementsFile": "EXTERNAL_REPLACEMENTS.json",
+  "fullCompile": {
+    "classification": "OFFLINE_ONLY_HISTORICAL_IDENTITIES_NOT_AUTHORITY",
+    "batch": "dot-auto-bayer-20261029T122800159Z",
+    "sqlBytes": 420752,
+    "packetBytes": 1300789,
+    "originalSqlBytes": 3207382,
+    "oldCaptureStartedAt": "2026-10-29T12:31:49.236Z",
+    "compactCaptureStartedAt": "2026-10-29T12:28:15.451Z",
+    "expiresAt": "2026-10-29T12:58:15.451Z",
+    "exactFullRecompile": true,
+    "oneAtomicTransaction": true,
+    "lockExpiryContextPreserved": true,
+    "acceptedCompactContextReadPassed": true,
+    "contextMutationTests": 3,
+    "jobCount": 175
+  },
+  "tests": {
+    "bayerAndSanofi": 70,
+    "readerAssertions": 28,
+    "externalABAssertions": 4,
+    "mutationAssertions": 8
+  },
+  "preserved": [
+    "full main and independent originals replay before commit",
+    "same atomic transaction, lock, scope and unknown outcome handling",
+    "old full-B and Sanofi behavior",
+    "same active/excluded sets and job fields",
+    "full independent original archived to original private Drive path"
+  ],
+  "notClaimed": [
+    "production write or new crawl",
+    "deployed reader or registered candidate",
+    "unknown old batch resolved",
+    "full external CLI end-to-end run",
+    "full project TypeScript baseline clean"
+  ],
+  "unwiredNonformalTools": [
+    "native c60 heavy public snapshot reader",
+    "fixedCohortCompletenessAudit and authoritativeLaunchReceipt artifact plumbing"
+  ],
+  "requiresBeforeEnable": [
+    "original private code/skill backup readback and restore",
+    "root confirm website companion deployment authorization especially any previous denial",
+    "deploy both matching light readers and update verified pins",
+    "fresh measured candidate registration and binding",
+    "activate paired external three file delta",
+    "fresh permitted batch only; never replay expired/unknown batch"
+  ],
+  "githubBackupExclusions": [
+    "node_modules",
+    ".git",
+    "offline-original-archive-*",
+    "OFFLINE_COMPACT_RECEIPT.json",
+    "full packet/SQL and original crawl evidence",
+    "synthetic-atomic-packet.json"
+  ],
+  "artifactEvidenceLocation": "real originals remain existing private dot workspace; backup only original private Drive, not GitHub",
+  "activeChanged": false,
+  "registered": false,
+  "enabled": false
+}

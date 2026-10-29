@@ -378,6 +378,7 @@ export function buildAtomicRuntimeCommit(input: {
   trustedOracle?: StartupTrustedSourceSurfaceOracle;
   independentTraversalValidation?: BGradeIndependentTraversalValidation;
   sanofiIndependentOriginal?: SanofiIndependentArchiveBinding;
+  bayerIndependentOriginal?: SanofiIndependentArchiveBinding;
   independentTraversalValidationExecution?: "CURRENT_RUN" | "REUSED";
   independentTraversalValidationTrigger?: BGradeValidationTrigger;
   independentTraversalFailureCode?: BGradeIndependentTraversalFailureCode;
@@ -447,6 +448,7 @@ export function buildAtomicRuntimeCommit(input: {
   const bGradeCertificateDecision = bGradeCertificateRequired && result.paginationEvaluation &&
       input.independentTraversalValidation
     ? issueBGradeTraversalCertificate({
+        ...(input.bayerIndependentOriginal?{bayerArchive:{artifacts:input.artifacts,independentOriginal:input.bayerIndependentOriginal}}:{}),
         ...(input.sanofiIndependentOriginal?{sanofiArchive:{artifacts:input.artifacts,independentOriginal:input.sanofiIndependentOriginal}}:{}),
         binding: {
           releaseCandidateId: identity.releaseCandidateId,

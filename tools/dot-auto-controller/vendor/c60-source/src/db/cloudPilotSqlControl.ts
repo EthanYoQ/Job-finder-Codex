@@ -1,4 +1,4 @@
-import {SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION} from "../crawler/traversalCertificate";
+import {SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION} from "../crawler/traversalCertificate";
 import { buildNovoSingleClosureDetails,NOVO_CLOSURE_SOURCE,NOVO_CLOSURE_BLOCKER } from "../domain/novoSingleJobClosure";
 import { assertNovoVerificationArchive,type NovoVerificationCapture } from "../crawler/novoJobVerification";
 import { emptyReconciliation } from "../crawler/adapters/reconciliation";
@@ -185,23 +185,24 @@ function publicationContextQuery(candidateId:string,sourceAdmissionPolicy?:typeo
  const portable=sourceAdmissionPolicy===SOURCE_QUALITY_POLICY_ID,bGrade=!portable&&requiresBGradeTraversalCertificate(readyPlan!);
  const certificate=portable?SOURCE_QUALITY_RECEIPT_SCHEMA:bGrade?'b-grade-independent-traversal-v2':'a-grade-official-total-v2';
  const certificateSql=incremental?`(CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END)`:`r."completenessCertificate"`;
- const sanofiArtifacts=bGrade&&SOURCE==='source-sanofi-china-social'?`,coalesce((
+ const compactSchema=SOURCE==='source-sanofi-china-social'?SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION:SOURCE==='source-bayer-healthcare-social'?BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION:null;
+ const certificateArtifacts=bGrade&&compactSchema?`,coalesce((
  SELECT jsonb_agg(jsonb_build_object('releaseCandidateId',a."releaseCandidateId",'batchId',a."batchId",'sourceResultId',a."sourceResultId",'sourceId',a."sourceId",'kind',a.kind,'extractorLocator',a."extractorLocator",'sha256',a.sha256,'byteCount',a."byteCount",'capturedAt',to_char(a."capturedAt",'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) ORDER BY a.kind,a."extractorLocator",a.id)
  FROM public."EvidenceArtifact" a
  WHERE a."releaseCandidateId"=r."releaseCandidateId" AND a."batchId"=r."batchId" AND a."sourceResultId"=r.id AND a."sourceId"=r."sourceId"
- AND (((${certificateSql}->>'schemaVersion')=${text(SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION)}) OR
- ((${certificateSql}->>'schemaVersion')='b-grade-independent-traversal-v2' AND ((a.kind='ORACLE_RESULT' AND a."extractorLocator"='sanofi-cn-module-anomalies-v2') OR (a.kind='ATS_PAGE' AND a."extractorLocator" IN (
+ AND (((${certificateSql}->>'schemaVersion')=${text(compactSchema)})${SOURCE==='source-sanofi-china-social'?` OR
+ ( (${certificateSql}->>'schemaVersion')='b-grade-independent-traversal-v2' AND ((a.kind='ORACLE_RESULT' AND a."extractorLocator"='sanofi-cn-module-anomalies-v2') OR (a.kind='ATS_PAGE' AND a."extractorLocator" IN (
  SELECT 'sanofi-cn-detail-v2|request-contract-v2|sha256:'||encode(extensions.digest(convert_to(
  '{"body":null,"coordinate":{"id":'||to_json(h->>'id')::text||'},"family":"html","method":"GET","role":"sanofi-cn-detail","url":'||to_json(h->>'officialUrl')::text||',"v":2}','UTF8'),'sha256'),'hex')
  FROM jsonb_array_elements(coalesce((${certificateSql}#>>'{mainTraversal,sanofiIdentityProof,oracleBody}')::jsonb->'entries','[]'::jsonb)) h
  WHERE h->>'code'='SANOFI_CN_FOREIGN_HEADER_NATIVE_AUTHORITY'
- )))))),'[]'::jsonb) AS "evidenceArtifacts"`:'';
+ ))))`:''})),'[]'::jsonb) AS "evidenceArtifacts"`:'';
  return `WITH matching AS (
- SELECT r.*${bGrade||incremental?`,coalesce((SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id),'[]'::jsonb) AS observations`:''}${sanofiArtifacts} FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
+ SELECT r.*${bGrade||incremental?`,coalesce((SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id),'[]'::jsonb) AS observations`:''}${certificateArtifacts} FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
  WHERE r."sourceId"=${text(SOURCE)} AND r."sourceConfigHash"=${text(CLOUD_PILOT_SOURCE.sourceConfigSha256)}
  AND r."completenessState"='VERIFIED' AND r."atomicCommitState"='COMMITTED'
  AND r."completenessCertificateSha256" IS NOT NULL
- AND ${certificateSql}->>'schemaVersion' ${bGrade&&SOURCE==='source-sanofi-china-social'?`IN (${text(certificate)},${text(SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION)})`:`=${text(certificate)}`}${portable?` AND ${certificateSql}->>'policyId'=${text(SOURCE_QUALITY_POLICY_ID)}`:''} AND b.kind<>'MANUAL_SOURCE'
+ AND ${certificateSql}->>'schemaVersion' ${bGrade&&compactSchema?`IN (${text(certificate)},${text(compactSchema)})`:`=${text(certificate)}`}${portable?` AND ${certificateSql}->>'policyId'=${text(SOURCE_QUALITY_POLICY_ID)}`:''} AND b.kind<>'MANUAL_SOURCE'
  ), jobs AS (
  SELECT j."dedupeKey",j."companyId",j."sourceId",j."sourceJobId",j."officialTitle",j."auxiliaryChineseTitle",j."officialUrl",j."listUrl",j."locationRaw",j.city,j.cities,j.category,j."officialPublishedAt",j."firstSeenAt",j."lastSeenAt",j."missingSuccessCount",j."lifecycleStatus"${incremental?',j."visibleInFrontend",j."isNew"':''},
  jsonb_build_object('atsKind',s."atsKind",'kind',s.kind,'status',s.status,'officialEntryUrl',s."officialEntryUrl",'officialChainEvidenceUrl',s."officialChainEvidenceUrl") AS source,

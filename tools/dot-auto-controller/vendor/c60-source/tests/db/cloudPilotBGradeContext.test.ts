@@ -14,6 +14,10 @@ it('adds persisted observations only to genuine B context queries',async()=>{
  expect(bSql).toContain('WHERE o."sourceResultId"=r.id');
  expect(bSql).toContain('AS observations');
  expect(bSql).toContain('b-grade-independent-traversal-v2');
+ expect(bSql).toContain('bayer-cn-dual-chain-attestation-v1');
+ expect(bSql).toContain('FROM public."EvidenceArtifact" a');
+ expect(bSql).toContain('a."sourceResultId"=r.id AND a."sourceId"=r."sourceId"');
+ expect(bSql).not.toContain('sanofi-cn-module-anomalies-v2');
  const a=await compiler('source-cttq-social'),aSql=a.compileCloudPilotPublicationContextSql(common);
  expect(aSql).not.toContain('CrawlObservation');expect(aSql).not.toContain('AS observations');
  expect(aSql).toContain('a-grade-official-total-v2');
@@ -26,7 +30,8 @@ it.skipIf(!process.env.PGLITE_MODULE)('reads first/latest observations identical
   // Only the tables/columns needed to execute the read projection. No repository
   // migrations, persistent database, publication packet or production I/O.
   await pg.exec(`CREATE TABLE "CrawlBatch" (id text,kind text);
-   CREATE TABLE "CrawlBatchSourceResult" (id text,"sourceId" text,"sourceConfigHash" text,"batchId" text,"finishedAt" timestamp,"completenessState" text,"atomicCommitState" text,"completenessCertificateSha256" text,"completenessCertificate" jsonb);
+   CREATE TABLE "CrawlBatchSourceResult" (id text,"sourceId" text,"sourceConfigHash" text,"batchId" text,"releaseCandidateId" text,"finishedAt" timestamp,"completenessState" text,"atomicCommitState" text,"completenessCertificateSha256" text,"completenessCertificate" jsonb);
+   CREATE TABLE "EvidenceArtifact" (id text,"releaseCandidateId" text,"batchId" text,"sourceResultId" text,"sourceId" text,kind text,"extractorLocator" text,sha256 text,"byteCount" int,"capturedAt" timestamp);
    CREATE TABLE "CrawlObservation" (id text,"sourceResultId" text,"sourceId" text,"canonicalRawSha256" text,"crawledAt" timestamp,successful boolean,"batchId" text);
    CREATE TABLE "RecruitmentSource" (id text,"companyId" text,"atsKind" text,kind text,status text,"officialEntryUrl" text,"officialChainEvidenceUrl" text);
    CREATE TABLE "Company" (id text,"officialChineseName" text);
@@ -35,7 +40,7 @@ it.skipIf(!process.env.PGLITE_MODULE)('reads first/latest observations identical
    CREATE TABLE "Job" ("dedupeKey" text,"companyId" text,"sourceId" text,"sourceJobId" text,"officialTitle" text,"auxiliaryChineseTitle" text,"officialUrl" text,"listUrl" text,"locationRaw" text,city text,cities text[],category text,"officialPublishedAt" timestamp,"firstSeenAt" timestamp,"lastSeenAt" timestamp,"missingSuccessCount" int,"lifecycleStatus" text);
    INSERT INTO "CrawlBatch" VALUES ('first-batch','SCHEDULED'),('latest-batch','SCHEDULED');`);
   for(const [id,time] of [['first','2026-10-01T00:00:00Z'],['latest','2026-10-02T00:00:00Z']]){
-   await pg.query(`INSERT INTO "CrawlBatchSourceResult" VALUES ($1,$2,$3,$4,$5,'VERIFIED','COMMITTED',$6,$7)`,[id,CLOUD_PILOT_SOURCE.id,CLOUD_PILOT_SOURCE.sourceConfigSha256,id+'-batch',time,'a'.repeat(64),JSON.stringify({schemaVersion:'b-grade-independent-traversal-v2'})]);
+   await pg.query(`INSERT INTO "CrawlBatchSourceResult" VALUES ($1,$2,$3,$4,'synthetic-b-context',$5,'VERIFIED','COMMITTED',$6,$7)`,[id,CLOUD_PILOT_SOURCE.id,CLOUD_PILOT_SOURCE.sourceConfigSha256,id+'-batch',time,'a'.repeat(64),JSON.stringify({schemaVersion:'b-grade-independent-traversal-v2'})]);
    await pg.query(`INSERT INTO "CrawlObservation" VALUES ($1,$2,$3,$4,$5,true,$6)`,[id+'-observation',id,CLOUD_PILOT_SOURCE.id,(id==='first'?'b':'c').repeat(64),time,id+'-batch']);
   }
   const host=await readFile('docs/recovery/cloud-sql47-runner/hosts/bayer/qilu-context-read.sql','utf8');

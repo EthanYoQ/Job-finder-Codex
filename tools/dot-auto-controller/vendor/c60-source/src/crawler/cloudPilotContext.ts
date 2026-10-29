@@ -7,10 +7,11 @@ import { toPrismaJobCategory } from "../db/prismaMappers";
 import { JOB_CATEGORIES } from "../domain/search";
 import { NormalizedJobRecordSchema } from "./normalizedJob";
 import { verifyAGradeCompletenessCertificateReceipt } from "./completenessCertificate";
-import { requiresBGradeTraversalCertificate, verifyBGradeTraversalCertificateReceipt } from "./traversalCertificate";
+import { BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION, requiresBGradeTraversalCertificate, verifyBGradeTraversalCertificateReceipt } from "./traversalCertificate";
 const record=z.record(z.unknown());
 const sha=z.string().regex(/^[a-f0-9]{64}$/u);
 const sanofiArtifactCommitmentSchema=z.object({releaseCandidateId:z.string().min(1),batchId:z.string().min(1),sourceResultId:z.string().min(1),sourceId:z.literal("source-sanofi-china-social"),kind:z.enum(["ORACLE_RESULT","ATS_PAGE","COMMAND_OUTPUT","PAGINATION_PAGE","OFFICIAL_COMPANY_PAGE"]),sha256:sha,extractorLocator:z.string().min(1),byteCount:z.number().int().positive().optional(),capturedAt:z.string().datetime().optional()}).strict();
+const bayerArtifactCommitmentSchema=sanofiArtifactCommitmentSchema.extend({sourceId:z.literal("source-bayer-healthcare-social"),kind:z.enum(["OFFICIAL_COMPANY_PAGE","PAGINATION_PAGE","ATS_API_RESPONSE","COMMAND_OUTPUT"])});
 /** The raw-set commitment must come from the persisted observation, not the
  * certificate it independently checks. Never revive or rewrite certificate JSON. */
 function bGradeObservation(row:Record<string,unknown>){
@@ -51,7 +52,7 @@ export async function loadPilotContext(value:unknown,plan:SourceCrawlPlan,aGrade
     const expected={releaseCandidateId:z.string().parse(row.releaseCandidateId),batchId:z.string().parse(row.batchId),sourceResultId:z.string().parse(row.id),sourceId:plan.source.id,companyId:plan.company.id,sourceConfigSha256:context.sourceConfigSha256,canonicalJobSetSha256:z.string().parse(row.canonicalCurrentJobSetSha256),surfaceIds:z.array(z.string()).parse(row.officialSurfaceIds),channelIds:z.array(z.string()).parse(row.officialChannelIds)};
     if(requiresBGradeTraversalCertificate(plan)){
       const {observation,finishedAt,canonicalRawEvidenceIdSetSha256}=bGradeObservation(row);
-      verifyBGradeTraversalCertificateReceipt({now:finishedAt,certificate:row.completenessCertificate,certificateSha256:z.string().parse(row.completenessCertificateSha256),expected:{...expected,canonicalRawEvidenceIdSetSha256,adapterReconciliationSha256:sha.parse(row.adapterReconciliationSha256),collisionLedgerSha256:sha.parse(row.collisionLedgerSha256),...(plan.source.id==="source-sanofi-china-social"?{sanofiArtifacts:z.array(sanofiArtifactCommitmentSchema).min(1).parse(row.evidenceArtifacts)}:{})}});
+      verifyBGradeTraversalCertificateReceipt({now:finishedAt,certificate:row.completenessCertificate,certificateSha256:z.string().parse(row.completenessCertificateSha256),expected:{...expected,canonicalRawEvidenceIdSetSha256,adapterReconciliationSha256:sha.parse(row.adapterReconciliationSha256),collisionLedgerSha256:sha.parse(row.collisionLedgerSha256),...(plan.source.id==="source-sanofi-china-social"?{sanofiArtifacts:z.array(sanofiArtifactCommitmentSchema).min(1).parse(row.evidenceArtifacts)}:{}),...(plan.source.id==="source-bayer-healthcare-social"&&(row.completenessCertificate as {schemaVersion?:unknown}).schemaVersion===BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION?{bayerArtifacts:z.array(bayerArtifactCommitmentSchema).min(1).parse(row.evidenceArtifacts)}:{})}});
       const certificate=row.completenessCertificate as {issuedAt:string;mainTraversal:{paginationTraceSha256:string}};
       if(finishedAt.toISOString()!==certificate.issuedAt||observation.paginationTraceSha256!==certificate.mainTraversal.paginationTraceSha256)throw Error("PILOT_B_BASELINE_OBSERVATION_MISMATCH");
     }else verifyAGradeCompletenessCertificateReceipt({certificate:row.completenessCertificate,certificateSha256:z.string().parse(row.completenessCertificateSha256),expected});

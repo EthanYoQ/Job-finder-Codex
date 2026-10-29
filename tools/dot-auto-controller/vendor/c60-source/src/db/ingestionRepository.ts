@@ -1,4 +1,4 @@
-import {isCurrentBGradeCertificateSchema,SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION} from "../crawler/traversalCertificate";
+import {isCurrentBGradeCertificateSchema,SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION} from "../crawler/traversalCertificate";
 import { buildJobProjectionDeltaReceipt } from "./jobProjectionDeltaCompiler";
 import { persistedJobProjection, hashJobPersistedProjection, JOB_SOURCE_UPDATE_FIELDS, isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
 import { hasBoundJnjDomOfficialArtifact } from "./jnjDomEvidenceAdmission";
@@ -1273,7 +1273,7 @@ async function compileDbStartedCloudSourcePublicationWithIds(input:DbStartedClou
   ...(completenessAnomalyTriggerCodes.length>0?{completenessAnomalyTriggerCodes}:{}),
   ...(independentTraversalValidationTrigger!==undefined?{independentTraversalValidationTrigger}:{})});
  const certificate=commit.sourceResult.completenessCertificate as {schemaVersion?:string;independentValidation?:{observedAt?:string;expiresAt?:string}}|null;
- if(commit.sourceResult.completenessState!=='VERIFIED'||!(portable?[SOURCE_QUALITY_RECEIPT_SCHEMA]:['a-grade-official-total-v2','b-grade-independent-traversal-v2',SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION]).includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
+ if(commit.sourceResult.completenessState!=='VERIFIED'||!(portable?[SOURCE_QUALITY_RECEIPT_SCHEMA]:['a-grade-official-total-v2','b-grade-independent-traversal-v2',SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION]).includes(certificate?.schemaVersion??''))throw Error('PILOT_REAL_CERTIFICATE_REQUIRED');
  // Original acquisition and B validation times are preserved. No renewed local
  // lease/acknowledgement can manufacture a later deadline for this packet.
  if(input.publicationDeadline!==undefined&&!Number.isSafeInteger(input.publicationDeadline))throw Error('PILOT_PUBLICATION_DEADLINE_INVALID');
@@ -1720,7 +1720,7 @@ function validateCommittedSourceResultTruthTable(
   result: AtomicSourceResultInput,
   canonicalRawEvidenceIdSetSha256: string | undefined,
   onStage: (stage: AtomicEvidencePersistenceStage) => void,
-  sanofiArtifacts?: readonly SanofiArtifactCommitment[]
+  certificateArtifacts?: readonly SanofiArtifactCommitment[]
 ): void {
   if (result.atomicCommitState !== "COMMITTED" || result.transportState !== "SUCCEEDED" ||
       result.adapterState !== "SUCCEEDED" || result.finishedAt === null ||
@@ -1769,7 +1769,7 @@ function validateCommittedSourceResultTruthTable(
     if (result.completenessState !== "VERIFIED") {
       throw new Error("Completeness certificate requires VERIFIED source truth");
     }
-    verifyPersistedCompletenessCertificate(result, undefined, canonicalRawEvidenceIdSetSha256, sanofiArtifacts);
+    verifyPersistedCompletenessCertificate(result, undefined, canonicalRawEvidenceIdSetSha256, certificateArtifacts);
   }
   onStage("SOURCE_RESULT_VALIDATION");
   const baselineTransitionSupplied = result.baselineChangeReason !== undefined &&
@@ -1797,7 +1797,7 @@ function verifyPersistedCompletenessCertificate(
   result: AtomicSourceResultInput,
   officialArtifact?: { logicalKey: string; sha256: string },
   canonicalRawEvidenceIdSetSha256?: string,
-  sanofiArtifacts?: readonly SanofiArtifactCommitment[]
+  certificateArtifacts?: readonly SanofiArtifactCommitment[]
 ): void {
   const expected = {
     releaseCandidateId: result.releaseCandidateId,
@@ -1810,7 +1810,8 @@ function verifyPersistedCompletenessCertificate(
     canonicalJobSetSha256: result.canonicalOutputSetSha256,
     adapterReconciliationSha256: result.adapterReconciliationSha256,
     collisionLedgerSha256: result.collisionLedgerSha256,
-    ...(result.sourceId==="source-sanofi-china-social" && sanofiArtifacts ? {sanofiArtifacts} : {})
+    ...(result.sourceId==="source-sanofi-china-social" && certificateArtifacts ? {sanofiArtifacts:certificateArtifacts} : {}),
+    ...(result.sourceId==="source-bayer-healthcare-social" && certificateArtifacts ? {bayerArtifacts:certificateArtifacts} : {})
   };
   if (isSourceQualityReceipt(result.completenessCertificate)) {
     const receipt = verifySourceQualityReceipt({ receipt: result.completenessCertificate,

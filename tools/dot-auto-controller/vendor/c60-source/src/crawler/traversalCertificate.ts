@@ -60,9 +60,11 @@ import {
 export const B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION =
   "b-grade-independent-traversal-v2" as const;
 export const SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION = "sanofi-cn-dual-chain-attestation-v1" as const;
+export const BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION = "bayer-cn-dual-chain-attestation-v1" as const;
+export const BAYER_INDEPENDENT_ORIGINAL_LOCATOR = "bayer-cn-independent-original-v1" as const;
 export const SANOFI_INDEPENDENT_ORIGINAL_LOCATOR = "sanofi-cn-independent-original-v1" as const;
-export function isCurrentBGradeCertificateSchema(value: unknown): value is typeof B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION | typeof SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION {
-  return value===B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION||value===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION;
+export function isCurrentBGradeCertificateSchema(value: unknown): value is typeof B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION | typeof SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION | typeof BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION {
+  return value===B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION||value===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION||value===BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION;
 }
 
 export const REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES = Object.freeze({
@@ -546,9 +548,19 @@ const sanofiCompactCertificateSchema=certificateV2Schema.extend({
   }).strict(),
   artifacts:z.array(sanofiCompactArtifactSchema).min(1)
 }).strict();
+const bayerCompactCertificateSchema=certificateV2Schema.extend({
+  schemaVersion:z.literal(BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION),proofBasis:z.literal("PRE_COMMIT_DUAL_ORIGINAL_REPLAY"),
+  binding:certificateV2Schema.shape.binding.extend({sourceId:z.literal("source-bayer-healthcare-social")}),
+  independentValidation:officialJsonRenderedValidationSchema.omit({pages:true,schemaVersion:true}).extend({
+    schemaVersion:z.literal("bayer-cn-independent-summary-v1"),finishedAt:ISO,
+    originalFile:sanofiCompactArtifactSchema.extend({canonicalArtifactSha256:SHA256}).strict(),
+    decisions:z.array(z.object({sourceJobId:NONBLANK,state:z.enum(["INCLUDED_MAINLAND","EXCLUDED_AUDITED"]),detailSha256:SHA256}).strict()).min(1)
+  }).strict(),artifacts:z.array(sanofiCompactArtifactSchema).min(1)
+}).strict();
+export type BayerCompactTraversalCertificate=z.infer<typeof bayerCompactCertificateSchema>;
 type FullBGradeTraversalCertificate = z.infer<typeof certificateSchema>;
 export type SanofiCompactTraversalCertificate=z.infer<typeof sanofiCompactCertificateSchema>;
-export type BGradeTraversalCertificate = FullBGradeTraversalCertificate | SanofiCompactTraversalCertificate;
+export type BGradeTraversalCertificate = FullBGradeTraversalCertificate | SanofiCompactTraversalCertificate | BayerCompactTraversalCertificate;
 export interface SanofiIndependentArchiveBinding {
   sha256:string;byteCount:number;canonicalArtifactSha256:string;
 }
@@ -572,6 +584,7 @@ export interface BGradeCertificateCandidate {
   validationExecution: "CURRENT_RUN" | "REUSED";
   trigger: BGradeValidationTrigger;
   now: Date;
+  bayerArchive?: {artifacts:readonly SanofiArtifactCommitment[];independentOriginal:SanofiIndependentArchiveBinding};
   sanofiArchive?: {artifacts:readonly SanofiArtifactCommitment[];independentOriginal:SanofiIndependentArchiveBinding};
 }
 
@@ -593,6 +606,7 @@ export interface BGradeCertificateReceiptExpectation {
   collisionLedgerSha256?: string;
   canonicalRawEvidenceIdSetSha256?: string;
   /** Persisted artifacts from the same tuple, supplied independently of certificate JSON. */
+  bayerArtifacts?: readonly SanofiArtifactCommitment[];
   sanofiArtifacts?: readonly SanofiArtifactCommitment[];
 }
 
@@ -1405,6 +1419,25 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     },
     issuedAt: input.now.toISOString()
   };
+  if(input.bayerArchive){
+    if(!isBayerMedicalTraversalPlan(input.plan)||validation.schemaVersion!=="official-json-browser-network-traversal-v1")throw Error("BAYER_COMPACT_SCOPE_REQUIRED");
+    const {pages,...summary}=validation;
+    for(const a of evidence.artifacts){
+      const matches=input.bayerArchive.artifacts.filter(x=>x.extractorLocator===a.extractorLocator),bytes=typeof a.body==="string"?Buffer.from(a.body):a.body;
+      if(matches.length!==1||matches[0]!.kind!==a.kind||matches[0]!.sha256!==createHash("sha256").update(bytes).digest("hex")||matches[0]!.byteCount!==bytes.byteLength||new Date(matches[0]!.capturedAt??"").toISOString()!==new Date(a.capturedAt).toISOString())throw Error("BAYER_COMPACT_MAIN_ORIGINAL_MISMATCH");
+    }
+    const original=input.bayerArchive.independentOriginal;
+    if(original.canonicalArtifactSha256!==validation.artifactSha256)throw Error("BAYER_COMPACT_INDEPENDENT_ORIGINAL_MISMATCH");
+    const artifacts=input.bayerArchive.artifacts.map(a=>({kind:a.kind,extractorLocator:a.extractorLocator,sha256:a.sha256,byteCount:a.byteCount,capturedAt:a.capturedAt instanceof Date?a.capturedAt.toISOString():a.capturedAt}));
+    const originalFile={kind:"COMMAND_OUTPUT",extractorLocator:BAYER_INDEPENDENT_ORIGINAL_LOCATOR,...original,capturedAt:bayerHybridFinishedAt(pages)};
+    const decisions=pages.flatMap(page=>page.rawRows.map(row=>({sourceJobId:row.sourceJobId,state:row.scopeDecision,detailSha256:(row.rawPayload.detailResponse as {bodySha256:string}).bodySha256})));
+    const certificate=bayerCompactCertificateSchema.parse({...certificateDraft,schemaVersion:BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION,proofBasis:"PRE_COMMIT_DUAL_ORIGINAL_REPLAY",artifacts,
+      independentValidation:{...summary,schemaVersion:"bayer-cn-independent-summary-v1",finishedAt:bayerHybridFinishedAt(pages),originalFile,decisions}});
+    const certificateSha256=sha256(canonicalJson(certificate));
+    verifyCompactCertificate({certificate,certificateSha256,now:input.now,expected:{...input.binding,sourceId:input.plan.source.id,canonicalJobSetSha256:ledger.outputJobKeySetSha256,
+      canonicalRawEvidenceIdSetSha256:canonicalStringSetSha256(evidence.pages.flatMap(p=>p.rawJobIds)),bayerArtifacts:input.bayerArchive.artifacts}});
+    return {status:"CERTIFIED",certificate,certificateSha256};
+  }
   if(input.sanofiArchive){
     if(!isSanofiChinesePlan(input.plan)||validation.schemaVersion!=="official-json-browser-network-traversal-v1"||!sanofiIdentityProof)throw Error("SANOFI_COMPACT_SCOPE_REQUIRED");
     const {pages,...summary}=validation;
@@ -1424,7 +1457,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     const certificate=sanofiCompactCertificateSchema.parse({...certificateDraft,schemaVersion:SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,
       proofBasis:"PRE_COMMIT_DUAL_ORIGINAL_REPLAY",artifacts,independentValidation:{...summary,schemaVersion:"sanofi-cn-independent-summary-v1",finishedAt:sanofiChineseIndependentFinishedAt(pages),originalFile,originals}});
     const certificateSha256=sha256(canonicalJson(certificate));
-    verifySanofiCompactCertificate({certificate,certificateSha256,now:input.now,expected:{...input.binding,sourceId:input.plan.source.id,
+    verifyCompactCertificate({certificate,certificateSha256,now:input.now,expected:{...input.binding,sourceId:input.plan.source.id,
       canonicalJobSetSha256:ledger.outputJobKeySetSha256,canonicalRawEvidenceIdSetSha256:canonicalStringSetSha256(evidence.pages.flatMap(p=>p.rawJobIds)),sanofiArtifacts:input.sanofiArchive.artifacts}});
     return {status:"CERTIFIED",certificate,certificateSha256};
   }
@@ -1439,7 +1472,7 @@ export function verifyBGradeTraversalCertificateReceipt(input: {
   expected: BGradeCertificateReceiptExpectation;
   now: Date;
 }): { status: "PASS"; grade: "B"; sourceId: string; companyId: string; certificateSha256: string; finalUniqueJobCount: number } {
-  if((input.certificate as {schemaVersion?:unknown}|null)?.schemaVersion===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION)return verifySanofiCompactCertificate(input);
+  if([SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION].includes((input.certificate as {schemaVersion?:any}|null)?.schemaVersion))return verifyCompactCertificate(input);
   const certificate = certificateSchema.parse(input.certificate);
   const policy = bGradePolicy(certificate.binding.sourceId);
   if (!policy || certificate.scope.companyId !== policy.companyId ||
@@ -1538,11 +1571,12 @@ export function verifyBGradeTraversalCertificateReceipt(input: {
 
 /** Approved compact policy: original semantics were checked before commit;
  * readers verify commitments, never claim to replay the absent HTML bodies. */
-function verifySanofiCompactCertificate(input: {
+function verifyCompactCertificate(input: {
   certificate:unknown;certificateSha256:string;expected:BGradeCertificateReceiptExpectation;now:Date
 }):{status:"PASS";grade:"B";sourceId:string;companyId:string;certificateSha256:string;finalUniqueJobCount:number} {
-  const c=sanofiCompactCertificateSchema.parse(input.certificate),v=c.independentValidation,e=input.expected;
-  const fail=(code:string):never=>{throw Error(`SANOFI_COMPACT_${code}`);};
+  const c=(input.certificate as {schemaVersion?:unknown})?.schemaVersion===BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION?bayerCompactCertificateSchema.parse(input.certificate):sanofiCompactCertificateSchema.parse(input.certificate),v=c.independentValidation,e=input.expected;
+  const bayer=c.schemaVersion===BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION;
+  const fail=(code:string):never=>{throw Error(`${bayer?"BAYER":"SANOFI"}_COMPACT_${code}`);};
   const policy=bGradePolicy(c.binding.sourceId)!;
   if(sha256(canonicalJson(c))!==input.certificateSha256)fail("HASH_MISMATCH");
   if(!validDate(input.now)||Date.parse(c.issuedAt)>input.now.getTime())fail("ISSUANCE_TIME");
@@ -1558,11 +1592,25 @@ function verifySanofiCompactCertificate(input: {
     (e.adapterReconciliationSha256&&e.adapterReconciliationSha256!==c.output.adapterReconciliationSha256)||
     (e.collisionLedgerSha256&&e.collisionLedgerSha256!==c.output.collisionLedgerSha256))fail("OUTPUT_MISMATCH");
   const observed=Date.parse(v.observedAt),finished=Date.parse(v.finishedAt),issued=Date.parse(c.issuedAt),expires=Date.parse(v.expiresAt);
-  if(observed>finished||finished>issued||finished-observed>30*60_000||issued-observed>B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS||
+  if(observed>finished||finished>issued||finished-observed>(bayer?60:30)*60_000||issued-observed>B_GRADE_CURRENT_RUN_MAXIMUM_SKEW_MS||
     expires<=input.now.getTime()||expires-observed>B_GRADE_VALIDATION_FRESHNESS_MAXIMUM_MS||observed>input.now.getTime())fail("VALIDATION_EXPIRED");
-  const oracleBody=c.mainTraversal.sanofiIdentityProof.oracleBody;
+  let included:string[],oracleBody:string|undefined,oracle:z.infer<typeof sanofiIdentityOracleSchema>|undefined;
+  if(c.schemaVersion===BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION){
+    const v=c.independentValidation,decisions=v.decisions,raw=decisions.map(d=>d.sourceJobId),excluded=decisions.filter(d=>d.state==="EXCLUDED_AUDITED").map(d=>d.sourceJobId);
+    included=decisions.filter(d=>d.state==="INCLUDED_MAINLAND").map(d=>d.sourceJobId);
+    if(v.originalFile.canonicalArtifactSha256!==v.artifactSha256||v.originalFile.capturedAt!==v.finishedAt||v.originalFile.kind!=="COMMAND_OUTPUT"||v.originalFile.extractorLocator!==BAYER_INDEPENDENT_ORIGINAL_LOCATOR)fail("INDEPENDENT_ORIGINAL_MISMATCH");
+    if(new Set(raw).size!==raw.length||raw.some(id=>!/^sha256:[a-f0-9]{64}$/u.test(id))||c.mainTraversal.sanofiIdentityProof||c.mainTraversal.pfizerQuarantinedOfficialIds||
+      c.counts.mainUniqueJobCount!==included.length||c.counts.independentUniqueJobCount!==included.length||c.counts.finalUniqueJobCount!==included.length||c.counts.validationDiscardCount!==excluded.length||c.counts.dedupeDiscardCount!==0||c.output.collisionGroups!==undefined||
+      c.mainTraversal.canonicalMatchKeySetSha256!==canonicalStringSetSha256(included)||v.canonicalMatchKeySetSha256!==canonicalStringSetSha256(included)||
+      c.mainTraversal.canonicalRawMatchKeySetSha256!==canonicalStringSetSha256(raw)||c.mainTraversal.canonicalExcludedMatchKeySetSha256!==canonicalStringSetSha256(excluded)||
+      c.output.canonicalJobSetSha256!==canonicalStringSetSha256(included.map(id=>`${c.binding.sourceId}:${id}`))||
+      v.pageCount!==Math.ceil(raw.length/30)||v.pageCount>100||c.mainTraversal.terminalEvent!=="NEXT_ABSENT"||
+      !e.canonicalRawEvidenceIdSetSha256||e.canonicalRawEvidenceIdSetSha256!==canonicalStringSetSha256(raw))fail("SET_EQUATION_MISMATCH");
+  }else{
+  const v=c.independentValidation;
+  oracleBody=c.mainTraversal.sanofiIdentityProof.oracleBody;
   if(!hasUniqueJsonObjectKeys(oracleBody))fail("ORACLE_INVALID");
-  const oracle=sanofiIdentityOracleSchema.parse(JSON.parse(oracleBody)),decisions=oracle.decisions;
+  oracle=sanofiIdentityOracleSchema.parse(JSON.parse(oracleBody));const decisions=oracle.decisions;
   if(oracle.independentArtifactSha256!==v.artifactSha256||v.originalFile.canonicalArtifactSha256!==v.artifactSha256||
     v.originalFile.capturedAt!==v.finishedAt||v.originalFile.kind!=="COMMAND_OUTPUT"||v.originalFile.extractorLocator!==SANOFI_INDEPENDENT_ORIGINAL_LOCATOR)fail("INDEPENDENT_ORIGINAL_MISMATCH");
   const originals=new Map(v.originals.map(r=>[r.id,r]));
@@ -1570,7 +1618,7 @@ function verifySanofiCompactCertificate(input: {
     new Set(decisions.map(d=>d.reqId)).size!==decisions.length||new Set(decisions.map(d=>d.sourceJobId)).size!==decisions.length||
     decisions.some(d=>!originals.has(d.id)||(d.state==="OUTSIDE")!==(originals.get(d.id)!.nativeSha256===null)||
       d.sourceJobId!==sanofiPersistentJobId(d.reqId)||d.titleConflict&&(d.title!==d.titleConflict.nativeTitle||d.nativeDescriptionSha256!==d.descriptionSha256)))fail("DECISION_MISMATCH");
-  const included=decisions.filter(d=>d.state==="PUBLISHING").map(d=>d.sourceJobId),excluded=decisions.filter(d=>d.state!=="PUBLISHING").map(d=>d.sourceJobId);
+  included=decisions.filter(d=>d.state==="PUBLISHING").map(d=>d.sourceJobId);const excluded=decisions.filter(d=>d.state!=="PUBLISHING").map(d=>d.sourceJobId);
   if(c.counts.mainUniqueJobCount!==included.length||c.counts.independentUniqueJobCount!==included.length||c.counts.finalUniqueJobCount!==included.length||
     c.counts.validationDiscardCount!==excluded.length||c.counts.dedupeDiscardCount!==0||c.output.collisionGroups!==undefined||
     c.mainTraversal.canonicalMatchKeySetSha256!==canonicalStringSetSha256(included)||v.canonicalMatchKeySetSha256!==canonicalStringSetSha256(included)||
@@ -1579,7 +1627,8 @@ function verifySanofiCompactCertificate(input: {
     c.output.canonicalJobSetSha256!==canonicalStringSetSha256(included.map(id=>`${c.binding.sourceId}:${id}`))||
     c.mainTraversal.pageCount!==v.pageCount||v.pageCount!==Math.ceil(decisions.length/15)||v.pageCount>25||c.mainTraversal.terminalEvent!=="NEXT_ABSENT"||
     !e.canonicalRawEvidenceIdSetSha256||e.canonicalRawEvidenceIdSetSha256!==canonicalStringSetSha256(decisions.map(d=>sanofiRawEvidenceId(d.id))))fail("SET_EQUATION_MISMATCH");
-  const artifacts=e.sanofiArtifacts;
+  }
+  const artifacts=bayer?e.bayerArtifacts:e.sanofiArtifacts;
   if(!artifacts||artifacts.length!==c.artifacts.length||new Set(c.artifacts.map(a=>a.extractorLocator)).size!==c.artifacts.length)fail("ARTIFACT_SET_MISMATCH");
   for(const a of c.artifacts){if(Date.parse(a.capturedAt)<observed||Date.parse(a.capturedAt)>issued)fail("ARTIFACT_TIME");const matches=artifacts!.filter(x=>x.extractorLocator===a.extractorLocator);
     if(matches.length!==1||matches[0]!.kind!==a.kind||matches[0]!.sha256!==a.sha256||matches[0]!.byteCount!==a.byteCount||new Date(matches[0]!.capturedAt??"").toISOString()!==a.capturedAt||
@@ -1589,9 +1638,9 @@ function verifySanofiCompactCertificate(input: {
     const found=c.artifacts.filter(a=>a.kind===kind&&a.extractorLocator===locator);
     if(found.length!==1||found[0]!.sha256!==hash||(byteCount!==undefined&&found[0]!.byteCount!==byteCount))fail("ORIGINAL_COMMITMENT_MISMATCH");
   };
-  bind("ORACLE_RESULT","sanofi-cn-module-anomalies-v2",sha256(oracleBody));
+  if(oracleBody!==undefined)bind("ORACLE_RESULT","sanofi-cn-module-anomalies-v2",sha256(oracleBody));
   bind(v.originalFile.kind,v.originalFile.extractorLocator,v.originalFile.sha256,v.originalFile.byteCount);
-  for(const a of oracle.entries)if(a.code==="SANOFI_CN_FOREIGN_HEADER_NATIVE_AUTHORITY")
+  for(const a of oracle?.entries??[])if(a.code==="SANOFI_CN_FOREIGN_HEADER_NATIVE_AUTHORITY")
     bind("ATS_PAGE",requestContractV2Locator("sanofi-cn-detail-v2",{family:"html",role:"sanofi-cn-detail",method:"GET",url:a.officialUrl,body:null,coordinate:{id:a.id}}),a.mainArtifactBodySha256);
   return {status:"PASS",grade:"B",sourceId:c.binding.sourceId,companyId:c.scope.companyId,certificateSha256:input.certificateSha256,finalUniqueJobCount:included.length};
 }

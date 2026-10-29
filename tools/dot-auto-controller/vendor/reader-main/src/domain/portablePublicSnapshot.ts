@@ -1,7 +1,7 @@
 import { isJobProjectionDeltaReceipt, hashJobPersistedProjection, jobProjectionMemberSchema, type JobProjectionDeltaReceipt, type JobProjectionMember } from "./jobProjectionDeltaReceipt";
 import { isSanofiPublicTransitionPlan, isSanofiHistoricalPublicCandidate, assertSanofiHistoricalPublicRow } from "./sanofiPublicTransition";
 import { getPortableCoverageScope } from "../release/portableCoveragePolicy";
-import { B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION, SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION, isCurrentBGradeCertificateSchema, requiresBGradeTraversalCertificate } from "../crawler/traversalCertificate";
+import { B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION, BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION, isCurrentBGradeCertificateSchema, requiresBGradeTraversalCertificate } from "../crawler/traversalCertificate";
 import { candidateCompanies } from "../data/companyRegistry";
 import { buildStagedSourceCrawlPlans } from "../crawler/sourcePlan";
 import { supportsStrictOfficialTotalCertificate } from "../crawler/runSourceCrawl";
@@ -23,7 +23,7 @@ const A_GRADE_PUBLIC_POLICY = "STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1" as co
 const A_GRADE_PUBLIC_CONFIGS: Readonly<Record<string,string>>=Object.freeze(Object.fromEntries(
   buildStagedSourceCrawlPlans(candidateCompanies).filter(plan=>getPortableCoverageScope().requiredSourceIds.includes(plan.source.id)&&supportsStrictOfficialTotalCertificate(plan))
     .map(plan=>[plan.source.id,sourcePlanConfigSha256(plan)])));
-const SANOFI_COMPACT_PUBLIC_POLICY = "PRE_COMMIT_DUAL_CHAIN_ATTESTATION_V1" as const;
+const COMPACT_PUBLIC_POLICY = "PRE_COMMIT_DUAL_CHAIN_ATTESTATION_V1" as const;
 const B_GRADE_PUBLIC_POLICY = "STRICT_PLAN_BOUND_INDEPENDENT_TRAVERSAL_REPLAY_V2" as const;
 // Only reviewed source-specific COMPLETE_PAGE_TRAVERSAL integrations are public here.
 const B_GRADE_PUBLIC_CONFIGS: Readonly<Record<string, string>> = Object.freeze(Object.fromEntries(
@@ -68,7 +68,7 @@ export interface PortableSourceStatus {
   companyId: string;
   sourceId: string;
   currentConfigSha256: string;
-  policyId: typeof SOURCE_QUALITY_POLICY_ID | typeof A_GRADE_PUBLIC_POLICY | typeof B_GRADE_PUBLIC_POLICY | typeof SANOFI_COMPACT_PUBLIC_POLICY | null;
+  policyId: typeof SOURCE_QUALITY_POLICY_ID | typeof A_GRADE_PUBLIC_POLICY | typeof B_GRADE_PUBLIC_POLICY | typeof COMPACT_PUBLIC_POLICY | null;
   state: "PUBLISHING" | "HOLD" | "EXCLUDED";
   health: "HEALTHY" | "DEGRADED" | "UNVERIFIED" | "NOT_APPLICABLE";
   freshness: "FRESH" | "STALE" | "UNKNOWN";
@@ -130,7 +130,7 @@ export function supportsPublicBGrade(plan: SourceCrawlPlan): boolean {
 }
 function observedAt(receipt: PublicReceipt, row: PortableSourceResultRow): string {
   return receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? receipt.observedAt! :
-    (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION) ? row.observations[0]!.crawledAt.toISOString() : receipt.observation!.crawledAt;
+    isCurrentBGradeCertificateSchema(receipt.schemaVersion) ? row.observations[0]!.crawledAt.toISOString() : receipt.observation!.crawledAt;
 }
 /** Delta manifests commit the original crawl observation, which can precede
  * an A certificate's independent official-total observation. Keep the latter
@@ -173,7 +173,7 @@ function readCommittedSource(row: PortableSourceResultRow, plan: SourceCrawlPlan
     receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? historicalSanofi || supportsPublicAGrade(plan) :
     isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && supportsPublicBGrade(plan);
   // Keep the read boundary and current publication rules; COMMITTED owns evidence admission.
-  if (!supported || row.sourceId !== plan.source.id || (!historicalSanofi && row.sourceConfigHash !== sourcePlanConfigSha256(plan)) ||
+  if (!supported || receipt.schemaVersion === BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION && plan.source.id !== "source-bayer-healthcare-social" || row.sourceId !== plan.source.id || (!historicalSanofi && row.sourceConfigHash !== sourcePlanConfigSha256(plan)) ||
       row.batch.id !== row.batchId || row.batch.releaseCandidateId !== row.releaseCandidateId || row.batch.kind !== "SCHEDULED" ||
       row.transportState !== "SUCCEEDED" || row.adapterState !== "SUCCEEDED" || row.completenessState !== "VERIFIED" || row.atomicCommitState !== "COMMITTED" ||
       row.failureCode || row.failureReason || row.blockerCode || row.blockerReason ||
@@ -263,9 +263,9 @@ export function selectPortableSourceSnapshots(
     if (selected) {
       const {receipt, result} = selected;
       try { bindHistoricalObservations(selected, attempts, plan); } catch { integrityHold = true; }
-      const firstSameSchema = accepted.find(entry => entry.receipt.schemaVersion === receipt.schemaVersion)!;
+      const firstSameSchema = accepted.find(entry => entry.receipt.schemaVersion === receipt.schemaVersion || plan.source.id === "source-bayer-healthcare-social" && [entry.receipt.schemaVersion, receipt.schemaVersion].every(schema => schema === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || schema === BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION))!;
       Object.assign(base, {selected, visibilityFloor: acceptedAt(firstSameSchema), selectedSourceResultId: result.id,
-        policyId: receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? A_GRADE_PUBLIC_POLICY : (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION) ? (receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION ? SANOFI_COMPACT_PUBLIC_POLICY : B_GRADE_PUBLIC_POLICY) : receipt.policyId!,
+        policyId: receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? A_GRADE_PUBLIC_POLICY : isCurrentBGradeCertificateSchema(receipt.schemaVersion) ? (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION ? B_GRADE_PUBLIC_POLICY : COMPACT_PUBLIC_POLICY) : receipt.policyId!,
         lastAcceptedAt: acceptedAt(selected), lastSuccessAt: observedAt(receipt, result), lastAcceptedJobCount: receipt.counts.finalUniqueJobCount,
         state: "PUBLISHING", health: "HEALTHY", freshness: fresh(observedAt(receipt, result), options) ? "FRESH" : "STALE"});
       if (plan.source.id === "source-servier-china-social" && receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION) {
@@ -316,7 +316,7 @@ export function verifiedMembers(selected: NonNullable<PortableSourceSelection["s
       sets.VISIBLE.size !== sets.CURRENT.size + sets.GRACE.size ||
       [...sets.CURRENT].some(([key, missing]) => sets.GRACE.has(key) || sets.VISIBLE.get(key) !== missing) ||
       [...sets.GRACE].some(([key, missing]) => sets.VISIBLE.get(key) !== missing)) throw new Error("PORTABLE_LIFECYCLE_SET_DRIFT");
-  if (selected.receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || selected.receipt.schemaVersion === SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION) {
+  if (isCurrentBGradeCertificateSchema(selected.receipt.schemaVersion)) {
     const traversal = selected.receipt.mainTraversal!;
     const keys = [...sets.CURRENT.keys()].map(key => traversal.matchKeyKind === "JOB_DEDUPE_KEY" ? key :
       key.startsWith(`${result.sourceId}:`) ? key.slice(result.sourceId.length + 1) : "");

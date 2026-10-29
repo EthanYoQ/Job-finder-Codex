@@ -58,9 +58,10 @@ import {
 export const B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION =
   "b-grade-independent-traversal-v2" as const;
 export const SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION = "sanofi-cn-dual-chain-attestation-v1" as const;
+export const BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION = "bayer-cn-dual-chain-attestation-v1" as const;
 export const SANOFI_INDEPENDENT_ORIGINAL_LOCATOR = "sanofi-cn-independent-original-v1" as const;
-export function isCurrentBGradeCertificateSchema(value: unknown): value is typeof B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION | typeof SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION {
-  return value===B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION||value===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION;
+export function isCurrentBGradeCertificateSchema(value: unknown): value is typeof B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION | typeof SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION | typeof BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION {
+  return value===B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION||value===SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION||value===BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION;
 }
 
 export const REQUIRED_B_GRADE_TRAVERSAL_CERTIFICATES = Object.freeze({
