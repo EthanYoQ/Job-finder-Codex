@@ -1,0 +1,10 @@
+{
+  "parent": "b501c949b33eda806a3fb7962068b43411c4e23e",
+  "change": "Exactly four readerFileHashes pins match actual 2026-10-29T15:43:51Z deployment; other pins unchanged",
+  "deploymentReceiptCommit": "cdde58220fdeed015c4f30df6affcf4f67e5af1e",
+  "deploymentReceiptDrive": "1nTADLDy5uSGrMNict0A6YomaLtvMSVwU",
+  "externalCommit": "d49ca5a1476fc7cfb3ad0842234742c1d9d6fc5e",
+  "metadataCaveat": "NOVO_UNKNOWN_HOLD_20261029.json nativeCommitUnchanged de6598 is stale historical metadata, not runtime authority. Current runtime must follow new official registration and binding after this source restore; do not restore old native120 from that metadata.",
+  "registered": false,
+  "activeChanged": false
+}

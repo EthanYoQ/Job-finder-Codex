@@ -1,7 +1,7 @@
 {
   "main": {
     "readerFileHashes": {
-      "src/domain/portablePublicSnapshot.ts": "8d31a7206da617d9b4e586ac1e8f52822c69e9495f8c3bea773323891fad4a6d",
+      "src/domain/portablePublicSnapshot.ts": "92a587b5fef630659c76ddf403c0c09e66576e7519ff6168e603161c27f3ed07",
       "src/domain/jobProjectionDeltaReceipt.ts": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
       "src/db/portablePublicSnapshotRepository.ts": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
       "src/crawler/sourceQualityAdmission.ts": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",
@@ -9,7 +9,7 @@
       "src/data/companyRegistry.ts": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
       "src/crawler/runSourceCrawl.ts": "65d37ef93af0c0d28088a03b4f67cf0948b1cbac53bf805ba237da1549da3d76",
       "src/crawler/completenessCertificate.ts": "5da74fb8a89f45d8905b5eb681c66096d5a80124d70b9a1b13aba6cace2a4434",
-      "src/crawler/traversalCertificate.ts": "2bf94ec1f6bff40d86d875e2fcf983913dc32bbe8060a44f9e10ea4c0caf1604",
+      "src/crawler/traversalCertificate.ts": "1cf286c9fa1aec06590de9ba6386ac2b03e3da3e92dc56c0816ad074313bf375",
       "src/crawler/runtimeBatchIdentity.ts": "81485e7d021984da07d2fc78cfeb4733ce75d9affad88a376168fcf8c0201c6c",
       "src/db/prismaMappers.ts": "da2d751fced4c482d185d59aea342fd52ab5eedd444f4081f841d97c24e39c56",
       "src/domain/publicationEligibility.ts": "3820a2dd0de4913c90051328db6edae8e1b0fe3f0e0e70552ae2ef321e2f9d38",
@@ -38,7 +38,7 @@
   },
   "fallback": {
     "readerFileHashes": {
-      "src/domain/portablePublicSnapshot.ts": "8d31a7206da617d9b4e586ac1e8f52822c69e9495f8c3bea773323891fad4a6d",
+      "src/domain/portablePublicSnapshot.ts": "92a587b5fef630659c76ddf403c0c09e66576e7519ff6168e603161c27f3ed07",
       "src/domain/jobProjectionDeltaReceipt.ts": "1accefb16c321dfb87fc2a1c0abdef9d0deaff2be20e084ba47004d780130f63",
       "src/db/portablePublicSnapshotRepository.ts": "d6832ee9ac34aec2463e19451f501407007779df33328df26e7ceb11cf0a7565",
       "src/crawler/sourceQualityAdmission.ts": "4fb1475ed72cdcd5fe14d26ecb727aab89979f0933c45f1035c84cf40d372a13",
@@ -46,7 +46,7 @@
       "src/data/companyRegistry.ts": "329344fb0e46753386e8f021157c4486be9d56e4457c0ff73c1a8b0f0b6981dd",
       "src/crawler/runSourceCrawl.ts": "65d37ef93af0c0d28088a03b4f67cf0948b1cbac53bf805ba237da1549da3d76",
       "src/crawler/completenessCertificate.ts": "5da74fb8a89f45d8905b5eb681c66096d5a80124d70b9a1b13aba6cace2a4434",
-      "src/crawler/traversalCertificate.ts": "2bf94ec1f6bff40d86d875e2fcf983913dc32bbe8060a44f9e10ea4c0caf1604",
+      "src/crawler/traversalCertificate.ts": "1cf286c9fa1aec06590de9ba6386ac2b03e3da3e92dc56c0816ad074313bf375",
       "src/crawler/runtimeBatchIdentity.ts": "81485e7d021984da07d2fc78cfeb4733ce75d9affad88a376168fcf8c0201c6c",
       "src/db/prismaMappers.ts": "da2d751fced4c482d185d59aea342fd52ab5eedd444f4081f841d97c24e39c56",
       "src/domain/publicationEligibility.ts": "3820a2dd0de4913c90051328db6edae8e1b0fe3f0e0e70552ae2ef321e2f9d38",
