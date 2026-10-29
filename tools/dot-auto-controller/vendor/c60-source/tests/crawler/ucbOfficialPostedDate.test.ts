@@ -113,6 +113,13 @@ describe("UCB official posted-date preservation without temporal admission", () 
     expect(replayStrictSourceQualityEvidence({ ...input, capturedAt: "2026-10-02T00:00:00.000Z" })).toBe(false);
   });
 
+  it("accepts the observed page17-ds bootstrap without changing output", async () => {
+    const { fetched, result } = await fetchJobs(undefined, { bootstrap: { pageId: "page17-ds" } });
+    expect(fetched.ok).toBe(true);
+    expect(result.jobs).toHaveLength(1);
+    expect(result.truth.completenessVerified).toBe(true);
+  });
+
   it.each(["country", "refNum", "locale", "pageId"])("rejects a changed UCB bootstrap %s", async field => {
     const { fetched } = await fetchJobs(undefined, { bootstrap: { [field]: "other" } });
     expect(fetched.ok).toBe(false);

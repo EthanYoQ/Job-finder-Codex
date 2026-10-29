@@ -39,7 +39,7 @@ export function exactUcbPostedDateBootstrap(config: {
 }): boolean {
   return config.widgetApiEndpoint === "https://careers.ucb.com/widgets" && config.country === "global" &&
     config.deviceType === "desktop" && config.locale === "zh_global" && config.refNum === "UCB1GLOBAL" &&
-    config.pageName === "search-results" && config.pageId === "page17";
+    config.pageName === "search-results" && (config.pageId === "page17" || config.pageId === "page17-ds");
 }
 
 // Exact shared timestamp codec, retained as an alias for existing callers.

@@ -1,0 +1,29 @@
+{
+  "status": "OFFLINE_CANDIDATE_NOT_ENABLED",
+  "parentCommit": "98d0113f114e9d77f12ac0f5e90c358039355045",
+  "productionChange": "One exact alternative page17-ds alongside existing page17; all other 7 bootstrap fields and timestamp codec unchanged",
+  "realOriginalBatch": "dot-auto-ucb-20261029T163747564Z",
+  "originalReplay": "PASS",
+  "negativeOriginalMutations": 7,
+  "tests": {
+    "candidatePassed": 53,
+    "candidateFailed": 1,
+    "newFullFetchTest": "PASS",
+    "baselinePassed": 52,
+    "baselineFailed": 1,
+    "sameFailure": "Lilly obsolete assertion: officialPublishedAt expected undefined, actual officialPublishedAt"
+  },
+  "otherParentTrackedFilesUnchanged": true,
+  "baselineTsc": "not rerun; existing errors not claimed fixed",
+  "activeChanged": false,
+  "notEstablished": [
+    "Fresh full UCB traversal",
+    "Official registration or enablement",
+    "Publication or website verification"
+  ],
+  "backupWhitelist": [
+    "tools/dot-auto-controller/vendor/c60-source/src/crawler/ucbOfficialPostedDate.ts",
+    "tools/dot-auto-controller/vendor/c60-source/tests/crawler/ucbOfficialPostedDate.test.ts",
+    "recovery/UCB_BOOTSTRAP_INTEGRATION_20261029.json"
+  ]
+}
