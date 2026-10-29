@@ -9,13 +9,14 @@ const SOURCE = "source-boehringer-ingelheim-china-social";
 const COMPANY = "company-boehringer-ingelheim-china";
 const CHAIN = "https://www.boehringer-ingelheim.cn/careers/jobs";
 const API_LOCATOR = "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode";
-// Exact labels from the 2026-10-01 and 2026-10-18 captures, reviewed against the existing
+// Exact labels from the 2026-10-01, 2026-10-18 and 2026-10-29 captures, reviewed against the existing
 // mainland prefecture vocabulary. No prefixes, suffix stripping or runtime extension.
 const FULL_MAINLAND_LABELS: Readonly<Record<string, string>> = Object.freeze({
   "上海": "Shanghai", "信阳": "Xinyang", "北京": "Beijing", "南昌": "Nanchang",
   "成都": "Chengdu", "杭州": "Hangzhou", "武汉": "Wuhan", "泰州": "Taizhou",
   "秦皇岛": "Qinhuangdao", "银川": "Yinchuan", "长沙": "Changsha", "驻马店": "Zhumadian",
-  "六安": "Luan", "宿州": "Suzhou", "漯河": "Luohe"
+  "六安": "Luan", "宿州": "Suzhou", "漯河": "Luohe",
+  "合肥": "Hefei", "乌鲁木齐": "Urumqi", "张掖": "Zhangye"
 });
 const ROW_FIELDS = "address coid coname ctmid degreefrom divid divname edegreefrom efuntype ejobareaname eworkareaname eworkyearname funtype issuedate jkeyword jobareaname jobid jobname jobnum joborder monthlysalary poscode providesalarname term workareaname workyearname".split(" ");
 const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;

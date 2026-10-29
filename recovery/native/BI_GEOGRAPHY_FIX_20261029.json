@@ -1,0 +1,42 @@
+{
+  "status": "OFFLINE_CANDIDATE_NOT_ENABLED",
+  "baseCommit": "6f71deb2dc7ae0f5cff52490a9e6d5189d0c60f0",
+  "rootCause": "Historical exact municipality whitelist missing Hefei, Urumqi, Zhangye; no UI exclusion change",
+  "productionChange": "Add 3 exact Chinese/English label pairs to existing table; no scope, counts, UI or normalization change",
+  "verification": {
+    "batchId": "dot-auto-boehringer-ingelheim-20261029T130906764Z",
+    "rawCount": 52,
+    "outputCount": 52,
+    "uiExclusions": 0,
+    "before": {
+      "quality": false
+    },
+    "after": {
+      "quality": true
+    },
+    "originalOutputsUnchanged": true,
+    "offlineOnly": true
+  },
+  "tests": {
+    "passed": 49,
+    "skipped": 1,
+    "fixture": "job-finder-local-restore-20261002/web-ready/tests/fixtures/bi/20261001-exact-evidence.json"
+  },
+  "activeCodeChanged": false,
+  "notEstablished": [
+    "remote backup",
+    "candidate registration",
+    "new production crawl success",
+    "web publication"
+  ],
+  "files": [
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/biSemanticCompleteness.ts",
+      "sha256": "3d78fad8ac512886dd812f2a8bf950b14b6c3818e18305771ba4dfd0d97f4510"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/tests/crawler/biSemanticCompleteness.test.ts",
+      "sha256": "e80f371dd977996c14429823f17f7a0132202df437a6d106cbf4951e61b7ba18"
+    }
+  ]
+}
