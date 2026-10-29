@@ -1,0 +1,18 @@
+{
+  "reason": "Original remote Python3.6 does not support subprocess.run capture_output/text aliases; replace only with stdout/stderr PIPE",
+  "files": [
+    "SWITCH_MAIN_REQUIRES_PARENT_WINDOW.sh",
+    "SWITCH_FALLBACK_REQUIRES_PARENT_WINDOW.sh",
+    "ROUTE_TO_VERIFIED_FALLBACK_3031.sh",
+    "RESTORE_NGINX_ORIGINAL_3036.sh",
+    "ROLLBACK_MAIN_ONLY_IF_REQUIRED.sh",
+    "ROLLBACK_FALLBACK_ONLY_IF_REQUIRED.sh",
+    "CONTINUE_WRITTEN_ROUTE_3031.sh"
+  ],
+  "python36GrammarCheckPassed": true,
+  "unsupportedSubprocessKwargsAbsent": true,
+  "productionLogicUnchanged": true,
+  "failedInvocation": "t-kor71ijvhwpecxs",
+  "failedPhase": "Config3031written, before nginx-t/reload",
+  "recovery": "CONTINUE_WRITTEN_ROUTE_3031 only validates prior write then nginx-t/reload, no repeated write"
+}
