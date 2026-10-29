@@ -1,0 +1,23 @@
+(node:21) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v3.2.7 /workspace/scratch/5e9614251709/recovery104-work/organon-geography-candidate-20261029T1607Z/tools/dot-auto-controller/vendor/c60-source
+
+(node:52) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:60) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:53) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ tests/crawler/organonChinaQuality.test.ts (203 tests) 6912ms
+   ✓ Organon China exact raw source quality > proves dynamic multi-page totals and IDs with omitted or explicit offsets  1372ms
+
+ Test Files  1 passed (1)
+      Tests  203 passed (203)
+   Start at  09:07:53
+   Duration  10.36s (transform 2.02s, setup 67ms, collect 2.75s, tests 6.91s, environment 376ms, prepare 66ms)
+
+(node:141) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)

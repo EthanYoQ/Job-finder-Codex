@@ -1,0 +1,28 @@
+{
+  "status": "OFFLINE_CANDIDATE_NOT_ENABLED",
+  "baseCommit": "55eb1f9bacc77d79d934271e179778fd354917e7",
+  "batch": "dot-auto-organon-20261029T160434468Z",
+  "rootCause": "4 new primary locality / native apply path forms absent from exact LOCALITIES table",
+  "changes": "Four exact locality entries only, preserving observed blank city Henan – Zhengzhou shape, exact raw coordinates, URL identity, original mainland-conflict CITY_PENDING policy. No changes to scope, native ACTIVE/CLOSED, parser or atomic protocol.",
+  "rawCount": 11,
+  "oldInvalidIds": [
+    "R543157",
+    "R543217",
+    "R541737",
+    "R542621"
+  ],
+  "newListIdentityGeographyPassCount": 11,
+  "newRowsCity": "城市待核",
+  "testsPassed": 203,
+  "negativeOriginalMutationsPassed": 16,
+  "patchSha256": "309865b9bf454b8ae23fc1ff67a26c4c3d51dd5721fa42eb875f91029520f7fc",
+  "activeCodeChanged": false,
+  "notEstablished": [
+    "native detail and application status for this batch",
+    "complete source quality replay",
+    "fresh production run",
+    "remote backup",
+    "registration",
+    "database and web publication"
+  ]
+}

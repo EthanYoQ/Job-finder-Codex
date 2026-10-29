@@ -1,0 +1,156 @@
+{
+  "offlineOnly": true,
+  "rawCount": 11,
+  "results": [
+    [
+      {
+        "id": "R543184",
+        "identity": true,
+        "cities": [
+          "成都"
+        ]
+      },
+      {
+        "id": "R543157",
+        "identity": false,
+        "cities": null
+      },
+      {
+        "id": "R543217",
+        "identity": false,
+        "cities": null
+      },
+      {
+        "id": "R541923",
+        "identity": true,
+        "cities": [
+          "上海"
+        ]
+      },
+      {
+        "id": "R541737",
+        "identity": false,
+        "cities": null
+      },
+      {
+        "id": "R542621",
+        "identity": false,
+        "cities": null
+      },
+      {
+        "id": "R542983",
+        "identity": true,
+        "cities": [
+          "广州"
+        ]
+      },
+      {
+        "id": "R541736",
+        "identity": true,
+        "cities": [
+          "成都"
+        ]
+      },
+      {
+        "id": "R541777",
+        "identity": true,
+        "cities": [
+          "成都"
+        ]
+      },
+      {
+        "id": "R541778",
+        "identity": true,
+        "cities": [
+          "成都"
+        ]
+      },
+      {
+        "id": "R542425",
+        "identity": true,
+        "cities": [
+          "上海"
+        ]
+      }
+    ],
+    [
+      {
+        "id": "R543184",
+        "identity": true,
+        "cities": [
+          "成都"
+        ]
+      },
+      {
+        "id": "R543157",
+        "identity": true,
+        "cities": [
+          "城市待核"
+        ]
+      },
+      {
+        "id": "R543217",
+        "identity": true,
+        "cities": [
+          "城市待核"
+        ]
+      },
+      {
+        "id": "R541923",
+        "identity": true,
+        "cities": [
+          "上海"
+        ]
+      },
+      {
+        "id": "R541737",
+        "identity": true,
+        "cities": [
+          "城市待核"
+        ]
+      },
+      {
+        "id": "R542621",
+        "identity": true,
+        "cities": [
+          "城市待核"
+        ]
+      },
+      {
+        "id": "R542983",
+        "identity": true,
+        "cities": [
+          "广州"
+        ]
+      },
+      {
+        "id": "R541736",
+        "identity": true,
+        "cities": [
+          "成都"
+        ]
+      },
+      {
+        "id": "R541777",
+        "identity": true,
+        "cities": [
+          "成都"
+        ]
+      },
+      {
+        "id": "R541778",
+        "identity": true,
+        "cities": [
+          "成都"
+        ]
+      },
+      {
+        "id": "R542425",
+        "identity": true,
+        "cities": [
+          "上海"
+        ]
+      }
+    ]
+  ]
+}

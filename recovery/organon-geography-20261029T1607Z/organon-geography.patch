@@ -1,0 +1,15 @@
+diff --git a/tools/dot-auto-controller/vendor/c60-source/src/crawler/organonChinaQuality.ts b/tools/dot-auto-controller/vendor/c60-source/src/crawler/organonChinaQuality.ts
+index 8ac0a89..9e5c95a 100644
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/organonChinaQuality.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/organonChinaQuality.ts
+@@ -21,6 +21,10 @@ const LOCALITIES = [
+   { city:"Shanghai", state:"Shanghai", chinese:"上海", latitude:"31.22222", longitude:"121.45806", path:"CHN---Shanghai---Shanghai", applySuffix:"-[1-9]\\d*" },
+   { city:"Wenzhou", state:"Zhejiang", chinese:"温州", latitude:"27.99942", longitude:"120.66682", path:"CHN---Zhejiang---Wenzhou", applySuffix:"-[1-9]\\d*" },
+   { city:"Guangzhou", state:"Guangdong", chinese:"广州", latitude:"23.11667", longitude:"113.25", path:"CHN---Guangdong---Guangzhou", applySuffix:"(?:-[1-9]\\d*)?" },
++  { city:"", state:"Henan – Zhengzhou", chinese:"郑州", latitude:"33.81876", longitude:"112.13664", path:"CHN---Henan--Zhengzhou", applySuffix:"-[1-9]\\d*" },
++  { city:"Nanchang", state:"Jiangxi", chinese:"南昌", latitude:"28.68396", longitude:"115.85306", path:"CHN---Jiangxi---Nanchang", applySuffix:"-[1-9]\\d*" },
++  { city:"Shijiazhuang", state:"Hebei", chinese:"石家庄", latitude:"38.04139", longitude:"114.47861", path:"CHN---Hebei---Shijiazhuang", applySuffix:"-[1-9]\\d*" },
++  { city:"Taiyuan", state:"Shanxi", chinese:"太原", latitude:"37.86944", longitude:"112.56028", path:"CHN---Shanxi---Taiyuan", applySuffix:"-[1-9]\\d*" },
+   // The observed Chengdu schema deliberately leaves city empty in both the
+   // primary and nested records. Every redundant field must match this shape.
+   { city:"", state:"Chengdu", chinese:"成都", latitude:"30.66667", longitude:"104.06667", path:"CHN---Chengdu", applySuffix:"" }
