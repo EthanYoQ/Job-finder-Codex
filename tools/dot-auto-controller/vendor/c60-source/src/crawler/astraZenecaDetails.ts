@@ -100,9 +100,10 @@ function parseAstraZenecaDetailDocument(body:string,row:AstraZenecaListRow,$:Che
   const locations:AstraZenecaDetailClaim['locations']=(posting.jobLocation??[]).map(({address},i)=>{
     const raw={city:address.addressLocality,region:address.addressRegion,country:address.addressCountry};
     const visibleRaw=fieldText($,dom.get(i)!);const parts=visibleRaw.split(',').map(text);
-    const [city,region,country]=parts.length===1?['','',parts[0]!]:parts;
+    const [city,region,country]=parts.length===1?['','',parts[0]!]:parts.length===2?['',...parts]:parts;
+    if(parts.length===2&&(raw.city!==''||!astraZenecaRegion(region??'')||astraZenecaRegion(raw.region)!==astraZenecaRegion(region??'')))return fail('DETAIL_LOCATION_INVALID');
     if(!isAstraZenecaChina(raw.country)||!country||!isAstraZenecaChina(country))return fail('DETAIL_COUNTRY_INVALID');
-    if(parts.length!==1&&parts.length!==3)return fail('DETAIL_LOCATION_INVALID');
+    if(parts.length!==1&&parts.length!==2&&parts.length!==3)return fail('DETAIL_LOCATION_INVALID');
     assertAstraZenecaMainlandParts(raw.city,raw.region);assertAstraZenecaMainlandParts(city??'',region??'');
     const normalized=astraZenecaCity(raw.city,raw.region),domCity=astraZenecaCity(city??'',region??'');
     const conflict=normalized!==domCity||(!normalized&&(text(raw.city)!==city||astraZenecaRegion(raw.region)!==astraZenecaRegion(region??'')));

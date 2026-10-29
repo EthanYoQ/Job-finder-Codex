@@ -86,6 +86,18 @@ describe('AstraZeneca strict JobPosting evidence',()=>{
   it('rejects an explicitly foreign city even when country says CN',()=>{
     const row=azRow();expect(()=>parseAstraZenecaDetail(azDetail(row,{city:'Tokyo',visibleCity:'Tokyo'}),row)).toThrow('DETAIL_COUNTRY_INVALID');
   });
+  it.each([['Tianjin','Tianjin','天津','天津'],['Wulumuqi','Xinjiang','Wulumuqi South','新疆'],['Nanning','Guangxi','南宁市','广西']])('keeps China-positive reviewed region %s pending without guessing city',(city,region,visibleCity,visibleRegion)=>{
+    const row=azRow(undefined,'Role','中国'),body=azDetail(row,{city,region,visibleCity,visibleRegion});
+    expect(parseAstraZenecaDetail(body,row)).toMatchObject({cities:['城市待核'],scopeReviewCodes:[]});
+    expect(()=>parseAstraZenecaDetail(body.replace('"addressCountry":"CN"','"addressCountry":"US"'),row)).toThrow('DETAIL_COUNTRY_INVALID');
+  });
+  it('accepts only matching province-only DOM and empty schema city, retaining city pending',()=>{
+    const row=azRow(undefined,'Role','江西');
+    const body=azDetail(row,{city:'',region:'Jiangxi',visibleRegion:'江西'}).replace('<span>无锡市, </span>','');
+    expect(parseAstraZenecaDetail(body,row)).toMatchObject({cities:['城市待核'],scopeReviewCodes:[]});
+    for(const bad of [body.replace('"addressLocality":""','"addressLocality":"Nanchang"'),body.replace('"addressRegion":"Jiangxi"','"addressRegion":"Jiangsu"'),body.replace('<span>江西, </span>','<span>Tokyo, </span>')])expect(()=>parseAstraZenecaDetail(bad,row)).toThrow('DETAIL_LOCATION_INVALID');
+    expect(()=>parseAstraZenecaDetail(body.replace('<span>中国</span>','<span>美国</span>'),row)).toThrow('DETAIL_COUNTRY_INVALID');
+  });
   it('keeps country-only geography pending and outside every exact supported city',()=>{
     const row=azRow(undefined,'Role','中国');let body=azDetail(row,{city:'',region:''});
     body=body.replace('<span>无锡市, </span><span>江苏, </span><span>中国</span>','<span>中国</span>');

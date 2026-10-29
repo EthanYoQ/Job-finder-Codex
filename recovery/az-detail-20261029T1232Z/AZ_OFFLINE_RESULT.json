@@ -1,0 +1,194 @@
+{
+  "batch": "dot-auto-astrazeneca-20261029T122508696Z",
+  "total": 327,
+  "unchanged": 322,
+  "changes": [
+    {
+      "id": "102585837792",
+      "before": {
+        "error": "DETAIL_COUNTRY_INVALID"
+      },
+      "after": {
+        "sourceJobId": "102585837792",
+        "requisitionId": "TP24940",
+        "officialUrl": "https://job-search.astrazeneca.cn/%e5%b7%a5%e4%bd%9c/%e5%a4%a9%e6%b4%a5/mr-hema-%e5%a4%a9%e6%b4%a5/12977/102585837792",
+        "officialTitle": "MR-Hema-天津",
+        "bodySha256": "e2ef22505ec846948d10b5e9a7e1525a5a8567520be3c660850ad2879f82953e",
+        "locations": [
+          {
+            "visibleRaw": "天津, 天津, 中国",
+            "schemaRaw": {
+              "city": "Tianjin",
+              "region": "Tianjin",
+              "country": "CN"
+            },
+            "conflict": true
+          }
+        ],
+        "cities": [
+          "城市待核"
+        ],
+        "locationStatus": "CITY_PENDING",
+        "postedDay": {
+          "raw": "2026-10-29",
+          "calendarDay": "2026-10-29",
+          "precision": "DAY",
+          "canonicalSortEncoding": "2026-10-29T00:00:00.000Z"
+        },
+        "scopeReviewCodes": [],
+        "employmentTypeRaw": "FULL_TIME"
+      }
+    },
+    {
+      "id": "102456843856",
+      "before": {
+        "error": "DETAIL_COUNTRY_INVALID"
+      },
+      "after": {
+        "sourceJobId": "102456843856",
+        "requisitionId": "TP25046",
+        "officialUrl": "https://job-search.astrazeneca.cn/%e5%b7%a5%e4%bd%9c/wulumuqi-south/medical-science-liaison-bc-wulumuqi/12977/102456843856",
+        "officialTitle": "Medical Science Liaison-BC-Wulumuqi",
+        "bodySha256": "9228ca10407419e7f8a8dfb27cab6e3ed78343cdd3ff09b3fb03ba7662810754",
+        "locations": [
+          {
+            "visibleRaw": "Wulumuqi South, 新疆, 中国",
+            "schemaRaw": {
+              "city": "Wulumuqi",
+              "region": "Xinjiang",
+              "country": "CN"
+            },
+            "conflict": true
+          }
+        ],
+        "cities": [
+          "城市待核"
+        ],
+        "locationStatus": "CITY_PENDING",
+        "postedDay": {
+          "raw": "2026-10-26",
+          "calendarDay": "2026-10-26",
+          "precision": "DAY",
+          "canonicalSortEncoding": "2026-10-26T00:00:00.000Z"
+        },
+        "scopeReviewCodes": [],
+        "employmentTypeRaw": "FULL_TIME"
+      }
+    },
+    {
+      "id": "102456843600",
+      "before": {
+        "error": "DETAIL_COUNTRY_INVALID"
+      },
+      "after": {
+        "sourceJobId": "102456843600",
+        "requisitionId": "TP25045",
+        "officialUrl": "https://job-search.astrazeneca.cn/%e5%b7%a5%e4%bd%9c/%e5%a4%a9%e6%b4%a5/medical-science-liaison-bc-tianjin/12977/102456843600",
+        "officialTitle": "Medical Science Liaison-BC-Tianjin",
+        "bodySha256": "cd0a4fc092d25d05bd92804c49f82997161f027424bdbdc1a63af7886e2456e8",
+        "locations": [
+          {
+            "visibleRaw": "天津, 天津, 中国",
+            "schemaRaw": {
+              "city": "Tianjin",
+              "region": "Tianjin",
+              "country": "CN"
+            },
+            "conflict": true
+          }
+        ],
+        "cities": [
+          "城市待核"
+        ],
+        "locationStatus": "CITY_PENDING",
+        "postedDay": {
+          "raw": "2026-10-26",
+          "calendarDay": "2026-10-26",
+          "precision": "DAY",
+          "canonicalSortEncoding": "2026-10-26T00:00:00.000Z"
+        },
+        "scopeReviewCodes": [],
+        "employmentTypeRaw": "FULL_TIME"
+      }
+    },
+    {
+      "id": "102323432416",
+      "before": {
+        "error": "DETAIL_COUNTRY_INVALID"
+      },
+      "after": {
+        "sourceJobId": "102323432416",
+        "requisitionId": "TP25078",
+        "officialUrl": "https://job-search.astrazeneca.cn/%e5%b7%a5%e4%bd%9c/%e6%b1%9f%e8%a5%bf/diagnosis-science-liaison-oc-nanchang/12977/102323432416",
+        "officialTitle": "Diagnosis Science Liaison-OC-Nanchang",
+        "bodySha256": "25b779117390eca0d5a7bc9e5b8da4e84590dca60e239aaa8717a83d20584d30",
+        "locations": [
+          {
+            "visibleRaw": "江西, 中国",
+            "schemaRaw": {
+              "city": "",
+              "region": "Jiangxi",
+              "country": "CN"
+            }
+          }
+        ],
+        "cities": [
+          "城市待核"
+        ],
+        "locationStatus": "CITY_PENDING",
+        "postedDay": {
+          "raw": "2026-10-23",
+          "calendarDay": "2026-10-23",
+          "precision": "DAY",
+          "canonicalSortEncoding": "2026-10-23T00:00:00.000Z"
+        },
+        "scopeReviewCodes": [],
+        "employmentTypeRaw": "FULL_TIME"
+      }
+    },
+    {
+      "id": "102195222080",
+      "before": {
+        "error": "DETAIL_COUNTRY_INVALID"
+      },
+      "after": {
+        "sourceJobId": "102195222080",
+        "requisitionId": "TP25027",
+        "officialUrl": "https://job-search.astrazeneca.cn/%e5%b7%a5%e4%bd%9c/%e5%8d%97%e5%ae%81%e5%b8%82/medical-science-liaison-omnichannel-nanning-guiyang/12977/102195222080",
+        "officialTitle": "Medical Science Liaison-Omnichannel-Nanning/Guiyang",
+        "bodySha256": "756238a632399ac8714b612fd7fbdec1a9262960a3d5d4d28935367e588bb35b",
+        "locations": [
+          {
+            "visibleRaw": "南宁市, 广西, 中国",
+            "schemaRaw": {
+              "city": "Nanning",
+              "region": "Guangxi",
+              "country": "CN"
+            },
+            "conflict": true
+          },
+          {
+            "visibleRaw": "贵阳市, 贵州, 中国",
+            "schemaRaw": {
+              "city": "贵阳市",
+              "region": "贵州",
+              "country": "中国"
+            }
+          }
+        ],
+        "cities": [
+          "城市待核"
+        ],
+        "locationStatus": "CITY_PENDING",
+        "postedDay": {
+          "raw": "2026-10-20",
+          "calendarDay": "2026-10-20",
+          "precision": "DAY",
+          "canonicalSortEncoding": "2026-10-20T00:00:00.000Z"
+        },
+        "scopeReviewCodes": [],
+        "employmentTypeRaw": "FULL_TIME"
+      }
+    }
+  ]
+}

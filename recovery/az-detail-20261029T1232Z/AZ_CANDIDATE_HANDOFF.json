@@ -1,0 +1,23 @@
+{
+  "parent": "a230e3c432f5a69dadd46f6f9b6a1f020d17a8a9",
+  "productionChanges": [
+    "src/crawler/astraZenecaLocations.ts: exact region aliases Tianjin/Xinjiang/Guangxi",
+    "src/crawler/astraZenecaDetails.ts: two-part province,country only for empty schema city and matching positive mainland region"
+  ],
+  "rawComparison": {
+    "batch": "dot-auto-astrazeneca-20261029T122508696Z",
+    "total": 327,
+    "unchangedClaims": 322,
+    "rejectedToCityPending": 5
+  },
+  "tests": {
+    "files": 4,
+    "passed": 91,
+    "failed": 0
+  },
+  "scope": "No ID hardcoding, no inferred cities, country/detail/application checks retained",
+  "enabled": false,
+  "registered": false,
+  "activeChanged": false,
+  "nodeModules": "local test-only symlink excluded from backup"
+}

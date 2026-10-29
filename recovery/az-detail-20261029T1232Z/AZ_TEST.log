@@ -1,0 +1,33 @@
+(node:19) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v3.2.7 /workspace/scratch/5e9614251709/recovery104-work/az-detail-geography-candidate-20261029T1232Z/tools/dot-auto-controller/vendor/c60-source
+
+(node:53) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:59) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:60) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:52) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ tests/crawler/astraExplicitFirstPage.test.ts (5 tests) 147ms
+(node:135) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ tests/crawler/astraZenecaAGrade.test.ts (9 tests) 355ms
+(node:155) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ tests/crawler/astrazenecaCompatibility.test.ts (22 tests) 537ms
+   ✓ AZ original owned full fixture > captures all 17 rows on two list pages and follows the original native application branch  441ms
+(node:175) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ tests/crawler/astrazenecaDetails.test.ts (55 tests) 4728ms
+   ✓ AstraZeneca owned enrichment and replay > retains one explicit outcome per row when the total body budget is exhausted  4136ms
+
+ Test Files  4 passed (4)
+      Tests  91 passed (91)
+   Start at  05:33:37
+   Duration  7.66s (transform 3.11s, setup 282ms, collect 9.70s, tests 5.77s, environment 361ms, prepare 293ms)
+
+(node:195) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)

@@ -1,0 +1,52 @@
+diff --git a/tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaDetails.ts b/tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaDetails.ts
+index 9cfcc8b..10df937 100644
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaDetails.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaDetails.ts
+@@ -100,9 +100,10 @@ function parseAstraZenecaDetailDocument(body:string,row:AstraZenecaListRow,$:Che
+   const locations:AstraZenecaDetailClaim['locations']=(posting.jobLocation??[]).map(({address},i)=>{
+     const raw={city:address.addressLocality,region:address.addressRegion,country:address.addressCountry};
+     const visibleRaw=fieldText($,dom.get(i)!);const parts=visibleRaw.split(',').map(text);
+-    const [city,region,country]=parts.length===1?['','',parts[0]!]:parts;
++    const [city,region,country]=parts.length===1?['','',parts[0]!]:parts.length===2?['',...parts]:parts;
++    if(parts.length===2&&(raw.city!==''||!astraZenecaRegion(region??'')||astraZenecaRegion(raw.region)!==astraZenecaRegion(region??'')))return fail('DETAIL_LOCATION_INVALID');
+     if(!isAstraZenecaChina(raw.country)||!country||!isAstraZenecaChina(country))return fail('DETAIL_COUNTRY_INVALID');
+-    if(parts.length!==1&&parts.length!==3)return fail('DETAIL_LOCATION_INVALID');
++    if(parts.length!==1&&parts.length!==2&&parts.length!==3)return fail('DETAIL_LOCATION_INVALID');
+     assertAstraZenecaMainlandParts(raw.city,raw.region);assertAstraZenecaMainlandParts(city??'',region??'');
+     const normalized=astraZenecaCity(raw.city,raw.region),domCity=astraZenecaCity(city??'',region??'');
+     const conflict=normalized!==domCity||(!normalized&&(text(raw.city)!==city||astraZenecaRegion(raw.region)!==astraZenecaRegion(region??'')));
+diff --git a/tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaLocations.ts b/tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaLocations.ts
+index 53116b6..cc09f28 100644
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaLocations.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaLocations.ts
+@@ -30,6 +30,7 @@ const nonMainland=/(香港|澳门|澳門|台湾|臺灣|hong\s*kong|macau|macao|t
+ const mainlandRegions=new Set('北京 上海 天津 重庆 河北 山西 辽宁 吉林 黑龙江 江苏 浙江 安徽 福建 江西 山东 河南 湖北 湖南 广东 海南 四川 贵州 云南 陕西 甘肃 青海 内蒙古 广西 西藏 宁夏 新疆'.split(' '));
+ export function astraZenecaRegion(region:string):string|undefined{
+   const chinese=region.replace(/省$/u,'');if(mainlandRegions.has(chinese))return chinese;
++  const alias:Record<string,string>={tianjin:'天津',xinjiang:'新疆',guangxi:'广西'};if(alias[key(region)])return alias[key(region)];
+   return places.find(([,r,,ra])=>[r,...ra].some(v=>key(v)===key(region)))?.[1];
+ }
+ export function astraZenecaCity(city:string,region:string):string|undefined{
+diff --git a/tools/dot-auto-controller/vendor/c60-source/tests/crawler/astrazenecaDetails.test.ts b/tools/dot-auto-controller/vendor/c60-source/tests/crawler/astrazenecaDetails.test.ts
+index 1c6237a..b6eef0a 100644
+--- a/tools/dot-auto-controller/vendor/c60-source/tests/crawler/astrazenecaDetails.test.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/tests/crawler/astrazenecaDetails.test.ts
+@@ -86,6 +86,18 @@ describe('AstraZeneca strict JobPosting evidence',()=>{
+   it('rejects an explicitly foreign city even when country says CN',()=>{
+     const row=azRow();expect(()=>parseAstraZenecaDetail(azDetail(row,{city:'Tokyo',visibleCity:'Tokyo'}),row)).toThrow('DETAIL_COUNTRY_INVALID');
+   });
++  it.each([['Tianjin','Tianjin','天津','天津'],['Wulumuqi','Xinjiang','Wulumuqi South','新疆'],['Nanning','Guangxi','南宁市','广西']])('keeps China-positive reviewed region %s pending without guessing city',(city,region,visibleCity,visibleRegion)=>{
++    const row=azRow(undefined,'Role','中国'),body=azDetail(row,{city,region,visibleCity,visibleRegion});
++    expect(parseAstraZenecaDetail(body,row)).toMatchObject({cities:['城市待核'],scopeReviewCodes:[]});
++    expect(()=>parseAstraZenecaDetail(body.replace('"addressCountry":"CN"','"addressCountry":"US"'),row)).toThrow('DETAIL_COUNTRY_INVALID');
++  });
++  it('accepts only matching province-only DOM and empty schema city, retaining city pending',()=>{
++    const row=azRow(undefined,'Role','江西');
++    const body=azDetail(row,{city:'',region:'Jiangxi',visibleRegion:'江西'}).replace('<span>无锡市, </span>','');
++    expect(parseAstraZenecaDetail(body,row)).toMatchObject({cities:['城市待核'],scopeReviewCodes:[]});
++    for(const bad of [body.replace('"addressLocality":""','"addressLocality":"Nanchang"'),body.replace('"addressRegion":"Jiangxi"','"addressRegion":"Jiangsu"'),body.replace('<span>江西, </span>','<span>Tokyo, </span>')])expect(()=>parseAstraZenecaDetail(bad,row)).toThrow('DETAIL_LOCATION_INVALID');
++    expect(()=>parseAstraZenecaDetail(body.replace('<span>中国</span>','<span>美国</span>'),row)).toThrow('DETAIL_COUNTRY_INVALID');
++  });
+   it('keeps country-only geography pending and outside every exact supported city',()=>{
+     const row=azRow(undefined,'Role','中国');let body=azDetail(row,{city:'',region:''});
+     body=body.replace('<span>无锡市, </span><span>江苏, </span><span>中国</span>','<span>中国</span>');
