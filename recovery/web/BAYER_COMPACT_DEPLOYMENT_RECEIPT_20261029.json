@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-29T15:43:51Z",
+  "sourceCommit": "b501c949b33eda806a3fb7962068b43411c4e23e",
+  "sourceParentCompactCommit": "faa13735708c4ffb30c3d9ba427ab364f0e6b1cf",
+  "mode": "Original Aliyun website only, sequential fallback then main, original route restored",
+  "architectureChanged": false,
+  "databaseWritesPerformed": false,
+  "nativeRegisteredByThisWorker": false,
+  "deployedFilesPerRole": [
+    "src/crawler/traversalCertificate.ts",
+    "src/domain/portablePublicSnapshot.ts"
+  ],
+  "deployments": [
+    {
+      "invokeId": "t-kor71ijr3yz0sn4",
+      "startedAt": "2026-10-29T15:37:28Z",
+      "finishedAt": "2026-10-29T15:37:50Z",
+      "status": "Success",
+      "exitCode": 0,
+      "output": "{\"stoppedRole\": \"fallback\", \"MemAvailableKB\": 700064, \"historicalRequiredKB_NotCurrentGate\": 704052}\n{\"role\": \"fallback\", \"readyHttp\": 200}\n"
+    },
+    {
+      "invokeId": "t-kor71ik368d17nk",
+      "startedAt": "2026-10-29T15:41:13Z",
+      "finishedAt": "2026-10-29T15:41:39Z",
+      "status": "Success",
+      "exitCode": 0,
+      "output": "{\"stoppedRole\": \"main\", \"MemAvailableKB\": 759280, \"historicalRequiredKB_NotCurrentGate\": 693924}\n{\"role\": \"main\", \"readyHttp\": 200}\n"
+    }
+  ],
+  "routeRestoration": {
+    "invokeId": "t-kor71ik8iqntjpc",
+    "startedAt": "2026-10-29T15:42:53Z",
+    "finishedAt": "2026-10-29T15:42:54Z",
+    "status": "Success",
+    "exitCode": 0,
+    "output": "{\"restoredOriginal\": true, \"nginxSha256\": \"6e15ffaeaf4e8571585ad2a84bd59d04d883009ea6298cb133a93c9997ea1af8\", \"readyPort\": 3036}\n"
+  },
+  "finalRoles": [
+    {
+      "role": "main",
+      "pid": 532989,
+      "restart": 24,
+      "heapLiveAndSaved": 320,
+      "ready": 200,
+      "hashes": {
+        "src/crawler/traversalCertificate.ts": "1cf286c9fa1aec06590de9ba6386ac2b03e3da3e92dc56c0816ad074313bf375",
+        "src/domain/portablePublicSnapshot.ts": "92a587b5fef630659c76ddf403c0c09e66576e7519ff6168e603161c27f3ed07"
+      },
+      "memory": [
+        [
+          "VmHWM",
+          "403180"
+        ],
+        [
+          "VmRSS",
+          "325940"
+        ]
+      ]
+    },
+    {
+      "role": "fallback",
+      "pid": 532078,
+      "restart": 40,
+      "heapLiveAndSaved": 320,
+      "ready": 200,
+      "hashes": {
+        "src/crawler/traversalCertificate.ts": "1cf286c9fa1aec06590de9ba6386ac2b03e3da3e92dc56c0816ad074313bf375",
+        "src/domain/portablePublicSnapshot.ts": "92a587b5fef630659c76ddf403c0c09e66576e7519ff6168e603161c27f3ed07"
+      },
+      "memory": [
+        [
+          "VmHWM",
+          "383364"
+        ],
+        [
+          "VmRSS",
+          "322492"
+        ]
+      ]
+    }
+  ],
+  "finalNginxSha256": "6e15ffaeaf4e8571585ad2a84bd59d04d883009ea6298cb133a93c9997ea1af8",
+  "publicVerification": {
+    "invocationId": "t-kor71ikbk2htx4w",
+    "publicState": "CURRENT",
+    "jobs": 5101,
+    "companies": 36,
+    "businessFieldsUnchanged": true,
+    "processes": [
+      {
+        "id": 56,
+        "pid": 532989,
+        "restart": 24,
+        "pm2Heap": 320
+      },
+      {
+        "id": 57,
+        "pid": 532078,
+        "restart": 40,
+        "pm2Heap": 320
+      }
+    ]
+  },
+  "MemAvailableKB": 458912,
+  "compatibility": {
+    "oldMainNewFallbackFullBusinessFieldsEqual": true,
+    "newMainNewFallbackFullBusinessFieldsEqual": true,
+    "newPairAndPublicEqualToBeforeMain": true,
+    "companies": 36,
+    "existingJobs": 5101,
+    "notNewCrawlCount": true
+  },
+  "recoverableFailures": [
+    {
+      "phase": "First fallback stop before copying",
+      "reason": "Historical requiredKB incorrectly reused as fixed gate, short3124KB",
+      "changedSourceFiles": false,
+      "recovery": "Old fallback restarted and ready verified, then parent approved removing only historical fixed threshold assertions; measured memory retained",
+      "scriptBackupCommit": "f455840cfa3f71e102521915300cfa0df39740c1"
+    },
+    {
+      "phase": "Temporary Nginx file changed to3031 before reload",
+      "reason": "Remote Python3.6 capture_output keyword unsupported",
+      "recovery": "Read exact written config and original backup, nginx-t/reload only; did not replay prior write",
+      "scriptBackupCommit": "e7ded37f51221ea058c3edbac3b129494f7d998a"
+    }
+  ],
+  "rollback": {
+    "retainedOriginalFourFiles": true,
+    "retainedOriginalNginx": true,
+    "stageDirectory": "/opt/jobfinder-candidates/release-f9f05a9eefc32e5095de4c9b/.compact-bayer-stage-20261029T1355Z"
+  },
+  "limits": [
+    "Memory figures are one observed deployment, not future full-load guarantee",
+    "Native candidate and reader pins must be coordinated by native owner before new compact publication",
+    "No expired or unknown batch replay; no new collection acceptance",
+    "Initial stale fallback4915 complete JSON was overwritten by later baseline; initial counts/version retained in prior preflight receipt, not claimed as retained complete original"
+  ]
+}
