@@ -1,0 +1,19 @@
+{
+  "status": "DEPLOYMENT_HELD_BEFORE_COPY_OLD_FALLBACK_RESTORE_AUTHORIZED",
+  "thresholdKB": 704052,
+  "source": "Original private GitHub4a8883c78a89ee37438875f7d3dfc917f9411c11/recovery/web/LIGHT_READER_DEPLOYMENT_RECEIPT_20261018.json deployment[fallback].requiredKB",
+  "sourceMeaning": "Historical single deployment measurement/requiredKB field; no original derivation recovered",
+  "currentScriptOwner": "review_round_isolation",
+  "currentUse": "Conservatively reused historical requiredKB as a fixed pre-copy gate in newly prepared script",
+  "notEstablished": [
+    "Not a platform safety policy",
+    "Not an authorization denial",
+    "Not a measured minimum memory for current compact reader",
+    "No general persistent fixed threshold code verified"
+  ],
+  "actualMemoryAfterStopKB": 700928,
+  "actualMemoryRecheckKB": 700008,
+  "filesChanged": false,
+  "parentDecision": "Restore unchanged old fallback process; do not deploy compact until revised deployment decision",
+  "heapMiB": 320
+}

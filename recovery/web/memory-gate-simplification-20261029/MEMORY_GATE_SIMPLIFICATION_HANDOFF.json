@@ -1,0 +1,27 @@
+{
+  "approvedBy": "parent via user simplify authorization2026-10-29T15:35:35Z",
+  "reason": "Historical single-run requiredKB was mistakenly treated as fixed deployment minimum; no current source contract supports it",
+  "changes": "Remove only two fixed memory assertions; retain actual memory logging and label historical field honestly",
+  "preserved": [
+    "Old/source/staged/rollback SHA",
+    "Other side ready before stop",
+    "Same original PM2 processes and heap320 config",
+    "Real measured memory log",
+    "Readiness deadline and rollback",
+    "Main requires verified fallback route3031",
+    "Exact original Nginx bytes restoration"
+  ],
+  "files": [
+    "SWITCH_FALLBACK_REQUIRES_PARENT_WINDOW.sh",
+    "SWITCH_MAIN_REQUIRES_PARENT_WINDOW.sh",
+    "MEMORY_GATE_SIMPLIFICATION.patch",
+    "MEMORY_HOLD_ORIGIN.json",
+    "MEMORY_GATE_SIMPLIFICATION_HANDOFF.json"
+  ],
+  "activationConditions": [
+    "Original fallback recovery receipt successful",
+    "Original private GitHub backup readback",
+    "Official deployment tool, no refusal bypass"
+  ],
+  "obsolete": "CONTINUE_STOPPED_FALLBACK_AFTER_MEMORY_HOLD.sh must not be used after old fallback restart"
+}
