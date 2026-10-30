@@ -1,0 +1,341 @@
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/runSourceCrawl.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/runSourceCrawl.ts
+@@ -9,7 +9,7 @@
+ import {applySanofiNativeProjection} from "./sanofiNativeQuality";
+ import { isPfizerWorkdayTraversalPlan, replayPfizerWorkdayTraversal, PFIZER_PAGINATION_POLICY, PFIZER_CHANNEL } from "./pfizerWorkdayTraversal";
+ import { isBayerMedicalTraversalPlan, replayBayerMedicalTraversal } from "./bayerMokaScope";
+-import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail } from "./rocheChinaQuality";
++import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
+ import { mokaDetailLocations, mokaNativeListScope } from "./mokaSourceFetch";
+ import { auditRedseaCandidateScope } from "./redseaCandidateScope";
+ import { hasBeisenDetailDatePlan, replayBeisenDetailDates } from "./beisenDetailDates";
+@@ -616,11 +616,12 @@
+     // strictPageRequestContracts above has already replayed the complete Yello
+     // partition and its exact exclusion ledger. No other source inherits this opt-in.
+     const yelloScopeProof = exactGileadPublicAgePlan(plan);
++    const rocheScopeProof = plan.source.id === "source-roche-china-social" && plan.adapterId === "official-json" && plan.officialJsonFetch?.kind === "phenom" && plan.officialJsonFetch.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY;
+     const lillyScopeProof = exactLillyChinaQualityPlan(plan);
+     const organonScopeProof = exactOrganonPostedDatePlan(plan);
+     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
+     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
+-    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
++    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !rocheScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
+       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
+     }
+     if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) {
+@@ -674,7 +675,7 @@
+       : artifactUrlBindings?.get(artifact.logicalKey);
+     if (!declaredArtifactRules) return strictGateTrace(plan, "DECLARATION_URL_RULE");
+     if (declared.kind === "OFFICIAL_TOTAL_COUNT") {
+-      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof || yelloScopeProof || lillyScopeProof || organonScopeProof) &&
++      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof || yelloScopeProof || rocheScopeProof || lillyScopeProof || organonScopeProof) &&
+         replayPolicy?.allowIndependentlyVerifiedProfileBoundExclusions === true &&
+         declared.value === evidence.fetchCounts.rawCount &&
+         ledger.rawInputCount === evidence.fetchCounts.validCount;
+@@ -2285,6 +2286,7 @@
+   const exactRocheRequestBoundOmittedOffset = strictExactRochePhenomPlan(plan, pageConfig, endpoint);
+   const preserveRocheQuality = exactRocheRequestBoundOmittedOffset && config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY;
+   if (config.nativeDetailPolicy !== undefined && !preserveRocheQuality) return false;
++  const rocheLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+   const rocheOutputs = new Map<string, NonNullable<ReturnType<typeof rocheNativeDetail>>>();
+   if (preserveRocheQuality) {
+     const start = Date.parse(capturedAt);
+@@ -2620,7 +2622,7 @@
+       } else if (page.returnedOffset !== null) return false;
+       const expectedRawIds: string[] = [];
+       const expectedValidIds: string[] = [];
+-      for (const raw of envelope.jobs) {
++      for (const [recordIndex,raw] of envelope.jobs.entries()) {
+         const record = strictRecord(raw);
+         const rawId = record ? strictPhenomOfficialId(record.jobSeqNo) ??
+           strictPhenomOfficialId(record.reqId) ?? strictPhenomOfficialId(record.jobId) : undefined;
+@@ -2633,6 +2635,10 @@
+         // Equal raw totals plus an overlap can still hide a missing role when sort keys tie.
+         if (rocheRawOfficialIds.has(rawId)) return false;
+         rocheRawOfficialIds.add(rawId);
++        if (preserveRocheQuality && rocheDeniedDetail(record,artifacts.get(`roche-detail-${record.reqId}`),capturedAt)) {
++          rocheLosses.push(rocheDeniedLoss(record,pageIndex,recordIndex,artifacts.get(`roche-detail-${record.reqId}`)!.capturedAt));
++          continue;
++        }
+         expectedValidIds.push(validEvidenceId);
+         rocheExpectedOutputIds.add(sourceJobId);
+         if (preserveRocheQuality) {
+@@ -2688,12 +2694,12 @@
+   }
+   const rocheReplayMatches = !exactRocheRequestBoundOmittedOffset ||
+     (rocheExpectedTotal !== undefined && pageRawCount === rocheExpectedTotal &&
+-      rocheExpectedOutputIds.size === rocheExpectedTotal &&
++      rocheExpectedOutputIds.size + rocheLosses.length === rocheExpectedTotal &&
+       evidence.fetchCounts.rawCount === rocheExpectedTotal &&
+       evidence.fetchCounts.parsedCount === rocheExpectedTotal &&
+-      evidence.fetchCounts.validCount === rocheExpectedTotal &&
+-      evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === 0 &&
+-      evidence.fetchLosses.length === 0 && outputJobs.length === rocheExpectedOutputIds.size &&
++      evidence.fetchCounts.validCount === rocheExpectedTotal - rocheLosses.length &&
++      evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === rocheLosses.length &&
++      isDeepStrictEqual(evidence.fetchLosses,rocheLosses) && outputJobs.length === rocheExpectedOutputIds.size &&
+       outputJobs.every((job) => job.companyId === plan.company.id && job.sourceId === plan.source.id &&
+         typeof job.sourceJobId === "string" && rocheExpectedOutputIds.has(job.sourceJobId)) &&
+       new Set(outputJobs.map((job) => job.sourceJobId)).size === outputJobs.length);
+@@ -2712,7 +2718,7 @@
+   return evidence.declaredCompleteness?.kind === "OFFICIAL_TOTAL_COUNT" &&
+     evidence.declaredCompleteness.value === pageRawCount &&
+     rocheReplayMatches &&
+-    (!preserveRocheQuality || (rocheOutputs.size === pageRawCount && evidence.artifacts.length === evidence.pages.length + 3 + pageRawCount &&
++    (!preserveRocheQuality || (rocheOutputs.size + rocheLosses.length === pageRawCount && evidence.artifacts.length === evidence.pages.length + 3 + pageRawCount &&
+       outputJobs.every(job => {
+         const expected = job.sourceJobId && rocheOutputs.get(job.sourceJobId);
+         return expected && typeof job.isBaseline === "boolean" && isDeepStrictEqual(job, {
+@@ -4805,7 +4811,7 @@
+     if (strategy.exactDuplicateReconciliationPolicy !== undefined && !exactRocheDuplicatePolicy) return undefined;
+     return {
+       allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+-      ...(exactLillyChinaQualityPlan(plan) || exactOrganonPostedDatePlan(plan) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
++      ...(exactLillyChinaQualityPlan(plan) || exactOrganonPostedDatePlan(plan) || (plan.source.id === "source-roche-china-social" && strategy.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
+       ...(exactRocheDuplicatePolicy ? { allowRawIdOverlapAcrossPages: true as const } : {})
+     };
+   }
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/officialJsonSourceFetch.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/officialJsonSourceFetch.ts
+@@ -2,7 +2,7 @@
+ import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
+ import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
+ import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFailureArtifact, novoNativeGatewayRetryStart, novoNativeGatewayRetryArtifact, delayNovoNativeRetry } from "./novoNativeGatewayRetry";
+-import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl } from "./rocheChinaQuality";
++import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
+ import { acquireBeisenDetailDates } from "./beisenDetailDates";
+ import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
+ import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
+@@ -4570,11 +4570,19 @@
+           assertOfficialJsonMime(response);
+           const detail = phenomArtifact({id: `roche-detail-${raw.reqId}`, kind: "ATS_API_RESPONSE", requestedUrl, response, extractorLocator: "roche-workday-jobposting-v1"});
+           detail.bodyRepresentation = "EXACT";
+-          return {detail, native: rocheNativeDetail(raw, detail, capturedAt), sourceJobId: persistentOfficialJsonJobId(raw.jobSeqNo as string)};
++          return {raw, detail, denied: rocheDeniedDetail(raw, detail, capturedAt), native: rocheNativeDetail(raw, detail, capturedAt), sourceJobId: persistentOfficialJsonJobId(raw.jobSeqNo as string)};
+         }));
+         artifacts.push(...details.map(value => value.detail));
+-        if (details.some(value => !value.native)) throw Error("ROCHE_NATIVE_DETAIL_INVALID");
+-        for (const {native, sourceJobId} of details) Object.assign(jobs.find(job => job.sourceJobId === sourceJobId)!, native);
++        if (details.some(value => !value.native && !value.denied)) throw Error("ROCHE_NATIVE_DETAIL_INVALID");
++        for (const [index,{raw,detail,denied,native,sourceJobId}] of details.entries()) {
++          if (denied) {
++            const rowIndex=offset+index, pageSequence=Math.floor(rowIndex/pageSize);
++            losses.push(rocheDeniedLoss(raw,pageSequence,rowIndex%pageSize,detail.capturedAt));
++            counts.validCount--; counts.validationDiscardCount++;
++            jobs.splice(jobs.findIndex(job=>job.sourceJobId===sourceJobId),1);
++            pages[pageSequence]!.validJobIds=pages[pageSequence]!.validJobIds.filter(id=>id!==irreversibleOfficialJsonEvidenceId(sourceJobId));
++          } else Object.assign(jobs.find(job=>job.sourceJobId===sourceJobId)!,native);
++        }
+       }
+     } catch {
+       return phenomFailure(capturedAt, "Roche native job detail or application validation failed", artifacts, pages, counts, losses, declaredCompleteness);
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/completenessCertificate.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/completenessCertificate.ts
+@@ -92,7 +92,7 @@
+ const legalScopeExclusionEntrySchema = z.object({
+   rawLocatorSha256: SHA256,
+   recordIndex: z.number().int().nonnegative(),
+-  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE"])
++  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE", "ROCHE_DETAIL_DENIED"])
+ }).strict();
+ const certificateSchema = z.object({
+   schemaVersion: z.literal(A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION),
+@@ -289,7 +289,10 @@
+   const legalDedupeCount = ledger.collisionGroups.reduce((sum, group) => sum + group.droppedCount, 0);
+   const legalScopeExclusionLedger = hasHengruiScopeExclusionPolicy(plan)
+     ? replayHengruiScopeExclusionProof(plan, evidence, input.jobs)?.exclusions
+-    : exactGrifolsScopeExclusionLedger(plan, evidence);
++    : plan.source.id === "source-roche-china-social"
++      // Strict source replay above already verified the exact approved denial and complete list.
++      ? evidence.fetchLosses.map(loss=>({rawLocatorSha256:sha256(loss.rawLocator),recordIndex:loss.details.recordIndex as number,code:"ROCHE_DETAIL_DENIED" as const}))
++      : exactGrifolsScopeExclusionLedger(plan, evidence);
+   const legalValidationDiscardCount = legalScopeExclusionLedger?.length ?? 0;
+   if (evidence.fetchCounts.parseDiscardCount !== 0 || ledger.adapterLosses.length !== 0 ||
+       evidence.fetchCounts.validationDiscardCount !== legalValidationDiscardCount ||
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts
+@@ -1,3 +1,4 @@
++import { rocheQuarantinedSourceJobIds } from "./rocheChinaQuality";
+ import { isDeepStrictEqual } from "node:util";
+ import { isPfizerWorkdayTraversalPlan, pfizerQuarantinedOfficialIds, pfizerSourceJobId, PFIZER_ENTRY } from "./pfizerWorkdayTraversal";
+ import { hasNovartisPartitionEvidence, replayNovartisNativePartitions } from "./novartisNativePartitions";
+@@ -570,6 +571,10 @@
+       const urls=replayNovartisNativePartitions(plan,evidence).unknownUrls;
+       for(const old of input.previousJobs)if(urls.has(old.record.officialUrl))unknownKeys.add(old.dedupeKey);
+     }
++    if(plan.source.id==="source-roche-china-social"){
++      const ids=rocheQuarantinedSourceJobIds(evidence);
++      for(const old of input.previousJobs)if(ids.has(old.record.sourceJobId??""))unknownKeys.add(old.dedupeKey);
++    }
+     if(isPfizerWorkdayTraversalPlan(plan)){
+       for(const id of pfizerQuarantinedOfficialIds(evidence)){
+         const matches=input.previousJobs.filter(old=>{
+@@ -610,7 +615,7 @@
+       ? []
+       : reducedLifecycle.filter(({ dedupeKey }) => currentKeySet.has(dedupeKey)));
+   // Only source-replayed UNKNOWN identities may retain old ACTIVE membership.
+-  for(const held of lifecycle.filter(x=>["source-novartis-social","source-pfizer-china-social"].includes(plan.source.id)&&x.lifecycleStatus==="ACTIVE"&&x.missingSuccessfulCrawlCount===1)){
++  for(const held of lifecycle.filter(x=>["source-novartis-social","source-pfizer-china-social","source-roche-china-social"].includes(plan.source.id)&&x.lifecycleStatus==="ACTIVE"&&x.missingSuccessfulCrawlCount===1)){
+     const old=input.previousJobs.find(job=>job.dedupeKey===held.dedupeKey);
+     if(!unknownKeys.has(held.dedupeKey)||!old||old.lifecycleStatus!=="ACTIVE"||held.lastSeenAt!==old.lastSeenAt||
+       !isDeepStrictEqual(held.record,old.record))throw Error("UNKNOWN_GRACE_REQUIRES_PRIOR_ACTIVE_IDENTITY");
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/rocheChinaQuality.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/rocheChinaQuality.ts
+@@ -2,8 +2,8 @@
+ import { CITY_PENDING } from "../domain/jobLocation";
+ import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
+ import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
+-import { sensitiveOfficialJsonField } from "./officialJsonEvidence";
+-import type { SourceFetchArtifactDraft } from "./sourceFetchEvidence";
++import { sensitiveOfficialJsonField, officialJsonRawLocator, persistentOfficialJsonJobId } from "./officialJsonEvidence";
++import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
+ 
+ export const ROCHE_NATIVE_DETAIL_POLICY = "ROCHE_WORKDAY_NATIVE_V1" as const;
+ const ORIGIN = "https://roche.wd3.myworkdayjobs.com";
+@@ -33,13 +33,18 @@
+   } catch { return undefined; }
+ }
+ 
++function rocheDetailBound(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt: string, status: number): boolean {
++  const url = rocheNativeDetailUrl(raw), time = artifact && Date.parse(artifact.capturedAt), start = Date.parse(startedAt);
++  if (!url || !artifact || artifact.logicalKey !== `roche-detail-${raw.reqId}` || artifact.kind !== "ATS_API_RESPONSE" ||
++    artifact.requestedUrl !== url || artifact.finalUrl !== url || artifact.httpStatus !== status || artifact.bodyRepresentation !== "EXACT" ||
++    !/^application\/json(?:;|$)/iu.test(artifact.contentType ?? "") || artifact.extractorLocator !== "roche-workday-jobposting-v1" ||
++    !Number.isFinite(time) || !Number.isFinite(start) || time! < start || time! > start + 30 * 60_000) return false;
++  return true;
++}
++
+ export function rocheNativeDetail(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt: string):
+   { title: string; officialUrl: string; locationRaw: string; cities: string[]; officialPublishedAt?: string } | undefined {
+-  const url = rocheNativeDetailUrl(raw), time = artifact && Date.parse(artifact.capturedAt), start = Date.parse(startedAt);
+-  if (!url || !artifact || artifact.logicalKey !== `roche-detail-${raw.reqId}` || artifact.kind !== "ATS_API_RESPONSE" ||
+-    artifact.requestedUrl !== url || artifact.finalUrl !== url || artifact.httpStatus !== 200 || artifact.bodyRepresentation !== "EXACT" ||
+-    !/^application\/json(?:;|$)/iu.test(artifact.contentType ?? "") || artifact.extractorLocator !== "roche-workday-jobposting-v1" ||
+-    !Number.isFinite(time) || !Number.isFinite(start) || time! < start || time! > start + 30 * 60_000 ||
++  if (!artifact || !rocheDetailBound(raw,artifact,startedAt,200) ||
+     !text(raw.title) || raw.siteType !== "external" || raw.visibilityType !== "External" || raw.locale !== "zh_cn" ||
+     !Array.isArray(raw.jobVisibility) || !raw.jobVisibility.includes("external") ||
+     !Array.isArray(raw.multi_location) || !raw.multi_location.length || !raw.multi_location.every(text)) return undefined;
+@@ -70,3 +75,22 @@
+   return { title: clean(info.title), officialUrl: raw.applyUrl as string, locationRaw: mainland.map(clean).join(" | "), cities,
+     ...(officialPublishedAt ? {officialPublishedAt} : {}) };
+ }
++
++// Only the user-approved listed identity may retain old data on its exact official denial.
++export function rocheDeniedDetail(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt: string): boolean {
++  if (raw.reqId !== "202610-125686" || !artifact || !rocheDetailBound(raw,artifact,startedAt,403)) return false;
++  try { const body=typeof artifact.body==="string"?artifact.body:Buffer.from(artifact.body).toString("utf8");
++    if(!hasUniqueJsonObjectKeys(body))return false;
++    const denied=record(JSON.parse(body));
++    return denied?.errorCode==="S22"&&denied.httpStatus===403&&denied.message==="permission denied";
++  } catch { return false; }
++}
++export function rocheDeniedLoss(raw: Record<string, unknown>, pageSequence: number, recordIndex: number, recordedAt: string): PersistentSourceFetchEvidence["fetchLosses"][number] {
++  return {stage:"VALIDATION",reason:"Roche approved official denial isolated; preserve existing row and its time",rawLocator:officialJsonRawLocator(raw,recordIndex),
++    details:{code:"ROCHE_DETAIL_DENIED",pageSequence,recordIndex,noteCode:"NO_OMISSION_NOT_VERIFIED"},recordedAt};
++}
++/** Used only after strict replay has bound the loss to the exact fresh list/detail. */
++export function rocheQuarantinedSourceJobIds(evidence: PersistentSourceFetchEvidence): Set<string> {
++  return new Set(evidence.fetchLosses.some(loss=>loss.details.code==="ROCHE_DETAIL_DENIED")
++    ?[persistentOfficialJsonJobId("ROCHGLOBAL202610125686EXTERNALZHCN")]:[]);
++}
+--- a/tools/dot-auto-controller/vendor/c60-source/src/db/ingestionRepository.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/db/ingestionRepository.ts
+@@ -2210,7 +2210,7 @@
+   if(result.completenessState==="VERIFIED" && !manualPreview) {
+     for(const command of jobCommands) {
+       // The runtime attestation above seals the source-replayed UNKNOWN key set and old record/time.
+-      const retainedUnknown=["source-novartis-social","source-pfizer-china-social"].includes(result.sourceId)&&
++      const retainedUnknown=["source-novartis-social","source-pfizer-china-social","source-roche-china-social"].includes(result.sourceId)&&
+         command.missingSuccessfulCrawlCount===1&&command.lifecycleStatus==="ACTIVE"&&
+         new Date(command.lastSeenAt).getTime()<result.finishedAt!.getTime();
+       const expectedStatus=command.missingSuccessfulCrawlCount===0||retainedUnknown?"ACTIVE":"OFFLINE";
+--- a/tools/dot-auto-controller/vendor/c60-source/src/db/jobProjectionDeltaCompiler.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/db/jobProjectionDeltaCompiler.ts
+@@ -38,7 +38,7 @@
+     let lastConfirmedObservedAt=observedAt,lastPresentResultId=source.id;
+     const lifecycleLastSeenAt=iso(command.lastSeenAt);
+     if(missingCount===1){
+-      const previous=previousReceipt?.members.find(m=>m.jobKey===command.dedupeKey&&(m.setKind==="CURRENT"||(["source-novartis-social","source-pfizer-china-social"].includes(source.sourceId)&&m.setKind==="GRACE")));
++      const previous=previousReceipt?.members.find(m=>m.jobKey===command.dedupeKey&&(m.setKind==="CURRENT"||(["source-novartis-social","source-pfizer-china-social","source-roche-china-social"].includes(source.sourceId)&&m.setKind==="GRACE")));
+       if(previous){lastConfirmedObservedAt=previous.lastConfirmedObservedAt;lastPresentResultId=previous.lastPresentResultId;
+         if(lifecycleLastSeenAt!==previous.lifecycleLastSeenAt)throw Error("JOB_DELTA_GRACE_LIFECYCLE_ANCHOR");
+       }else{
+--- a/tools/dot-auto-controller/vendor/reader-main/src/crawler/completenessCertificate.ts
++++ b/tools/dot-auto-controller/vendor/reader-main/src/crawler/completenessCertificate.ts
+@@ -93,7 +93,7 @@
+ const legalScopeExclusionEntrySchema = z.object({
+   rawLocatorSha256: SHA256,
+   recordIndex: z.number().int().nonnegative(),
+-  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE"])
++  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE", "ROCHE_DETAIL_DENIED"])
+ }).strict();
+ const certificateSchema = z.object({
+   schemaVersion: z.literal(A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION),
+--- a/tools/dot-auto-controller/vendor/reader-fallback/src/crawler/completenessCertificate.ts
++++ b/tools/dot-auto-controller/vendor/reader-fallback/src/crawler/completenessCertificate.ts
+@@ -93,7 +93,7 @@
+ const legalScopeExclusionEntrySchema = z.object({
+   rawLocatorSha256: SHA256,
+   recordIndex: z.number().int().nonnegative(),
+-  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE"])
++  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE", "ROCHE_DETAIL_DENIED"])
+ }).strict();
+ const certificateSchema = z.object({
+   schemaVersion: z.literal(A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION),
+--- a/tools/dot-auto-controller/vendor/c60-source/tests/crawler/rocheChinaQuality.test.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/tests/crawler/rocheChinaQuality.test.ts
+@@ -1,3 +1,12 @@
++import { mkdtemp, rm } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { archiveSourceEvidence, verifyArchivedSourceEvidence } from "../../src/crawler/artifactArchive";
++import { buildAtomicRuntimeCommit, buildPendingRuntimeBatch, verifyAtomicRuntimeCommitForPersistence } from "../../src/crawler/runtimeAtomicEvidence";
++import { canonicalStringSetSha256 } from "../../src/crawler/sourceFetchEvidence";
++import { buildJobDedupeKey } from "../../src/crawler/normalizedJob";
++import { persistentOfficialJsonJobId } from "../../src/crawler/officialJsonEvidence";
++import { rocheDeniedDetail } from "../../src/crawler/rocheChinaQuality";
+ import { candidateCompanies } from "../../src/data/companyRegistry";
+ import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from "../../src/crawler/sourcePlan";
+ import { createOfficialJsonSourceFetch } from "../../src/crawler/officialJsonSourceFetch";
+@@ -112,3 +121,40 @@
+   for (const title of ["Forged", listed.title])
+     expect(issueAGradeOfficialTotalCertificate({...candidate,jobs:result.jobs.map(job=>({...job,officialTitle:title}))})).toMatchObject({status:"REJECTED"});
+ });
++
++it("isolates only the approved official denial, continues details and preserves old ACTIVE/GRACE without reviving OFFLINE",async()=>{
++ const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==="source-roche-china-social")!;
++ const denied={...raw,reqId:"202610-125686",jobId:"202610-125686",jobSeqNo:"ROCHGLOBAL202610125686EXTERNALZHCN",applyUrl:raw.applyUrl.replaceAll(raw.reqId,"202610-125686")};
++ const deniedArtifact={...artifact(denied),httpStatus:403,body:JSON.stringify({errorCode:"S22",httpStatus:403,message:"permission denied"})};
++ expect(rocheDeniedDetail(denied,deniedArtifact,started)).toBe(true);
++ for(const patch of [{httpStatus:502},{finalUrl:"https://evil.test"},{capturedAt:"2026-10-02T13:00:00.000Z"},{body:JSON.stringify({errorCode:"OTHER",httpStatus:403,message:"permission denied"})}])expect(rocheDeniedDetail(denied,{...deniedArtifact,...patch},started)).toBe(false);
++ expect(rocheDeniedDetail(raw,{...artifact(),httpStatus:403,body:deniedArtifact.body},started)).toBe(false);
++ let posts=0,clock=0;const visited:string[]=[];
++ const fetcher=createOfficialJsonSourceFetch({now:()=>new Date(clock++===0?started:"2026-10-02T12:00:03.000Z"),http:async request=>{
++   visited.push(request.url);const isDenied=request.url===rocheNativeDetailUrl(denied);
++   const body=request.method==="POST"?JSON.stringify({refineSearch:{totalHits:2,data:{jobs:posts++===0?[]:[denied,raw],aggregations:posts===1?[{field:"country",value:{中国大陆:2}}]:[]}}}):request.url.includes("/wday/cxs/")?(isDenied?deniedArtifact.body:artifact().body):'<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11-ds"};</script>';
++   return {status:isDenied?403:200,body:body as string,finalUrl:request.url,capturedAt:request.url===plan.source.officialEntryUrl?"2026-10-02T12:00:01.000Z":"2026-10-02T12:00:02.000Z",contentType:request.method==="POST"||request.url.includes("/wday/cxs/")?"application/json":"text/html"};
++ }});
++ const result=await runSourceCrawl(plan,{fetch:fetcher});expect(result.truth).toMatchObject({completenessVerified:true});expect(result.jobs).toHaveLength(1);expect(visited).toContain(rocheNativeDetailUrl(raw));expect(result.fetchEvidence!.fetchCounts).toMatchObject({rawCount:2,validCount:1,validationDiscardCount:1});
++ const oldAt="2026-10-01T12:00:00.000Z",at="2026-10-02T12:00:03.000Z";
++ const identity={releaseCandidateId:"roche-quarantine-offline",commitSha:"a".repeat(64),rosterSha256:"a".repeat(64),sourcePlanSha256:"a".repeat(64),sourceConfigSha256:"a".repeat(64),adapterBundleSha256:"a".repeat(64),batchKind:"SCHEDULED" as const,ownerId:"test",expectedPlannedSourceIds:[plan.source.id],expectedPlannedSourceSetSha256:canonicalStringSetSha256([plan.source.id]),expectedPlannedSourceCount:1};
++ const batchId="roche-quarantine-batch",pending=buildPendingRuntimeBatch(batchId,[plan],identity,new Date(at)).sources[0]!;
++ const workspaceRoot=await mkdtemp(join(tmpdir(),"roche-quarantine-offline-"));
++ try {
++   const binding={workspaceRoot,releaseCandidateId:identity.releaseCandidateId,batchId,sourceId:plan.source.id,sourceResultId:pending.id,evidenceSubdirectory:"phase-1/runtime-evidence"};
++   const archived=await archiveSourceEvidence({...binding,captureTool:result.fetchEvidence!.captureTool,artifacts:result.fetchEvidence!.artifacts});
++   const artifacts=await verifyArchivedSourceEvidence({...binding,artifacts:archived.artifacts});
++   const record={...structuredClone(result.jobs[0]!),officialTitle:"Old exact title",officialUrl:denied.applyUrl,sourceJobId:persistentOfficialJsonJobId(denied.jobSeqNo),evidence:{...result.jobs[0]!.evidence,capturedAt:oldAt}};
++   for(const [state,count] of [["ACTIVE",0],["ACTIVE",1],["OFFLINE",3]] as const){
++     const previous={dedupeKey:buildJobDedupeKey(record),record,lifecycleStatus:state,missingSuccessfulCrawlCount:count,firstSeenAt:oldAt,lastSeenAt:oldAt};
++     const commit=buildAtomicRuntimeCommit({plan,pending,identity,batchId,result,baselineCompletedBeforeCrawl:true,artifacts,completedAt:new Date(at),publicationPolicy:"SOURCE_ATOMIC_LAST_GOOD_V1",previousJobs:[previous]});
++     expect(commit.sourceResult.completenessState).toBe("VERIFIED");await verifyAtomicRuntimeCommitForPersistence(commit);
++     const expected={releaseCandidateId:identity.releaseCandidateId,batchId,sourceResultId:pending.id,sourceId:plan.source.id,sourceConfigSha256:sourcePlanConfigSha256(plan)};
++     for(const reader of ["reader-main","reader-fallback"]){
++       const {verifyAGradeCompletenessCertificateReceipt}=await import(`../../../${reader}/src/crawler/completenessCertificate.ts`);
++       expect(verifyAGradeCompletenessCertificateReceipt({certificate:commit.sourceResult.completenessCertificate,certificateSha256:commit.sourceResult.completenessCertificateSha256,expected}).status).toBe("PASS");
++     }
++     const held=commit.commands.find(c=>c.type==="UPSERT_JOB"&&c.dedupeKey===previous.dedupeKey)!;expect(held).toMatchObject({record,lastSeenAt:oldAt,lifecycleStatus:state,missingSuccessfulCrawlCount:state==="ACTIVE"?1:count});
++   }
++ }finally{await rm(workspaceRoot,{recursive:true,force:true});}
++});
