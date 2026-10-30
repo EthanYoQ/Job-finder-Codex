@@ -86,7 +86,7 @@ export function applyCrawlObservation(
       continue;
     }
 
-    const missingSuccessfulCrawlCount = previous.missingSuccessfulCrawlCount + 1;
+    const missingSuccessfulCrawlCount = previous.missingSuccessfulCrawlCount + (previous.lifecycleStatus === "OFFLINE" ? 0 : 1);
 
     if (!canTrustMissingJobs) { decisions.push({...previous,isNew:false}); continue; }
 
