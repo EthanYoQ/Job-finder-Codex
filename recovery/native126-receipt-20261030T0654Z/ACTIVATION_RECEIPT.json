@@ -1,0 +1,21 @@
+{
+  "status": "REGISTERED_VERIFIED_ENABLED",
+  "candidate": "dot-cloud-native-0136354-20261030",
+  "version": 126,
+  "commit": "0136354d85d6102706138c2f734b05a1eb128b4d",
+  "enabledAt": "2026-10-30T06:59:00.907314+00:00",
+  "official16Fields": "VERIFIED",
+  "originalConnectorValidate": "PASS",
+  "build": {
+    "schemaVersion": 2,
+    "commitSha": "0136354d85d6102706138c2f734b05a1eb128b4d",
+    "sourceTreeSha256": "186ef2afd2b5b6b99e7ae7fe6c21666fe05f7d7db9a72ecc6917ac5e50d733ec",
+    "runtimeTreeSha256": "aaeeb2fb2d68a00728ebde5fb4e6059d069d1c60b2eeaea5fe3375f2046b2af3",
+    "contentSha256": "853e0c097992573e4fdcb78018299b119a6c2001145c562d738f71e9fefc7b97"
+  },
+  "bindingSha256": "8e456fcd60721e9d65b35916234b926bfbfaed421c8d419fc38c244f8af4b6bd",
+  "sourceBackupDrive": "1A5uEWgqOoVjklVMrjHjwAgA2wRoAoQfX",
+  "receiptBackupDrive": "1kNwH55k8lQtwBY5OlCP0k7MAz4pcDNf_",
+  "externalEntryChanged": false,
+  "newRunStarted": false
+}
