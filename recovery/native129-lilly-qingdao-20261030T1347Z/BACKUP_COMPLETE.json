@@ -1,0 +1,18 @@
+{
+  "verifiedAt": "2026-10-30T13:52:10Z",
+  "sourceCommit": "413371a7d4501816581ff006cd06ff10c769503d",
+  "receiptCommit": "b2bcd42c1b2006817c707bae77931960c9ff3c32",
+  "receiptDriveId": "1B7yFIbBelLIKLkqSRcvA6CM3qaU4fu5G",
+  "sha256": "fb6caf5ca707bae1b9ccf505c6a1ee4d4037da186f6a87bfa31d5be18e637282",
+  "bytes": 1907,
+  "remoteDownloadedMembersEqual": [
+    "build.json",
+    "control.json",
+    "new-binding.json",
+    "new-binding-selector.json",
+    "OFFICIAL_REGISTRATION_READBACK.json",
+    "OFFICIAL_REGISTRATION_VERIFIED.json"
+  ],
+  "sourceDriveId": "174-2FJ60B_Cyitjy0Q1B997byqmq9QBU",
+  "activated": false
+}

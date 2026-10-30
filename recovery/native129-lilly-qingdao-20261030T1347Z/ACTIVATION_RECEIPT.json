@@ -1,0 +1,33 @@
+{
+  "status": "REGISTERED_VERIFIED_ENABLED",
+  "candidate": {
+    "id": "dot-cloud-native-413371a-20261030",
+    "goalId": "jobfinder-portable-required-40",
+    "version": 129
+  },
+  "build": {
+    "schemaVersion": 2,
+    "commitSha": "413371a7d4501816581ff006cd06ff10c769503d",
+    "sourceTreeSha256": "422e8b1f172de8966556e28ba7e51963afca0d24e313c55806061990c98c5ff5",
+    "runtimeTreeSha256": "1c8dedb71d144ef20b69c2b4b36cd79fb6041e37e3583ebadf4348343c2c81da",
+    "contentSha256": "f73ff075ee5f026c73ba764af0f544d2d17145e659ff788cd882e73f66a8b48a"
+  },
+  "enabledAt": "2026-10-30T13:55:33.910085+00:00",
+  "originalConnectorValidate": "PASS",
+  "bindingSha256": "8b85cf8e6f529293a1e8da0fd80eb2e122e2f507809ce1f7b69a0e51878ac69a",
+  "sourceDriveId": "174-2FJ60B_Cyitjy0Q1B997byqmq9QBU",
+  "receiptDriveId": "1B7yFIbBelLIKLkqSRcvA6CM3qaU4fu5G",
+  "rollbackCommit": "6727ea94e5f50a7ebca527768f4cbf17c4e9faad",
+  "externalEntryChanged": false,
+  "webChanged": false,
+  "newRunStarted": false,
+  "freshProductionValidation": "PENDING",
+  "preactivation": {
+    "checkedAt": "2026-10-30T13:54:11.749009Z",
+    "holder": "",
+    "live": 0,
+    "manual": 0,
+    "producer": false
+  },
+  "fix": "exact China-Qing-Dao- token uses existing CITY_PENDING and mandatory native detail"
+}
