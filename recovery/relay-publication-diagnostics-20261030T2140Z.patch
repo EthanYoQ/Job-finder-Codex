@@ -1,0 +1,43 @@
+--- a/original-relay-automation-20261017T0609Z/automatic-relay-functions.js
++++ b/original-relay-automation-20261017T0609Z/automatic-relay-functions.js
+@@ -11,7 +11,7 @@
+   } catch (error) {
+    results.push({sourceId, status: 'HELD', reason: String(error), ...(error?.producerStateUnconfirmed?{producerStateUnconfirmed:true}:{})});
+   }
+-  if(typeof notify==='function')notify({sourceId,status:results.at(-1).status,reason:results.at(-1).reason});
++  if(typeof notify==='function')notify({sourceId,status:results.at(-1).status,reason:results.at(-1).reason,...(results.at(-1).publicationOutcome?{publicationOutcome:results.at(-1).publicationOutcome}:{})});
+   if (results.at(-1).producerStateUnconfirmed || ['UNKNOWN_PUBLICATION','EXPIRED_OR_UNKNOWN_DISPATCH','SOURCE_DEADLINE','PUBLICATION_EXPIRED'].includes(results.at(-1).reason)) break;
+   if(afterSource && job){
+    try { results.at(-1).jobVerification=await afterSource(sourceId,results.at(-1),job); }
+@@ -72,7 +72,7 @@
+    producerTerminal = true;
+    if (publication?.outcome === 'UNKNOWN' && !(outcomeSeen && producer.exitCode===0 && producer.outcomeState==='COMMITTED_EXACT')) return {status:'HELD',reason:'UNKNOWN_PUBLICATION',requestId:publicationRequestId,outcomeSeen,exitCode:producer.exitCode};
+    if (producer.exitCode !== 0 || (publication?.status !== 'SUCCEEDED' && producer.outcomeState!=='COMMITTED_EXACT') || !outcomeSeen)
+-    return {status: 'HELD', reason: 'PRODUCER_OR_OUTCOME_INCOMPLETE', exitCode: producer.exitCode, diagnostic:publication?.reviewFailure??producer.diagnostic};
++    return {status: 'HELD', reason: publication?.code??'PRODUCER_OR_OUTCOME_INCOMPLETE', ...(publication?.status==='FAILED'?{publicationOutcome:publication.outcome,requestId:publicationRequestId}:{}), exitCode: producer.exitCode, diagnostic:publication?.reviewFailure??producer.diagnostic};
+    committedExact = producer.outcomeState==='COMMITTED_EXACT';
+    try { return await readback(); }
+    catch(error) { return {status:'HELD',reason:'WEB_READBACK_FAILED',committedExact,diagnostic:String(error)}; }
+--- a/original-relay-automation-20261017T0609Z/automatic-relay.test.mjs
++++ b/original-relay-automation-20261017T0609Z/automatic-relay.test.mjs
+@@ -93,3 +93,20 @@
+ const expiredResult=await timed.runOriginalSerial(['first','second'],async source=>{if(source==='second'){secondPrepareCount++;return {skip:'unexpected second source'};}return expiredReview.job;});
+ assert.equal(secondPrepareCount,0);assert.equal(expiredResult[0].reason,'PUBLICATION_EXPIRED');assert(!expiredReview.calls.includes('dispatch'));
+ console.log('PASS: actual launch/session uncertainty and unterminated deadlines stop; known prelaunch refusal continues; reasons do not invent a DB dispatch');
++
++// Explicit publication receipts survive a producer exit; reporting does not retry or block the next source.
++for(const [outcome,code] of [['NOT_DISPATCHED','TOOL_REVIEW_REJECTED'],['ROLLED_BACK','P0001']]){
++ const known=fixture(), following=fixture(), notices=[];
++ const dispatch=known.job.stage.h.sqlDispatch, poll=known.job.pollProducer;
++ known.job.stage.h.sqlDispatch=async(...args)=>{await dispatch(...args);return {status:'FAILED',outcome,code};};
++ known.job.pollProducer=async()=>{const p=await poll();return {...p,exitCode:p.exitCode===null?null:1,diagnostic:'producer exited'};};
++ globalThis.notify=value=>notices.push(value);
++ let results;
++ try{results=await runOriginalSerial(['known','next'],async id=>id==='known'?known.job:following.job);}
++ finally{delete globalThis.notify;}
++ assert.equal(results[0].reason,code);assert.equal(results[0].publicationOutcome,outcome);assert.equal(results[0].requestId,'2');
++ assert.equal(results[0].diagnostic,'producer exited');assert.equal(results[1].status,'WEB_VERIFIED');
++ assert.equal(known.calls.filter(x=>x==='dispatch').length,1);assert(known.calls.includes('READ_OUTCOME'));assert(!known.calls.includes('readback'));
++ assert.equal(notices[0].reason,code);assert.equal(notices[0].publicationOutcome,outcome);
++}
++console.log('PASS: explicit rejection/rollback receipt reported intact; one dispatch, original outcome read, next source unchanged');

@@ -1,0 +1,26 @@
+{
+  "scope": "report explicit known publication failures only",
+  "createdAt": "2026-10-30T21:40:00Z",
+  "activeChanged": false,
+  "parentBackupCommit": "05f7494096e2e85dd28dede0fa909188c7a125b8",
+  "files": {
+    "before/automatic-relay-functions.js": "d175d00cf607b376ae28869bf46c47c51b2c74d550039d74a672147dfd54dde3",
+    "before/automatic-relay.test.mjs": "b0c694e04dac6b28a4f91963399973cedb77c325d124c9daca688719606decd6",
+    "candidate/README.md": "41332c05f62085b56daef96f6e821de7e0ed8d6b60148e52985d4016eacbcbb6",
+    "candidate/automatic-relay-functions.js": "edc8393b759ea6d9744825bba4750c3fa13d8cc632dc0318360d0ae78844878e",
+    "candidate/automatic-relay.test.mjs": "fad5ba83ac34d81da8d6ec3b0efd6539d4103f5ace44b0746557ea9673af15be",
+    "candidate/novo-hook.test.mjs": "10fd43ee28bfbdcf0e1070a1a545fa1071ab9352a5bff65fff86e51c148bc553",
+    "candidate/prepare-original-source.py": "9faf68c3134b4070c4dc17dd47d0b4b0f32c57526a4effdd1ad64a2e9487506b",
+    "candidate/run-original-functions.js": "24b7cd74b0a2a5006743ac7c012db4c73c4a3837b629a033b5c803f0a469170d",
+    "candidate/sources.json": "5cacb022750abfbce267a8dd0a6faf7d9b08d0320284965cf3f0f4a41dbf88a6",
+    "change.patch": "ae43525edfc475cd5cc0e9f2eefc77a19f6f589baff9a2c0639c882271688f41"
+  },
+  "tests": {
+    "existingRegression": "PASS",
+    "newRegressionOnBaseline": "EXPECTED_FAILURE",
+    "newRegressionOnCandidate": "PASS",
+    "novoHook": "PASS",
+    "independentReview": "PASS"
+  },
+  "noProductionRetry": true
+}
