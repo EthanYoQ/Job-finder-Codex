@@ -1,0 +1,20 @@
+{
+  "status": "WEB_VERIFIED",
+  "allFieldsMatch": true,
+  "lastSuccessAt": "2026-10-30T00:24:45.572Z",
+  "uniqueJobs": 175,
+  "snapshotRefresh": {
+    "state": "CURRENT",
+    "version": "b902f2d5b143611811da110e7f6546aa3dc0fe6ac237bbb852781e58084d7c13",
+    "displayDataVersion": "f60bd746c97f63018c81a7b83454106499aa3ef73d89445681bcb3f56699e48c",
+    "statusVersion": "2d43e06e6c9364103210d245bd2e70c73779361815fa79897ea3fe13b7ceefb6",
+    "verificationVersion": "d8d7a07938b7bc6318fd3bc4b1f22d09f030fd7cdddc2a1c4535be2eab5a3afa",
+    "verifiedAt": "2026-10-30T00:31:26.042Z"
+  },
+  "recoveryMode": "MANUAL_READ_ONLY_RECOVERY",
+  "originalAutomaticStatus": "WEB_READBACK_FAILED",
+  "batchId": "dot-auto-bayer-20261030T002113277Z",
+  "recordedAt": "2026-10-30T00:33:26.885802+00:00",
+  "sqlResent": false,
+  "activeCodeChanged": false
+}

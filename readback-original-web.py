@@ -8,7 +8,8 @@ deadline=time.monotonic()+120
 for attempt in range(2):
  try:
   headers.pop('x-job-snapshot-check',None)
-  first=get('/api/search',query);headers['x-job-snapshot-check']=first['snapshotRefresh']['check']
+  first=get('/api/search',query)
+  if first['snapshotRefresh'].get('check'):headers['x-job-snapshot-check']=first['snapshotRefresh']['check']
   actual=get('/api/search',query)
   while actual['snapshotRefresh']['state']=='UPDATING' and time.monotonic()<deadline:time.sleep(2);actual=get('/api/search',query)
   if actual['snapshotRefresh']['state']=='FAILED':raise RuntimeError('WEB_REFRESH_FAILED')
