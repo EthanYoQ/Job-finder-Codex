@@ -1,0 +1,36 @@
+{
+  "status": "REGISTERED_VERIFIED_ENABLED",
+  "candidate": {
+    "id": "dot-cloud-native-6727ea9-20261030",
+    "goalId": "jobfinder-portable-required-40",
+    "version": 128
+  },
+  "build": {
+    "schemaVersion": 2,
+    "commitSha": "6727ea94e5f50a7ebca527768f4cbf17c4e9faad",
+    "sourceTreeSha256": "491e8b40131bd803853fc8b809b92a98a2a3221f8ab1d64eb0c6355546e0a9a7",
+    "runtimeTreeSha256": "1958856ff3d6eb25c9494b99e17e9cc33bacb3800a0acf500743856a50086c42",
+    "contentSha256": "cf939a67b219099496a6dbb968f747810804be2f076afb7c5c35dd54b74dfcb0"
+  },
+  "enabledAt": "2026-10-30T10:07:40.484772+00:00",
+  "originalConnectorValidate": "PASS",
+  "bindingSha256": "b560c5287784006b514c5512550774adba484316ae454066894508743ff44206",
+  "dynamicHoldsPreserved": {
+    "source-merck-china-social": "MAIN_DEPLOYMENT_UNRESOLVED",
+    "source-organon-china-social": "BACKUP_TREE_UNKNOWN_NOT_ENABLED",
+    "source-sanofi-china-social": "BACKUP_TREE_UNKNOWN_NOT_ENABLED"
+  },
+  "hardUnknownHoldsPreserved": [
+    "source-servier-china-social",
+    "source-pfizer-china-social",
+    "source-hengrui-social",
+    "source-cttq-social",
+    "source-novo-nordisk-china-social"
+  ],
+  "externalEntryChanged": false,
+  "webChanged": false,
+  "newRunStarted": false,
+  "freshProductionValidation": "PENDING_NEXT_ORIGINAL_20_CST_SLOT",
+  "rollbackCommit": "f0de8f4d8c1fed6024f4afb8787e2d9e66dff982",
+  "sourceBackupDrive": "1vI3dfgrSb5TQd7xXijsb_95M3vWtOWDe"
+}
