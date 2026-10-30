@@ -1,0 +1,68 @@
+{
+  "candidate": "dot-cloud-native-f0de8f4-20261030",
+  "sourceCommit": "f0de8f4d8c1fed6024f4afb8787e2d9e66dff982",
+  "enabledAt": "2026-10-30T09:33:21.518946Z",
+  "bindingSha256": "5900572aa0e2860f7c429b20afb18bd8864f7525b85df334510d956d9fcdd41e",
+  "databaseFunctionDefinitionSha256": "186f55d8ff1f86fcfd4b6e4f763a85496aaba934b8776f21428f99f0dfb9f20d",
+  "databaseFunctionProsrcSha256": "ba223b1a0eca1659c309a0e52d6ed10d730b3f169bb65ce2c5aff27342fb58cb",
+  "migrationToolSuccess": true,
+  "official16FieldsVerified": true,
+  "originalConnectorValidated": true,
+  "batchId": "dot-auto-roche-20261030T093558620Z",
+  "official": {
+    "batchStatus": "SUCCESS",
+    "atomicCommitState": "COMMITTED",
+    "completenessState": "VERIFIED",
+    "raw": 349,
+    "valid": 349,
+    "crawledAt": "2026-10-30T09:36:44.819Z",
+    "finishedAt": "2026-10-30T09:37:42.638Z",
+    "validationDiscardCount": 0,
+    "graceCount": 0
+  },
+  "webAndBackup": {
+    "sourceId": "source-roche-china-social",
+    "status": "WEB_VERIFIED",
+    "allFieldsMatch": true,
+    "lastSuccessAt": "2026-10-30T09:36:46.513Z",
+    "uniqueJobs": 349,
+    "snapshotRefresh": {
+      "state": "CURRENT",
+      "version": "5753b8cae8987e9f9a1abfdadbd1cc9bbc0de37a17dde33f4ea55e46acb37e55",
+      "displayDataVersion": "628acc1451d0677175fc5edb496bc6db93cee5a238f9a5d8f43248b7ae0c4f8b",
+      "statusVersion": "a9a3fc907d718e786ab75428854c52367749d90697302ca4bd7d869a52e73ba0",
+      "verificationVersion": "e0fb095025eb4004ba2bff16219f2b64cd4416f776db0d3abaa47f5ba81c9979",
+      "verifiedAt": "2026-10-30T09:39:41.190Z"
+    },
+    "evidenceBackup": {
+      "status": "REMOTE_RESTORE_VERIFIED",
+      "fileId": "1kGV3qhV3_j0r5podgM9YE3innHUQQpXe",
+      "bytes": 1854826,
+      "sha256": "c153cd5b6dd1d6efbb89795c93e7db098e386474cc6a1f29a4b28e5f69d1acd6",
+      "members": 20,
+      "sources": [
+        {
+          "source": "roche",
+          "batch": "dot-auto-roche-20261030T093558620Z",
+          "rawFiles": 353,
+          "webStatus": "WEB_VERIFIED",
+          "webJobs": 349
+        }
+      ],
+      "verifiedAt": "2026-10-30T09:40:47.509Z"
+    }
+  },
+  "denialBranchProductionTriggered": false,
+  "approvedDeniedIdCurrentStatus": "OFFLINE; absent from fresh list; original lastSeenAt preserved 2026-10-29T16:20:59.156Z",
+  "unattendedQualification": "Fresh source automatic chain completed after supervisor-triggered repair; not a scheduled long-term acceptance",
+  "otherSources": {
+    "skipped": 27,
+    "held": 8
+  },
+  "originalHoldsRestored": {
+    "source-merck-china-social": "MAIN_DEPLOYMENT_UNRESOLVED",
+    "source-organon-china-social": "BACKUP_TREE_UNKNOWN_NOT_ENABLED",
+    "source-sanofi-china-social": "BACKUP_TREE_UNKNOWN_NOT_ENABLED"
+  },
+  "webDeploymentChanged": false
+}
