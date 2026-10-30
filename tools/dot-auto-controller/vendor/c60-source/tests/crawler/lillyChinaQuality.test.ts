@@ -1,3 +1,4 @@
+import { lillyOfficialCities } from "../../src/crawler/lillyChinaQuality";
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { captureSyntheticLilly, lillyPlan, replayLilly, syntheticLillyRow } from "../helpers/lillyPhenom";
@@ -5,6 +6,12 @@ import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from ".
 import { replayStrictSourceQualityEvidence } from "../../src/crawler/runSourceCrawl";
 
 describe("Lilly China source quality", () => {
+  it("keeps the official Qingdao application route city pending until native detail verification", () => {
+    const row = syntheticLillyRow();
+    row.applyUrl = String(row.applyUrl).replace("China-Shang-Hai-", "China-Qing-Dao-");
+    expect(lillyOfficialCities(row)).toEqual(["城市待核"]);
+    expect(lillyOfficialCities({...row, country: "Singapore"})).toBeUndefined();
+  });
   it("preserves exact old official dates and reviewed Shanghai geometry", async () => {
     const input = await captureSyntheticLilly();
     expect(input.result.truth.completenessVerified).toBe(true);
