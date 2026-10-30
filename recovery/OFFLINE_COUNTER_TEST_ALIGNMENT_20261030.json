@@ -1,0 +1,45 @@
+{
+  "status": "TEST_ONLY_CORRECTION_NOT_APPLIED_TO_REGISTERED_SOURCE",
+  "baseCommit": "9fd31f216134a2a9c48f33a058f94e0188e90548",
+  "createdAt": "2026-10-30T21:53:00Z",
+  "changedPaths": [
+    "tools/dot-auto-controller/vendor/c60-source/tests/db/jobProjectionDeltaReceipt.test.ts"
+  ],
+  "productionCodeChanged": false,
+  "registeredSourceUnchanged": true,
+  "native128AlreadyEnabledAt": "2026-10-30T10:07:40.484772Z",
+  "baseline": {
+    "passed": 89,
+    "failed": 1
+  },
+  "candidate": {
+    "passed": 90,
+    "failed": 0
+  },
+  "files": {
+    "before/tools/dot-auto-controller/vendor/c60-source/tests/db/jobProjectionDeltaReceipt.test.ts": {
+      "sha256": "0e83098961d8a730e7cb6f4d096e8a3e1ad38ed47dac3e6de81c95149b26d611",
+      "bytes": 11302
+    },
+    "candidate/tools/dot-auto-controller/vendor/c60-source/tests/db/jobProjectionDeltaReceipt.test.ts": {
+      "sha256": "80e5463b1a2623289e929335562c7a6e3ec50267c190453921d72ae0080a81f3",
+      "bytes": 11300
+    },
+    "change.patch": {
+      "sha256": "b1943aa1b9a21609a51fa4ab826f2ed2f4bf8ac6e2cf5e992009ee74904b113c",
+      "bytes": 2802
+    },
+    "baseline.log": {
+      "sha256": "3ea07b0b75643457ee39d808a403fbb8afe9d2e8a71cfa48a5d94755328f9d33",
+      "bytes": 2199
+    },
+    "candidate.log": {
+      "sha256": "e4402e0742967cd7a0ba61444032c1fa699dd290eb732fb8b678cb812f8d6867",
+      "bytes": 1716
+    },
+    "README.md": {
+      "sha256": "c7ca8df9853c3823d4d517679486808412a0bc39fe51071abd87fe08c92d5f4f",
+      "bytes": 1303
+    }
+  }
+}
