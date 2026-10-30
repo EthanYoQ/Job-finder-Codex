@@ -1,0 +1,20 @@
+[
+  {
+    "id": "dot-cloud-native-413371a-20261030",
+    "goalId": "jobfinder-portable-required-40",
+    "status": "BUILDING",
+    "version": 129,
+    "commitSha": "413371a7d4501816581ff006cd06ff10c769503d",
+    "migrationVersion": "20261017205300_novo_job_verification",
+    "schemaHash": "07d48624f6992f68c7e30f14655aa6a118eb36edab462e24eeffac62acde4b92",
+    "dbSnapshotHash": "f276b092ad7aba26ede814f1dadbb42bfb33f37ddf3d90e021aa02b7b6a34ce6",
+    "rosterHash": "ac44a7c7077e23ffa5367dc4bb8a11b254feebc8a190ae7c27481c7269a5a659",
+    "sourcePlanHash": "331cc04ae9fb82aeb8001df41c720d0a308dc1402f63b612dcc924276438e1fc",
+    "sourceConfigHash": "962f2b39790581603fe58aa6185b50f6708950b454c31996c035f6ca75ca0a79",
+    "adapterBundleHash": "f905cabf6df62541c2fb5cf20e9d41d20792bf7e03393478085e894d751efdca",
+    "sourceTreeHash": "422e8b1f172de8966556e28ba7e51963afca0d24e313c55806061990c98c5ff5",
+    "runtimeTreeHash": "1c8dedb71d144ef20b69c2b4b36cd79fb6041e37e3583ebadf4348343c2c81da",
+    "oracleVersion": "staged-official-source-v1",
+    "minimumStableCompanyCount": 41
+  }
+]
