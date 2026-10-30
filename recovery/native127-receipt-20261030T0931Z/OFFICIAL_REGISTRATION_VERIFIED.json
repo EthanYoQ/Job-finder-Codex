@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-30T09:30:49Z",
+  "fields": 16,
+  "expected": {
+    "id": "dot-cloud-native-f0de8f4-20261030",
+    "goalId": "jobfinder-portable-required-40",
+    "version": 127,
+    "commitSha": "f0de8f4d8c1fed6024f4afb8787e2d9e66dff982",
+    "migrationVersion": "20261017205300_novo_job_verification",
+    "schemaHash": "07d48624f6992f68c7e30f14655aa6a118eb36edab462e24eeffac62acde4b92",
+    "dbSnapshotHash": "f276b092ad7aba26ede814f1dadbb42bfb33f37ddf3d90e021aa02b7b6a34ce6",
+    "rosterHash": "ac44a7c7077e23ffa5367dc4bb8a11b254feebc8a190ae7c27481c7269a5a659",
+    "sourcePlanHash": "331cc04ae9fb82aeb8001df41c720d0a308dc1402f63b612dcc924276438e1fc",
+    "sourceConfigHash": "962f2b39790581603fe58aa6185b50f6708950b454c31996c035f6ca75ca0a79",
+    "adapterBundleHash": "88578bb26dd061c8dc14b6fd6d100ab4877ddb866a17935ce0c648e18bb1e110",
+    "sourceTreeHash": "7f2f3894258b4711b85eba02ad0d7db212a9ec6bcf49996f63584d7a71af8f76",
+    "runtimeTreeHash": "21bcae9027c58d1904250f20c90e5c79d8a8dfa7095ae94e2905c55844a6d973",
+    "oracleVersion": "staged-official-source-v1",
+    "minimumStableCompanyCount": 41,
+    "status": "BUILDING"
+  },
+  "actual": {
+    "id": "dot-cloud-native-f0de8f4-20261030",
+    "goalId": "jobfinder-portable-required-40",
+    "status": "BUILDING",
+    "version": 127,
+    "commitSha": "f0de8f4d8c1fed6024f4afb8787e2d9e66dff982",
+    "rosterHash": "ac44a7c7077e23ffa5367dc4bb8a11b254feebc8a190ae7c27481c7269a5a659",
+    "schemaHash": "07d48624f6992f68c7e30f14655aa6a118eb36edab462e24eeffac62acde4b92",
+    "oracleVersion": "staged-official-source-v1",
+    "dbSnapshotHash": "f276b092ad7aba26ede814f1dadbb42bfb33f37ddf3d90e021aa02b7b6a34ce6",
+    "sourcePlanHash": "331cc04ae9fb82aeb8001df41c720d0a308dc1402f63b612dcc924276438e1fc",
+    "sourceTreeHash": "7f2f3894258b4711b85eba02ad0d7db212a9ec6bcf49996f63584d7a71af8f76",
+    "runtimeTreeHash": "21bcae9027c58d1904250f20c90e5c79d8a8dfa7095ae94e2905c55844a6d973",
+    "migrationVersion": "20261017205300_novo_job_verification",
+    "sourceConfigHash": "962f2b39790581603fe58aa6185b50f6708950b454c31996c035f6ca75ca0a79",
+    "adapterBundleHash": "88578bb26dd061c8dc14b6fd6d100ab4877ddb866a17935ce0c648e18bb1e110",
+    "minimumStableCompanyCount": 41
+  },
+  "passed": true
+}
