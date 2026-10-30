@@ -1,0 +1,44 @@
+{
+  "status": "INACTIVE_DO_NOT_DEPLOY",
+  "base_source_commit": "0136354d85d6102706138c2f734b05a1eb128b4d",
+  "native_changes": [
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/runSourceCrawl.ts",
+      "sha256": "d3e4f39b4022d19fb7658828e1a82edbb075e532af03c577b0035112bffcba38"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/officialJsonSourceFetch.ts",
+      "sha256": "1a6b161da60b3ae6f5465c4c3d54360b17e71d677269d749cb4f64e6f5274a17"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/completenessCertificate.ts",
+      "sha256": "72a50df1ee4aec720f24c4c59b017991b8f8999eb1900f99ccc227c693ccfa59"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts",
+      "sha256": "01610f4b87ce78d8f1d4cd0fa1c6d09701dbfb64a38cf1aeb87414e7bb45e5c4"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/crawler/rocheChinaQuality.ts",
+      "sha256": "6c519592e20cbf4d53b56a6f93a7008543756363093f2581ffd7e5b481715fbc"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/db/ingestionRepository.ts",
+      "sha256": "85b13dcc8e745ff3f10a35d778c880f77a4ab34617ecd7a5fd2722d44f69fe9b"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/src/db/jobProjectionDeltaCompiler.ts",
+      "sha256": "709150e324220859fe20613d7510dcb39f22975c59931dc7f84578dd39699e98"
+    },
+    {
+      "path": "tools/dot-auto-controller/vendor/c60-source/tests/crawler/rocheChinaQuality.test.ts",
+      "sha256": "cea19f0480197abc25f3f4eb439a6e798e124e2f2d3bbb33c954ea937a30d357"
+    }
+  ],
+  "db_change": "one additional Roche-only approved 202610-125686 HTTP403 condition in existing total-count gate",
+  "scope": "no webpage, schema table, route, credentials, lock or atomic protocol changes",
+  "old_function_backup_github": "af55de7b654d463383c1f4dc166e3f7196ee0a68",
+  "tests": "68 existing native+unchanged actual main/fallback light-reader tests passed; 38 SQL predicate fixture SELECT cases passed; no live trigger transition or fresh production crawl tested",
+  "rollback": "Disable new native before reverting original function; preserve committed evidence and rows; no data rollback/delete. Recheck exact current function before any replace; concurrency drift must HOLD.",
+  "remaining": "Production database migration and candidate registration NOT performed; requires parent approval and official migration review."
+}
