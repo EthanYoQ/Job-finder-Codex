@@ -1,0 +1,15 @@
+import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import assert from 'node:assert/strict';import {execFileSync} from 'node:child_process';
+const here=path.dirname(new URL(import.meta.url).pathname),entry=fs.readFileSync(here+'/run-original-functions.js','utf8'),A=Object.getPrototypeOf(async function(){}).constructor;
+const start=entry.indexOf('// New runs own separate queues;'),end=entry.indexOf('return await runOriginalSerial(',start);
+const setup=new A('command','q','B','roundId','let relay;\n'+entry.slice(start,end)+'\nreturn {roundId,relay};');
+const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'", command=async s=>execFileSync('/bin/bash',['-c',s],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'hengrui-isolation-')),relative='rounds/round-ec0a1bc01a184f39acd4df9c12c58568/connector-host-task/relay',id='89b96dd2-2392-469e-ab82-d9a6a30bfdfe',dir=tmp+'/'+relative;
+fs.mkdirSync(dir,{recursive:true});const raw=fs.readFileSync(process.argv[2]);fs.writeFileSync(dir+'/'+id+'.request.json',raw);fs.writeFileSync(dir+'/'+id+'.request.ready','');
+const readId='8c69c0a2-6601-4399-80c8-9f842fc04cbf';fs.writeFileSync(dir+'/'+readId+'.request.json',fs.readFileSync(process.argv[2].replace(id,readId)));fs.writeFileSync(dir+'/'+readId+'.request.ready','');
+await setup(command,q,tmp,undefined);assert(fs.existsSync(dir+'/'+id+'.request.ready'));assert(!fs.existsSync(dir+'/'+id+'.response.json'));
+fs.writeFileSync(dir+'/'+id+'.request.json','{}');await assert.rejects(setup(command,q,tmp,undefined),/PRIOR_ROUND_RECONCILE_ONLY/);fs.writeFileSync(dir+'/'+id+'.request.json',raw);
+const other=tmp+'/connector-host-task/relay';fs.mkdirSync(other,{recursive:true});fs.writeFileSync(other+'/'+id+'.request.json',raw);fs.writeFileSync(other+'/'+id+'.request.ready','');await assert.rejects(setup(command,q,tmp,undefined),/PRIOR_ROUND_RECONCILE_ONLY/);fs.unlinkSync(other+'/'+id+'.request.ready');
+fs.writeFileSync(dir+'/other.request.ready','');await assert.rejects(setup(command,q,tmp,undefined),/PRIOR_ROUND_RECONCILE_ONLY/);
+const line=entry.split('\n').find(l=>l.startsWith(' const hold=')),hold=new A('sourceId','load',line);
+await assert.rejects(hold('source-servier-china-social',()=>({'source-servier-china-social':''})),/EXPIRED_20261030_APPROVAL_UNKNOWN_READONLY/);await hold('source-kelun-social',()=>undefined);
+console.log('PASS: exact isolated request preserved, altered/wrong-path/other unknown blocked, Servier held, unrelated source available');

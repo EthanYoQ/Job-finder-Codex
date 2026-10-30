@@ -1,0 +1,26 @@
+{
+  "batchId": "dot-auto-servier-20261030T030600934Z",
+  "round": "round-ec0a1bc01a184f39acd4df9c12c58568",
+  "databaseExpiresAt": "2026-10-30T03:35:57.232Z",
+  "producerExit": 1,
+  "producerExitedAt": "2026-10-30T03:36:57.260Z",
+  "officialCheckedAt": "2026-10-30T03:38:19.811879Z",
+  "officialBatch": null,
+  "holder": "",
+  "activeTransactions": 0,
+  "publicationOutcome": "UNKNOWN",
+  "requests": [
+    {
+      "id": "89b96dd2-2392-469e-ab82-d9a6a30bfdfe",
+      "kind": "PUBLISH",
+      "expiresAt": "2026-10-30T03:35:57.232Z",
+      "sha256": "7f08ea174971598bc35c9a3316749a33afdcec8ffaf7500db505c3b0c2a453b7"
+    },
+    {
+      "id": "8c69c0a2-6601-4399-80c8-9f842fc04cbf",
+      "kind": "READ_OUTCOME",
+      "expiresAt": "2026-10-30T03:36:57.232Z",
+      "sha256": "0e29a32c9c9ee8877b7c2eefe4135934542d4fc7b50e1f473f57da7ec2f358d9"
+    }
+  ]
+}
