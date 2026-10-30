@@ -1,0 +1,35 @@
+{
+  "status": "BACKED_UP_ENABLED_REGRESSION_VERIFIED",
+  "enabledAt": "2026-10-30T21:43:40.717122+00:00",
+  "githubCommit": "2b25a0f8366feae2220b8b3de4a400c2c4253fc3",
+  "githubBranch": "recovery/relay-diagnostics-20261030T2140Z",
+  "driveFileId": "11GBu4WNlvTKdLS36nM4s9jGxw1JCDN1U",
+  "driveBytes": 21563,
+  "driveSha256": "6508636a0e824d7bb6a82d5027d1af403f76480a58298e32f3b304ff8b383d57",
+  "remoteRestoreFiles": 11,
+  "githubReadbackExact": true,
+  "remoteRestoreExact": true,
+  "preactivation": {
+    "checkedAt": "2026-10-30T21:43:19.753518Z",
+    "holder": "",
+    "running": 0,
+    "manual": 0,
+    "visibleProducer": false
+  },
+  "changedFiles": [
+    "automatic-relay-functions.js",
+    "automatic-relay.test.mjs"
+  ],
+  "activeFunctionSha256": "edc8393b759ea6d9744825bba4750c3fa13d8cc632dc0318360d0ae78844878e",
+  "nativeCandidateChanged": false,
+  "sourceHoldsChanged": false,
+  "newCollection": false,
+  "driveReview": "one original-channel retry after fresh owner-only folder evidence and trusted standing backup instruction",
+  "activeTests": [
+    "automatic-relay.test.mjs PASS",
+    "novo-hook.test.mjs PASS"
+  ],
+  "verifiedAt": "2026-10-30T21:44:19.383476+00:00",
+  "deniedProductionOperationsRetried": false,
+  "driveReviewSingleRetry": true
+}
