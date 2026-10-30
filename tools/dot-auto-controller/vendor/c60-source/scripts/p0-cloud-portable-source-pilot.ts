@@ -121,11 +121,9 @@ export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;re
     const bundleBytes=JSON.stringify(bundle,null,2),bundleSha256=sha256(bundleBytes),bundlePath=join(workspaceRoot,`${batchId}.archive.json`);
     await writeFile(bundlePath,bundleBytes,{flag:"wx",mode:0o600});
     if(result.fetchEvidence.astellasPdfLocations)await writeFile(join(workspaceRoot,`${batchId}.astellas-evidence.json`),JSON.stringify({capturedAt:result.observation.crawledAt.toISOString(),paginationEvaluation:result.paginationEvaluation,evidence:{...result.fetchEvidence,artifacts:result.fetchEvidence.artifacts.map(({body,...artifact})=>({...artifact,binary:body instanceof Uint8Array}))}}),{flag:"wx",mode:0o600});
-    phase="PRE_LOCK_ADMISSION";const initialAdmission=await issueSourceQualityAdmission({plan,result,binding:{releaseCandidateId:identity.releaseCandidateId,batchId,sourceResultId:pending.id,sourceConfigSha256:pending.sourceConfigHash,adapterVersion:pending.adapterVersion},archive:{workspaceRoot,evidenceSubdirectory:EVIDENCE,artifacts:archive.artifacts}});
-    if(initialAdmission.status!=="ACCEPTED")throw Error(`PILOT_ADMISSION_REJECTED:${initialAdmission.codes.join(",")}`);
     input.signal?.throwIfAborted();
     if(input.dbStartedControlPath){
-      // Restore and re-admit the original archive before the read/review queue.
+      // Restore the original archive, then issue admission once before the read/review queue.
       // The existing DB-started packet alone acquires ownership, creates pending,
       // publishes, finalizes and releases; no lease ages while the model reviews.
       phase="VERIFY_LOCAL_ARCHIVE";
@@ -148,6 +146,9 @@ export async function runCloudPortableSourcePilot(input:{bootstrapPath:string;re
       const report={...outcome,batchId,sourceResultId:pending.id,sourceId:PILOT_SOURCE,bundlePath,bundleSha256,bundleByteCount,archiveRetention:"PENDING",recoveryVerification:"PENDING",certificateGrade:SOURCE_QUALITY_POLICY_ID};
       await writeFile(join(workspaceRoot,`${batchId}.outcome.json`),JSON.stringify(report),{flag:"wx",mode:0o600});return report;
     }
+    phase="PRE_LOCK_ADMISSION";const initialAdmission=await issueSourceQualityAdmission({plan,result,binding:{releaseCandidateId:identity.releaseCandidateId,batchId,sourceResultId:pending.id,sourceConfigSha256:pending.sourceConfigHash,adapterVersion:pending.adapterVersion},archive:{workspaceRoot,evidenceSubdirectory:EVIDENCE,artifacts:archive.artifacts}});
+    if(initialAdmission.status!=="ACCEPTED")throw Error(`PILOT_ADMISSION_REJECTED:${initialAdmission.codes.join(",")}`);
+    input.signal?.throwIfAborted();
     // Wait for a current host/database acknowledgement while no lease exists.
     // The original acquisition clock leaves a full 550s budget after this wait.
     phase="PRE_LOCK_READY";const readyRequestedAt=Date.now(),readyDeadline=portablePreLockReadyDeadline(initialAdmission.receipt.acquisition,readyRequestedAt);
