@@ -123,20 +123,22 @@ it("runs current Roche acquisition through native details and rejects output-onl
     expect(issueAGradeOfficialTotalCertificate({...candidate,jobs:result.jobs.map(job=>({...job,officialTitle:title}))})).toMatchObject({status:"REJECTED"});
 });
 
-it("isolates only the approved official denial, continues details and preserves old ACTIVE/GRACE without reviving OFFLINE",async()=>{
+it.each([["202610-125686"],["202609-122620"],["202610-125686","202609-122620"]])("isolates approved official denials %s, continues details and preserves old ACTIVE/GRACE without reviving OFFLINE",async(...reqIds)=>{
+ const reqId=reqIds[0]!;
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==="source-roche-china-social")!;
- const denied={...raw,reqId:"202610-125686",jobId:"202610-125686",jobSeqNo:"ROCHGLOBAL202610125686EXTERNALZHCN",applyUrl:raw.applyUrl.replaceAll(raw.reqId,"202610-125686")};
+ const denied={...raw,reqId,jobId:reqId,jobSeqNo:`ROCHGLOBAL${reqId.replace("-","")}EXTERNALZHCN`,applyUrl:raw.applyUrl.replaceAll(raw.reqId,reqId)};
+ const deniedRows=reqIds.map(id=>({...denied,reqId:id,jobId:id,jobSeqNo:`ROCHGLOBAL${id.replace("-","")}EXTERNALZHCN`,applyUrl:raw.applyUrl.replaceAll(raw.reqId,id)}));
  const deniedArtifact={...artifact(denied),httpStatus:403,body:JSON.stringify({errorCode:"S22",httpStatus:403,message:"permission denied"})};
  expect(rocheDeniedDetail(denied,deniedArtifact,started)).toBe(true);
  for(const patch of [{httpStatus:502},{finalUrl:"https://evil.test"},{capturedAt:"2026-10-02T13:00:00.000Z"},{body:JSON.stringify({errorCode:"OTHER",httpStatus:403,message:"permission denied"})}])expect(rocheDeniedDetail(denied,{...deniedArtifact,...patch},started)).toBe(false);
- expect(rocheDeniedDetail(raw,{...artifact(),httpStatus:403,body:deniedArtifact.body},started)).toBe(false);
+ expect(rocheDeniedDetail(raw,{...artifact(),httpStatus:403,body:deniedArtifact.body},started)).toBe(true);
  let posts=0,clock=0;const visited:string[]=[];
  const fetcher=createOfficialJsonSourceFetch({now:()=>new Date(clock++===0?started:"2026-10-02T12:00:03.000Z"),http:async request=>{
-   visited.push(request.url);const isDenied=request.url===rocheNativeDetailUrl(denied);
-   const body=request.method==="POST"?JSON.stringify({refineSearch:{totalHits:2,data:{jobs:posts++===0?[]:[denied,raw],aggregations:posts===1?[{field:"country",value:{中国大陆:2}}]:[]}}}):request.url.includes("/wday/cxs/")?(isDenied?deniedArtifact.body:artifact().body):'<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11-ds"};</script>';
+   visited.push(request.url);const isDenied=deniedRows.some(row=>request.url===rocheNativeDetailUrl(row));
+   const body=request.method==="POST"?JSON.stringify({refineSearch:{totalHits:reqIds.length+1,data:{jobs:posts++===0?[]:[...deniedRows,raw],aggregations:posts===1?[{field:"country",value:{中国大陆:reqIds.length+1}}]:[]}}}):request.url.includes("/wday/cxs/")?(isDenied?deniedArtifact.body:artifact().body):'<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11-ds"};</script>';
    return {status:isDenied?403:200,body:body as string,finalUrl:request.url,capturedAt:request.url===plan.source.officialEntryUrl?"2026-10-02T12:00:01.000Z":"2026-10-02T12:00:02.000Z",contentType:request.method==="POST"||request.url.includes("/wday/cxs/")?"application/json":"text/html"};
  }});
- const result=await runSourceCrawl(plan,{fetch:fetcher});expect(result.truth).toMatchObject({completenessVerified:true});expect(result.jobs).toHaveLength(1);expect(visited).toContain(rocheNativeDetailUrl(raw));expect(result.fetchEvidence!.fetchCounts).toMatchObject({rawCount:2,validCount:1,validationDiscardCount:1});
+ const result=await runSourceCrawl(plan,{fetch:fetcher});expect(result.truth).toMatchObject({completenessVerified:true});expect(result.jobs).toHaveLength(1);expect(visited).toContain(rocheNativeDetailUrl(raw));expect(result.fetchEvidence!.fetchCounts).toMatchObject({rawCount:reqIds.length+1,validCount:1,validationDiscardCount:reqIds.length});
  const oldAt="2026-10-01T12:00:00.000Z",at="2026-10-02T12:00:03.000Z";
  const identity={releaseCandidateId:"roche-quarantine-offline",commitSha:"a".repeat(64),rosterSha256:"a".repeat(64),sourcePlanSha256:"a".repeat(64),sourceConfigSha256:"a".repeat(64),adapterBundleSha256:"a".repeat(64),batchKind:"SCHEDULED" as const,ownerId:"test",expectedPlannedSourceIds:[plan.source.id],expectedPlannedSourceSetSha256:canonicalStringSetSha256([plan.source.id]),expectedPlannedSourceCount:1};
  const batchId="roche-quarantine-batch",pending=buildPendingRuntimeBatch(batchId,[plan],identity,new Date(started)).sources[0]!;

@@ -76,9 +76,9 @@ export function rocheNativeDetail(raw: Record<string, unknown>, artifact: Source
     ...(officialPublishedAt ? {officialPublishedAt} : {}) };
 }
 
-// Only the user-approved listed identity may retain old data on its exact official denial.
+// User-approved Roche policy: retain old data only for an exactly bound official S22 denial.
 export function rocheDeniedDetail(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt: string): boolean {
-  if (raw.reqId !== "202610-125686" || !artifact || !rocheDetailBound(raw,artifact,startedAt,403)) return false;
+  if (!artifact || !rocheDetailBound(raw,artifact,startedAt,403)) return false;
   try { const body=typeof artifact.body==="string"?artifact.body:Buffer.from(artifact.body).toString("utf8");
     if(!hasUniqueJsonObjectKeys(body))return false;
     const denied=record(JSON.parse(body));
@@ -91,6 +91,14 @@ export function rocheDeniedLoss(raw: Record<string, unknown>, pageSequence: numb
 }
 /** Used only after strict replay has bound the loss to the exact fresh list/detail. */
 export function rocheQuarantinedSourceJobIds(evidence: PersistentSourceFetchEvidence): Set<string> {
-  return new Set(evidence.fetchLosses.some(loss=>loss.details.code==="ROCHE_DETAIL_DENIED")
-    ?[persistentOfficialJsonJobId("ROCHGLOBAL202610125686EXTERNALZHCN")]:[]);
+  const pages = new Map<number, Record<string, unknown>[]>();
+  return new Set(evidence.fetchLosses.filter(loss=>loss.details.code==="ROCHE_DETAIL_DENIED").map(loss=>{
+    const sequence=loss.details.pageSequence!, index=loss.details.recordIndex!;
+    if(!pages.has(sequence)) {
+      const artifact=evidence.artifacts.find(a=>a.logicalKey===evidence.pages[sequence]!.artifactLogicalKey)!;
+      const body=typeof artifact.body==="string"?artifact.body:Buffer.from(artifact.body).toString("utf8");
+      pages.set(sequence,JSON.parse(body).refineSearch.data.jobs);
+    }
+    return persistentOfficialJsonJobId(pages.get(sequence)![index]!.jobSeqNo as string);
+  }));
 }
