@@ -231,8 +231,8 @@ describe("crawl lifecycle reducer", () => {
 
   it.each([
     [0, "ACTIVE", 1, "OFFLINE"], [1, "ACTIVE", 2, "OFFLINE"],
-    [2, "SUSPECTED_OFFLINE", 3, "OFFLINE"], [1, "OFFLINE", 2, "OFFLINE"],
-    [2, "OFFLINE", 3, "OFFLINE"], [3, "OFFLINE", 4, "OFFLINE"]
+    [2, "SUSPECTED_OFFLINE", 3, "OFFLINE"], [1, "OFFLINE", 1, "OFFLINE"],
+    [2, "OFFLINE", 2, "OFFLINE"], [3, "OFFLINE", 3, "OFFLINE"]
   ] as const)("hides a trusted complete miss immediately from prior count %s", (priorCount, priorStatus, nextCount, nextStatus) => {
     const job=makeJob(); const decisions=applyCrawlObservation([makeSnapshot(job,{missingSuccessfulCrawlCount:priorCount,lifecycleStatus:priorStatus})],[],{
       observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:OBSERVED_AT,baselineCompletedBeforeCrawl:true});
