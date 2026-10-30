@@ -1,0 +1,1 @@
+Reuse exact retired-request isolation for the expired Pfizer batch. Preserve UNKNOWN, original files and Pfizer hold. Simplify the growing path/ID condition to one exact relative-path lookup; changed or other unknown requests still block. Native and SQL unchanged.

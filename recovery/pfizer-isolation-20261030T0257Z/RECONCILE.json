@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-10-30T02:56:21.536079Z",
+  "batchId": "dot-auto-pfizer-20261030T022021467Z",
+  "roundId": "round-7079609bf064426c9f412af5e44664f7",
+  "dispatchBefore": "2026-10-30T02:50:26.962Z",
+  "databaseExpiresAt": "2026-10-30T02:53:11.962Z",
+  "producerSession": 55904,
+  "producerExitCode": 1,
+  "producerExitedAt": "2026-10-30T02:54:12.007Z",
+  "officialBatch": null,
+  "holder": "",
+  "activeTransactions": 0,
+  "outcome": "UNKNOWN",
+  "requests": [
+    {
+      "id": "27d32236-c912-4f36-84cb-18f8a0d05330",
+      "kind": "PUBLISH",
+      "expiresAt": "2026-10-30T02:53:11.962Z",
+      "sha256": "1477db680e59b3ee7887a8faeadedcf6b83d5f81cb2695b62a30854b92032186",
+      "responseExists": false
+    },
+    {
+      "id": "6fae1649-c2f3-4774-8811-119e7284ad3a",
+      "kind": "READ_OUTCOME",
+      "expiresAt": "2026-10-30T02:54:11.962Z",
+      "sha256": "d66d1ce2619f073571e4ccb25bbe9f900d5b26627dd4044ec752e29db363bbd2",
+      "responseExists": false
+    }
+  ]
+}
