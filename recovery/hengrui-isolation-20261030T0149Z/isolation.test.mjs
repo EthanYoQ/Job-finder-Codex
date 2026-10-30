@@ -5,6 +5,7 @@ const setup=new A('command','q','B','roundId','let relay;\n'+entry.slice(start,e
 const q=s=>"'"+String(s).replaceAll("'","'\\''")+"'", command=async s=>execFileSync('/bin/bash',['-c',s],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'hengrui-isolation-')),relative='rounds/round-d82d3681a8a34cd7b3195884a771a528/connector-host-task/relay',id='6c18e653-2492-4051-b7b5-839a3f74e41e',dir=tmp+'/'+relative;
 fs.mkdirSync(dir,{recursive:true});const raw=fs.readFileSync(process.argv[2]);fs.writeFileSync(dir+'/'+id+'.request.json',raw);fs.writeFileSync(dir+'/'+id+'.request.ready','');
+const readId='f1f32c5c-73af-40e2-88d9-1515afa78003';fs.writeFileSync(dir+'/'+readId+'.request.json',fs.readFileSync(process.argv[2].replace(id,readId)));fs.writeFileSync(dir+'/'+readId+'.request.ready','');
 await setup(command,q,tmp,undefined);assert(fs.existsSync(dir+'/'+id+'.request.ready'));assert(!fs.existsSync(dir+'/'+id+'.response.json'));
 fs.writeFileSync(dir+'/'+id+'.request.json','{}');await assert.rejects(setup(command,q,tmp,undefined),/PRIOR_ROUND_RECONCILE_ONLY/);fs.writeFileSync(dir+'/'+id+'.request.json',raw);
 const other=tmp+'/connector-host-task/relay';fs.mkdirSync(other,{recursive:true});fs.writeFileSync(other+'/'+id+'.request.json',raw);fs.writeFileSync(other+'/'+id+'.request.ready','');await assert.rejects(setup(command,q,tmp,undefined),/PRIOR_ROUND_RECONCILE_ONLY/);fs.unlinkSync(other+'/'+id+'.request.ready');
