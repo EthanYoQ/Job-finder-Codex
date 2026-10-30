@@ -1,0 +1,27 @@
+{
+  "status": "TEST_ONLY_FIX_BACKED_UP_AND_READBACK_VERIFIED",
+  "verifiedAt": "2026-10-30T21:54:13Z",
+  "sourceBaseCommit": "9fd31f216134a2a9c48f33a058f94e0188e90548",
+  "testFixCommit": "e81713bf28d7bbb2d8a2681872d26987e98b6a44",
+  "branch": "recovery/offline-counter-test-20261030T2153Z",
+  "driveFileId": "1iM8aBVKJcW411Ppx6wyEH08iCvxlFpVP",
+  "driveFolderId": "11IB7F0xjEWueTzBLRfWv2oZGEoTW7u0J",
+  "bytes": 6096,
+  "archiveSha256": "ee8bd1fc99933b61f97e2f561e357fd6aaaa8840103e4ad5580b147004f8ea74",
+  "archiveMembers": 7,
+  "allManifestMembersMatched": true,
+  "githubReadbackFiles": 3,
+  "privateDestinationsVerified": true,
+  "baselineTests": {
+    "pass": 89,
+    "fail": 1
+  },
+  "candidateTests": {
+    "pass": 90,
+    "fail": 0
+  },
+  "independentReview": "PASSED_NO_PRODUCTION_DIFF",
+  "registeredSourceTreeUnchanged": true,
+  "productionActionsTaken": false,
+  "deniedOrUnknownRequestsRetried": false
+}
