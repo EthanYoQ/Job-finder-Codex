@@ -1,0 +1,285 @@
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/officialJsonSourceFetch.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/officialJsonSourceFetch.ts
+@@ -9,7 +9,7 @@
+ import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
+ import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
+ import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
+-import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss } from "./novoChinaQuality";
++import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss, novoGeographyQuarantined, novoGeographyLoss } from "./novoChinaQuality";
+ import { BMS_GEOGRAPHY_POLICY, bmsMainlandCities } from "./bmsMainlandGeography";
+ import { bmsOfficialPostedDate, exactBmsPostedDatePlan, requiresBmsPostedDate } from "./bmsOfficialPostedDate";
+ import { ucbOfficialCities, exactUcbPostedDatePlan, exactUcbPostedDateBootstrap, requiresUcbPostedDate, ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
+@@ -1004,6 +1004,7 @@
+       if (!base || novoNestedResponse.total > 500) throw new Error("Novo native entry or bounded listing is unresolved");
+       for (let i = 0; i < novoNestedResponse.total; i++) {
+         const raw = novoNestedResponse.rawJobs[i]!, projection = novoNestedResponse.jobs[i]!;
++        if (novoGeographyQuarantined(raw)) { losses.push(novoGeographyLoss(raw, i, response.capturedAt!)); continue; }
+         const detailUrl = `${base}.${raw.jobId}.html`;
+         const detail = await html(detailUrl, `novo-detail-${raw.jobId}`);
+         const applyUrl = novoNativeApplicationUrl(detail.body, detailUrl, String(raw.jobId));
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/novoChinaQuality.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/novoChinaQuality.ts
+@@ -68,6 +68,12 @@
+     !plan.workday && !plan.moka && !plan.hotjob && !plan.hotjobLegacy && !plan.profileBoundSource;
+ }
+ 
++// User-approved single official geography conflict; never infer a corrected location.
++export function novoGeographyQuarantined(raw: Record<string, unknown>): boolean {
++  return raw.jobId === "348250.en_GB" && same(pair(raw.jobCity), { label: "Xinzhou", value: "Xinzhou" }) &&
++    same(pair(raw.jobState), { label: "Shaanxi", value: "Shaanxi" });
++}
++
+ type Projection = { sourceJobId: string; title: string; locationRaw: string; cities: string[]; officialUrl: string };
+ /** No source date exists in this nine-field response. Native category and
+  * subcategory pairs remain intact in the retained artifact, with no new mapping. */
+@@ -80,10 +86,11 @@
+     !data || !exactKeys(data, ["executionTimeMs", "totalMatches", "keywordParam", "localeParam", "countriesParam", "categoriesParam", "subCategories", "states", "cities", "jobs"]) ||
+     !count(data.executionTimeMs) || !count(data.totalMatches) || data.keywordParam !== "" || data.localeParam !== "zh-cn" ||
+     !same(data.countriesParam, ["China"]) || !same(data.categoriesParam, []) || !Array.isArray(data.jobs) || data.jobs.length !== data.totalMatches) return undefined;
++  const quarantine = data.jobs.some(value => { const row = record(value); return row && novoGeographyQuarantined(row); });
+   const states = pairs(data.states), cities = pairs(data.cities), subcategories = pairs(data.subCategories);
+   if (!states || !cities || !subcategories ||
+-    states.some(item => item.label !== item.value || !cities.some(city => novoChinaCity(city.value, item.value))) ||
+-    cities.some(item => item.label !== item.value || !states.some(state => novoChinaCity(item.value, state.value)))) return undefined;
++    states.some(item => item.label !== item.value || !cities.some(city => novoChinaCity(city.value, item.value)) && !(quarantine && item.value === "Shaanxi")) ||
++    cities.some(item => item.label !== item.value || !states.some(state => novoChinaCity(item.value, state.value)) && !(quarantine && item.value === "Xinzhou"))) return undefined;
+   const rawJobs: Record<string, unknown>[] = [], jobs: Projection[] = [], ids = new Set<string>();
+   for (const value of data.jobs) {
+     const raw = record(value);
+@@ -91,13 +98,13 @@
+       raw.jobLocale !== "en_GB" || !text(raw.jobTitle) || ids.has(raw.jobId) || !same(pair(raw.jobCountry), { label: "China", value: "China" })) return undefined;
+     const state = pair(raw.jobState), city = pair(raw.jobCity), category = pair(raw.jobCategory), subcategory = pair(raw.jobSubCategory);
+     const normalizedCity = state && city ? novoChinaCity(city.value, state.value) : undefined;
+-    if (!state || !city || !normalizedCity || state.label !== state.value || city.label !== city.value ||
++    if (!state || !city || (!normalizedCity && !novoGeographyQuarantined(raw)) || state.label !== state.value || city.label !== city.value ||
+       raw.jobLocationLabel !== `China, ${city.value}` || !category || !subcategory ||
+       !states.some(item => same(item, state)) || !cities.some(item => same(item, city)) ||
+       !subcategories.some(item => same(item, subcategory))) return undefined;
+     ids.add(raw.jobId); rawJobs.push(raw);
+     jobs.push({ sourceJobId: persistentOfficialJsonJobId(raw.jobId), title: raw.jobTitle.replace(/\s+/gu, " ").trim(),
+-      locationRaw: raw.jobLocationLabel, cities: [normalizedCity],
++      locationRaw: raw.jobLocationLabel, cities: normalizedCity ? [normalizedCity] : [],
+       officialUrl: new URL(`/content/nncorp/cn/zh_cn/careers/find-a-job/job-ad.${raw.jobId}.html`, ENTRY).href });
+   }
+   return { rawJobs, jobs, total: data.totalMatches };
+@@ -210,6 +217,12 @@
+   return { stage: "VALIDATION", reason: "Novo native detail has no substantive job description",
+     rawLocator: officialJsonRawLocator(raw, recordIndex),
+     details: { code: "NOVO_DETAIL_INSUFFICIENT", pageSequence: 0, recordIndex }, recordedAt };
++}
++
++export function novoGeographyLoss(raw: Record<string, unknown>, recordIndex: number, recordedAt: string): PersistentSourceFetchEvidence["fetchLosses"][number] {
++  return { stage: "VALIDATION", reason: "Novo approved geography conflict isolated; preserve any existing public row",
++    rawLocator: officialJsonRawLocator(raw, recordIndex),
++    details: { code: "NOVO_GEOGRAPHY_CONFLICT", pageSequence: 0, recordIndex }, recordedAt };
+ }
+ 
+ /** Replay every list member. Insufficient JD is unpublished, never explicit closure;
+@@ -285,6 +298,7 @@
+   const expected: Projection[] = [], losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+   for (let i = 0; i < parsed.total; i++) {
+     const raw = parsed.rawJobs[i]!, projection = parsed.jobs[i]!;
++    if (novoGeographyQuarantined(raw)) { losses.push(novoGeographyLoss(raw, i, artifact.capturedAt)); continue; }
+     const detail = readNative(projection.officialUrl, `novo-detail-${raw.jobId}`, false);
+     if (!detail || detail.finalUrl !== projection.officialUrl) return false;
+     const href = novoNativeApplicationUrl(body(detail), projection.officialUrl, String(raw.jobId));
+@@ -323,10 +337,10 @@
+ }
+ 
+ /** Invoked only after owned admission has replayed each exclusion against its original body. */
+-export function novoSourceJobExclusions(evidence: PersistentSourceFetchEvidence): { closed: Set<string>; insufficient: Set<string> } {
++export function novoSourceJobExclusions(evidence: PersistentSourceFetchEvidence): { closed: Set<string>; insufficient: Set<string>; quarantined: Set<string> } {
+   const raw = evidence.artifacts[0]?.body;
+   const parsed = raw === undefined ? undefined : parseNovoChinaResponse(typeof raw === "string" ? raw : Buffer.from(raw).toString("utf8"));
+-  const closed = new Set<string>(), insufficient = new Set<string>();
++  const closed = new Set<string>(), insufficient = new Set<string>(), quarantined = new Set<string>();
+   for (const loss of evidence.fetchLosses) {
+     const { code, recordIndex } = loss.details as { code: string; recordIndex: number };
+     const row = parsed?.rawJobs[recordIndex];
+@@ -334,6 +348,7 @@
+     const id = persistentOfficialJsonJobId(String(row.jobId));
+     if (code === "OFFICIAL_APPLICATION_CLOSED") closed.add(id);
+     if (code === "NOVO_DETAIL_INSUFFICIENT") insufficient.add(id);
++    if (code === "NOVO_GEOGRAPHY_CONFLICT") quarantined.add(id);
+   }
+-  return { closed, insufficient };
+-}
++  return { closed, insufficient, quarantined };
++}
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceQualityPublication.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceQualityPublication.ts
+@@ -52,7 +52,7 @@
+   // Retain firstSeen for currently observed legacy rows; no legacy-only row gets initial grace.
+   // Later grace is limited to rows seen during this accepted policy/config era.
+   const novoExclusions=exactNovoChinaQualityPlan(input.plan)&&input.result.fetchEvidence
+-    ?novoSourceJobExclusions(input.result.fetchEvidence):{closed:new Set<string>(),insufficient:new Set<string>()};
++    ?novoSourceJobExclusions(input.result.fetchEvidence):{closed:new Set<string>(),insufficient:new Set<string>(),quarantined:new Set<string>()};
+   const lillyClosed=exactLillyChinaQualityPlan(input.plan)&&input.result.fetchEvidence
+     ?lillyClosedSourceJobIds(input.result.fetchEvidence):new Set<string>();
+   const organonClosed=exactOrganonPostedDatePlan(input.plan)&&input.result.fetchEvidence
+@@ -71,7 +71,7 @@
+     observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:receipt.issuedAt,
+     baselineCompletedBeforeCrawl:input.baselineCompletedBeforeCrawl
+   }).map(decision=>{
+-    if(!unknownUrls.has(decision.record.officialUrl))return decision;
++    if(!unknownUrls.has(decision.record.officialUrl)&&!novoExclusions.quarantined.has(decision.record.sourceJobId??""))return decision;
+     const old=previous.find(job=>job.dedupeKey===decision.dedupeKey);
+     if(!old||currentKeys.has(decision.dedupeKey))throw Error("NOVARTIS_UNKNOWN_CURRENT_CONTRADICTION");
+     return {...old,missingSuccessfulCrawlCount:old.lifecycleStatus==="ACTIVE"?1:old.missingSuccessfulCrawlCount,isNew:false};
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaLocations.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/astraZenecaLocations.ts
+@@ -22,7 +22,10 @@
+   ['铁岭','辽宁',['Tieling','铁岭市'],['Liaoning']],['郴州','湖南',['Chenzhou','郴州市'],['Hunan']],
+   ['南昌','江西',['Nanchang','南昌市'],['Jiangxi']],['锦州','辽宁',['Jinzhou','锦州市'],['Liaoning']],
+   ['威海','山东',['Weihai','威海市'],['Shandong']],['哈尔滨','黑龙江',['Harbin','哈尔滨市'],['Heilongjiang']],
+-  ['合肥','安徽',['Hefei','合肥市'],['Anhui']]
++  ['合肥','安徽',['Hefei','合肥市'],['Anhui']],
++  ['乐山','四川',['Leshan'],['Sichuan']],['天水','甘肃',['Tianshui'],['Gansu']],
++  ['陇南','甘肃',['Longnan'],['Gansu']],['凉山彝族自治州','四川',['Liangshan Yi Autonomous Prefecture'],['Sichuan']],
++  ['泸州','四川',['Luzhou'],['Sichuan']],['广安','四川',["Guang'an"],['Sichuan']]
+ ];
+ const key=(s:string)=>s.trim().toLowerCase();
+ export const isAstraZenecaChina=(s:string)=>['中国','cn','china'].includes(key(s));
+--- a/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts
+@@ -1,3 +1,4 @@
++import { exactNovoChinaQualityPlan, novoSourceJobExclusions } from "./novoChinaQuality";
+ import { isDeepStrictEqual } from "node:util";
+ import { isPfizerWorkdayTraversalPlan, pfizerQuarantinedOfficialIds, pfizerSourceJobId, PFIZER_ENTRY } from "./pfizerWorkdayTraversal";
+ import { hasNovartisPartitionEvidence, replayNovartisNativePartitions } from "./novartisNativePartitions";
+@@ -570,6 +571,10 @@
+       const urls=replayNovartisNativePartitions(plan,evidence).unknownUrls;
+       for(const old of input.previousJobs)if(urls.has(old.record.officialUrl))unknownKeys.add(old.dedupeKey);
+     }
++    if(exactNovoChinaQualityPlan(plan)){
++      const ids=novoSourceJobExclusions(evidence).quarantined;
++      for(const old of input.previousJobs)if(ids.has(old.record.sourceJobId??""))unknownKeys.add(old.dedupeKey);
++    }
+     if(isPfizerWorkdayTraversalPlan(plan)){
+       for(const id of pfizerQuarantinedOfficialIds(evidence)){
+         const matches=input.previousJobs.filter(old=>{
+@@ -610,7 +615,7 @@
+       ? []
+       : reducedLifecycle.filter(({ dedupeKey }) => currentKeySet.has(dedupeKey)));
+   // Only source-replayed UNKNOWN identities may retain old ACTIVE membership.
+-  for(const held of lifecycle.filter(x=>["source-novartis-social","source-pfizer-china-social"].includes(plan.source.id)&&x.lifecycleStatus==="ACTIVE"&&x.missingSuccessfulCrawlCount===1)){
++  for(const held of lifecycle.filter(x=>["source-novartis-social","source-pfizer-china-social","source-novo-nordisk-china-social"].includes(plan.source.id)&&x.lifecycleStatus==="ACTIVE"&&x.missingSuccessfulCrawlCount===1)){
+     const old=input.previousJobs.find(job=>job.dedupeKey===held.dedupeKey);
+     if(!unknownKeys.has(held.dedupeKey)||!old||old.lifecycleStatus!=="ACTIVE"||held.lastSeenAt!==old.lastSeenAt||
+       !isDeepStrictEqual(held.record,old.record))throw Error("UNKNOWN_GRACE_REQUIRES_PRIOR_ACTIVE_IDENTITY");
+--- a/tools/dot-auto-controller/vendor/c60-source/src/db/ingestionRepository.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/db/ingestionRepository.ts
+@@ -2210,7 +2210,7 @@
+   if(result.completenessState==="VERIFIED" && !manualPreview) {
+     for(const command of jobCommands) {
+       // The runtime attestation above seals the source-replayed UNKNOWN key set and old record/time.
+-      const retainedUnknown=["source-novartis-social","source-pfizer-china-social"].includes(result.sourceId)&&
++      const retainedUnknown=["source-novartis-social","source-pfizer-china-social","source-novo-nordisk-china-social"].includes(result.sourceId)&&
+         command.missingSuccessfulCrawlCount===1&&command.lifecycleStatus==="ACTIVE"&&
+         new Date(command.lastSeenAt).getTime()<result.finishedAt!.getTime();
+       const expectedStatus=command.missingSuccessfulCrawlCount===0||retainedUnknown?"ACTIVE":"OFFLINE";
+--- a/tools/dot-auto-controller/vendor/c60-source/src/db/jobProjectionDeltaCompiler.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/src/db/jobProjectionDeltaCompiler.ts
+@@ -38,7 +38,7 @@
+     let lastConfirmedObservedAt=observedAt,lastPresentResultId=source.id;
+     const lifecycleLastSeenAt=iso(command.lastSeenAt);
+     if(missingCount===1){
+-      const previous=previousReceipt?.members.find(m=>m.jobKey===command.dedupeKey&&(m.setKind==="CURRENT"||(["source-novartis-social","source-pfizer-china-social"].includes(source.sourceId)&&m.setKind==="GRACE")));
++      const previous=previousReceipt?.members.find(m=>m.jobKey===command.dedupeKey&&(m.setKind==="CURRENT"||(["source-novartis-social","source-pfizer-china-social","source-novo-nordisk-china-social"].includes(source.sourceId)&&m.setKind==="GRACE")));
+       if(previous){lastConfirmedObservedAt=previous.lastConfirmedObservedAt;lastPresentResultId=previous.lastPresentResultId;
+         if(lifecycleLastSeenAt!==previous.lifecycleLastSeenAt)throw Error("JOB_DELTA_GRACE_LIFECYCLE_ANCHOR");
+       }else{
+--- a/tools/dot-auto-controller/vendor/c60-source/tests/crawler/sourceQualityPublication.test.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/tests/crawler/sourceQualityPublication.test.ts
+@@ -16,14 +16,19 @@
+ const NOW="2026-10-01T11:50:00.000Z", OLD="2026-09-20T11:50:00.000Z", FIRST="2026-09-30T11:50:00.000Z";
+ const dirs:string[]=[];
+ afterEach(async()=>{vi.useRealTimers();vi.unstubAllGlobals();await Promise.all(dirs.splice(0).map(p=>rm(p,{recursive:true,force:true})));});
+-async function fixture(at=NOW,novo?:"valid"|"insufficient") {
++async function fixture(at=NOW,novo?:"valid"|"insufficient"|"geography") {
+   vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(new Date(at));
+   vi.stubGlobal("fetch",vi.fn(async(url:string)=>({status:200,url:String(url),headers:new Headers({"content-type":"application/json"}),text:async()=>JSON.stringify({Code:200,Count:1,Data:[{Id:"00000000-0000-4000-8000-000000000001",JobAdId:1,JobAdName:"职位一",LocNames:["上海市"],Category:"社会招聘",CategoryId:"1",Kind:"全职",Status:1,PostDate:"2026-09-20T12:00:00"}]})})));
+   if(novo) vi.stubGlobal("fetch",vi.fn(async(url:string)=>{
+     const page=pages.get(String(url));if(!page)throw Error("Unexpected synthetic URL");
+-    const body=novo==="insufficient"&&url===detail(2)?page.body.replace(
++    let body=novo==="insufficient"&&url===detail(2)?page.body.replace(
+       "Develop synthetic laboratory procedures and maintain documented quality controls for research teams.",
+       "* We commit to an inclusive recruitment process and equality of opportunity for all our job applicants."):page.body;
++    if(novo==="geography"&&String(url).includes("/bin/nncorp/careersearch")){
++      const root=JSON.parse(body),pair=(value:string)=>({label:value,value});
++      Object.assign(root.data.jobs[1],{jobId:"348250.en_GB",jobState:pair("Shaanxi"),jobCity:pair("Xinzhou"),jobLocationLabel:"China, Xinzhou"});
++      root.data.states.push(pair("Shaanxi"));root.data.cities.push(pair("Xinzhou"));body=JSON.stringify(root);
++    }
+     return {status:200,url:page.finalUrl,headers:new Headers({"content-type":page.contentType}),text:async()=>body};
+   }));
+   const plan=structuredClone(getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies),novo?"source-novo-nordisk-china-social":"source-hansoh-social")!);
+@@ -129,3 +134,29 @@
+     }
+   });
+ });
++
++
++describe("Novo approved geography isolation",()=>{
++  it("keeps the conflicting list member without fetching or inventing its detail, while publishing other jobs",async()=>{
++    const input=await fixture(NOW,"geography"),evidence=input.result.fetchEvidence!;
++    expect(evidence.fetchCounts).toMatchObject({rawCount:3,validCount:1,validationDiscardCount:2});
++    expect(novoSourceJobExclusions(evidence).quarantined.size).toBe(1);
++    expect(replayNovoChinaRows(input.plan,evidence,input.result.jobs,NOW)).toBe(true);
++    expect(buildSourceQualityJobCommands(input).jobCommands).toHaveLength(1);
++    const forged=structuredClone(evidence);
++    (forged.fetchLosses.find(loss=>(loss.details as {code:string}).code==="NOVO_GEOGRAPHY_CONFLICT")!.details as {code:string}).code="OFFICIAL_APPLICATION_CLOSED";
++    expect(replayNovoChinaRows(input.plan,forged,input.result.jobs,NOW)).toBe(false);
++  });
++  it("preserves accepted old fields and time, and never revives an offline row",async()=>{
++    const prior=await fixture(FIRST,"valid");
++    for(const missing of [0,1,3]){
++      const input=await fixture(NOW,"geography");input.firstAcceptedCurrentPolicyReceipt=priorReference(prior);
++      const id=[...novoSourceJobExclusions(input.result.fetchEvidence!).quarantined][0]!;
++      const record={...prior.result.jobs[1]!,sourceJobId:id,officialTitle:"Old verified title"};
++      const old=previous(record,FIRST,missing);input.previousJobs=[old];
++      const kept=buildSourceQualityJobCommands(input).jobCommands.find(c=>c.record.sourceJobId===id)!;
++      expect(kept.record).toEqual(old.record);expect(kept.lastSeenAt).toBe(FIRST);expect(kept.firstSeenAt).toBe(OLD);
++      expect(kept.lifecycleStatus).toBe(old.lifecycleStatus);expect(kept.visibleInFrontend).toBe(missing<2);
++    }
++  });
++});
+--- a/tools/dot-auto-controller/vendor/c60-source/tests/crawler/reviewedMainlandCity.test.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/tests/crawler/reviewedMainlandCity.test.ts
+@@ -3,6 +3,9 @@
+ 
+ describe("existing reviewed mainland city/province identities", () => {
+   it.each([
++    ["Leshan", "Sichuan", "乐山"], ["Tianshui", "Gansu", "天水"],
++    ["Longnan", "Gansu", "陇南"], ["Liangshan Yi Autonomous Prefecture", "Sichuan", "凉山彝族自治州"],
++    ["Luzhou", "Sichuan", "泸州"], ["Guang'an", "Sichuan", "广安"],
+     ["Qingdao", "Shandong", "青岛"], ["Zhongshan", "Guangdong Province", "中山"],
+     ["Shenyang", "Liaoning", "沈阳"], ["Beijing", "Beijing", "北京"],
+     ["zhongshan", "guangdong province", "中山"]
+@@ -10,7 +13,7 @@
+     expect(reviewedMainlandCity(city, province)).toBe(expected);
+   });
+   it.each([
+-    ["Qingdao", "Guangdong"], ["Zhongshan", "Shandong"], ["Unknown", "Guangdong"],
++    ["Xinzhou", "Shaanxi"], ["Leshan", "Gansu"], ["Tianshui", "Sichuan"], ["Guang\'an", "Guangdong"], ["Qingdao", "Guangdong"], ["Zhongshan", "Shandong"], ["Unknown", "Guangdong"],
+     ["Singapore", "Singapore"], ["Hong Kong", "Hong Kong"], ["Macau", "Macau"],
+     ["Taipei", "Taiwan"], ["Qingdao", "Unknown"], ["CN", "China"]
+   ])("does not guess %s / %s", (city, province) => {
+--- a/tools/dot-auto-controller/vendor/c60-source/tests/db/jobProjectionDeltaReceipt.test.ts
++++ b/tools/dot-auto-controller/vendor/c60-source/tests/db/jobProjectionDeltaReceipt.test.ts
+@@ -55,3 +55,16 @@
+  it.each(["tuple","key-hash","current-time","current-reference","projection-hash","missing-pair","extra-field"])("rejects %s mutation",kind=>{const r=structuredClone(receipt().receipt);if(kind==="tuple")r.members[0]!.sourceResultId="other";if(kind==="key-hash")r.members[0]!.jobKeySha256="0".repeat(64);if(kind==="current-time")r.members[0]!.lastConfirmedObservedAt="2026-10-06T00:00:00.000Z";if(kind==="current-reference")r.members[0]!.lastPresentResultId="old";if(kind==="projection-hash")r.members[0]!.jobProjectionSha256="bad";if(kind==="missing-pair")r.members.pop();if(kind==="extra-field")(r as unknown as Record<string,unknown>).unreviewed=true;r.manifestSha256=hashDeltaManifest(r.members);expect(()=>parseJobProjectionDeltaReceipt(r,hashProjectionJson(r))).toThrow();});
+  it("rejects a mismatched acknowledgement hash without any write/retry",()=>{const r=receipt();expect(()=>parseJobProjectionDeltaReceipt(r.receipt,"0".repeat(64))).toThrow("JOB_DELTA_RECEIPT_HASH_MISMATCH");expect(parseJobProjectionDeltaReceipt(r.receipt,r.sha256)).toEqual(r.receipt);});
+ });
++
++
++it("retains Novo approved UNKNOWN across consecutive GRACE receipts without refreshing its anchor",()=>{
++  const sourceId="source-novo-nordisk-china-social";
++  const build=(id:string,missing:number,previous:Record<string,unknown>|null)=>buildJobProjectionDeltaReceipt({
++    sourceResult:{...source(id,missing?"2026-10-06T03:00:01.000Z":verified),sourceId},
++    commands:commands(observed,verified,missing).map(c=>c.type==="UPSERT_JOB"?{...c,record:{...c.record,sourceId}}:{...c,observation:{...c.observation,sourceId}}),
++    previousAccepted:previous,projectionForCommand:()=>({...projection,sourceId,missingSuccessCount:missing})});
++  const current=build("current",0,null);
++  const prior=(r:ReturnType<typeof build>)=>({...source(r.receipt.binding.sourceResultId),sourceId,completenessCertificate:r.receipt,completenessCertificateSha256:r.sha256});
++  const grace=build("grace",1,prior(current)),again=build("again",1,prior(grace));
++  expect(again.receipt.members.every(m=>m.lastConfirmedObservedAt===observed&&m.lifecycleLastSeenAt===verified&&m.lastPresentResultId==="current")).toBe(true);
++});
