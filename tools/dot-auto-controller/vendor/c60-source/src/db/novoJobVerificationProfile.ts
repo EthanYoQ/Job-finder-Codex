@@ -1,8 +1,8 @@
-/** Exact inactive schema51 files; not a claim that the migration ran. */
+/** Prisma51 history unchanged; source-result function includes the approved Roche denial repair. */
 export const NOVO_JOB_VERIFICATION_MIGRATION_NAME = "20261017205300_novo_job_verification" as const;
 export const NOVO_JOB_VERIFICATION_MIGRATION_SHA256 = "046214d0bc4c8e7e14cec1f68d478365f36fa06f514403b957b20d725611aafd";
 export const NOVO_JOB_VERIFICATION_SCHEMA_SHA256 = "07d48624f6992f68c7e30f14655aa6a118eb36edab462e24eeffac62acde4b92";
-export const NOVO_JOB_VERIFICATION_STATE_PROSRC = "6c2d81e3140dd05d3e8f01babb5c4858a38c87b26f529c8ce1b68992084d5d0b";
+export const NOVO_JOB_VERIFICATION_STATE_PROSRC = "ba223b1a0eca1659c309a0e52d6ed10d730b3f169bb65ce2c5aff27342fb58cb";
 export const NOVO_JOB_VERIFICATION_PARENT_PROSRC = "4cdedb865b09e28b62dcbc1deb25b961bb289315f2226df2c2617be07ed9cb0a";
 /** Preserve exact function metadata as well as its source, without inventing a PG rendering hash. */
 export function compileNovoJobVerificationProfileGuard():string {

@@ -1,3 +1,4 @@
+import { rocheQuarantinedSourceJobIds } from "./rocheChinaQuality";
 import { isDeepStrictEqual } from "node:util";
 import { isPfizerWorkdayTraversalPlan, pfizerQuarantinedOfficialIds, pfizerSourceJobId, PFIZER_ENTRY } from "./pfizerWorkdayTraversal";
 import { hasNovartisPartitionEvidence, replayNovartisNativePartitions } from "./novartisNativePartitions";
@@ -570,6 +571,10 @@ export function buildAtomicRuntimeCommit(input: {
       const urls=replayNovartisNativePartitions(plan,evidence).unknownUrls;
       for(const old of input.previousJobs)if(urls.has(old.record.officialUrl))unknownKeys.add(old.dedupeKey);
     }
+    if(plan.source.id==="source-roche-china-social"){
+      const ids=rocheQuarantinedSourceJobIds(evidence);
+      for(const old of input.previousJobs)if(ids.has(old.record.sourceJobId??""))unknownKeys.add(old.dedupeKey);
+    }
     if(isPfizerWorkdayTraversalPlan(plan)){
       for(const id of pfizerQuarantinedOfficialIds(evidence)){
         const matches=input.previousJobs.filter(old=>{
@@ -610,7 +615,7 @@ export function buildAtomicRuntimeCommit(input: {
       ? []
       : reducedLifecycle.filter(({ dedupeKey }) => currentKeySet.has(dedupeKey)));
   // Only source-replayed UNKNOWN identities may retain old ACTIVE membership.
-  for(const held of lifecycle.filter(x=>["source-novartis-social","source-pfizer-china-social"].includes(plan.source.id)&&x.lifecycleStatus==="ACTIVE"&&x.missingSuccessfulCrawlCount===1)){
+  for(const held of lifecycle.filter(x=>["source-novartis-social","source-pfizer-china-social","source-roche-china-social"].includes(plan.source.id)&&x.lifecycleStatus==="ACTIVE"&&x.missingSuccessfulCrawlCount===1)){
     const old=input.previousJobs.find(job=>job.dedupeKey===held.dedupeKey);
     if(!unknownKeys.has(held.dedupeKey)||!old||old.lifecycleStatus!=="ACTIVE"||held.lastSeenAt!==old.lastSeenAt||
       !isDeepStrictEqual(held.record,old.record))throw Error("UNKNOWN_GRACE_REQUIRES_PRIOR_ACTIVE_IDENTITY");

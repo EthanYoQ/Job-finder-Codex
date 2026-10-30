@@ -2,7 +2,7 @@ import { hasBiSemanticPlan } from "./biSemanticCompleteness";
 import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
 import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
 import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFailureArtifact, novoNativeGatewayRetryStart, novoNativeGatewayRetryArtifact, delayNovoNativeRetry } from "./novoNativeGatewayRetry";
-import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl } from "./rocheChinaQuality";
+import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
 import { acquireBeisenDetailDates } from "./beisenDetailDates";
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
@@ -4570,11 +4570,19 @@ async function fetchPhenomWidgets({
           assertOfficialJsonMime(response);
           const detail = phenomArtifact({id: `roche-detail-${raw.reqId}`, kind: "ATS_API_RESPONSE", requestedUrl, response, extractorLocator: "roche-workday-jobposting-v1"});
           detail.bodyRepresentation = "EXACT";
-          return {detail, native: rocheNativeDetail(raw, detail, capturedAt), sourceJobId: persistentOfficialJsonJobId(raw.jobSeqNo as string)};
+          return {raw, detail, denied: rocheDeniedDetail(raw, detail, capturedAt), native: rocheNativeDetail(raw, detail, capturedAt), sourceJobId: persistentOfficialJsonJobId(raw.jobSeqNo as string)};
         }));
         artifacts.push(...details.map(value => value.detail));
-        if (details.some(value => !value.native)) throw Error("ROCHE_NATIVE_DETAIL_INVALID");
-        for (const {native, sourceJobId} of details) Object.assign(jobs.find(job => job.sourceJobId === sourceJobId)!, native);
+        if (details.some(value => !value.native && !value.denied)) throw Error("ROCHE_NATIVE_DETAIL_INVALID");
+        for (const [index,{raw,detail,denied,native,sourceJobId}] of details.entries()) {
+          if (denied) {
+            const rowIndex=offset+index, pageSequence=Math.floor(rowIndex/pageSize);
+            losses.push(rocheDeniedLoss(raw,pageSequence,rowIndex%pageSize,detail.capturedAt));
+            counts.validCount--; counts.validationDiscardCount++;
+            jobs.splice(jobs.findIndex(job=>job.sourceJobId===sourceJobId),1);
+            pages[pageSequence]!.validJobIds=pages[pageSequence]!.validJobIds.filter(id=>id!==irreversibleOfficialJsonEvidenceId(sourceJobId));
+          } else Object.assign(jobs.find(job=>job.sourceJobId===sourceJobId)!,native);
+        }
       }
     } catch {
       return phenomFailure(capturedAt, "Roche native job detail or application validation failed", artifacts, pages, counts, losses, declaredCompleteness);

@@ -2,8 +2,8 @@ import { load } from "cheerio";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
-import { sensitiveOfficialJsonField } from "./officialJsonEvidence";
-import type { SourceFetchArtifactDraft } from "./sourceFetchEvidence";
+import { sensitiveOfficialJsonField, officialJsonRawLocator, persistentOfficialJsonJobId } from "./officialJsonEvidence";
+import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 
 export const ROCHE_NATIVE_DETAIL_POLICY = "ROCHE_WORKDAY_NATIVE_V1" as const;
 const ORIGIN = "https://roche.wd3.myworkdayjobs.com";
@@ -33,13 +33,18 @@ export function rocheNativeDetailUrl(raw: Record<string, unknown>): string | und
   } catch { return undefined; }
 }
 
-export function rocheNativeDetail(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt: string):
-  { title: string; officialUrl: string; locationRaw: string; cities: string[]; officialPublishedAt?: string } | undefined {
+function rocheDetailBound(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt: string, status: number): boolean {
   const url = rocheNativeDetailUrl(raw), time = artifact && Date.parse(artifact.capturedAt), start = Date.parse(startedAt);
   if (!url || !artifact || artifact.logicalKey !== `roche-detail-${raw.reqId}` || artifact.kind !== "ATS_API_RESPONSE" ||
-    artifact.requestedUrl !== url || artifact.finalUrl !== url || artifact.httpStatus !== 200 || artifact.bodyRepresentation !== "EXACT" ||
+    artifact.requestedUrl !== url || artifact.finalUrl !== url || artifact.httpStatus !== status || artifact.bodyRepresentation !== "EXACT" ||
     !/^application\/json(?:;|$)/iu.test(artifact.contentType ?? "") || artifact.extractorLocator !== "roche-workday-jobposting-v1" ||
-    !Number.isFinite(time) || !Number.isFinite(start) || time! < start || time! > start + 30 * 60_000 ||
+    !Number.isFinite(time) || !Number.isFinite(start) || time! < start || time! > start + 30 * 60_000) return false;
+  return true;
+}
+
+export function rocheNativeDetail(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt: string):
+  { title: string; officialUrl: string; locationRaw: string; cities: string[]; officialPublishedAt?: string } | undefined {
+  if (!artifact || !rocheDetailBound(raw,artifact,startedAt,200) ||
     !text(raw.title) || raw.siteType !== "external" || raw.visibilityType !== "External" || raw.locale !== "zh_cn" ||
     !Array.isArray(raw.jobVisibility) || !raw.jobVisibility.includes("external") ||
     !Array.isArray(raw.multi_location) || !raw.multi_location.length || !raw.multi_location.every(text)) return undefined;
@@ -69,4 +74,23 @@ export function rocheNativeDetail(raw: Record<string, unknown>, artifact: Source
   // Native title is authoritative after exact identity binding; both titles remain in their exact artifacts.
   return { title: clean(info.title), officialUrl: raw.applyUrl as string, locationRaw: mainland.map(clean).join(" | "), cities,
     ...(officialPublishedAt ? {officialPublishedAt} : {}) };
+}
+
+// Only the user-approved listed identity may retain old data on its exact official denial.
+export function rocheDeniedDetail(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt: string): boolean {
+  if (raw.reqId !== "202610-125686" || !artifact || !rocheDetailBound(raw,artifact,startedAt,403)) return false;
+  try { const body=typeof artifact.body==="string"?artifact.body:Buffer.from(artifact.body).toString("utf8");
+    if(!hasUniqueJsonObjectKeys(body))return false;
+    const denied=record(JSON.parse(body));
+    return denied?.errorCode==="S22"&&denied.httpStatus===403&&denied.message==="permission denied";
+  } catch { return false; }
+}
+export function rocheDeniedLoss(raw: Record<string, unknown>, pageSequence: number, recordIndex: number, recordedAt: string): PersistentSourceFetchEvidence["fetchLosses"][number] {
+  return {stage:"VALIDATION",reason:"Roche approved official denial isolated; preserve existing row and its time",rawLocator:officialJsonRawLocator(raw,recordIndex),
+    details:{code:"ROCHE_DETAIL_DENIED",pageSequence,recordIndex,noteCode:"NO_OMISSION_NOT_VERIFIED"},recordedAt};
+}
+/** Used only after strict replay has bound the loss to the exact fresh list/detail. */
+export function rocheQuarantinedSourceJobIds(evidence: PersistentSourceFetchEvidence): Set<string> {
+  return new Set(evidence.fetchLosses.some(loss=>loss.details.code==="ROCHE_DETAIL_DENIED")
+    ?[persistentOfficialJsonJobId("ROCHGLOBAL202610125686EXTERNALZHCN")]:[]);
 }

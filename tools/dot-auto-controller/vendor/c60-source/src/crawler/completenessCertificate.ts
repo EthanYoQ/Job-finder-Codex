@@ -92,7 +92,7 @@ const legalDedupeEntrySchema = z.object({
 const legalScopeExclusionEntrySchema = z.object({
   rawLocatorSha256: SHA256,
   recordIndex: z.number().int().nonnegative(),
-  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE"])
+  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE", "ROCHE_DETAIL_DENIED"])
 }).strict();
 const certificateSchema = z.object({
   schemaVersion: z.literal(A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION),
@@ -289,7 +289,10 @@ export function issueAGradeOfficialTotalCertificate(
   const legalDedupeCount = ledger.collisionGroups.reduce((sum, group) => sum + group.droppedCount, 0);
   const legalScopeExclusionLedger = hasHengruiScopeExclusionPolicy(plan)
     ? replayHengruiScopeExclusionProof(plan, evidence, input.jobs)?.exclusions
-    : exactGrifolsScopeExclusionLedger(plan, evidence);
+    : plan.source.id === "source-roche-china-social"
+      // Strict source replay above already verified the exact approved denial and complete list.
+      ? evidence.fetchLosses.map(loss=>({rawLocatorSha256:sha256(loss.rawLocator),recordIndex:loss.details.recordIndex as number,code:"ROCHE_DETAIL_DENIED" as const}))
+      : exactGrifolsScopeExclusionLedger(plan, evidence);
   const legalValidationDiscardCount = legalScopeExclusionLedger?.length ?? 0;
   if (evidence.fetchCounts.parseDiscardCount !== 0 || ledger.adapterLosses.length !== 0 ||
       evidence.fetchCounts.validationDiscardCount !== legalValidationDiscardCount ||

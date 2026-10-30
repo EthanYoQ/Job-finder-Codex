@@ -2210,7 +2210,7 @@ function validateAtomicSourceEvidenceCommit(
   if(result.completenessState==="VERIFIED" && !manualPreview) {
     for(const command of jobCommands) {
       // The runtime attestation above seals the source-replayed UNKNOWN key set and old record/time.
-      const retainedUnknown=["source-novartis-social","source-pfizer-china-social"].includes(result.sourceId)&&
+      const retainedUnknown=["source-novartis-social","source-pfizer-china-social","source-roche-china-social"].includes(result.sourceId)&&
         command.missingSuccessfulCrawlCount===1&&command.lifecycleStatus==="ACTIVE"&&
         new Date(command.lastSeenAt).getTime()<result.finishedAt!.getTime();
       const expectedStatus=command.missingSuccessfulCrawlCount===0||retainedUnknown?"ACTIVE":"OFFLINE";

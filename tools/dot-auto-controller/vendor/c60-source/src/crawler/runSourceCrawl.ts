@@ -9,7 +9,7 @@ import { replayJnjCareersDomEvidence } from "./jnjCareersDomEvidence";
 import {applySanofiNativeProjection} from "./sanofiNativeQuality";
 import { isPfizerWorkdayTraversalPlan, replayPfizerWorkdayTraversal, PFIZER_PAGINATION_POLICY, PFIZER_CHANNEL } from "./pfizerWorkdayTraversal";
 import { isBayerMedicalTraversalPlan, replayBayerMedicalTraversal } from "./bayerMokaScope";
-import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail } from "./rocheChinaQuality";
+import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
 import { mokaDetailLocations, mokaNativeListScope } from "./mokaSourceFetch";
 import { auditRedseaCandidateScope } from "./redseaCandidateScope";
 import { hasBeisenDetailDatePlan, replayBeisenDetailDates } from "./beisenDetailDates";
@@ -616,11 +616,12 @@ function strictCompletenessGate(
     // strictPageRequestContracts above has already replayed the complete Yello
     // partition and its exact exclusion ledger. No other source inherits this opt-in.
     const yelloScopeProof = exactGileadPublicAgePlan(plan);
+    const rocheScopeProof = plan.source.id === "source-roche-china-social" && plan.adapterId === "official-json" && plan.officialJsonFetch?.kind === "phenom" && plan.officialJsonFetch.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY;
     const lillyScopeProof = exactLillyChinaQualityPlan(plan);
     const organonScopeProof = exactOrganonPostedDatePlan(plan);
     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
-    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
+    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !rocheScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
     }
     if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) {
@@ -674,7 +675,7 @@ function strictCompletenessGate(
       : artifactUrlBindings?.get(artifact.logicalKey);
     if (!declaredArtifactRules) return strictGateTrace(plan, "DECLARATION_URL_RULE");
     if (declared.kind === "OFFICIAL_TOTAL_COUNT") {
-      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof || yelloScopeProof || lillyScopeProof || organonScopeProof) &&
+      const profileBoundExclusionReconciled = (profileBoundEvidenceValidated || mokaScopeProof !== undefined || biProof !== undefined || novoProof || yelloScopeProof || rocheScopeProof || lillyScopeProof || organonScopeProof) &&
         replayPolicy?.allowIndependentlyVerifiedProfileBoundExclusions === true &&
         declared.value === evidence.fetchCounts.rawCount &&
         ledger.rawInputCount === evidence.fetchCounts.validCount;
@@ -2285,6 +2286,7 @@ function strictPhenomRequestContracts(
   const exactRocheRequestBoundOmittedOffset = strictExactRochePhenomPlan(plan, pageConfig, endpoint);
   const preserveRocheQuality = exactRocheRequestBoundOmittedOffset && config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY;
   if (config.nativeDetailPolicy !== undefined && !preserveRocheQuality) return false;
+  const rocheLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   const rocheOutputs = new Map<string, NonNullable<ReturnType<typeof rocheNativeDetail>>>();
   if (preserveRocheQuality) {
     const start = Date.parse(capturedAt);
@@ -2620,7 +2622,7 @@ function strictPhenomRequestContracts(
       } else if (page.returnedOffset !== null) return false;
       const expectedRawIds: string[] = [];
       const expectedValidIds: string[] = [];
-      for (const raw of envelope.jobs) {
+      for (const [recordIndex,raw] of envelope.jobs.entries()) {
         const record = strictRecord(raw);
         const rawId = record ? strictPhenomOfficialId(record.jobSeqNo) ??
           strictPhenomOfficialId(record.reqId) ?? strictPhenomOfficialId(record.jobId) : undefined;
@@ -2633,6 +2635,10 @@ function strictPhenomRequestContracts(
         // Equal raw totals plus an overlap can still hide a missing role when sort keys tie.
         if (rocheRawOfficialIds.has(rawId)) return false;
         rocheRawOfficialIds.add(rawId);
+        if (preserveRocheQuality && rocheDeniedDetail(record,artifacts.get(`roche-detail-${record.reqId}`),capturedAt)) {
+          rocheLosses.push(rocheDeniedLoss(record,pageIndex,recordIndex,artifacts.get(`roche-detail-${record.reqId}`)!.capturedAt));
+          continue;
+        }
         expectedValidIds.push(validEvidenceId);
         rocheExpectedOutputIds.add(sourceJobId);
         if (preserveRocheQuality) {
@@ -2688,12 +2694,12 @@ function strictPhenomRequestContracts(
   }
   const rocheReplayMatches = !exactRocheRequestBoundOmittedOffset ||
     (rocheExpectedTotal !== undefined && pageRawCount === rocheExpectedTotal &&
-      rocheExpectedOutputIds.size === rocheExpectedTotal &&
+      rocheExpectedOutputIds.size + rocheLosses.length === rocheExpectedTotal &&
       evidence.fetchCounts.rawCount === rocheExpectedTotal &&
       evidence.fetchCounts.parsedCount === rocheExpectedTotal &&
-      evidence.fetchCounts.validCount === rocheExpectedTotal &&
-      evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === 0 &&
-      evidence.fetchLosses.length === 0 && outputJobs.length === rocheExpectedOutputIds.size &&
+      evidence.fetchCounts.validCount === rocheExpectedTotal - rocheLosses.length &&
+      evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === rocheLosses.length &&
+      isDeepStrictEqual(evidence.fetchLosses,rocheLosses) && outputJobs.length === rocheExpectedOutputIds.size &&
       outputJobs.every((job) => job.companyId === plan.company.id && job.sourceId === plan.source.id &&
         typeof job.sourceJobId === "string" && rocheExpectedOutputIds.has(job.sourceJobId)) &&
       new Set(outputJobs.map((job) => job.sourceJobId)).size === outputJobs.length);
@@ -2712,7 +2718,7 @@ function strictPhenomRequestContracts(
   return evidence.declaredCompleteness?.kind === "OFFICIAL_TOTAL_COUNT" &&
     evidence.declaredCompleteness.value === pageRawCount &&
     rocheReplayMatches &&
-    (!preserveRocheQuality || (rocheOutputs.size === pageRawCount && evidence.artifacts.length === evidence.pages.length + 3 + pageRawCount &&
+    (!preserveRocheQuality || (rocheOutputs.size + rocheLosses.length === pageRawCount && evidence.artifacts.length === evidence.pages.length + 3 + pageRawCount &&
       outputJobs.every(job => {
         const expected = job.sourceJobId && rocheOutputs.get(job.sourceJobId);
         return expected && typeof job.isBaseline === "boolean" && isDeepStrictEqual(job, {
@@ -4805,7 +4811,7 @@ function strictPositiveOfficialTotalReplayPolicy(
     if (strategy.exactDuplicateReconciliationPolicy !== undefined && !exactRocheDuplicatePolicy) return undefined;
     return {
       allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
-      ...(exactLillyChinaQualityPlan(plan) || exactOrganonPostedDatePlan(plan) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
+      ...(exactLillyChinaQualityPlan(plan) || exactOrganonPostedDatePlan(plan) || (plan.source.id === "source-roche-china-social" && strategy.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
       ...(exactRocheDuplicatePolicy ? { allowRawIdOverlapAcrossPages: true as const } : {})
     };
   }
