@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-10-30T01:47:16.748563Z",
+  "batchId": "dot-auto-hengrui-20261030T011745996Z",
+  "requestId": "6c18e653-2492-4051-b7b5-839a3f74e41e",
+  "roundId": "round-d82d3681a8a34cd7b3195884a771a528",
+  "dispatchBefore": "2026-10-30T01:43:16.214Z",
+  "platformResponse": null,
+  "dispatchState": "MAY_HAVE_BEEN_SENT",
+  "producerExitCode": 1,
+  "producerExitedAt": "2026-10-30T01:47:01.259Z",
+  "officialBatch": null,
+  "lockHolder": "",
+  "activeTransactions": 0,
+  "publicationState": "UNKNOWN",
+  "replayed": false,
+  "currentBlocker": "global prior-round pending check blocks unrelated sources; only two default-relay historical IDs support isolation",
+  "databaseExpiresAt": "2026-10-30T01:46:01.214Z",
+  "latestOfficialCheck": "2026-10-30T01:48:27.689752Z",
+  "requestSha256": "fdfc0268b0ae6703a7b59cc52d5de213c386eabfe90aa9a94bf79c0c8b0ad385",
+  "parentExternal": "1acda9b39d532e1f151ad0a9d05c84d875bafc00",
+  "active": false
+}
