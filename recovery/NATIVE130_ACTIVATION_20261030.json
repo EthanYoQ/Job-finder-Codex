@@ -1,0 +1,39 @@
+{
+  "status": "REGISTERED_VERIFIED_ENABLED",
+  "candidate": {
+    "id": "dot-cloud-native-9fd31f2-20261030",
+    "goalId": "jobfinder-portable-required-40",
+    "version": 130
+  },
+  "build": {
+    "schemaVersion": 2,
+    "commitSha": "9fd31f216134a2a9c48f33a058f94e0188e90548",
+    "sourceTreeSha256": "155c7d926cc7e0c753916157c5f25c0de6d671465c2ffefbee3a7f78ea8c1be7",
+    "runtimeTreeSha256": "242dbb4de5abc39f494e15be83c4b8dd819cea025ae36246539edc65ce5611af",
+    "contentSha256": "1d37e39f955f0f5dc4abbcd1adc666c53152c2f2e362c63c50d4b7c0ce656f4e"
+  },
+  "enabledAt": "2026-10-30T14:13:39.522712+00:00",
+  "originalConnectorValidate": "PASS",
+  "bindingSha256": "c0c6ec18d50f5b99d7a8d371b06d4923fddadb7969381e8febd104b788e584d6",
+  "rollbackCommit": "413371a7d4501816581ff006cd06ff10c769503d",
+  "rollbackFiles": "rollback129",
+  "externalEntryChanged": false,
+  "webChanged": false,
+  "holdsChanged": false,
+  "unknownRequestsReplayed": false,
+  "newRunStarted": false,
+  "freshProductionValidation": "PENDING",
+  "preactivation": {
+    "checkedAt": "2026-10-30T14:12:28.266681Z",
+    "holder": "",
+    "live": 0,
+    "manual": 0,
+    "producer": false
+  },
+  "tests": {
+    "passed": 162,
+    "skipped": 1,
+    "existingFailure": "expected21 actual22 reviewed configs"
+  },
+  "fix": "reuse first verified portable receipt; remove second same-private-input full verification; proofBasis unchanged"
+}
