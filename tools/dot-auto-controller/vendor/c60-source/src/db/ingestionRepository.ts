@@ -2144,9 +2144,8 @@ function validateAtomicSourceEvidenceCommit(
   validateNonblankUniqueList(result.officialSurfaceIds, "official surface");
   validateNonblankUniqueList(result.officialChannelIds, "official channel");
   validateCounts(result);
-  if (isSourceQualityReceipt(result.completenessCertificate)) {
-    verifySourceQualityAtomicCommit({ plan: sourceQualityPlan(result.sourceId), commit: input });
-  }
+  const portableReceipt = isSourceQualityReceipt(result.completenessCertificate)
+    ? verifySourceQualityAtomicCommit({ plan: sourceQualityPlan(result.sourceId), commit: input }) : null;
 
   onStage("COMMAND_VALIDATION");
   const observations = input.commands.filter(
@@ -2280,7 +2279,8 @@ function validateAtomicSourceEvidenceCommit(
     }
     if (result.completenessState === "VERIFIED" &&
         result.expectedJobCount !== result.dedupeOutputCount &&
-        !hasVerifiedPortableOfficialTotalAccounting(input) &&
+        !(portableReceipt?.declaredCompleteness.kind === "OFFICIAL_TOTAL_COUNT" && portableReceipt.declaredCompleteness.scope === "SOURCE" &&
+          portableReceipt.declaredCompleteness.value === result.expectedJobCount && portableReceipt.counts.rawCount === result.expectedJobCount) &&
         !hasVerifiedAGradeOfficialTotalDedupe(input) &&
         !hasExactBoehringerVerifiedUiExclusions(input) &&
         !hasExactGrifolsVerifiedDetailScopeExclusions(input, artifactByLogicalKey)) {
@@ -2580,11 +2580,4 @@ function sourceQualityPlan(sourceId: string): SourceCrawlPlan {
   const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(plan => plan.source.id === sourceId);
   if (!plan) throw new Error("Portable source plan is unavailable");
   return plan;
-}
-function hasVerifiedPortableOfficialTotalAccounting(input: AtomicSourceEvidenceCommit): boolean {
-  if (!isSourceQualityReceipt(input.sourceResult.completenessCertificate)) return false;
-  const receipt = verifySourceQualityAtomicCommit({ plan: sourceQualityPlan(input.sourceResult.sourceId), commit: input });
-  return receipt.declaredCompleteness.kind === "OFFICIAL_TOTAL_COUNT" && receipt.declaredCompleteness.scope === "SOURCE" &&
-    receipt.declaredCompleteness.value === input.sourceResult.expectedJobCount &&
-    receipt.counts.rawCount === input.sourceResult.expectedJobCount;
 }
