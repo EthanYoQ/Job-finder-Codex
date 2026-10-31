@@ -1,3 +1,4 @@
+import { reportSourceFetchFailure } from "./sourceFetchDiagnostics";
 import { spawn, type ChildProcess } from "node:child_process";
 import { z } from "zod";
 import {
@@ -25,6 +26,7 @@ const processResponseSchema = z.discriminatedUnion("decision", [
   z.object({
     decision: z.literal("FAILED"),
     failureCode: z.enum(B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES),
+    diagnostic: z.record(z.unknown()).optional(),
     message: z.string().min(1).max(2_000)
   }).strict()
 ]);
@@ -50,6 +52,7 @@ export function createIsolatedBGradeTraversalValidator(
       try {
         output = await execute(serializableInput, signal);
       } catch (error) {
+        reportSourceFetchFailure(input.sourceId, {error});
         if (signal?.aborted) {
           throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
         }
@@ -64,6 +67,7 @@ export function createIsolatedBGradeTraversalValidator(
       }
       const response = processResponseSchema.parse(JSON.parse(output));
       if (response.decision === "FAILED") {
+        if (response.diagnostic) console.error(JSON.stringify(response.diagnostic));
         const maxAttempts = response.failureCode === "B_GRADE_BROWSER_READINESS_FAILED" ? 3 : 2;
         if (attempt < maxAttempts && RETRIABLE_VALIDATOR_FAILURE_CODES.has(response.failureCode)) {
           await awaitRetryDelay(delay, signal);

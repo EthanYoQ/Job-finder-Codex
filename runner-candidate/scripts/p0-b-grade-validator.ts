@@ -1,3 +1,4 @@
+import { sourceFetchDiagnostic } from "../src/crawler/sourceFetchDiagnostics";
 import { runBGradeIndependentTraversalValidator } from "../src/crawler/traversalCertificate";
 import {
   classifyBGradeIndependentTraversalFailure,
@@ -9,15 +10,18 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => controller.abort(new Error(`B-grade validator received ${signal}`)));
 }
 
+let sourceId = "INVALID_SOURCE_ID";
 try {
   const rawInput = process.env.JOB_FINDER_B_GRADE_VALIDATOR_INPUT;
   if (!rawInput) throw new Error("B-grade validator input is required");
   const input = JSON.parse(rawInput) as Parameters<typeof runBGradeIndependentTraversalValidator>[0];
+  sourceId = input.sourceId;
   const validation = await runBGradeIndependentTraversalValidator({ ...input, signal: controller.signal });
   process.stdout.write(JSON.stringify({ decision: "SUCCEEDED", validation }));
 } catch (error) {
   process.stdout.write(JSON.stringify({
     decision: "FAILED",
+    diagnostic: sourceFetchDiagnostic(sourceId, {error}),
     failureCode: classifyBGradeIndependentTraversalFailure(error),
     message: safeBGradeIndependentTraversalFailureReason(error)
   }));
