@@ -1,0 +1,50 @@
+{
+  "status": "APPROVED_LOCAL_DIAGNOSTIC_PATCH_PENDING_BACKUP",
+  "createdAt": "2026-10-31T03:14:25.023661+00:00",
+  "scope": "Original failure-summary diagnostic only; no source/relay/database action",
+  "baseCommit": "7439b8486f7f871d8403bdc3302d3770c2448f3d",
+  "baseTree": "5b18febe080b59f8a87666a0fe4e7edbfbde13ad",
+  "githubPrefix": "recovery/failure-code-diagnostic-20261031T0312Z",
+  "secretPatternScan": "NO_MATCH",
+  "changedActiveFiles": [
+    "original-relay-automation-20261017T0609Z/failure-summary.py"
+  ],
+  "files": {
+    "README.md": {
+      "sha256": "acaf5de756fae880c3269d140e92193b0f46af99eff433d9b9dc384194745645",
+      "bytes": 2759
+    },
+    "baseline-new-test.log": {
+      "sha256": "6fbece8a0f793f63fb4f42c4473f63e5e654cb83c64579ecf0007a540a20e61f",
+      "bytes": 510
+    },
+    "before/failure-summary.py": {
+      "sha256": "b0a64b9e2a05de69a735c37c8cee749093a5cdd2ca91d0c0d145e1a14c18beca",
+      "bytes": 515
+    },
+    "candidate-test.log": {
+      "sha256": "06500fe4a08c8df3e52a367706497f0ce17c660500ad17a6e67417daf08a2428",
+      "bytes": 146
+    },
+    "change.patch": {
+      "sha256": "f156863bc9b024788cd6a81ca5fd837912514cbe3f508b6e11b10f6407075efc",
+      "bytes": 890
+    },
+    "failure-summary.py": {
+      "sha256": "c31bc7e1d80a6381b1ca64bc9555345616614fb676dc3d76624e056ff1399664",
+      "bytes": 618
+    },
+    "failure-summary.test.py": {
+      "sha256": "8c6ae1716bf7393cc12b1d1ad820e99784cf1068b6d31acd0a0227322b47a399",
+      "bytes": 2038
+    },
+    "fixtures/artifacts/dot-auto-amgen-20261031T000608564Z.failure-bc967b2c-eb4f-447f-9ea9-b4ddb93f7b4d.json": {
+      "sha256": "8e548aa0547845ae3a8ab334f45cefaa1939179bc823d6850fdfea583bd81a7c",
+      "bytes": 522
+    },
+    "retained-artifact-regression.json": {
+      "sha256": "54ee3aa5c598b60bc1c86c339d712d62f04e190a12639905afd9ff8022aa9069",
+      "bytes": 10108
+    }
+  }
+}

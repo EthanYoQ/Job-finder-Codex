@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/5e9614251709/recovery104-work/failure-code-diagnostic-candidate-20261031T0312Z/failure-summary.test.py", line 10, in <module>
+    assert actual=={'failureCode':'RELAY_DEADLINE','phase':'PRE_CAPTURE_CONTEXT',
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'failureCode': None, 'phase': 'PRE_CAPTURE_CONTEXT', 'reason': [{'class': 'Error', 'code': 'RELAY_DEADLINE', 'stage': None}], 'jobCount': 0}

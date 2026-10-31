@@ -1,0 +1,255 @@
+{
+  "scope": "OFFLINE_READONLY_DIAGNOSTIC_ONLY",
+  "recordsTested": 27,
+  "records": [
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/abbvie/dot-auto-abbvie-20261028T151015864Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "RELAY_DEADLINE",
+      "phase": "PRE_CAPTURE_CONTEXT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/abbvie/dot-auto-abbvie-20261029T104632932Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "RELAY_DEADLINE",
+      "phase": "PRE_CAPTURE_CONTEXT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/amgen/dot-auto-amgen-20261028T151753397Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/amgen/dot-auto-amgen-20261028T223739389Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/amgen/dot-auto-amgen-20261031T000608564Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "RELAY_DEADLINE",
+      "phase": "PRE_CAPTURE_CONTEXT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/astrazeneca/dot-auto-astrazeneca-20261028T152109217Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_CERTIFICATE_REJECTED",
+      "phase": "PRE_LOCK_CERTIFICATE",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/astrazeneca/dot-auto-astrazeneca-20261028T224059864Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_CERTIFICATE_REJECTED",
+      "phase": "PRE_LOCK_CERTIFICATE",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/astrazeneca/dot-auto-astrazeneca-20261029T122508696Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_CERTIFICATE_REJECTED",
+      "phase": "PRE_LOCK_CERTIFICATE",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/biogen/dot-auto-biogen-20261028T224234913Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "ORIGINAL_RUN_STOPPED_AFTER_TOOL_REVIEW_REJECTION",
+      "phase": "DB_STARTED_PUBLICATION",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/boehringer-ingelheim/dot-auto-boehringer-ingelheim-20261029T130906764Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_ADMISSION_REJECTED",
+      "phase": "PRE_LOCK_ADMISSION",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/boehringer-ingelheim/dot-auto-boehringer-ingelheim-20261031T030207002Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "RELAY_DEADLINE",
+      "phase": "PRE_CAPTURE_CONTEXT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/cr-pharma/dot-auto-cr-pharma-20261028T152732583Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION",
+      "phase": "DB_STARTED_PUBLICATION",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/cttq/dot-auto-cttq-20261028T230056167Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION",
+      "phase": "DB_STARTED_PUBLICATION",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/fosun/dot-auto-fosun-20261029T112723754Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_ADMISSION_REJECTED",
+      "phase": "PRE_LOCK_ADMISSION",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/hansoh/dot-auto-hansoh-20261029T113946782Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_ADMISSION_REJECTED",
+      "phase": "PRE_LOCK_ADMISSION",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/hengrui/dot-auto-hengrui-20261029T114131846Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/hengrui/dot-auto-hengrui-20261030T011745996Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION",
+      "phase": "DB_STARTED_PUBLICATION",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/lilly/dot-auto-lilly-20261029T115842631Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/lilly/dot-auto-lilly-20261030T124538112Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/novo-nordisk/dot-auto-novo-nordisk-20261029T141739199Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/organon/dot-auto-organon-20261029T160434468Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/organon/dot-auto-organon-20261029T165526658Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/pfizer/dot-auto-pfizer-20261030T022021467Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION",
+      "phase": "DB_STARTED_PUBLICATION",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/roche/dot-auto-roche-20261030T030424504Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/roche/dot-auto-roche-20261030T130251614Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/servier/dot-auto-servier-20261030T030600934Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_OUTCOME_UNKNOWN_REQUIRES_READONLY_RECONCILIATION",
+      "phase": "DB_STARTED_PUBLICATION",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    },
+    {
+      "run": "takeda-original-recovery-20261017T0417Z/ucb/dot-auto-ucb-20261029T163747564Z",
+      "artifactCount": 1,
+      "beforeFailureCode": null,
+      "afterFailureCode": "PILOT_SUCCESSFUL_SOURCE_ONLY_FAILURE_FINALIZATION_REQUIRED",
+      "phase": "CHECK_SOURCE_RESULT",
+      "otherOutputFieldsUnchanged": true,
+      "artifactBytesUnchanged": true
+    }
+  ],
+  "activeScriptUnchanged": true,
+  "officialCapture": false,
+  "relayRequestExecution": false,
+  "databaseWrite": false,
+  "uploaded": false,
+  "enabled": false
+}

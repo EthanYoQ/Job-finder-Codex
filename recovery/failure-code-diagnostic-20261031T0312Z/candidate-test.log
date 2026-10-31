@@ -1,0 +1,1 @@
+PASS: retained producer error code, ordered cause fallback, explicit top-level precedence and unchanged reason/phase/job count/empty-run behavior
