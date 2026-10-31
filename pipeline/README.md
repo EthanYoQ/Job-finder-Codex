@@ -1,22 +1,19 @@
-# 最小无人值守链路候选
+# 无人值守链路
 
-未部署，未配置密钥，未安装或启用timer。以下原生systemd/官方CLI接线尚未实测，不能称为迁移完成。
+代码已部署到新机 `/data/job-finder/app` 和阿里云 `/opt/jobfinder-new/app`。新库恢复、真实部分来源采集、快照安装及候选网页回读已通过。生产尚未切换，阿里云持续凭据配置仍按父任务要求暂停，refresh timer 尚未安装/启用。当前进度以项目根目录 `CURRENT-RESULT.md` 为准。
 
-`run-slot.sh`在新机用flock串行启动`run-round.ts`；原36源runner仍使用数据库lease和每来源00:01/12:01北京时间时段排重。原reader以一致性事务读取公开投影，保存内容哈希命名的不可变快照，最后原子替换latest收据。部分来源失败仍可更新其余已发布岗位；lastUpdatedAt来自原reader。
+`run-slot.sh` 用 flock 启动 `run-round.ts`，原36源串行抓取并使用数据库 lease、每来源北京时间00:01/12:01时段排重。原reader事务读取公开投影，生成不可变内容哈希快照，再原子替换latest收据。失败来源保留最近有效发布；更新时间沿用原数据，不把快照生成时间当抓取时间。
 
-阿里云`refresh.ts`使用官方CLI唤醒自动休眠机器、启动后台任务、等待、pull文件，再调用网页原子安装入口。响应丢失先读持久收据；不重放旧SQL/PUBLISH。没有当前时段确认收据就保留原网页快照。文件传输使用pull，避开exec stdout的1MiB上限。systemd在00:01/12:01北京时间触发，失败每10分钟重试，1小时最多3次；新机flock和DB lease避免并发，来源排重跳过已成功抓取。没有新增队列、Redis或框架。
+阿里云 `refresh.ts` 使用官方 CLI wake、exec后台任务、pull快照和原子安装，然后实际回读搜索及coverage。响应丢失先读持久回执；没有当前slot回执则保留原网页。systemd每10分钟重试失败，1小时最多3次。flock和数据库lease避免并发；没有队列、Redis或新框架。
 
-用户最新要求：连续稳定3个完整北京时间自然日后降为每天00:01。`frequency.mjs`与refresh的持久记录已接入这一判断：必须有两时段的36源真实定时采集、原子入库、搜索/coverage网页回读，以及真实失败恢复验收；手工运行、合成测试和未结束的自然日不计。跨重试合并当时段真正成功抓取的来源，不能用SKIPPED冒充抓取。3天达标后保存dailySince，中午timer只做本机跳过判断，不唤醒或抓取。目前0个已验证自然日；此逻辑仅合成测试通过，未投入真实计时。
+排程为北京时间00:01和12:01。连续3个完整自然日的两时段36源真实抓取、入库、网页回读及实际失败恢复通过后，保存dailySince，中午不再唤醒。手工运行和合成验证不计，目前稳定日0。跨重试的成功来源直接查持久数据库，不依赖上次进程能否写出收据。
 
-部署前仍需：
+部署接线：
 
-- 真实恢复数据库和历史未决状态，建立新`instabox-`候选记录；`runtime.env`仅含真实JOBFINDER_CANDIDATE_ID等运行配置，禁止伪造迁移历史。原机`postgres.env`通过Node env-file载入密码，bridge地址在新机读取，不发布PG端口。
-- 将runner-candidate、web-candidate、pipeline及同版本node_modules置于同一app目录；runner/web各用相对node_modules链接指向根依赖。入口使用恢复包的bin/node，避免阿里云系统Node20.20.2；仍须实测该Linux二进制版本、glibc兼容与运行，不能仅凭包已存在启用。
-- 确认阿里云长期保存/使用InstaBox key的私有位置及服务用户。refresh.env需要INSTABOX_API_KEY、JOBFINDER_PUBLIC_SNAPSHOT_FILE、JOBFINDER_VERIFY_BASE_URL（待验新网页地址）；可选INSTABOX_CLI、JOBFINDER_SCHEDULE_STATE_FILE。本任务尚未向阿里云传此key。
-- 实际失败恢复验收通过后才产生JOBFINDER_RECOVERY_EVIDENCE指向的私有JSON：kind=live、verifiedAt及checks中的wake/interruptedCommit/failedSourceKeepsLastGood/failedInstallKeepsLastGood/webRestart均为真实测试结果。当前没有生成这个文件。定时来源还须在真实systemd上验证INVOCATION_ID和timer LastTriggerUSec；不能手填伪造timer运行记录。
-- 现有管理员/反馈写入通过可选DATABASE_URL接线；新PG未开放公网，跨机私有连接及休眠时写请求唤醒仍未配置。公开快照路径不依赖此连接。
-- 新机真实检查Docker bridge Prisma连接、Linux fsync、源抓取、原子入库和reader；阿里云验证网页安装、重启、暂停/唤醒与timer实际触发。当前新机代码部署确认仍待回复。
+- 新机已有 `runtime.env` 中的真实候选身份和 `postgres.env` 中的数据库凭据；用env-file载入，Docker bridge连接PG，不映射公网端口。旧candidate和未决记录不重放。
+- 两机均使用交付包 `bin/node`、根目录node_modules及runner/web相对链接。
+- 阿里云拟使用 `/opt/jobfinder-new/private/refresh.env`：INSTABOX_API_KEY、INSTABOX_CLI=/opt/jobfinder-new/bin/instabox、JOBFINDER_PUBLIC_SNAPSHOT_FILE=/opt/jobfinder-new/snapshots/public.json、JOBFINDER_VERIFY_BASE_URL。持续凭据配置尚未执行；文件不得进入仓库或日志。
+- 反馈/管理员写入使用 [私有后台](../web-candidate/REMOTE-WRITE-README.md)，公开GET只读本机快照。新机手动预览模板已安装但未启动请求。
+- 实际暂停唤醒、中断恢复、失败来源保旧、安装失败保旧、网页重启全部验证后，才生成JOBFINDER_RECOVERY_EVIDENCE记录。timer来源由实际INVOCATION_ID和LastTriggerUSec确认，不能手填运行记录。
 
-本机验证00:01/12:01时段边界与新协议中断恢复的合成行为。恢复不触碰旧candidate/host/manual未知提交；真实PG并发与整轮Linux运行待测。
-
-依据：官方[CLI](https://instabox.sh/docs/cli)、[命令/文件](https://instabox.sh/docs/api/commands)、[休眠与最大运行时长](https://instabox.sh/docs/idle-suspend)。免费机固定30分钟空闲暂停、单次8小时、达到上限后5–20分钟冷却；这里不更改这些设置。
+生产切换还需要剩余来源修复、私有写通道验收和源库最终同步。当前已验证的是候选链路，不代表无人值守迁移完成。

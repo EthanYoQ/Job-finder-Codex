@@ -295,7 +295,7 @@ export function selectPortableSourceSnapshots(
       if (base.freshness === "STALE") base.reasons.push("LAST_GOOD_STALE");
       if (latest && latest.id !== result.id && latest.startedAt >= result.startedAt) {
         base.health = "DEGRADED";
-        if (isCurrentBGradeCertificateSchema(receipt.schemaVersion)) base.state = "HOLD";
+        // A later failed/running attempt cannot erase verified last-good jobs; projection checks below still reject changed rows.
         base.reasons.push(latest.finishedAt === null ? "LATEST_ATTEMPT_RUNNING" : "LATEST_ATTEMPT_FAILED");
       }
     }
@@ -418,3 +418,4 @@ export function projectPortableSourceJobs(
     return {...output, state: "HOLD", health: "DEGRADED", visibleJobCount: null, staleJobCount: 0, jobs: [], reasons: [...output.reasons, "PROJECTION_INTEGRITY_HOLD"]};
   }
 }
+

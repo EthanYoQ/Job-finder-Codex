@@ -29,6 +29,8 @@ INSTABOX_CLI=/usr/local/bin/instabox
 
 Aliyun 长驻进程在转发公共 POST 前继续执行原同意检查和原每 IP/路径限流；私有短进程再次执行原输入和权限校验。管理员会话和实际业务写入由原数据库服务处理，授权失败仍是真实 401。原管理员手动抓取接口成功返回 202/QUEUED 后，仅为该新回执 ID 调用 `sudo -n systemctl start --no-block jobfinder-manual@ID.service`（2 秒时限）。ID 限定字母、数字、下划线和连字符。`START_REQUESTED` 仅表示 systemd 接受启动请求；`NOT_STARTED` 表示明确失败；客户端超时返回 `START_UNCONFIRMED`。三者均保留已入队回执，不重复创建请求。前端显示回执，并通过原 `/admin/api/manual-crawls` 只读查询状态；后续 dashboard 读取失败不抹去已知入队结果。手动抓取只做预览、不发布到公开网页。
 
-新机安装 `pipeline/jobfinder-manual@.service` 后需要 `systemctl daemon-reload`，无需启用任意实例。模板和只消费新请求的实现由 runner 交付，`Restart=no`；保留原数据库状态和共享 lease。既有 user 的 sudo 权限须由部署方实测，不修改 sudoers 或增加权限。若模板未安装或无权限，记录仍留在原队列，页面明确显示启动未确认；下一 scheduler 对新 QUEUED 的恢复由 runner 接线负责，不重放 RUNNING/历史请求。
+新机安装 `pipeline/jobfinder-manual@.service` 后需要 `systemctl daemon-reload`，无需启用任意实例。模板和只消费新请求的实现由 runner 交付，`Restart=no`；保留原数据库状态和共享 lease。既有 user 的 sudo 权限须由部署方实测，不修改 sudoers 或增加权限。若模板未安装或无权限，记录仍留在原队列，页面明确显示启动未确认；每轮采集释放lease后会检查登记后的新QUEUED：先查同ID unit状态、再查数据库，仅确认未启动时请求启动；状态不明时不重发，不重放RUNNING或历史请求。
 
-本机证据：`prepared/simple-review/remote-write.test.mjs` / `remote-write.tap`（5 项合成测试通过），`remote-typecheck.json`（零类型诊断）。覆盖未唤醒不发送、人工暂停不发送、发送后不重放、加密回执、原登录/反馈处理、公开查询与唤醒隔离、长驻限流和实际 stdin 子进程。新增 `manual-launch.test.mjs` / `manual-launch.tap` 3 项通过（固定 unit、失败保留回执及原隐私请求），`manual-launch-browser.json` 验证新 dist 的实际回环交互，`remote-frontend-build.log` 记录重建。没有执行真实 CLI wake/exec、读取 key、连接数据库或验证服务器部署。
+本机证据：`prepared/simple-review/remote-write.test.mjs` / `remote-write.tap`（5 项合成测试通过），`remote-typecheck.json`（零类型诊断）。覆盖未唤醒不发送、人工暂停不发送、发送后不重放、加密回执、原登录/反馈处理、公开查询与唤醒隔离、长驻限流和实际 stdin 子进程。新增 `manual-launch.test.mjs` / `manual-launch.tap` 3 项通过（固定 unit、失败保留回执及原隐私请求），`manual-launch-browser.json` 验证新 dist 的实际回环交互，`remote-frontend-build.log` 记录重建。以上为合成验证记录；随后本机通过现有授权 CLI 对已部署新机完成真实错误会话401加密回执测试。尚未向阿里云配置持续key，也未执行真实反馈或管理员写入。
+
+
