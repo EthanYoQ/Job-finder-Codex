@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { installSavedSnapshot, validateSavedSnapshot } from "../web-candidate/src/server/savedPublicSnapshot";
 import { searchPortableSnapshot, coverageFromPortableSnapshot } from "../web-candidate/src/server/portablePublicationApi";
 import { slotAt, isNoonSlot, stableThreeDays } from "./frequency.mjs";
+import { startActivityLease } from "./activity-lease.mjs";
 
 const exec = promisify(execFile);
 const machine = "m_agqzacofwxyhtea4rr7b6tvbba";
@@ -15,6 +16,7 @@ const temporary = await mkdtemp(join(tmpdir(), "jobfinder-refresh-"));
 const cli = process.env.INSTABOX_CLI ?? "instabox";
 const target = process.env.JOBFINDER_PUBLIC_SNAPSHOT_FILE;
 let phase = "INITIALIZE";
+let releaseActivityLease: (() => Promise<void>) | undefined;
 type Receipt = {slot:string;complete:boolean;snapshotFile:string;sha256:string;generatedAt:string;lastUpdatedAt:string|null;totalJobs:number;capturedSources:{sourceId:string;batchId:string}[]};
 async function command(args:string[], timeout=120_000) {
   try {return await exec(cli,args,{timeout,maxBuffer:2*1024*1024,env:process.env});}
@@ -59,6 +61,8 @@ async function refresh() {
   // wake respects a manual stop/pause; it does not change lifetime/security settings.
   phase = "WAKE";
   await command(["wake",machine,"--json"]);
+  phase = "ACTIVITY_LEASE";
+  releaseActivityLease = await startActivityLease(machine,process.env.INSTABOX_API_KEY);
   phase = "READ_RECEIPT";
   let receipt=await latest();
   if(!receipt?.complete) {
@@ -108,4 +112,7 @@ try {await refresh();} catch (error) {
   const code=error instanceof Error&&/^[A-Z][A-Z_]+$/.test(error.message)?error.message:"REFRESH_FAILED";
   console.error(JSON.stringify({status:code,phase}));
   process.exitCode=75;
-} finally {await rm(temporary,{recursive:true,force:true});}
+} finally {
+  await releaseActivityLease?.();
+  await rm(temporary,{recursive:true,force:true});
+}
