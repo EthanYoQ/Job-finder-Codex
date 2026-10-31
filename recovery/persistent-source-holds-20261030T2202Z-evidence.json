@@ -1,0 +1,137 @@
+{
+  "basis": "Retained original tool/operation records; not authorization to retry",
+  "newPersistentHolds": [
+    {
+      "sourceId": "source-astrazeneca-social",
+      "reason": "SOURCE_ACCESS_REVIEW_REJECTED_20261030",
+      "action": "original source access",
+      "outcome": "DENIED",
+      "evidenceFile": "recovery104-work/EVENING_NATIVE128_20261030T1318Z.json",
+      "originalReason": "write_stdin failed: Unified exec process failed: This action was rejected due to unacceptable risk.\nReason: 该请求访问的是未明确授权的第三方招聘聚合站点 `careersite.tupu360.com`，而用户指定应沿官方来源与既定范围执行；当前证据不足以证明该外部目的地属于 Astellas 官方采集链路，不能擅自扩展来源范围。\nDo not bypass this rejection through a workaround or indirect execution. Continue with a safer alternative, or carry out checks to prove that the action is authorized or low risk before trying again. Complete unaffected work without asking for confirmation. Report anything that remains blocked, clarify why it was blocked by auto-review, inform the user of the risk and ask for approval."
+    },
+    {
+      "sourceId": "source-bayer-healthcare-social",
+      "reason": "SOURCE_ACCESS_REVIEW_REJECTED_20261030",
+      "action": "original source access",
+      "outcome": "DENIED",
+      "evidenceFile": "recovery104-work/EVENING_NATIVE128_20261030T1318Z.json",
+      "originalReason": "Error: Browser Use rejected this action due to browser security policy. Reason: Auto-review denied this action; this was not a manual user rejection. Cloud browser could not acquire authority to trigger network egress. The origin approval gate did not grant access for https://app.mokahr.com. This action was rejected due to unacceptable risk."
+    },
+    {
+      "sourceId": "source-daiichi-sankyo-china-social",
+      "reason": "SOURCE_ACCESS_REVIEW_REJECTED_20261030",
+      "action": "original source access",
+      "outcome": "DENIED",
+      "evidenceFile": "recovery104-work/EVENING_NATIVE128_20261030T1318Z.json",
+      "originalReason": "write_stdin failed: Unified exec process failed: This action was rejected due to unacceptable risk.\nReason: 该采集请求访问未在可信证据中验证为 Daiichi 官方来源的第三方域名 cnstaff.com，属于新增/未核准来源并会向其发起网络请求；超出用户指定的官方来源范围，需先完成归属核验并获得明确授权。\nDo not bypass this rejection through a workaround or indirect execution. Continue with a safer alternative, or carry out checks to prove that the action is authorized or low risk before trying again. Complete unaffected work without asking for confirmation. Report anything that remains blocked, clarify why it was blocked by auto-review, inform the user of the risk and ask for approval."
+    },
+    {
+      "sourceId": "source-fosun-pharma-social",
+      "reason": "SOURCE_ACCESS_REVIEW_REJECTED_20261030",
+      "action": "original source access",
+      "outcome": "DENIED",
+      "evidenceFile": "recovery104-work/EVENING_NATIVE128_20261030T1318Z.json",
+      "originalReason": "write_stdin failed: Unified exec process failed: This action was rejected due to unacceptable risk.\nReason: 该采集将向第三方招聘域名 fosunpharma.zhiye.com 发起网络请求，但可信用户指令未明确授权该来源或验证其官方归属；在来源范围未核实前不能执行新增外部采集。\nDo not bypass this rejection through a workaround or indirect execution. Continue with a safer alternative, or carry out checks to prove that the action is authorized or low risk before trying again. Complete unaffected work without asking for confirmation. Report anything that remains blocked, clarify why it was blocked by auto-review, inform the user of the risk and ask for approval."
+    },
+    {
+      "sourceId": "source-gilead-china-social",
+      "reason": "SOURCE_ACCESS_REVIEW_REJECTED_20261030",
+      "action": "original source access",
+      "outcome": "DENIED",
+      "evidenceFile": "recovery104-work/EVENING_NATIVE128_20261030T1318Z.json",
+      "originalReason": "write_stdin failed: Unified exec process failed: This action was rejected due to unacceptable risk.\nReason: 该请求将向第三方 ATS 域名 gilead.yello.co 发起真实采集，但可信用户指令未验证其为 Gilead 官方授权来源；在来源归属和范围未明确前，不得执行该外部网络请求。\nDo not bypass this rejection through a workaround or indirect execution. Continue with a safer alternative, or carry out checks to prove that the action is authorized or low risk before trying again. Complete unaffected work without asking for confirmation. Report anything that remains blocked, clarify why it was blocked by auto-review, inform the user of the risk and ask for approval."
+    },
+    {
+      "sourceId": "source-gsk-china-social",
+      "reason": "SOURCE_ACCESS_REVIEW_REJECTED_20261030",
+      "action": "original source access",
+      "outcome": "DENIED",
+      "evidenceFile": "recovery104-work/EVENING_NATIVE128_20261030T1318Z.json",
+      "originalReason": "write_stdin failed: Unified exec process failed: This action was rejected due to unacceptable risk.\nReason: 该网络请求访问 app.mokahr.com，但当前可信用户指令未明确授权或验证该域名属于 GSK 的既定官方来源；在来源归属未核实前不能执行新增外部采集。\nDo not bypass this rejection through a workaround or indirect execution. Continue with a safer alternative, or carry out checks to prove that the action is authorized or low risk before trying again. Complete unaffected work without asking for confirmation. Report anything that remains blocked, clarify why it was blocked by auto-review, inform the user of the risk and ask for approval."
+    },
+    {
+      "sourceId": "source-hansoh-social",
+      "reason": "SOURCE_ACCESS_REVIEW_REJECTED_20261030",
+      "action": "original source access",
+      "outcome": "DENIED",
+      "evidenceFile": "recovery104-work/EVENING_NATIVE128_20261030T1318Z.json",
+      "originalReason": "write_stdin failed: Unified exec process failed: This action was rejected due to unacceptable risk.\nReason: 该请求将访问未在可信用户指令中核实为豪森官方来源的第三方招聘域名 hspharm.zhiye.com，超出已明确授权的来源范围；应先完成官方归属核验。\nDo not bypass this rejection through a workaround or indirect execution. Continue with a safer alternative, or carry out checks to prove that the action is authorized or low risk before trying again. Complete unaffected work without asking for confirmation. Report anything that remains blocked, clarify why it was blocked by auto-review, inform the user of the risk and ask for approval."
+    },
+    {
+      "sourceId": "source-abbvie-china-social",
+      "reason": "PUBLICATION_REVIEW_REJECTED_20261030",
+      "action": "original PUBLISH",
+      "outcome": "DENIED_NOT_DISPATCHED",
+      "requestId": "6fb8a043-5e5f-4e60-9ba3-dc48d72f2e26",
+      "evidenceFile": "rounds/round-391a3ea22b1643a185c9e44699daa154/connector-host-task/relay/6fb8a043-5e5f-4e60-9ba3-dc48d72f2e26.response.json",
+      "originalResult": {
+        "status": "FAILED",
+        "outcome": "NOT_DISPATCHED",
+        "code": "TOOL_REVIEW_REJECTED"
+      }
+    },
+    {
+      "sourceId": "source-astellas-china-social",
+      "reason": "PUBLICATION_REVIEW_REJECTED_20261030",
+      "action": "original PUBLISH",
+      "outcome": "DENIED_NOT_DISPATCHED",
+      "requestId": "588ed705-2f96-4bee-b126-c469c13cd845",
+      "evidenceFile": "rounds/round-391a3ea22b1643a185c9e44699daa154/connector-host-task/relay/588ed705-2f96-4bee-b126-c469c13cd845.response.json",
+      "originalResult": {
+        "status": "FAILED",
+        "outcome": "NOT_DISPATCHED",
+        "code": "TOOL_REVIEW_REJECTED"
+      }
+    },
+    {
+      "sourceId": "source-kelun-social",
+      "reason": "PUBLICATION_REVIEW_REJECTED_20261030",
+      "action": "original PUBLISH",
+      "outcome": "DENIED_NOT_DISPATCHED",
+      "requestId": "0ecd59c5-ceef-4fe2-a2e3-ca69a978eb15",
+      "evidenceFile": "rounds/round-391a3ea22b1643a185c9e44699daa154/connector-host-task/relay/0ecd59c5-ceef-4fe2-a2e3-ca69a978eb15.response.json",
+      "originalResult": {
+        "status": "FAILED",
+        "outcome": "NOT_DISPATCHED",
+        "code": "TOOL_REVIEW_REJECTED"
+      }
+    },
+    {
+      "sourceId": "source-merck-china-social",
+      "reason": "MAIN_DEPLOYMENT_UNRESOLVED",
+      "action": "original main deployment switch",
+      "outcome": "UNKNOWN",
+      "requestName": "jobfinder-merck-switch-main-2353",
+      "evidenceFile": "recovery104-work/merck-deployment-20261029T1804Z/DEPLOYMENT_PROGRESS.json",
+      "lastStatusRead": "Original CLI session output read itself denied; no alternate channel used"
+    },
+    {
+      "sourceId": "source-organon-china-social",
+      "reason": "BACKUP_TREE_UNKNOWN_NOT_ENABLED",
+      "action": "original shared candidate backup tree creation",
+      "outcome": "UNKNOWN_NOT_REPLAYABLE",
+      "expectedTree": "600ef7d9009cec1c3d88c06fb7c110ec25e019ea",
+      "evidenceFile": "recovery104-work/ucb-sanofi-empty-integration-20261029T1703Z/REMOTE_TREE_RECONCILIATION.json",
+      "originalReviewOutcome": "aborted by user after 1345.3s; no execution terminal receipt",
+      "limitation": "Later official 404 reads do not prove original execution terminal; no recreate"
+    },
+    {
+      "sourceId": "source-sanofi-china-social",
+      "reason": "BACKUP_TREE_UNKNOWN_NOT_ENABLED",
+      "action": "original shared candidate backup tree creation",
+      "outcome": "UNKNOWN_NOT_REPLAYABLE",
+      "expectedTree": "600ef7d9009cec1c3d88c06fb7c110ec25e019ea",
+      "evidenceFile": "recovery104-work/ucb-sanofi-empty-integration-20261029T1703Z/REMOTE_TREE_RECONCILIATION.json",
+      "originalReviewOutcome": "aborted by user after 1345.3s; no execution terminal receipt",
+      "limitation": "Later official 404 reads do not prove original execution terminal; no recreate"
+    }
+  ],
+  "oldPersistentHoldsPreserved": [
+    "source-servier-china-social",
+    "source-pfizer-china-social",
+    "source-hengrui-social",
+    "source-cttq-social",
+    "source-novo-nordisk-china-social"
+  ],
+  "rocheNotIncluded": "Rejected operation is candidate131 production trigger replacement, not a source-access or publication attempt in this hold set."
+}

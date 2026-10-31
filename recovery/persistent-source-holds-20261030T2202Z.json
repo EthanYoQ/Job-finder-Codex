@@ -1,0 +1,73 @@
+{
+  "status": "CANDIDATE_TESTED_NOT_ENABLED",
+  "createdAt": "2026-10-30T22:02:30Z",
+  "baseBackupCommit": "e4e383babd693d7cc1ad8054a0fb36f980133d3e",
+  "changedActiveFiles": [
+    "original-relay-automation-20261017T0609Z/run-original-functions.js",
+    "original-relay-automation-20261017T0609Z/automatic-relay.test.mjs"
+  ],
+  "preservedPersistentHolds": 5,
+  "addedPersistentHolds": 13,
+  "persistentHoldsTotal": 18,
+  "otherSourcesStillEligible": 18,
+  "rocheNotHeldByThisPatch": true,
+  "scheduleChanged": false,
+  "nativeCandidateChanged": false,
+  "unknownOrDeniedRequestsRetried": false,
+  "independentReview": "PASS",
+  "originalEnvironment": "/workspace/scratch/5e9614251709",
+  "files": {
+    "candidate/run-original-functions.js": {
+      "bytes": 26628,
+      "sha256": "c3044dd1cb909db8bb04b5a839ddadd2bc21b6149029cc3ac98e1a368b7b6877"
+    },
+    "candidate/automatic-relay-functions.js": {
+      "bytes": 5892,
+      "sha256": "edc8393b759ea6d9744825bba4750c3fa13d8cc632dc0318360d0ae78844878e"
+    },
+    "candidate/automatic-relay.test.mjs": {
+      "bytes": 15569,
+      "sha256": "a994c736d1eca5ec1473284ba5635ee1f5b9a4ffee1288613657a841c598319e"
+    },
+    "candidate/sources.json": {
+      "bytes": 9910,
+      "sha256": "5cacb022750abfbce267a8dd0a6faf7d9b08d0320284965cf3f0f4a41dbf88a6"
+    },
+    "candidate/prepare-original-source.py": {
+      "bytes": 2464,
+      "sha256": "9faf68c3134b4070c4dc17dd47d0b4b0f32c57526a4effdd1ad64a2e9487506b"
+    },
+    "candidate/novo-hook.test.mjs": {
+      "bytes": 1775,
+      "sha256": "10fd43ee28bfbdcf0e1070a1a545fa1071ab9352a5bff65fff86e51c148bc553"
+    },
+    "before/run-original-functions.js": {
+      "bytes": 25656,
+      "sha256": "24b7cd74b0a2a5006743ac7c012db4c73c4a3837b629a033b5c803f0a469170d"
+    },
+    "before/automatic-relay.test.mjs": {
+      "bytes": 13051,
+      "sha256": "fad5ba83ac34d81da8d6ec3b0efd6539d4103f5ace44b0746557ea9673af15be"
+    },
+    "change.patch": {
+      "bytes": 5565,
+      "sha256": "b2c32c6a0b2d779e255ce3737ef13d071eeba647e23ed4a47e13bab0505e0634"
+    },
+    "HOLD_EVIDENCE.json": {
+      "bytes": 10465,
+      "sha256": "729c8c6e2ef2b07bc4da9ef0853f9461b2bc169719e0e8e4dd9eef27bda5f8c3"
+    },
+    "candidate-test.log": {
+      "bytes": 1320,
+      "sha256": "39b7f2f55e38d129b79352065af13054d8a901dd8689582353e86c99f2969b49"
+    },
+    "baseline-new-test.log": {
+      "bytes": 1451,
+      "sha256": "399298fe6a99a415b15cd4dd54becd063b8fdf1ea536c9a1fec369d63813d5f1"
+    },
+    "README.md": {
+      "bytes": 2374,
+      "sha256": "2c2bb84dd4185fa5724a7262339c7c4934aee226f4e3c2904676baf81a938536"
+    }
+  }
+}
