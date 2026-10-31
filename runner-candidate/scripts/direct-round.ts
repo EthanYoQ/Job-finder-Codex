@@ -82,6 +82,9 @@ export async function runDirectRound(input: { db: PrismaClient; leaseDb: Portabl
         results.push({ sourceId: row.sourceId, route: row.route, ...result });
       } catch (error) {
         if (lease.signal.aborted) throw error;
+        // Preserve the original cause before a reconciliation check can replace it.
+        console.error(JSON.stringify({sourceId:row.sourceId,diagnostic:describePortableRuntimeError(error),
+          locations:error instanceof Error ? error.stack?.split("\n").filter(line=>/^\s+at /.test(line)&&line.includes("/data/job-finder/app/")).slice(0,6) : undefined}));
         await assertNoUnresolvedWrites(input.db, input.candidateId, sourceIds);
         // Keep driver messages private; a source failure does not stop other companies.
         results.push({ sourceId: row.sourceId, route: row.route, status: "FAILED", diagnostic: describePortableRuntimeError(error) });

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import {isCurrentBGradeCertificateSchema,SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION} from "../crawler/traversalCertificate";
 import { buildJobProjectionDeltaReceipt } from "./jobProjectionDeltaCompiler";
 import { persistedJobProjection, hashJobPersistedProjection, JOB_SOURCE_UPDATE_FIELDS, isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
@@ -569,7 +570,7 @@ export async function createBatchWithPendingSourceResults(
         adapterCollisionGroupCount: null,
         adapterReconciliationSha256: null,
         collisionLedgerSha256: null,
-        completenessCertificate: null,
+        completenessCertificate: Prisma.DbNull,
         completenessCertificateSha256: null,
         blockerCode: null,
         blockerReason: null,
@@ -625,6 +626,7 @@ export async function terminateManualPendingSourceResult(
 
 function pendingSourceTerminalData(input: PendingSourceTerminalInput): Record<string, unknown> {
   return {
+    completenessCertificate: Prisma.DbNull, completenessCertificateSha256: null,
     transportState: input.transportState, adapterState: input.adapterState,
     completenessState: input.completenessState, atomicCommitState: input.atomicCommitState,
     finishedAt: input.finishedAt, failureCode: input.failureCode, failureReason: input.failureReason,
@@ -723,6 +725,8 @@ async function executeFailedSourceEvidenceCommitInternal(
     const result = await transaction.crawlBatchSourceResult.updateMany({
       where: pendingSourceTupleWhere(input.sourceResult),
       data: {
+        completenessCertificate: Prisma.DbNull,
+        completenessCertificateSha256: null,
         transportState: input.sourceResult.transportState,
         adapterState: input.sourceResult.adapterState,
         completenessState: input.sourceResult.completenessState,
@@ -981,7 +985,9 @@ async function executeAtomicSourceEvidenceCommitInternal(
       stage = write.stage;
       if (write.kind === "job") await transaction.job.upsert(write.args);
       else if (write.kind === "terminal") requireExactlyOnePendingResult(
-        await transaction.crawlBatchSourceResult.updateMany({ where: write.where, data: write.data }));
+        await transaction.crawlBatchSourceResult.updateMany({ where: write.where, data:
+          write.data.completenessCertificate === null
+            ? { ...write.data, completenessCertificate: Prisma.DbNull } : write.data }));
       else if (write.model === "crawlObservation") await transaction.crawlObservation.create({
         data: write.data as CrawlObservationCreateArgs["data"]
       });
