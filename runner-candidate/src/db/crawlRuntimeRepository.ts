@@ -52,10 +52,10 @@ export interface PrismaCrawlRuntimeDb {
   crawlObservation: {
     findMany(args: {
       where: { sourceId: string; batch: { is: { kind: { in: ["FULL_RELEASE", "SCHEDULED", "BASELINE"] } } } };
-      select: { crawledAt: true; successful: true };
+      select: { crawledAt: true; successful: true; sourceResult: { select: { completenessState: true; atomicCommitState: true } } };
       orderBy: { crawledAt: "desc" };
       take: 10;
-    }): Promise<PersistedCrawlObservationRow[]>;
+    }): Promise<(PersistedCrawlObservationRow & { sourceResult: { completenessState: string; atomicCommitState: string } | null })[]>;
     findFirst?(args: {
       where: { sourceId: string; successful: true;
         batch: { is: { kind: { not: "MANUAL_SOURCE" } } } };
@@ -128,12 +128,19 @@ export function createPrismaCrawlRuntimeDeps(db: PrismaCrawlRuntimeDb, options: 
         if(!plan||!reader?.findMany)throw Error("PORTABLE_SCHEDULE_CURRENT_POLICY_READER_REQUIRED");
         return readPortableScheduleObservations({findMany:args=>reader.findMany!(args)},plan,(options.now??(()=>new Date()))());
       }
-      return db.crawlObservation.findMany({
+      const observations = await db.crawlObservation.findMany({
         where: { sourceId, batch: { is: { kind: { in: ["FULL_RELEASE", "SCHEDULED", "BASELINE"] } } } },
-        select: { crawledAt: true, successful: true },
+        select: { crawledAt: true, successful: true,
+          sourceResult: { select: { completenessState: true, atomicCommitState: true } } },
         orderBy: { crawledAt: "desc" },
         take: 10
       });
+      // Adapter success alone must not suppress a retry after completeness rejection.
+      return observations.map(({ crawledAt, successful, sourceResult }) => ({
+        crawledAt,
+        successful: successful && sourceResult?.completenessState === "VERIFIED" &&
+          sourceResult.atomicCommitState === "COMMITTED"
+      }));
     },
     async getTrustedCompletenessBaseline(sourceId: string) {
       const plan = portablePlans?.get(sourceId);
