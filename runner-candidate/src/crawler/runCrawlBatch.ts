@@ -47,6 +47,7 @@ import {
 import { isSourceDueForScheduledRun } from "./schedule";
 import { sourcePlanConfigSha256, validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
 import { safeSourceTransportFailureReason } from "./sourceFetchFailure";
+import { sourceFetchDiagnostic } from "./sourceFetchDiagnostics";
 import {
   atomicEvidencePersistenceStage,
   atomicEvidenceFailureCode,
@@ -825,6 +826,10 @@ export async function runP0CrawlBatch(
         else completenessIncompleteSourceCount += 1;
         atomicCommittedSourceCount += 1;
       } catch (error) {
+        if (atomicFailureCode === "ATOMIC_COMMIT_BUILD_FAILED") {
+          try { console.error(JSON.stringify({ ...sourceFetchDiagnostic(plan.source.id, { error }), event: "SOURCE_ATOMIC_BUILD_DIAGNOSTIC" })); }
+          catch { /* Diagnostic output must not alter source termination. */ }
+        }
         if (atomicFailureCode === "ATOMIC_EVIDENCE_COMMIT_FAILED" && commit) {
           let outcome: Awaited<ReturnType<typeof inspectPersistedAtomicCommitOutcome>>;
           try {
