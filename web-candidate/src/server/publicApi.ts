@@ -32,6 +32,7 @@ type PublicApiDb = FeedbackDb;
 
 export interface PublicApiDeps {
   db?: PublicApiDb;
+  forwardWrite?: (request: PublicApiRequest) => Promise<PublicApiResponse>;
   now?: () => Date;
   rateLimitStore?: RateLimitStore;
   recordTiming?: SnapshotReadTiming;
@@ -111,7 +112,7 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
     return {
       status: ok ? 200 : 503,
       headers: { ...headers, "content-type": "application/json; charset=utf-8" },
-      body: { ok, mode: "SAVED_PUBLIC_SNAPSHOT", writeBackendConfigured: Boolean(deps.db) }
+      body: { ok, mode: "SAVED_PUBLIC_SNAPSHOT", writeBackendConfigured: Boolean(deps.db || deps.forwardWrite) }
     };
   }
 
@@ -167,6 +168,8 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
         body: { error: "RATE_LIMITED", remaining: decision.remaining }
       };
     }
+
+    if (deps.forwardWrite && request.method === "POST") return await deps.forwardWrite(request);
 
     if (!deps.db && request.method !== "GET") {
       return {status: 503, headers, body: {error: "WRITE_BACKEND_UNAVAILABLE"}};

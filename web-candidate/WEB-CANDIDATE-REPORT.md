@@ -1,3 +1,5 @@
+最新私有写后台增量：公开查询继续本地快照，可选官方CLI唤醒/单次stdin调用原写handlers；CLI输出历史只留临时密钥加密响应。手动入队后的固定systemd触发与UI状态查询已加入，见 `REMOTE-WRITE-README.md` 及 `prepared/simple-review/remote-write-manifest.json`。后文为前轮构建记录，最新构建身份以该remote-write manifest为准。
+
 统一包增量复核：本轮修复管理员DB故障误报401及瞬时失败清除会话，保留草稿并支持只读刷新；真正401后允许重新登录。Merck三处配置由simplify_runner对齐。最新源码/产物哈希与定向验证见 `prepared/simple-review/manifest.json`；此前候选的独立构建manifest为历史参考。原手动抓取入队接口尚无新runner消费入口，不宣称手动抓取完整恢复。
 
 # 本机持久快照网页候选

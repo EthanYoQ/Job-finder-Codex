@@ -15,6 +15,7 @@ export function BrowserAdminApp() {
   const [model, setModel] = useState<AdminDashboardModel>(EMPTY_MODEL);
   const [dashboardError, setDashboardError] = useState("");
   const [reload, setReload] = useState(0);
+  const [manualReceipt, setManualReceipt] = useState<{id: string; status: string; launchStatus?: string} | null>(null);
 
   const headers = useMemo(() => {
     if (token === null) {
@@ -32,6 +33,7 @@ export function BrowserAdminApp() {
     if (token === null) {
       setModel(EMPTY_MODEL);
       setDashboardError("");
+      setManualReceipt(null);
       return;
     }
 
@@ -71,13 +73,26 @@ export function BrowserAdminApp() {
     <>
     {dashboardError ? <p role="alert">{dashboardError}</p> : null}
     {token !== null ? <button type="button" onClick={() => setReload(value => value + 1)}>刷新后台数据</button> : null}
+    {manualReceipt ? <p role="status">请求 {manualReceipt.id}：{manualReceipt.status}。
+      {manualReceipt.status === "QUEUED" ? manualReceipt.launchStatus === "START_REQUESTED"
+        ? "已请求启动，尚未确认抓取完成。" : "已保存到队列，启动尚未确认，请勿重复提交。" : "此手动抓取仅供预览，不会发布到公开网页。"}
+      <button type="button" onClick={() => {
+        void fetch("/admin/api/manual-crawls", {headers}).then(response => readApiJson<{requests: {id: string; status: string}[]}>(response))
+          .then(({requests}) => {
+            const current = requests.find(item => item.id === manualReceipt.id);
+            if (current) setManualReceipt(previous => previous?.id === current.id ? {...previous, status: current.status} : previous);
+            else setDashboardError("最近的状态记录中未找到此请求，请保留回执并核实，不要重复提交。");
+          }).catch(() => setDashboardError("抓取状态暂不可读，已入队回执仍保留，请勿重复提交。"));
+      }}>查看抓取状态</button>
+    </p> : null}
     <AdminApp
       isAuthenticated={token !== null}
       model={model}
       onLogin={login}
       onQueueManualCrawl={async (input) => {
-        await postJson("/admin/api/manual-crawl", input, headers);
-        await refresh();
+        const receipt = await postJson<{id: string; status: string; launchStatus?: string}>("/admin/api/manual-crawl", input, headers);
+        setManualReceipt(receipt);
+        await refresh().catch(() => setDashboardError("请求已入队，后台数据刷新暂时失败，请勿重复提交。"));
       }}
       onReviewFeedback={async (input) => {
         await postJson("/admin/api/feedback-review", input, headers);

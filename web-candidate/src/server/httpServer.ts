@@ -10,6 +10,7 @@ import { encodePublicJsonResponse } from "./publicResponseEncoding";
 import { encodeStaticResponse } from "./staticResponse";
 import type { SnapshotReadTiming } from "../db/portablePublicSnapshotRepository";
 import { createSavedSnapshotReader } from "./savedPublicSnapshot";
+import { createRemoteWriteBackend } from "./remoteWriteBackend";
 
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PORT = 3000;
@@ -42,7 +43,7 @@ export function createServer(deps: HttpServerDeps, options: HttpServerOptions = 
 
   return createNodeServer((request, response) => {
     void handleRequest(request, response, deps, staticRoot, writeTimeoutMs).catch((error: unknown) => {
-      console.error("HTTP_SERVER_ERROR", error);
+      console.error("HTTP_SERVER_ERROR");
       if (!response.headersSent) {
         response.statusCode = 500;
         response.setHeader("content-type", "application/json; charset=utf-8");
@@ -56,9 +57,12 @@ export async function startServer(): Promise<Server> {
   const snapshotFile = process.env.JOBFINDER_PUBLIC_SNAPSHOT_FILE;
   if (!snapshotFile) throw new Error("JOBFINDER_PUBLIC_SNAPSHOT_FILE_REQUIRED");
   const readPortableSnapshot = await createSavedSnapshotReader(snapshotFile);
+  if (process.env.JOBFINDER_REMOTE_WRITE_MACHINE && process.env.DATABASE_URL) throw new Error("CHOOSE_ONE_WRITE_BACKEND");
+  const forwardWrite = process.env.JOBFINDER_REMOTE_WRITE_MACHINE
+    ? createRemoteWriteBackend({machine: process.env.JOBFINDER_REMOTE_WRITE_MACHINE}) : undefined;
   // Prisma connects lazily. Database availability never gates public snapshot startup.
   const db = process.env.DATABASE_URL ? new PrismaClient() : undefined;
-  const server = createServer({readPortableSnapshot, ...(db ? {db} : {})});
+  const server = createServer({readPortableSnapshot, ...(db ? {db} : {}), ...(forwardWrite ? {forwardWrite} : {})});
   server.once("close", () => { void db?.$disconnect().catch(() => console.error("WRITE_DATABASE_DISCONNECT_FAILED")); });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -103,7 +107,7 @@ async function handleRequest(
       },
       {...deps, ...(recordTiming ? {recordTiming} : {})}
     );
-    const publicApiResponse = request.method === "POST"
+    const publicApiResponse = request.method === "POST" && !deps.forwardWrite
       ? await boundedDatabaseRequest(operation, writeTimeoutMs)
       : await operation();
     const encoded = await encodePublicJsonResponse({
@@ -116,6 +120,13 @@ async function handleRequest(
   }
 
   if (url.pathname.startsWith("/admin/api/")) {
+    if (deps.forwardWrite) {
+      const result = await deps.forwardWrite({method: request.method ?? "GET", path: url.pathname,
+        query: toQueryRecord(url), headers: toHeaderRecord(request), body: await readRequestBody(request),
+        ip: getRequestIp(request)});
+      writeResponse(response, result);
+      return;
+    }
     const db = deps.db;
     if (!db) {
       writeResponse(response, {status: 503, headers: {"cache-control": "no-store"}, body: {error: "WRITE_BACKEND_UNAVAILABLE"}});
@@ -168,7 +179,7 @@ async function handleRequest(
   }
 }
 
-async function boundedDatabaseRequest(operation: () => Promise<HttpResponse>, timeoutMs: number): Promise<HttpResponse> {
+export async function boundedDatabaseRequest(operation: () => Promise<HttpResponse>, timeoutMs: number): Promise<HttpResponse> {
   let timer: NodeJS.Timeout | undefined;
   const unknown = (status: number): HttpResponse => ({status, headers: {"cache-control": "no-store"},
     body: {error: "WRITE_RESULT_UNKNOWN", retryable: false}});
