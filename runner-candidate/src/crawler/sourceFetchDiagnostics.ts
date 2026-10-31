@@ -20,11 +20,13 @@ const reasons = new Set([
   "Organon quality policy requires the exact source and bootstrap", "Organon official field validation failed",
   "ORGANON_NATIVE_DETAIL_UNKNOWN_PRESERVE_LAST_GOOD", "ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD",
   "Expected exactly one new detail tab", "Pfizer UI entry navigation failed", "Pfizer UI native detail navigation failed",
-  "Official recruitment endpoint temporarily rate limited the request (HTTP 429)", "Official recruitment browser session failed before evidence capture"
+  "Official recruitment endpoint temporarily rate limited the request (HTTP 429)", "Official recruitment browser session failed before evidence capture",
+  "SANOFI_COMPACT_DECISION_MISMATCH"
 ]);
 const lossCodes = new Set(["MERCK_RAW_FIELDS_INVALID", "MERCK_POSTED_DATE_INVALID", "ORGANON_RAW_FIELDS_INVALID",
   "ORGANON_POSTED_DATE_INVALID", "MISSING_REQUIRED_FIELD", "DUPLICATE_OFFICIAL_ID", "OUT_OF_SCOPE", "UNSAFE_OFFICIAL_URL", "SENSITIVE_OUTPUT"]);
 function reason(value: string) {
+  if (value === "Isolated B-grade traversal process exceeded its output limit") return "B_GRADE_VALIDATOR_OUTPUT_LIMIT_EXCEEDED";
   if (reasons.has(value)) return value;
   const browserCode = /^((?:CSPC|JNJ|SANOFI_CN|LOCAL_CHROMIUM)_[A-Z_]{1,70})(?::|$)/.exec(value);
   if (browserCode) return browserCode[1];
