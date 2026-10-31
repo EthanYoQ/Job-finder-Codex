@@ -1,0 +1,12 @@
+--- before/automatic-relay.test.mjs
++++ after/automatic-relay.test.mjs
+@@ -114,7 +114,8 @@
+ // Exercise the actual pre-launch HOLD clause with a fresh, empty Functions store.
+ const holdStart=entry.indexOf(' const hold='),holdEnd=entry.indexOf('\n \n if(!sourceFolders',holdStart);
+ assert(holdStart>=0&&holdEnd>holdStart&&holdEnd<entry.indexOf('const {config,control,binding}'));
+-const checkHold=new Function('sourceId','load',entry.slice(holdStart,holdEnd));
++const checkHold=new Function('sourceId','load','readIsolation={holds:{}}',entry.slice(holdStart,holdEnd));
++assert.throws(()=>checkHold('source-boehringer-ingelheim-china-social',()=>undefined,{holds:{'source-boehringer-ingelheim-china-social':'PRE_CAPTURE_READ_UNKNOWN_PRODUCER_TERMINAL_NO_PUBLISH'}}),{message:'PENDING_USER_DECISION:PRE_CAPTURE_READ_UNKNOWN_PRODUCER_TERMINAL_NO_PUBLISH'});
+ const persistentHolds={
+  'source-servier-china-social':'EXPIRED_20261030_APPROVAL_UNKNOWN_READONLY',
+  'source-pfizer-china-social':'EXPIRED_20261030_APPROVAL_UNKNOWN_READONLY',

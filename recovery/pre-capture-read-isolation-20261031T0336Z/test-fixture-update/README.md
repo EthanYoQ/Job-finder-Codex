@@ -1,0 +1,1 @@
+Test-fixture-only correction after runtime enablement. The existing regression extracts the HOLD clause into a Function and must supply the new readIsolation dependency. Default empty holds preserve the original 18-HOLD regression; one assertion covers the additional PRE_CAPTURE source hold. No runtime logic changed.
