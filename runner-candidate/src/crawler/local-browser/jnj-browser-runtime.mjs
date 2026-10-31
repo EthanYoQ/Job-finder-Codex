@@ -15,9 +15,33 @@ async function waitOriginalDomVisible(locator, deadline) {
     }
   }
 }
+import {mkdir, writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {createHash, randomUUID} from 'node:crypto';
 
+async function saveDetailFailure(tab, context, directory) {
+  let timer, observation;
+  try {
+    observation = await Promise.race([
+      tab.playwright.evaluate(() => ({url:location.href, title:document.title, readyState:document.readyState,
+        detailCount:document.querySelectorAll('#js-job-detail').length,
+        applyLinks:Array.from(document.querySelectorAll('a')).filter(a=>a.textContent.trim()==='Apply now')
+          .map(a=>({text:a.textContent.trim(),href:a.href})),
+        html:document.documentElement.outerHTML})),
+      new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('JNJ_FAILURE_CAPTURE_TIMEOUT')),5000);})
+    ]);
+  } catch { observation = {captureUnavailable:true}; }
+  finally {clearTimeout(timer);}
+  // Private debugging only. It cannot be consumed as successful source evidence.
+  const bytes=JSON.stringify({kind:'JNJ_FAILED_DETAIL_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE',
+    capturedAt:new Date().toISOString(),...context,observation},null,2)+'\n';
+  const file=`jnj-detail-${context.sourceJobId}-${randomUUID()}.json`;
+  await mkdir(directory,{recursive:true,mode:0o700});
+  await writeFile(join(directory,file),bytes,{flag:'wx',mode:0o600});
+  return {file,sha256:createHash('sha256').update(bytes).digest('hex')};
+}
 // Original JNJ DOM collector using the local Chromium tab transport.
-export function createJnjDomRuntime(cua) {
+export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBFINDER_STATE_ROOT ?? '/data/job-finder','diagnostics','jnj')} = {}) {
   const origin = 'https://www.careers.jnj.com';
   const listUrl = page => origin+'/en/jobs/?'+(page===1?'':'page='+page+'&')+'country=China&origin=global#results';
   let list, detail, deadline, total, current = [], page = 1;
@@ -84,10 +108,16 @@ export function createJnjDomRuntime(cua) {
     checkTime();
     const card=current?.[index];
     if(!card) throw Error('JNJ_DOM_DETAIL_NOT_IN_CURRENT_PAGE');
-    await detail.goto(card.url);
+    let sourceFetchStage='JNJ_DETAIL_NAVIGATION', navigationStatus;
+    try {
+    const response=await detail.goto(card.url);
+    if(typeof response?.status==='function')navigationStatus=response.status();
     await detail.getAXState({emit:false});
+    sourceFetchStage='JNJ_DETAIL_READY';
     await detail.playwright.locator('#js-job-detail').waitFor({state:'visible',timeoutMs:30000});
+    sourceFetchStage='JNJ_APPLY_READY';
     await detail.playwright.getByRole('link',{name:'Apply now',exact:true}).waitFor({state:'visible',timeoutMs:30000});
+    sourceFetchStage='JNJ_DETAIL_READ';
     const value={kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',url:await detail.url(),expectedUrl:card.url,expectedTitle:card.title,
       heading:await detail.playwright.locator('h1').innerText(),
       body:await detail.playwright.locator('#js-job-detail').evaluate(e=>({html:e.outerHTML,htmlLength:e.outerHTML.length,text:e.innerText})),
@@ -96,6 +126,15 @@ export function createJnjDomRuntime(cua) {
     if(value.url!==card.url || value.heading.replace(/\s+/g,' ').trim()!==card.title.replace(/\s+/g,' ').trim()) throw Error('JNJ_DOM_DETAIL_IDENTITY');
     checkTime();
     return {file:card.id+'.json',raw:raw(value)};
+    } catch(error) {
+      const cause=error instanceof Error?error:Error('JNJ_DETAIL_CAPTURE_FAILED');
+      cause.sourceFetchStage=sourceFetchStage;
+      cause.sourceJobId=card.id;
+      try { cause.privateCapture=await saveDetailFailure(detail,{sourceJobId:card.id,sourceFetchStage,
+        detailIndex:index,completedDetails:index,total,navigationStatus,expectedUrl:card.url,expectedTitle:card.title},failureDirectory); }
+      catch { cause.privateCaptureUnavailable=true; }
+      throw cause;
+    }
   }
   async function advance() {
     checkTime();

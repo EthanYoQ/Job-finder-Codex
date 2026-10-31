@@ -47,11 +47,18 @@ export function sourceFetchDiagnostic(sourceId: string, failure: {result: Extrac
   if ("error" in failure) {
     const error = failure.error instanceof Error ? failure.error : undefined;
     const message = error?.message ?? "NON_ERROR_THROW";
-    const stage = (error as (Error & {sourceFetchStage?: unknown}) | undefined)?.sourceFetchStage;
+    const context = error as (Error & {sourceFetchStage?: unknown;sourceJobId?:unknown;privateCapture?:{file?:unknown;sha256?:unknown};privateCaptureUnavailable?:unknown}) | undefined;
+    const stage = context?.sourceFetchStage;
+    const jnj = sourceId === "source-johnson-innovative-medicine-social";
+    const capture = context?.privateCapture;
     const locations = error?.stack?.replaceAll("\\", "/").split("\n").slice(1)
       .flatMap(line => line.match(/(?:runner-candidate|web-candidate)\/(?:src|scripts)\/[A-Za-z0-9_./-]+\.[cm]?[jt]sx?:[0-9]+:[0-9]+/g) ?? []).slice(0, 6) ?? [];
     return {...common, phase: "THROWN", exceptionType: ["Error", "TypeError", "SyntaxError", "ReferenceError", "TimeoutError", "AbortError", "AssertionError"].includes(error?.name ?? "") ? error!.name : "OTHER_ERROR",
-      ...(stage === "JNJ_RESULTS_READY" || stage === "JNJ_HEADING_READY" ? {stage} : {}),
+      ...(typeof stage === "string" && ["JNJ_RESULTS_READY", "JNJ_HEADING_READY", "JNJ_DETAIL_NAVIGATION", "JNJ_DETAIL_READY", "JNJ_APPLY_READY", "JNJ_DETAIL_READ"].includes(stage) ? {stage} : {}),
+      ...(jnj && typeof context?.sourceJobId === "string" && /^r-\d{1,20}$/.test(context.sourceJobId) ? {sourceJobId:context.sourceJobId} : {}),
+      ...(jnj && typeof capture?.file === "string" && /^jnj-detail-r-\d{1,20}-[0-9a-f-]{36}\.json$/.test(capture.file) &&
+        typeof capture.sha256 === "string" && /^[0-9a-f]{64}$/.test(capture.sha256) ? {privateCapture:{file:capture.file,sha256:capture.sha256}} : {}),
+      ...(jnj && context?.privateCaptureUnavailable === true ? {privateCaptureUnavailable:true} : {}),
       executionCode: sourceExecutionFailureCode(failure.error), reason: reason(message), reasonSha256: sha(message), locations};
   }
   const {result} = failure, httpStatuses: Record<string, number> = {}, losses: Record<string, number> = {};
