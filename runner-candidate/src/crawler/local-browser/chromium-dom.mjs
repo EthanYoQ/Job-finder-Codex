@@ -27,12 +27,13 @@ function locator(native) {
  * Snapshots are local Chromium ARIA observations, not CUA or network evidence.
  * Does not grant source access, produce source admission, or change any HOLD.
  */
-export async function createChromiumDom({chromium, executablePath = '/usr/bin/chromium'}) {
+export async function createChromiumDom({chromium, executablePath = '/usr/bin/chromium', netLogPath}) {
   const allowed = new Set(['COMSPEC','FONTCONFIG_PATH','HOME','LANG','LANGUAGE','LC_ALL','LOGNAME','PATH','PATHEXT',
     'SSL_CERT_DIR','SSL_CERT_FILE','SYSTEMROOT','TEMP','TMP','TMPDIR','TZ','USER','WINDIR',
     'XDG_CACHE_HOME','XDG_CONFIG_HOME','XDG_DATA_HOME','XDG_RUNTIME_DIR']);
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => allowed.has(key.toUpperCase())));
-  const browser = await chromium.launch({executablePath, headless: true, chromiumSandbox: true, env});
+  const browser = await chromium.launch({executablePath, headless: true, chromiumSandbox: true, env,
+    ...(netLogPath?{args:[`--log-net-log=${netLogPath}`,'--net-log-max-size-mb=10','--net-log-duration=60']}: {})});
   let context;
   try { context = await browser.newContext(); }
   catch (error) { await browser.close(); throw error; }

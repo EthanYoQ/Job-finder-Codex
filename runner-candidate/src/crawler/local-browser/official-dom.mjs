@@ -70,7 +70,7 @@ export async function captureLocalOfficialDom(sourceId, runStartedAt, signal) {
   signal?.throwIfAborted();
   const { chromium } = await import('playwright-core');
   signal?.throwIfAborted();
-  const cua = await createChromiumDom({ chromium, executablePath: process.platform === 'win32'
+  const cua = await createChromiumDom({ chromium, netLogPath:sourceId==='source-johnson-innovative-medicine-social'?process.env.JOBFINDER_JNJ_NETLOG_FILE:undefined, executablePath: process.platform === 'win32'
     ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : '/usr/bin/chromium' });
   const cleanup = createAbortableClose(signal, () => cua.close());
   try { signal?.throwIfAborted(); return await captureOfficialDom(sourceId, cua, runStartedAt); }
