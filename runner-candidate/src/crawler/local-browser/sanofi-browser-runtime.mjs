@@ -57,6 +57,8 @@ export function createSanofiDomRuntime(cua, {failureDirectory=join(process.env.J
   async function advance() {
     checkTime();
     try {
+    const rejectOptionalCookies=tab.playwright.locator('#onetrust-reject-all-handler');
+    if(await rejectOptionalCookies.isVisible())await rejectOptionalCookies.click();
     await tab.playwright.locator('#search-results a.next').click();
     await tab.getAXState({ emit: false });
     return { pageNumber: ++pageNumber };

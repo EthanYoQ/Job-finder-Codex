@@ -110,9 +110,14 @@ export function assertPfizerRenderedPage(page: OfficialJsonRenderedPageCapture):
 
 export async function capturePfizerRenderedTraversal(page: import("playwright-core").Page, signal?: AbortSignal, options: {failureDirectory?: string} = {}): Promise<OfficialJsonRenderedPageCapture[]> {
     const entry = ENTRY + `?Location_Country=${COUNTRY}`;
-    const cards = page.locator('[data-automation-id="jobTitle"]');
     let sourceFetchStage="PFIZER_ENTRY_NAVIGATION",navigation: import("playwright-core").Response | null | undefined;
+    let detail: import("playwright-core").Page | undefined;
+    const pages: OfficialJsonRenderedPageCapture[] = [];
+    let total: number | undefined, totalPages: number | undefined, currentPage: number | undefined, currentRecord: number | undefined;
+    let currentCard: {href:string;title:string} | undefined, detailNavigationStatus: number | undefined;
+    const seen = new Set<string>();
     try {
+    const cards = page.locator('[data-automation-id="jobTitle"]');
     navigation = await page.goto(entry, { waitUntil: "domcontentloaded", timeout: 60000 });
     if (!navigation || navigation.status() !== 200 || page.url() !== entry)
         throw Error("Pfizer UI entry navigation failed");
@@ -120,27 +125,10 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
     await cards.first().waitFor({ state: "visible", timeout: 60000 });
     sourceFetchStage="PFIZER_COUNTRY_READY";
     await page.getByRole("button", { name: "China clear filter", exact: true }).waitFor({ state: "visible", timeout: 30000 });
-    } catch(error) {
-      const cause=(error instanceof Error?error:Error("Pfizer UI entry navigation failed")) as Error & {
-        sourceFetchStage:string;privateCapture?:{file:string;sha256:string};privateCaptureUnavailable?:boolean};
-      cause.sourceFetchStage=sourceFetchStage;
-      try {cause.privateCapture=await savePrivateDomFailure({
-        directory:options.failureDirectory ?? join(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder","diagnostics","pfizer"),filePrefix:"pfizer-entry",
-        context:{kind:"PFIZER_FAILED_ENTRY_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE",sourceFetchStage,expectedUrl:entry,
-          navigationStatus:navigation?.status(),navigationUrl:navigation?.url(),observedUrl:page.url()},
-        observe:()=>page.evaluate(()=>({url:location.href,title:document.title,readyState:document.readyState,
-          cardCount:document.querySelectorAll('[data-automation-id="jobTitle"]').length,
-          buttons:Array.from(document.querySelectorAll('button')).map(button=>({text:button.textContent,ariaLabel:button.getAttribute('aria-label')})),
-          html:document.documentElement.outerHTML}))});}
-      catch {cause.privateCaptureUnavailable=true;}
-      throw cause;
-    }
-    const detail = await page.context().newPage();
-    const pages: OfficialJsonRenderedPageCapture[] = [];
-    let total: number | undefined, totalPages: number | undefined;
-    const seen = new Set<string>();
-    try {
+    sourceFetchStage="PFIZER_DETAIL_CREATE";
+    detail = await page.context().newPage();
         for (let index = 1; index <= 20; index++) {
+            currentPage=index;currentRecord=undefined;currentCard=undefined;sourceFetchStage="PFIZER_LIST_READ";
             signal?.throwIfAborted();
             await page.locator('[data-automation-id="jobFoundText"]').filter({ hasText: /^\d+ JOBS FOUND$/u }).waitFor({ state: "visible", timeout: 60000 });
             const label = await page.locator('ul[aria-label^="Page "]').getAttribute("aria-label");
@@ -160,6 +148,7 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
                 ...(links.length === Math.min(20,total-(index-1)*20) ? {} : {domSnapshot:await page.locator("body").ariaSnapshot()})});
             const rawRows: OfficialJsonRenderedRawRow[] = [];
             for (const [recordIndex, slot] of slots.entries()) {
+                currentRecord=recordIndex;currentCard=slot.card;sourceFetchStage="PFIZER_DETAIL_READ";
                 signal?.throwIfAborted();
                 if (!slot.card) {
                     if (seen.has(slot.officialId)) throw Error("Pfizer UI duplicate official ID");
@@ -173,7 +162,9 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
                 if (!id || seen.has(id))
                     throw Error("Pfizer UI duplicate or missing official ID");
                 seen.add(id);
+                detailNavigationStatus=undefined;
                 const response = await detail.goto(link.href, { waitUntil: "domcontentloaded", timeout: 60000 });
+                detailNavigationStatus=response?.status();
                 if (!response || response.status() !== 200 || detail.url() !== link.href)
                     throw Error("Pfizer UI native detail navigation failed");
                 await detail.locator('[data-automation-id="jobPostingHeader"]').waitFor({ state: "visible", timeout: 60000 });
@@ -192,6 +183,7 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
                 replayPfizerRenderedRow(row, recordIndex);
                 rawRows.push(row);
             }
+            sourceFetchStage="PFIZER_LIST_READ";
             const next = page.getByRole("button", { name: "next", exact: true });
             const nextPresent = await next.count() === 1 && await next.isVisible() && await next.isEnabled();
             if (nextPresent !== (index < totalPages))
@@ -207,13 +199,34 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
                     throw Error("Pfizer UI final raw set mismatch");
                 return pages;
             }
+            sourceFetchStage="PFIZER_PAGE_ADVANCE";
             await next.click();
             await page.locator(`ul[aria-label="Page ${index + 1} of ${totalPages}"]`).waitFor({ state: "attached", timeout: 60000 });
         }
         throw Error("Pfizer UI safety limit reached without terminal evidence");
     }
+    catch(error) {
+      const cause=(error instanceof Error?error:Error("Pfizer traversal failed")) as Error & {
+        sourceFetchStage:string;privateCapture?:{file:string;sha256:string};privateCaptureUnavailable?:boolean};
+      cause.sourceFetchStage=sourceFetchStage;
+      try {cause.privateCapture=await savePrivateDomFailure({
+        directory:options.failureDirectory ?? join(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder","diagnostics","pfizer"),filePrefix:"pfizer-traversal",
+        context:{kind:"PFIZER_FAILED_TRAVERSAL_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE",sourceFetchStage,expectedUrl:entry,
+          currentPage,currentRecord,currentCard,completedPages:pages.length,seenIds:seen.size,total,totalPages,
+          navigationStatus:navigation?.status(),navigationUrl:navigation?.url(),detailNavigationStatus,
+          error:{name:cause.name,message:cause.message,stack:cause.stack}},
+        observe:async()=>{
+          const snapshot=(target:import("playwright-core").Page)=>target.evaluate(()=>({url:location.href,title:document.title,
+            readyState:document.readyState,html:document.documentElement.outerHTML}));
+          const results=await Promise.allSettled([snapshot(page),detail?snapshot(detail):Promise.resolve({notCreated:true})]);
+          return {list:results[0]!.status==="fulfilled"?results[0]!.value:{captureUnavailable:true},
+            detail:results[1]!.status==="fulfilled"?results[1]!.value:{captureUnavailable:true}};
+        }});}
+      catch {cause.privateCaptureUnavailable=true;}
+      throw cause;
+    }
     finally {
-        await detail.close().catch(() => undefined);
+        await detail?.close().catch(() => undefined);
     }
 }
 
