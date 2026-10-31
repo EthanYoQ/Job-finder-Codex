@@ -22,7 +22,7 @@ export function createSanofiDomRuntime(cua) {
         await root.waitFor({ state: 'visible', timeoutMs: Math.max(1, Math.min(10000, until - Date.now())) });
         ready = true; break;
       } catch (error) {
-        if (!/Timed out waiting for load|Runtime.evaluate timed out|locator.waitFor\(visible\) timed out/.test(String(error))) throw error;
+        if (error?.name !== 'TimeoutError' && !/Timed out waiting for load|Runtime.evaluate timed out|locator.waitFor\(visible\) timed out/.test(String(error))) throw error;
       }
     }
     if (!ready) throw Error('SANOFI_CN_DOM_LOADING_TIMEOUT');

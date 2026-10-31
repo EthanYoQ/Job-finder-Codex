@@ -1,7 +1,7 @@
 // Original CSPC DOM collector with a local Chromium tab transport.
 export function createCspcDomRuntime(cua) {
 async function waitCspcDomReady(tab, locator, deadline=Infinity) {
-  // The cloud backend can cap one wait below timeoutMs. Keep the same loading tab.
+  // Individual waits may expire before the overall readiness budget. Keep the same loading tab.
   const until=Math.min(deadline,Date.now()+60000);
   while(Date.now()<until) {
     try {
@@ -9,7 +9,7 @@ async function waitCspcDomReady(tab, locator, deadline=Infinity) {
       await locator.waitFor({state:'visible',timeoutMs:Math.max(1,Math.min(10000,until-Date.now()))});
       return;
     } catch(error) {
-      if(!/Timed out waiting for load|Runtime.evaluate timed out|locator.waitFor\(visible\) timed out/.test(String(error)))throw error;
+      if(error?.name !== 'TimeoutError' && !/Timed out waiting for load|Runtime.evaluate timed out|locator.waitFor\(visible\) timed out/.test(String(error)))throw error;
     }
   }
   throw Error('CSPC_DOM_LOADING_TIMEOUT');
@@ -147,7 +147,7 @@ async function captureCspcApplicationEntry(tab, deadline=Infinity) {
     const navigationDeadline=Math.min(deadline,Date.now()+60000);
     try { await list.goto(entryUrl); }
     catch(error) {
-      if(String(error?.message??error)!=='Timed out waiting for tab '+list.id+' to navigate to '+entryUrl+'.')throw error;
+      if(error?.name !== 'TimeoutError' && String(error?.message??error)!=='Timed out waiting for tab '+list.id+' to navigate to '+entryUrl+'.')throw error;
     }
     await waitCspcDomReady(list,list.playwright.frameLocator('#recruit-content-iframe').locator('.vxe-table--body tbody tr a').first(),navigationDeadline);
     await list.getAXState({emit:false});

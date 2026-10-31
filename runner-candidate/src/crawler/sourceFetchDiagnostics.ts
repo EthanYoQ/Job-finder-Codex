@@ -24,7 +24,7 @@ const lossCodes = new Set(["MERCK_RAW_FIELDS_INVALID", "MERCK_POSTED_DATE_INVALI
   "ORGANON_POSTED_DATE_INVALID", "MISSING_REQUIRED_FIELD", "DUPLICATE_OFFICIAL_ID", "OUT_OF_SCOPE", "UNSAFE_OFFICIAL_URL", "SENSITIVE_OUTPUT"]);
 function reason(value: string) {
   if (reasons.has(value)) return value;
-  const browserCode = /^((?:CSPC|JNJ|LOCAL_CHROMIUM)_[A-Z_]{1,70})(?::|$)/.exec(value);
+  const browserCode = /^((?:CSPC|JNJ|SANOFI_CN|LOCAL_CHROMIUM)_[A-Z_]{1,70})(?::|$)/.exec(value);
   if (browserCode) return browserCode[1];
   if (value.includes("__name is not defined")) return "BROWSER_SERIALIZED_CLOSURE_NAME_MISSING";
   if (/strict mode violation/.test(value)) return "BROWSER_SELECTOR_AMBIGUOUS";
