@@ -172,7 +172,7 @@ type OfficialJsonRenderedTraversalCaptureInput = {
   sourceId: OfficialJsonRenderedTraversalSourceId;
   entryUrl: string;
   signal?: AbortSignal;
-  launchBrowser?: () => Promise<Pick<import("playwright-core").Browser, "newPage" | "close">>;
+  launchBrowser?: () => Promise<Pick<import("playwright-core").Browser, "newContext" | "close">>;
 };
 
 export async function captureOfficialJsonRenderedTraversal(
@@ -226,10 +226,11 @@ async function captureOfficialJsonRenderedTraversalOnce(
   }
   input.signal?.addEventListener("abort", abort, { once: true });
   try {
-    const page = await browser.newPage(input.sourceId === "source-boehringer-ingelheim-china-social"
+    const context = await browser.newContext(input.sourceId === "source-boehringer-ingelheim-china-social"
       ? boehringerBrowserPageOptions()
       : undefined);
     try {
+      const page = await context.newPage();
       const observedAt = new Date().toISOString();
       const pages = input.sourceId === "source-pfizer-china-social"
         ? await capturePfizerRenderedTraversal(page, input.signal)
@@ -245,7 +246,7 @@ async function captureOfficialJsonRenderedTraversalOnce(
       replayOfficialJsonRenderedTraversal(input.sourceId, pages);
       return { observedAt, pages };
     } finally {
-      await page.close().catch(() => undefined);
+      await context.close().catch(() => undefined);
     }
   } finally {
     input.signal?.removeEventListener("abort", abort);
@@ -1068,7 +1069,7 @@ function compareUtf8(left: string, right: string): number {
   return Buffer.from(left, "utf8").compare(Buffer.from(right, "utf8"));
 }
 
-async function launchProductionBrowser(): Promise<Pick<import("playwright-core").Browser, "newPage" | "close">> {
+async function launchProductionBrowser(): Promise<Pick<import("playwright-core").Browser, "newContext" | "close">> {
   const { chromium } = await import("playwright-core");
   const { FORMAL_CHROMIUM_ARGS, FORMAL_CHROMIUM_PATH } = await import("../readiness/formalBrowserPreflight");
   return chromium.launch({
