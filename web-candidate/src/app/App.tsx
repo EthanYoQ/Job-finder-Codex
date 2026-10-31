@@ -152,6 +152,7 @@ function applyClientFilters(
           const keywordMatches =
             normalizedKeyword === "" ||
             normalize(company.companyName).includes(normalizedKeyword) ||
+            normalize(company.pinyin).includes(normalizedKeyword) ||
             normalize(job.title).includes(normalizedKeyword) ||
             normalize(job.officialTitle).includes(normalizedKeyword) ||
             normalize(job.category).includes(normalizedKeyword);
