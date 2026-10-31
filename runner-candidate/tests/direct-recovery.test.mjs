@@ -4,6 +4,7 @@ import { memoryDb } from './memory-db.mjs';
 import { recoverDirectBatches } from '../scripts/recover-direct.ts';
 import { withPortableCrawlLease } from '../src/crawler/portableCrawlLease.ts';
 import { nextP0SchedulerWindow, isSourceDueForScheduledRun } from '../src/crawler/schedule.ts';
+import { hashCanonicalJobKeySet } from '../src/crawler/runtimeBatchIdentity.ts';
 
 test('00:01/12:01 Beijing schedule deduplicates successful sources across retries and day rollover', () => {
   for (const boundary of ['2026-10-30T16:01:00Z', '2026-10-31T04:01:00Z', '2026-10-31T16:01:00Z']) {
@@ -31,10 +32,18 @@ function interrupted(state) {
 
 test('crash after atomic commit finalizes from persisted results without touching jobs', async () => {
   const memory = interrupted('COMMITTED');
+  const currentJobs = [{sourceId:'s',jobKey:'job-b'},{sourceId:'s',jobKey:'job-a'}];
+  memory.db.lifecycleSetEvidenceMember.findMany = async ({where,select}) => {
+    assert.deepEqual(where,{releaseCandidateId:'instabox-synthetic',batchId:'batch',sourceResultId:{in:['result']},setKind:'CURRENT'});
+    assert.deepEqual(select,{sourceId:true,jobKey:true});
+    return currentJobs;
+  };
   await withPortableCrawlLease(memory.db, lease => recoverDirectBatches(memory.db, lease, 'instabox-synthetic', ['s']));
   assert.equal(memory.batches[0].status, 'SUCCESS');
   assert.equal(memory.batches[0].atomicCommittedCount, 1);
   assert.equal(memory.rows[0].atomicCommitState, 'COMMITTED');
+  assert.equal(memory.batches[0].aggregateJobSetSha256,hashCanonicalJobKeySet(currentJobs));
+  assert.notEqual(memory.batches[0].aggregateJobSetSha256,hashCanonicalJobKeySet([]));
   assert.equal(memory.jobWrites(), 0);
 });
 
@@ -49,6 +58,8 @@ test('crash before atomic commit closes only the former fenced attempt and is sa
   assert.equal(memory.rows[0].adapterState, 'SKIPPED');
   assert.equal(memory.rows[0].failureCode, 'DIRECT_WORKER_INTERRUPTED');
   assert.equal(memory.batches[0].status, 'INCOMPLETE');
+  assert.equal(memory.batches[0].aggregateJobSetSha256,hashCanonicalJobKeySet([]));
+  assert.equal(memory.batches[0].finishedAt,memory.batches[0].heartbeatAt);
   assert.equal(memory.jobWrites(), 0);
 });
 

@@ -3,6 +3,7 @@ import { assertPortableCrawlLeaseOwned, type PortableCrawlLease } from "../src/c
 import { createPortableFencedRuntimeDatabase } from "../src/db/portableRuntimeDatabase";
 import { readPersistedBatchSourceResults, terminatePendingSourceResult } from "../src/db/ingestionRepository";
 import { summarizePersistedBatchSourceResults, resolveP0CrawlBatchTerminalStatus } from "../src/crawler/runCrawlBatch";
+import { hashCanonicalJobKeySet } from "../src/crawler/runtimeBatchIdentity";
 
 /** Only this new runner's fenced transactions can be recovered this way. Never replay a commit. */
 export async function recoverDirectBatches(db: PrismaClient, lease: PortableCrawlLease, candidateId: string, sourceIds: string[]) {
@@ -37,8 +38,15 @@ export async function recoverDirectBatches(db: PrismaClient, lease: PortableCraw
     const status = resolveP0CrawlBatchTerminalStatus({ batchKind: "SCHEDULED",
       failedSourceCount: summary.failedSourceCount, atomicFailedSourceCount: summary.atomicFailedSourceCount,
       hasExactSuccessfulDenominator: summary.successfulSourceCount === planned.length });
+    const committedResultIds = rows.filter(result => result.atomicCommitState === "COMMITTED" &&
+      result.completenessState === "VERIFIED").map(result => result.id!);
+    const currentJobs = committedResultIds.length === 0 ? [] : await db.lifecycleSetEvidenceMember.findMany({
+      where: { ...binding, sourceResultId: { in: committedResultIds }, setKind: "CURRENT" },
+      select: { sourceId: true, jobKey: true }
+    });
+    const finishedAt = new Date();
     await fenced.crawlBatch.update({ where: { id: batch.id }, data: {
-      status, finishedAt: new Date(), heartbeatAt: new Date(),
+      status, finishedAt, heartbeatAt: finishedAt, aggregateJobSetSha256: hashCanonicalJobKeySet(currentJobs),
       transportSucceededCount: summary.transportSuccessfulSourceCount, transportFailedCount: summary.transportFailedSourceCount,
       adapterSucceededCount: summary.adapterSuccessfulSourceCount, adapterFailedCount: summary.adapterFailedSourceCount,
       completenessVerifiedCount: summary.completenessVerifiedSourceCount, completenessIncompleteCount: summary.completenessIncompleteSourceCount,
