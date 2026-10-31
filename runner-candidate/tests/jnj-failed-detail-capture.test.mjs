@@ -12,7 +12,7 @@ const detailUrl='https://www.careers.jnj.com/en/jobs/r-123456/synthetic-role/';
 const marker='PRIVATE_DOM_SYNTHETIC_MARKER';
 function fixture(directory,{applyFailure=false,captureFailure=false}={}) {
   const error=Object.assign(Error('locator.waitFor: Timeout 30000ms exceeded.'),{name:'TimeoutError'});
-  const list={async close(){},async url(){return listUrl;},playwright:{
+  const list={async goto(url){assert.equal(url,listUrl);},async close(){},async url(){return listUrl;},playwright:{
     locator:()=>({async waitFor(){},async evaluate(){return {html:'synthetic',htmlLength:9,items:[{text:'Synthetic role',links:[{title:'Synthetic role',url:detailUrl}]}]};},
       async evaluateAll(){return ['team','subteam','country','state','location','type','pattern'].map(name=>({name,selectedOptions:name==='country'?[{text:'China',value:'China'}]:[]}));}}),
     getByRole:role=>({async waitFor(){},async innerText(){return 'Displaying 1 to 1 of 1 matching jobs';},async evaluateAll(){return [];}}),

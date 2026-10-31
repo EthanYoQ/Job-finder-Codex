@@ -48,6 +48,7 @@ test('CSPC, BI, JNJ and Pfizer use original collectors on sandboxed loopback pag
   const requests = [], contexts = [];
   const server = createServer((request, response) => {
     requests.push(request.url);
+    if(request.url==='/slow-image')return;
     response.setHeader('content-type', 'text/html; charset=utf-8');
     response.end(pages[request.url.slice(1)] ?? 'missing synthetic page');
   });
@@ -62,15 +63,16 @@ test('CSPC, BI, JNJ and Pfizer use original collectors on sandboxed loopback pag
         const context = await browser.newContext({ serviceWorkers: 'block' }); contexts.push(context);
         await context.route('**/*', async route => {
           const url = new URL(route.request().url()); let name;
+          if(url.origin===base)return route.continue();
           if (url.hostname === 'ehr.e-cspc.com') {
             if (url.pathname === '/synthetic-list') name = 'cspc-list';
             else if (url.pathname === '/synthetic-detail') name = 'cspc-detail';
-            else return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<iframe style="width:900px;height:600px" id="recruit-content-iframe" src="/${url.search ? 'synthetic-detail' : 'synthetic-list'}"></iframe><div id="login" hidden><h1>登录</h1><label>密码<input type="password"></label></div>` });
+            else return route.fulfill({ contentType: 'text/html; charset=utf-8', body: `<img src="${base}/slow-image"><iframe style="width:900px;height:600px" id="recruit-content-iframe" src="/${url.search ? 'synthetic-detail' : 'synthetic-list'}"></iframe><div id="login" hidden><h1>登录</h1><label>密码<input type="password"></label></div>` });
           } else if (url.hostname === 'campus.51job.com') name = 'bi-list';
           else if (url.hostname === 'www.careers.jnj.com') name = url.pathname === '/en/jobs/' ? 'jnj-list' : 'jnj-detail';
           else if (url.hostname === 'pfizer.wd1.myworkdayjobs.com') name = url.pathname.includes('/job/') ? 'pfizer-detail' : 'pfizer-list';
           else return route.abort();
-          await route.fulfill({ contentType: 'text/html; charset=utf-8', body: await (await fetch(`${base}/${name}`)).text() });
+          await route.fulfill({ contentType: 'text/html; charset=utf-8', body: (await (await fetch(`${base}/${name}`)).text())+(name==='jnj-list'?`<img src="${base}/slow-image">`:'') });
         }); return context;
       } };
     } };
@@ -117,6 +119,6 @@ test('CSPC, BI, JNJ and Pfizer use original collectors on sandboxed loopback pag
     assert.equal(pfizer[0].rawRows.length, 1);
     await pfizerPage.close();
     assert.ok(requests.length >= 6);
-  } finally { await cua?.close(); await new Promise(resolve => server.close(resolve)); }
+  } finally { await cua?.close();server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });
 

@@ -2,6 +2,8 @@ import { createChromiumDom } from './chromium-dom.mjs';
 import { createCspcDomRuntime } from './cspc-browser-runtime.mjs';
 import { createJnjDomRuntime } from './jnj-browser-runtime.mjs';
 import { createAbortableClose } from '../officialHttpRuntimeLimits.ts';
+import {join} from 'node:path';
+import {savePrivateDomFailure} from './private-dom-failure.mjs';
 
 /** Existing source collectors, with a local browser lifetime instead of a tool session. */
 export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date().toISOString()) {
@@ -14,6 +16,14 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
       const result = await runtime.finish(false);
       const provenance = { tool: 'playwright-core-local-chromium', browser: 'chromium', networkCapture: false };
       return { dom: { ...result.dom, ...provenance }, applications: { ...result.applications, ...provenance } };
+    } catch(error) {
+      const cause=error instanceof Error?error:Error('CSPC_DOM_CAPTURE_FAILED');
+      cause.sourceFetchStage='CSPC_DOM_CAPTURE';
+      try {cause.privateCapture=await savePrivateDomFailure({
+        directory:join(process.env.JOBFINDER_STATE_ROOT??'/data/job-finder','diagnostics','cspc'),filePrefix:'cspc-dom',
+        context:{kind:'CSPC_FAILED_DOM_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE'},observe:()=>runtime.failureState()});}
+      catch {cause.privateCaptureUnavailable=true;}
+      throw cause;
     } finally { await runtime.close(); }
   }
   if (sourceId === 'source-johnson-innovative-medicine-social') {

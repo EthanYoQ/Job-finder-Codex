@@ -56,7 +56,18 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     const startedAt = new Date().toISOString();
     deadline = Math.min(Date.parse(startedAt)+30*60*1000,overallDeadline ?? Infinity);
     checkTime();
-    list = await cua.createBrowserTab('cdp',listUrl(1));
+    list = await cua.createBrowserTab('cdp');
+    try { await list.goto(listUrl(1)); }
+    catch(error) {
+      const cause=error instanceof Error?error:Error('JNJ_LIST_NAVIGATION_FAILED');
+      cause.sourceFetchStage='JNJ_LIST_NAVIGATION';cause.sourcePage=1;
+      try {cause.privateCapture=await savePrivateDomFailure({directory:failureDirectory,filePrefix:'jnj-list-1',
+        context:{kind:'JNJ_FAILED_LIST_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE',sourceFetchStage:cause.sourceFetchStage,page:1},
+        observe:()=>list.playwright.evaluate(()=>({url:location.href,title:document.title,readyState:document.readyState,
+          navigationStatus:performance.getEntriesByType('navigation')[0]?.responseStatus??null,html:document.documentElement.outerHTML}))});}
+      catch {cause.privateCaptureUnavailable=true;}
+      throw cause;
+    }
     detail = await cua.createBrowserTab('cdp');
     return {startedAt,deadline};
   }

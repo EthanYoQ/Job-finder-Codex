@@ -5,7 +5,6 @@ async function waitCspcDomReady(tab, locator, deadline=Infinity) {
   const until=Math.min(deadline,Date.now()+60000);
   while(Date.now()<until) {
     try {
-      await tab.playwright.waitForLoadState({state:'load',timeoutMs:Math.min(10000,until-Date.now())});
       await locator.waitFor({state:'visible',timeoutMs:Math.max(1,Math.min(10000,until-Date.now()))});
       return;
     } catch(error) {
@@ -194,6 +193,8 @@ async function captureCspcApplicationEntry(tab, deadline=Infinity) {
   async function failureState() {
     if(!list) return {readError:'CSPC_LIST_HANDLE_UNAVAILABLE_AFTER_START_FAILURE'};
     const value={};
+    try { value.navigation=await list.navigationInfo?.(); } catch {}
+    try { value.page=await list.playwright.evaluate(()=>({url:location.href,title:document.title,readyState:document.readyState,html:document.documentElement.outerHTML})); } catch {}
     try { value.url=await list.url(); } catch(error) { value.urlReadError=String(error?.message??error); }
     try { value.domSnapshot=await list.playwright.domSnapshot(); } catch(error) { value.domReadError=String(error?.message??error); }
     return value;

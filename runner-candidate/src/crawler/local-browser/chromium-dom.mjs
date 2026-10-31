@@ -50,7 +50,7 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
     let navigationInfo;
     const tab = {id, url: async () => page.url(), navigationInfo: async () => navigationInfo,
       goto: async (url, config) => {
-        const response=await page.goto(url, options(config));
+        const response=await page.goto(url, {waitUntil:'domcontentloaded',...options(config)});
         navigationInfo=response?{httpStatus:response.status(),retryAfter:await response.headerValue('retry-after')}:undefined;
         return response;
       },

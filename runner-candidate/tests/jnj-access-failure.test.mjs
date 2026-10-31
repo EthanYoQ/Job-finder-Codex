@@ -30,6 +30,7 @@ test('local JNJ navigation recognizes 429/managed challenge before selector wait
     for(const path of ['/rate','/challenge','/normal']) {
       let waits=0;
       const runtime=createJnjDomRuntime({async createBrowserTab(name,url){const tab=await cua.createBrowserTab(name,url===undefined?undefined:base+path);
+        const goto=tab.goto;tab.goto=(_url,options)=>goto(base+path,options);
         const locator=tab.playwright.locator;tab.playwright.locator=(...args)=>{const result=locator(...args),wait=result.waitFor;result.waitFor=async options=>{waits++;return wait(options);};return result;};return tab;}},{failureDirectory:directory});
       await runtime.start();const result=await runtime.readList();
       if(path==='/normal'){assert.equal(result.error?.transportFailure,undefined);assert.equal(waits,1);}

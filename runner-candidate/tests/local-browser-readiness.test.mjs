@@ -11,14 +11,15 @@ const failureDirectory=await mkdtemp(join(tmpdir(),'readiness-private-diagnostic
 function fixture(kind,{waitError=timeout(),navigationError,onWait=()=>{}}={}) {
   let waitCalls=0,navigations=0,url,bodyReads=0;
   const terminal={rowCount:1,disabledNextCount:1,disabledJumpNextCount:1,enabledNextCount:0,loadMoreCount:0};
-  const locator={first(){return this;},async waitFor(options){assert(options.timeoutMs>0&&options.timeoutMs<=10000);},
+  const wait=options=>{assert(options.timeoutMs>0&&options.timeoutMs<=10000);onWait();if(++waitCalls===1)throw waitError;};
+  const locator={first(){return this;},async waitFor(options){if(kind==='cspc')wait(options);},
     async evaluate(){return kind==='sanofi'?{searchResultsHtml:'<section>synthetic</section>',nextDisabled:false}:
       ++bodyReads===1?{keyword:'',selectedFilters:[]}:bodyReads===2?terminal:'<html>synthetic</html>';},
     async evaluateAll(){return [{index:0,title:'Synthetic role',text:'Synthetic role'}];}};
   const tab={id:'local-test',async goto(value){url=value;navigations++;if(navigationError)throw navigationError;},
     async getAXState(){return 'synthetic';},async url(){return url;},async close(){},
     playwright:{frameLocator(){return {locator:()=>locator};},locator:()=>locator,
-      async waitForLoadState(options){assert(options.timeoutMs>0&&options.timeoutMs<=10000);onWait();if(++waitCalls===1)throw waitError;},
+      async waitForLoadState(options){assert.notEqual(kind,'cspc','CSPC must wait for its required DOM, not unrelated page resources');wait(options);},
       async evaluate(){return '<html>synthetic</html>';},async domSnapshot(){return 'synthetic';}}};
   const cua={async createBrowserTab(_browser,value){if(value!==undefined)await tab.goto(value);return tab;}};
   const runtime=kind==='sanofi'?createSanofiDomRuntime(cua,{failureDirectory}):createCspcDomRuntime(cua);
