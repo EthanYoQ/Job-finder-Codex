@@ -1,0 +1,47 @@
+{
+  "name": "job-search",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "crawl": "tsx scripts/direct-round.ts --run",
+    "check:routes": "tsx scripts/direct-round.ts --check",
+    "test:offline": "node --import ./scripts/local-check-loader.mjs --test tests/direct-round.test.mjs tests/direct-recovery.test.mjs",
+    "test:browser": "node --import ./scripts/local-check-loader.mjs --test tests/hybrid-browser.test.mjs tests/official-dom-browser.test.mjs"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.29.7",
+    "@prisma/client": "^6.19.3",
+    "cheerio": "^1.2.0",
+    "pg": "8.16.3",
+    "playwright-core": "1.61.1",
+    "prisma": "^6.0.0",
+    "tsx": "^4.20.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@tavily/core": "^0.7.6",
+    "@types/node": "^22.0.0",
+    "@types/pg": "8.15.5",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.3.0",
+    "jsdom": "^25.0.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  },
+  "overrides": {
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.0"
+    }
+  }
+}

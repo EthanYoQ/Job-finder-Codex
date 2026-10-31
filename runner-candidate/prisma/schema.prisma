@@ -1,0 +1,990 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  ENTRY_FOUND_PENDING_ADAPTER
+  VERIFIED_SCRAPABLE
+  TEMP_UNSCRAPABLE
+  EXCLUDED
+}
+
+enum SourceKind {
+  SOCIAL
+  CAMPUS
+}
+
+enum AtsKind {
+  OFFICIAL_HTML
+  OFFICIAL_JSON
+  MOKA
+  BEISEN_ZHIYE
+  WORKDAY
+  HOTJOB_WECRUIT
+  SUCCESSFACTORS
+  REDSEA
+  BROWSER_FALLBACK
+  UNKNOWN
+}
+
+enum CrawlStatus {
+  RUNNING
+  INCOMPLETE
+  ABORTED
+  SUCCESS
+  FAILED
+}
+
+enum ReleaseCandidateStatus {
+  TRUST_FREEZE
+  BUILDING
+  READY_FOR_QA
+  QA_FAILED
+  RELEASED
+  INVALIDATED
+}
+
+enum CrawlBatchKind {
+  JOB_VERIFICATION
+  FULL_RELEASE
+  SCHEDULED
+  MANUAL_SOURCE
+  BASELINE
+}
+
+enum TransportState {
+  PENDING
+  SUCCEEDED
+  FAILED
+  BLOCKED
+  SKIPPED
+}
+
+enum AdapterState {
+  PENDING
+  SUCCEEDED
+  FAILED
+  BLOCKED
+  SKIPPED
+}
+
+enum AtomicCommitState {
+  PENDING
+  COMMITTED
+  ROLLED_BACK
+  NOT_ATTEMPTED
+  FAILED
+}
+
+enum SourceFailureCategory {
+  TEMPORARY_OFFICIAL_SOURCE_FAILURE
+  SOURCE_TIME_LIMIT_REACHED
+  OFFICIAL_SOURCE_REVIEW_REQUIRED
+  EVIDENCE_PERSISTENCE_FAILURE
+  UNCLASSIFIED_SOURCE_FAILURE
+}
+
+enum SourceFailureDiagnosticCode {
+  OFFICIAL_HTTP_TIMEOUT
+  OFFICIAL_NETWORK_ERROR
+  OFFICIAL_BROWSER_SESSION_ERROR
+  OFFICIAL_PAGINATION_SNAPSHOT_DRIFT
+  OFFICIAL_HTTP_429
+  OFFICIAL_HTTP_502
+  OFFICIAL_HTTP_503
+  OFFICIAL_HTTP_504
+  OFFICIAL_HTTP_5XX
+  SOURCE_ATTEMPT_TIMEOUT
+  FETCH_EXECUTION_FAILED
+  FETCH_FAILED_CLOSED
+  ADAPTER_EXECUTION_FAILED
+  ADAPTER_FAILED_CLOSED
+  EVIDENCE_PROCESSING_FAILED
+  BATCH_ABORTED_BEFORE_SOURCE_TERMINAL
+}
+
+enum EvidenceArtifactKind {
+  OFFICIAL_COMPANY_PAGE
+  REDIRECT_TRACE
+  ATS_PAGE
+  ATS_API_RESPONSE
+  PAGINATION_PAGE
+  SCREENSHOT
+  DEDUPE_LEDGER
+  ORACLE_RESULT
+  COMMAND_OUTPUT
+}
+
+enum LossStage {
+  PARSE
+  VALIDATION
+  NORMALIZATION
+  DEDUPE
+}
+
+enum PaginationTermination {
+  CONTINUE
+  NEXT_ABSENT
+  DECLARED_TOTAL_REACHED
+  EMPTY_PAGE
+  REPEATED_CURSOR
+  MAX_PAGE_LIMIT
+  FAILED
+  ABORTED
+}
+
+enum PaginationAnomalyCode {
+  REPEATED_RESPONSE_FINGERPRINT
+  REPEATED_JOB_ID_SET_WITH_NEXT
+  CURSOR_NOT_ADVANCING
+  OFFSET_NOT_ADVANCING
+  INTERMEDIATE_EMPTY_PAGE
+  TOTAL_CHANGED
+  MAX_PAGES_WITH_NEXT
+  EXPECTED_CHANNEL_NOT_VISITED
+  RETURNED_PAGE_MISMATCH
+  RETURNED_PAGE_SIZE_MISMATCH
+  INTERMEDIATE_SHORT_PAGE
+  DECLARED_CAPACITY_CONTRADICTION
+  RAW_ID_OVERLAP_ACROSS_PAGES
+}
+
+enum TransportAttemptKind {
+  DIRECT_HTTP
+  BROWSER_SESSION
+}
+
+enum TransportAttemptOutcome {
+  FAILED
+  SUCCEEDED
+}
+
+enum TransportAttemptCode {
+  HCM_DIRECT_FAILED
+  HCM_BROWSER_SESSION_FAILED
+  HCM_BROWSER_ENTRY_FAILED
+  HCM_BROWSER_COUNT_FAILED
+  HCM_BROWSER_LIST_FAILED
+  HCM_BROWSER_SUCCEEDED
+  JNJ_DIRECT_FAILED
+  JNJ_BROWSER_SESSION_FAILED
+  JNJ_BROWSER_FETCH_FAILED
+  JNJ_BROWSER_SUCCEEDED
+}
+
+enum RequiredJobField {
+  COMPANY      @map("company")
+  TITLE        @map("title")
+  OFFICIAL_URL @map("officialUrl")
+  LOCATION     @map("location")
+}
+
+enum CompletenessStatus {
+  PENDING
+  VERIFIED
+  NEEDS_MANUAL_COMPLETENESS_REVIEW
+  INCOMPLETE
+  FAILED
+}
+
+enum CompletenessEvidenceKind {
+  OFFICIAL_TOTAL_COUNT
+  OFFICIAL_TOTAL_PAGES
+  COMPLETE_PAGE_TRAVERSAL
+  WEAK_MANUAL_SAMPLE
+  FETCH_FAILURE
+}
+
+enum JobCategory {
+  SALES                   @map("销售")
+  MARKETING               @map("市场")
+  BUSINESS                @map("商务")
+  CHANNEL                 @map("渠道")
+  KA                      @map("KA")
+  MEDICAL_AFFAIRS         @map("医学事务")
+  CLINICAL_OPERATIONS     @map("临床运营")
+  REGULATORY              @map("注册")
+  DRUG_SAFETY             @map("药物警戒/安全")
+  RESEARCH_SCIENCE        @map("研发/科学")
+  MANUFACTURING_ENGINEERING @map("生产/工程")
+  QUALITY                 @map("质量")
+  MARKET_ACCESS_GOVERNMENT @map("市场准入/政府事务")
+  DATA_IT                 @map("数据/IT")
+  SUPPLY_CHAIN_PROCUREMENT @map("供应链/采购")
+  CORPORATE_FUNCTIONS     @map("职能")
+  OTHER                   @map("其他")
+}
+
+enum JobLifecycleStatus {
+  ACTIVE
+  SUSPECTED_OFFLINE
+  OFFLINE
+}
+
+enum LifecycleSetKind {
+  CURRENT
+  GRACE
+  VISIBLE
+}
+
+enum FeedbackStatus {
+  OPEN
+  REVIEWED
+  CLOSED
+  SPAM
+}
+
+enum AdminRole {
+  ADMIN
+}
+
+enum AdminSessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum ManualCrawlStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum ManualCrawlEventActor {
+  ADMIN
+  SYSTEM
+}
+
+enum ManualCrawlEventType {
+  ENQUEUED
+  CLAIMED
+  LEASE_RECLAIMED
+  HEARTBEAT
+  SUCCEEDED
+  FAILED
+}
+
+enum ManualCrawlFailureCode {
+  MANUAL_CRAWL_FAILED
+  SOURCE_CRAWL_FAILED
+  DUPLICATE_ACTIVE_REQUEST
+}
+
+enum AiEnrichmentStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum AiEnrichmentAttemptOutcome {
+  RUNNING
+  SUCCEEDED
+  RETRY_QUEUED
+  FAILED
+  STALE_REJECTED
+}
+
+model Company {
+  id                  String              @id @default(cuid())
+  officialChineseName  String              @unique
+  officialWebsiteUrl   String
+  pinyinName          String
+  inclusionReason     String
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  sources             RecruitmentSource[]
+  jobs                Job[]
+
+  @@index([pinyinName])
+}
+
+model RecruitmentSource {
+  id                       String              @id @default(cuid())
+  companyId                String
+  kind                     SourceKind
+  atsKind                  AtsKind
+  officialEntryUrl         String
+  officialChainEvidenceUrl String
+  campusEntryUrl           String?
+  status                   VerificationStatus  @default(UNVERIFIED)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  company                  Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  crawlObservations        CrawlObservation[]
+  batchResults             CrawlBatchSourceResult[]
+  evidenceArtifacts        EvidenceArtifact[]
+  paginationEvidence       PaginationEvidence[]
+  lossLedgerEntries        LossLedgerEntry[]
+  jobs                     Job[]
+  manualCrawlRequests      ManualCrawlRequest[]
+  transportAttempts        TransportAttemptEvidence[]
+
+  @@index([companyId, kind])
+  @@index([status])
+}
+
+model ReleaseCandidate {
+  id                       String                 @id @default(cuid())
+  goalId                   String
+  version                  Int
+  commitSha                String
+  dbSnapshotHash           String
+  schemaHash               String
+  migrationVersion         String
+  rosterHash               String
+  sourcePlanHash           String
+  sourceConfigHash         String
+  adapterBundleHash        String
+  sourceTreeHash           String
+  runtimeTreeHash          String
+  oracleVersion            String
+  minimumStableCompanyCount Int                    @default(45)
+  releaseQaEvidenceSha256  String?
+  status                   ReleaseCandidateStatus @default(TRUST_FREEZE)
+  createdAt                DateTime               @default(now())
+  finalizedAt              DateTime?
+  batches                  CrawlBatch[]
+  observations             CrawlObservation[]
+  sourceResults            CrawlBatchSourceResult[]
+  evidenceArtifacts        EvidenceArtifact[]
+  paginationEvidence       PaginationEvidence[]
+  lossLedgerEntries        LossLedgerEntry[]
+  transportAttempts        TransportAttemptEvidence[]
+
+  @@unique([goalId, version])
+  @@index([commitSha])
+  @@index([status, createdAt])
+}
+
+model CrawlBatch {
+  id                          String             @id @default(cuid())
+  releaseCandidateId          String?
+  commitSha                   String?
+  rosterSha256                String?
+  sourcePlanSha256            String?
+  sourceConfigSha256          String?
+  adapterBundleSha256         String?
+  kind                        CrawlBatchKind?
+  manualCrawlRequestId        String?
+  plannedSourceIds            Json?
+  plannedSourceSetSha256      String?
+  plannedSourceCount          Int?
+  transportSucceededCount     Int?
+  transportFailedCount        Int?
+  adapterSucceededCount       Int?
+  adapterFailedCount          Int?
+  completenessVerifiedCount   Int?
+  completenessIncompleteCount Int?
+  atomicCommittedCount        Int?
+  atomicFailedCount           Int?
+  failedSourceCount           Int?
+  blockedSourceCount          Int?
+  skippedSourceCount          Int?
+  ownerId                     String?
+  heartbeatAt                 DateTime?
+  aggregateJobSetSha256       String?
+  startedAt                   DateTime           @default(now())
+  finishedAt                  DateTime?
+  status                      CrawlStatus
+  releaseCandidate            ReleaseCandidate?  @relation(fields: [releaseCandidateId], references: [id], onDelete: Restrict)
+  observations                CrawlObservation[]
+  sourceResults               CrawlBatchSourceResult[]
+  evidenceArtifacts           EvidenceArtifact[]
+  paginationEvidence          PaginationEvidence[]
+  lossLedgerEntries           LossLedgerEntry[]
+  transportAttempts           TransportAttemptEvidence[]
+  manualCrawlRequests         ManualCrawlRequest[] @relation("ManualRequestTerminalBatch")
+  manualCrawlRequest          ManualCrawlRequest?  @relation("ManualRequestExecutionBatch", fields: [manualCrawlRequestId], references: [id], onDelete: Restrict)
+
+  @@unique([id, releaseCandidateId])
+  @@index([releaseCandidateId, startedAt])
+  @@index([status, startedAt])
+  @@index([ownerId, heartbeatAt])
+}
+
+model CrawlBatchSourceResult {
+  id                           String              @id @default(cuid())
+  releaseCandidateId           String
+  batchId                      String
+  sourceId                     String
+  transportState               TransportState
+  adapterState                 AdapterState
+  completenessState            CompletenessStatus
+  atomicCommitState            AtomicCommitState
+  sourceConfigHash             String
+  adapterVersion               String
+  officialEntryId              String?
+  officialSurfaceIds           String[]
+  officialChannelIds           String[]
+  startedAt                    DateTime
+  finishedAt                   DateTime?
+  rawCount                     Int
+  parsedCount                  Int
+  validCount                   Int
+  normalizedCount              Int
+  dedupeInputCount             Int
+  dedupeOutputCount            Int
+  parseDiscardCount            Int
+  validationDiscardCount       Int
+  normalizationDiscardCount    Int
+  dedupeDiscardCount           Int
+  collisionCount               Int
+  discardCount                 Int
+  expectedJobCount             Int?
+  expectedEvidenceKind         CompletenessEvidenceKind?
+  expectedSurfaceSha256        String?
+  visitedSurfaceSha256         String?
+  expectedChannelSha256        String?
+  visitedChannelSha256         String?
+  canonicalCurrentJobSetSha256 String?
+  canonicalGraceJobSetSha256   String?
+  canonicalVisibleJobSetSha256 String?
+  blockerCode                  String?
+  blockerReason                String?
+  failureCategory              SourceFailureCategory?
+  failureDiagnosticCode        SourceFailureDiagnosticCode?
+  fetchAttemptCount            Int?
+  retryCount                   Int?
+  retryReasonCodes             String[]            @default([])
+  failureCode                  String?
+  failureReason                String?
+  createdAt                    DateTime            @default(now())
+  releaseCandidate             ReleaseCandidate    @relation(fields: [releaseCandidateId], references: [id], onDelete: Restrict)
+  batch                        CrawlBatch           @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  source                       RecruitmentSource    @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  paginationEvidence           PaginationEvidence[]
+  lossLedgerEntries            LossLedgerEntry[]
+  evidenceArtifacts            EvidenceArtifact[]
+  observations                 CrawlObservation[]
+  transportAttempts            TransportAttemptEvidence[]
+  lifecycleSetMembers          LifecycleSetEvidenceMember[]
+  canonicalOutputSetSha256     String?
+  adapterInputCount            Int?
+  adapterOutputCount           Int?
+  adapterLossCount             Int?
+  adapterCollisionGroupCount   Int?
+  adapterReconciliationSha256  String?
+  collisionLedgerSha256        String?
+  completenessCertificate      Json?
+  completenessCertificateSha256 String?
+  baselinePreviousSourceResultId String?
+  baselinePreviousJobCount       Int?
+  baselineChangeReason           String?
+
+  @@unique([batchId, sourceId])
+  @@unique([id, releaseCandidateId, batchId, sourceId])
+  @@index([releaseCandidateId, sourceId])
+  @@index([sourceId, finishedAt])
+}
+
+model LifecycleSetEvidenceMember {
+  id                 String             @id @default(cuid())
+  releaseCandidateId String
+  batchId            String
+  sourceId           String
+  sourceResultId     String
+  setKind            LifecycleSetKind
+  jobKey             String
+  jobKeySha256       String
+  lifecycleStatus    JobLifecycleStatus
+  missingCount       Int
+  createdAt          DateTime           @default(now())
+  sourceResult       CrawlBatchSourceResult @relation(fields: [sourceResultId, releaseCandidateId, batchId, sourceId], references: [id, releaseCandidateId, batchId, sourceId], onDelete: Restrict)
+
+  @@unique([releaseCandidateId, batchId, sourceId, sourceResultId, setKind, jobKey])
+  @@index([sourceResultId, setKind])
+  @@index([jobKeySha256])
+}
+
+model CrawlObservation {
+  id                       String            @id @default(cuid())
+  sourceId                 String
+  batchId                  String?
+  releaseCandidateId       String?
+  sourceResultId           String?
+  commitSha                String?
+  rosterSha256             String?
+  sourcePlanSha256         String?
+  sourceConfigSha256       String?
+  adapterVersion           String?
+  observedFrom             DateTime?
+  observedTo               DateTime?
+  crawledAt                DateTime          @default(now())
+  successful               Boolean
+  transportSucceeded       Boolean?
+  adapterSucceeded         Boolean?
+  completenessVerified     Boolean?
+  atomicCommitSucceeded    Boolean?
+  structuredJobCount       Int               @default(0)
+  rawCount                  Int?
+  parsedCount               Int?
+  validCount                Int?
+  normalizedCount           Int?
+  dedupeInputCount          Int?
+  dedupeOutputCount         Int?
+  parseDiscardCount         Int?
+  validationDiscardCount    Int?
+  normalizationDiscardCount Int?
+  dedupeDiscardCount        Int?
+  discardCount              Int?
+  collisionCount            Int?
+  expectedJobCount          Int?
+  completenessStatus       CompletenessStatus?
+  completenessEvidenceKind CompletenessEvidenceKind?
+  completenessEvidenceUrl  String?
+  completenessBlockerReason String?
+  totalPages               Int?
+  pageSize                 Int?
+  pagesVisited             Int?
+  canonicalRawSha256       String?
+  canonicalOutputSha256    String?
+  canonicalGraceSha256     String?
+  canonicalVisibleSha256   String?
+  expectedSurfaceSha256    String?
+  visitedSurfaceSha256     String?
+  expectedChannelSha256    String?
+  visitedChannelSha256     String?
+  paginationTraceSha256    String?
+  artifactRedactionCommitmentSha256 String?
+  officialEvidenceArtifactId String?
+  stableRequiredFields     RequiredJobField[]
+  failureReason            String?
+  source                   RecruitmentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  batch                    CrawlBatch?        @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  releaseCandidate         ReleaseCandidate?  @relation(fields: [releaseCandidateId], references: [id], onDelete: Restrict)
+  sourceResult             CrawlBatchSourceResult? @relation(fields: [sourceResultId], references: [id], onDelete: Restrict)
+  officialEvidenceArtifact EvidenceArtifact?   @relation("ObservationOfficialEvidence", fields: [officialEvidenceArtifactId], references: [id], onDelete: Restrict)
+
+  @@index([sourceId, crawledAt])
+  @@index([releaseCandidateId, sourceId])
+  @@index([batchId, sourceId])
+  @@index([sourceResultId])
+  @@index([officialEvidenceArtifactId])
+  @@index([successful])
+}
+
+model EvidenceArtifact {
+  id                   String               @id @default(cuid())
+  releaseCandidateId   String
+  batchId              String
+  sourceId             String
+  sourceResultId       String
+  channelId            String?
+  kind                 EvidenceArtifactKind
+  requestedUrl         String?
+  finalUrl             String?
+  httpStatus           Int?
+  contentType          String?
+  capturedAt           DateTime
+  sha256               String
+  byteCount            Int
+  path                 String               @unique
+  extractorLocator     String
+  captureToolName      String
+  captureToolVersion   String
+  redactionCommitmentSha256 String
+  releaseCandidate     ReleaseCandidate     @relation(fields: [releaseCandidateId], references: [id], onDelete: Restrict)
+  batch                CrawlBatch           @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  source               RecruitmentSource    @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  sourceResult         CrawlBatchSourceResult @relation(fields: [sourceResultId], references: [id], onDelete: Restrict)
+  officialObservations CrawlObservation[]    @relation("ObservationOfficialEvidence")
+  paginationEvidence   PaginationEvidence[]
+  transportAttemptRefs TransportAttemptArtifact[]
+
+  @@index([sha256])
+  @@unique([id, releaseCandidateId, batchId, sourceId, sourceResultId])
+  @@index([releaseCandidateId, batchId, sourceId])
+  @@index([sourceId, capturedAt])
+  @@index([sourceResultId, channelId])
+}
+
+model PaginationEvidence {
+  id                     String                @id @default(cuid())
+  releaseCandidateId     String
+  batchId                String
+  sourceId               String
+  sourceResultId         String
+  artifactId             String
+  sequence               Int
+  channelId              String?
+  requestedCursor        String?
+  returnedCursor         String?
+  requestedOffset        Int?
+  returnedOffset         Int?
+  requestedPage          Int?
+  returnedPage           Int?
+  requestedPageSize      Int?
+  returnedPageSize       Int?
+  responseFingerprintSha256 String
+  rawJobIdSetSha256      String
+  validJobIdSetSha256    String
+  declaredTotal          Int?
+  declaredCount          Int?
+  declaredPages          Int?
+  nextPageSignalBefore   String?
+  nextPageSignalAfter    String?
+  termination            PaginationTermination
+  anomalyCodes           PaginationAnomalyCode[]
+  capturedAt             DateTime
+  releaseCandidate       ReleaseCandidate      @relation(fields: [releaseCandidateId], references: [id], onDelete: Restrict)
+  batch                  CrawlBatch             @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  source                 RecruitmentSource      @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  sourceResult           CrawlBatchSourceResult @relation(fields: [sourceResultId], references: [id], onDelete: Restrict)
+  artifact               EvidenceArtifact       @relation(fields: [artifactId], references: [id], onDelete: Restrict)
+
+  @@index([releaseCandidateId, batchId, sourceId])
+  @@unique([sourceResultId, sequence])
+  @@index([sourceResultId, channelId, requestedPage])
+  @@index([artifactId])
+}
+
+model TransportAttemptEvidence {
+  id                       String                  @id
+  releaseCandidateId       String
+  batchId                  String
+  sourceId                 String
+  sourceResultId           String
+  sequence                 Int
+  transport                TransportAttemptKind
+  outcome                  TransportAttemptOutcome
+  code                     TransportAttemptCode
+  capturedAt               DateTime
+  evidenceCommitmentSha256 String
+  pageTraceSha256          String
+  lossLedgerSha256         String
+  paginationEvaluationSha256 String
+  details                  Json
+  releaseCandidate         ReleaseCandidate       @relation(fields: [releaseCandidateId], references: [id], onDelete: Restrict)
+  batch                    CrawlBatch              @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  source                   RecruitmentSource      @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  sourceResult             CrawlBatchSourceResult @relation(fields: [sourceResultId], references: [id], onDelete: Restrict)
+  artifactRefs             TransportAttemptArtifact[]
+
+  @@unique([sourceResultId, sequence])
+  @@unique([id, releaseCandidateId, batchId, sourceId, sourceResultId])
+  @@index([releaseCandidateId, batchId, sourceId])
+}
+
+model TransportAttemptArtifact {
+  attemptId         String
+  artifactId        String
+  releaseCandidateId String
+  batchId           String
+  sourceId          String
+  sourceResultId    String
+  attempt           TransportAttemptEvidence @relation(fields: [attemptId, releaseCandidateId, batchId, sourceId, sourceResultId], references: [id, releaseCandidateId, batchId, sourceId, sourceResultId], onDelete: Restrict)
+  artifact          EvidenceArtifact @relation(fields: [artifactId, releaseCandidateId, batchId, sourceId, sourceResultId], references: [id, releaseCandidateId, batchId, sourceId, sourceResultId], onDelete: Restrict)
+
+  @@id([attemptId, artifactId])
+  @@index([artifactId])
+}
+
+model LossLedgerEntry {
+  id                   String                 @id @default(cuid())
+  releaseCandidateId   String
+  batchId              String
+  sourceId             String
+  sourceResultId       String
+  stage                LossStage
+  reason               String
+  rawLocator           String
+  details              Json
+  candidateKey         String?
+  winnerKey            String?
+  recordedAt           DateTime               @default(now())
+  releaseCandidate     ReleaseCandidate       @relation(fields: [releaseCandidateId], references: [id], onDelete: Restrict)
+  batch                CrawlBatch              @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  source               RecruitmentSource       @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  sourceResult         CrawlBatchSourceResult  @relation(fields: [sourceResultId], references: [id], onDelete: Restrict)
+
+  @@index([releaseCandidateId, batchId, sourceId])
+  @@index([sourceResultId, stage])
+  @@index([candidateKey])
+  @@index([winnerKey])
+}
+
+model Job {
+  id                    String             @id @default(cuid())
+  companyId             String
+  sourceId              String
+  dedupeKey             String
+  sourceJobId           String?
+  officialTitle         String
+  auxiliaryChineseTitle String?
+  officialUrl           String
+  listUrl               String?
+  locationRaw           String
+  city                  String
+  cities                String[]           @default([])
+  category              JobCategory
+  secondaryCategory     JobCategory?
+  classificationConfidence Float?
+  classificationRationale  String?
+  classificationModelVersion String?
+  classificationHardRuleHit String?
+  classificationHardRuleHits String[]          @default([])
+  classificationProvider    String?
+  classificationPromptVersion String?
+  classificationInputHash   String?
+  aiReviewRequired          Boolean             @default(false)
+  humanCorrectedCategory   JobCategory?
+  humanCorrectedSecondaryCategory JobCategory?
+  humanCorrectionReason    String?
+  humanCorrectedAt         DateTime?
+  humanCorrectedTitle      String?
+  humanTitleCorrectionReason String?
+  humanTitleCorrectedAt    DateTime?
+  officialPublishedAt   DateTime?
+  firstSeenAt           DateTime           @default(now())
+  lastSeenAt            DateTime           @default(now())
+  sourceChangedAt       DateTime?
+  missingSuccessCount   Int                @default(0)
+  lifecycleStatus       JobLifecycleStatus @default(ACTIVE)
+  visibleInFrontend     Boolean            @default(true)
+  isNew                 Boolean            @default(false)
+  company               Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  source                RecruitmentSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  aiEnrichmentRequests  AiEnrichmentRequest[]
+  aiEnrichmentResults   AiEnrichmentResult[]
+
+  @@unique([sourceId, dedupeKey])
+  @@index([city, category])
+  @@index([companyId, lifecycleStatus])
+  @@index([visibleInFrontend, lifecycleStatus])
+  @@index([firstSeenAt])
+}
+
+model AiEnrichmentRequest {
+  id                       String             @id @default(cuid())
+  jobId                    String
+  officialTitleSnapshot    String
+  normalizedOfficialTitle  String
+  inputHash                String
+  provider                 String
+  modelVersion             String
+  promptVersion            String
+  targetLanguage           String
+  status                   AiEnrichmentStatus @default(QUEUED)
+  ownerId                  String?
+  heartbeatAt              DateTime?
+  leaseExpiresAt           DateTime?
+  attemptCount             Int                @default(0)
+  maxAttempts              Int                @default(3)
+  failureCode              String?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @default(now()) @updatedAt
+  startedAt                DateTime?
+  finishedAt               DateTime?
+  job                      Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  attempts                 AiEnrichmentAttempt[]
+  result                   AiEnrichmentResult?
+
+  @@unique([jobId, inputHash])
+  @@unique([id, inputHash])
+  @@unique([id, inputHash, jobId])
+  @@index([status, createdAt])
+  @@index([ownerId, leaseExpiresAt])
+}
+
+model AiEnrichmentAttempt {
+  id           String                     @id @default(cuid())
+  requestId    String
+  sequence     Int
+  inputHash    String
+  ownerId      String
+  outcome      AiEnrichmentAttemptOutcome
+  failureCode  String?
+  startedAt    DateTime                   @default(now())
+  finishedAt   DateTime?
+  request      AiEnrichmentRequest        @relation(fields: [requestId, inputHash], references: [id, inputHash], onDelete: Restrict, map: "AiEnrichmentAttempt_request_input_tuple_fkey")
+
+  @@unique([requestId, sequence])
+  @@index([requestId, startedAt])
+}
+
+model AiTranslationCache {
+  cacheKey                String               @id
+  normalizedOfficialTitle String
+  provider                String
+  modelVersion            String
+  promptVersion           String
+  targetLanguage          String
+  auxiliaryChineseTitle   String
+  createdAt               DateTime             @default(now())
+  results                 AiEnrichmentResult[]
+
+  @@unique([normalizedOfficialTitle, provider, modelVersion, promptVersion, targetLanguage], map: "AiTranslationCache_identity_key")
+}
+
+model AiEnrichmentResult {
+  id                       String              @id @default(cuid())
+  requestId                String              @unique
+  jobId                    String
+  inputHash                String
+  primaryCategory          JobCategory
+  secondaryCategory        JobCategory?
+  confidence               Float
+  safeRationale            String
+  provider                 String
+  modelVersion             String
+  promptVersion            String
+  hardRuleHits             String[]            @default([])
+  officialTitleSnapshot    String
+  auxiliaryChineseTitle    String?
+  translationCacheKey      String?
+  requiresReview           Boolean             @default(false)
+  createdAt                DateTime            @default(now())
+  request                  AiEnrichmentRequest @relation(fields: [requestId, inputHash, jobId], references: [id, inputHash, jobId], onDelete: Restrict, map: "AiEnrichmentResult_request_input_job_tuple_fkey")
+  job                      Job                 @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  translationCache         AiTranslationCache? @relation(fields: [translationCacheKey], references: [cacheKey], onDelete: Restrict)
+
+  @@unique([requestId, inputHash])
+  @@unique([requestId, inputHash, jobId])
+  @@index([jobId, createdAt])
+  @@index([requiresReview, createdAt])
+}
+
+model Feedback {
+  id          String         @id @default(cuid())
+  companyId   String?
+  jobId       String?
+  issueType   String
+  description String
+  contact     String?
+  ip          String
+  userAgent   String
+  status      FeedbackStatus @default(OPEN)
+  createdAt   DateTime       @default(now())
+  closedAt    DateTime?
+
+  @@index([status, createdAt])
+}
+
+model RecommendedCompany {
+  id                  String         @id @default(cuid())
+  companyName         String
+  officialWebsiteUrl   String?
+  recruitmentEntryUrl  String?
+  reason              String?
+  ip                  String
+  userAgent           String
+  status              FeedbackStatus @default(OPEN)
+  createdAt           DateTime       @default(now())
+  closedAt            DateTime?
+
+  @@index([status, createdAt])
+}
+
+model AccessEvent {
+  id         String   @id @default(cuid())
+  ip         String
+  userAgent  String
+  path       String
+  eventType  String
+  occurredAt DateTime @default(now())
+  metadata   Json?
+
+  @@index([ip, occurredAt])
+  @@index([eventType, occurredAt])
+}
+
+model AdminUser {
+  id           String             @id @default(cuid())
+  email        String             @unique
+  passwordHash String
+  role         AdminRole          @default(ADMIN)
+  disabledAt   DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  sessions     AdminSession[]
+  auditEvents  AdminAuditEvent[]
+  manualCrawls ManualCrawlRequest[]
+  manualCrawlEvents ManualCrawlRequestEvent[]
+
+  @@index([role])
+}
+
+model AdminSession {
+  id          String             @id @default(cuid())
+  adminUserId String
+  tokenHash   String             @unique
+  status      AdminSessionStatus @default(ACTIVE)
+  ip          String
+  userAgent   String
+  expiresAt   DateTime
+  createdAt   DateTime           @default(now())
+  adminUser   AdminUser          @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, status])
+  @@index([expiresAt])
+}
+
+model AdminAuditEvent {
+  id          String    @id @default(cuid())
+  adminUserId String
+  action      String
+  targetType  String
+  targetId    String?
+  ip          String
+  userAgent   String
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId, createdAt])
+  @@index([action, createdAt])
+}
+
+model ManualCrawlRequest {
+  id            String            @id @default(cuid())
+  sourceId      String
+  requestedById String
+  status        ManualCrawlStatus @default(QUEUED)
+  reason        String?
+  ownerId       String?
+  heartbeatAt   DateTime?
+  leaseExpiresAt DateTime?
+  attemptCount  Int               @default(0)
+  crawlBatchId  String?
+  createdAt     DateTime          @default(now())
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  failureCode   ManualCrawlFailureCode?
+  source        RecruitmentSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  requestedBy   AdminUser         @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+  crawlBatch    CrawlBatch?       @relation("ManualRequestTerminalBatch", fields: [crawlBatchId], references: [id], onDelete: Restrict)
+  executionBatches CrawlBatch[]   @relation("ManualRequestExecutionBatch")
+  events        ManualCrawlRequestEvent[]
+
+  @@index([sourceId, status])
+  @@index([requestedById, createdAt])
+  @@index([status, createdAt])
+  @@index([ownerId, leaseExpiresAt])
+  @@index([crawlBatchId])
+}
+
+model ManualCrawlRequestEvent {
+  id          String                 @id @default(cuid())
+  requestId   String
+  eventType   ManualCrawlEventType
+  actor       ManualCrawlEventActor
+  adminUserId String?
+  ownerId     String?
+  fromStatus  ManualCrawlStatus?
+  toStatus    ManualCrawlStatus
+  failureCode ManualCrawlFailureCode?
+  createdAt   DateTime               @default(now())
+  request     ManualCrawlRequest     @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  adminUser   AdminUser?             @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, createdAt])
+  @@index([adminUserId, createdAt])
+}
