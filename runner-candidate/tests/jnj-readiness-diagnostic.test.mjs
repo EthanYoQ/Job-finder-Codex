@@ -31,6 +31,7 @@ for(const stage of ['JNJ_LIST_NAVIGATION','JNJ_RESULTS_READY','JNJ_HEADING_READY
     if(stage!=='JNJ_LIST_NAVIGATION')assert.equal(saved.legacyObservation.dom,secret);
     assert.equal(saved.observation.html,'<html>'+secret+'</html>');
     assert.equal(saved.observation.navigationStatus,200);
+    if(stage==='JNJ_LIST_NAVIGATION'){assert.equal(saved.errorMessage,error.message);assert(saved.url.includes(secret));}
     assert(!JSON.stringify(report).includes(secret));
     } finally {if(previousRoot===undefined)delete process.env.JOBFINDER_STATE_ROOT;else process.env.JOBFINDER_STATE_ROOT=previousRoot;}
   });

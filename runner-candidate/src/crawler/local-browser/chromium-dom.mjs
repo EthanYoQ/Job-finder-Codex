@@ -48,8 +48,13 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
         ...frames.map(frame => `Frame: ${frame.url}\n${frame.aria}`)].join('\n');
     };
     let navigationInfo;
+    page.on('response',response=>{
+      if(response.request().isNavigationRequest()&&response.frame()===page.mainFrame())
+        navigationInfo={httpStatus:response.status(),retryAfter:response.headers()['retry-after']};
+    });
     const tab = {id, url: async () => page.url(), navigationInfo: async () => navigationInfo,
       goto: async (url, config) => {
+        navigationInfo=undefined;
         const response=await page.goto(url, {waitUntil:'domcontentloaded',...options(config)});
         navigationInfo=response?{httpStatus:response.status(),retryAfter:await response.headerValue('retry-after')}:undefined;
         return response;

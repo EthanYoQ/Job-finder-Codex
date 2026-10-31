@@ -7,6 +7,7 @@ import {createChromiumDom} from '../src/crawler/local-browser/chromium-dom.mjs';
 test('ready job DOM does not wait for a stalled image; explicit load waits still apply', {timeout:20000}, async()=>{
   const server=createServer((request,response)=>{
     if(request.url==='/slow-image')return;
+    if(request.url==='/rate'){response.statusCode=429;response.setHeader('retry-after','120');}
     response.setHeader('content-type','text/html');
     response.end('<h1>Jobs ready</h1><img src="/slow-image">');
   });
@@ -29,7 +30,8 @@ test('ready job DOM does not wait for a stalled image; explicit load waits still
     await tab.playwright.getByRole('heading',{name:'Jobs ready'}).waitFor({timeoutMs:1000});
     assert.equal((await tab.navigationInfo()).httpStatus,200);
     await assert.rejects(tab.playwright.waitForLoadState({state:'load',timeoutMs:250}),{name:'TimeoutError'});
-    await assert.rejects(tab.goto(base,{waitUntil:'load',timeoutMs:500}),{name:'TimeoutError'});
+    await assert.rejects(tab.goto(base+'/rate',{waitUntil:'load',timeoutMs:500}),{name:'TimeoutError'});
+    assert.deepEqual(await tab.navigationInfo(),{httpStatus:429,retryAfter:'120'});
   } finally {
     await cua?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));
   }

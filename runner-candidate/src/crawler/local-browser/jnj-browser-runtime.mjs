@@ -62,7 +62,8 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
       const cause=error instanceof Error?error:Error('JNJ_LIST_NAVIGATION_FAILED');
       cause.sourceFetchStage='JNJ_LIST_NAVIGATION';cause.sourcePage=1;
       try {cause.privateCapture=await savePrivateDomFailure({directory:failureDirectory,filePrefix:'jnj-list-1',
-        context:{kind:'JNJ_FAILED_LIST_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE',sourceFetchStage:cause.sourceFetchStage,page:1},
+        context:{kind:'JNJ_FAILED_LIST_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE',sourceFetchStage:cause.sourceFetchStage,page:1,
+          errorMessage:cause.message,url:await list.url(),navigation:await list.navigationInfo?.()},
         observe:()=>list.playwright.evaluate(()=>({url:location.href,title:document.title,readyState:document.readyState,
           navigationStatus:performance.getEntriesByType('navigation')[0]?.responseStatus??null,html:document.documentElement.outerHTML}))});}
       catch {cause.privateCaptureUnavailable=true;}
