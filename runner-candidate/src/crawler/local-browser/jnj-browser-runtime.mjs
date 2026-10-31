@@ -19,14 +19,21 @@ import {join} from 'node:path';
 import {savePrivateDomFailure} from './private-dom-failure.mjs';
 import {parseOfficialRetryAfter,retryableHttpTransportFailure} from '../sourceFetchFailure.ts';
 
-async function rejectTemporaryAccessFailure(tab,selector) {
-  const navigation=await tab.navigationInfo?.();
+function httpAccessFailure(navigation) {
   if(!navigation)return;
   if(navigation.httpStatus===429) {
     const retryAfter=parseOfficialRetryAfter(navigation.retryAfter ?? null,Date.now());
-    throw Object.assign(Error('JNJ_HTTP_429'),{transportFailure:retryableHttpTransportFailure(429,retryAfter) ??
+    return Object.assign(Error('JNJ_HTTP_429'),{transportFailure:retryableHttpTransportFailure(429,retryAfter) ??
       {code:'OFFICIAL_HTTP_429',retryable:true}});
   }
+  if(navigation.httpStatus===403)return Object.assign(Error('JNJ_HTTP_403'),{
+    transportFailure:{code:'OFFICIAL_BROWSER_SESSION_ERROR',retryable:true}});
+}
+async function rejectTemporaryAccessFailure(tab,selector) {
+  const navigation=await tab.navigationInfo?.();
+  if(!navigation)return;
+  const failure=httpAccessFailure(navigation);
+  if(failure)throw failure;
   const challenge=await tab.playwright.evaluate(normalSelector=>
     !document.querySelector(normalSelector) && document.title.trim()==='Just a moment...' &&
     Array.from(document.scripts).some(script=>script.src.includes('/cdn-cgi/challenge-platform/') ||
@@ -59,11 +66,12 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     list = await cua.createBrowserTab('cdp');
     try { await list.goto(listUrl(1)); }
     catch(error) {
-      const cause=error instanceof Error?error:Error('JNJ_LIST_NAVIGATION_FAILED');
+      const navigation=await list.navigationInfo?.();
+      const cause=httpAccessFailure(navigation)??(error instanceof Error?error:Error('JNJ_LIST_NAVIGATION_FAILED'));
       cause.sourceFetchStage='JNJ_LIST_NAVIGATION';cause.sourcePage=1;
       try {cause.privateCapture=await savePrivateDomFailure({directory:failureDirectory,filePrefix:'jnj-list-1',
         context:{kind:'JNJ_FAILED_LIST_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE',sourceFetchStage:cause.sourceFetchStage,page:1,
-          errorMessage:cause.message,url:await list.url(),navigation:await list.navigationInfo?.()},
+          errorMessage:error instanceof Error?error.message:String(error),url:await list.url(),navigation},
         observe:()=>list.playwright.evaluate(()=>({url:location.href,title:document.title,readyState:document.readyState,
           navigationStatus:performance.getEntriesByType('navigation')[0]?.responseStatus??null,html:document.documentElement.outerHTML}))});}
       catch {cause.privateCaptureUnavailable=true;}
@@ -85,7 +93,6 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     } catch(error) {
       const value={kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',page,expectedUrl:listUrl(page),error:String(error),observedAt:new Date().toISOString()};
       try { value.url=await list.url(); } catch(readError) { value.urlReadError=String(readError); }
-      try { value.dom=await list.playwright.domSnapshot(); } catch(readError) { value.domReadError=String(readError); }
       const cause = error instanceof Error ? error : Error('JNJ_DOM_READINESS_FAILED');
       cause.sourceFetchStage = sourceFetchStage;
       cause.sourcePage = page;
