@@ -1,4 +1,5 @@
 import { readPortableScheduleObservations, type PortableScheduleResultReader } from "./portableScheduleObservations";
+import { unwrapJobProjectionSourceRow } from "./jobProjectionDeltaCompiler";
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from "../crawler/sourcePlan";
 import { SOURCE_QUALITY_POLICY_ID, SOURCE_QUALITY_RECEIPT_SCHEMA, verifySourceQualityReceipt, type SourceQualityReceipt } from "../crawler/sourceQualityAdmission";
 import type { SourceQualityPublicationInput } from "../crawler/sourceQualityPublication";
@@ -211,6 +212,7 @@ function findTrustedCompletenessBaselineRow(
 function toTrustedCompletenessBaseline(
   row: PersistedTrustedBaselineRow
 ): PersistedTrustedCompletenessBaseline {
+  row = unwrapJobProjectionSourceRow({ ...row });
   if (!row.finishedAt || !row.completenessCertificateSha256 ||
       typeof row.completenessCertificate !== "object" || row.completenessCertificate === null) {
     throw new Error("Persisted trusted baseline certificate row is incomplete");

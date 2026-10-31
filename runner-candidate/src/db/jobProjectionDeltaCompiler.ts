@@ -65,9 +65,10 @@ export function buildJobProjectionDeltaReceipt(input:{sourceResult:SourceTuple;
 
 /** Legacy readers intentionally see an unknown certificate schema and HOLD.
  * Internal baseline builders unwrap only after outer hash/tuple checks. */
-export function unwrapJobProjectionSourceRow(row:Record<string,unknown>):Record<string,unknown>{
+export function unwrapJobProjectionSourceRow<T extends Record<string,unknown>>(row:T):T{
   if(!isJobProjectionDeltaReceipt(row.completenessCertificate))return row;
   const receipt=parseJobProjectionDeltaReceipt(row.completenessCertificate,String(row.completenessCertificateSha256));
+  if(hashProjectionJson(receipt.legacyCertificate)!==receipt.legacyCertificateSha256)throw Error("JOB_DELTA_LEGACY_CERTIFICATE_HASH_MISMATCH");
   for(const [field,key] of [["id","sourceResultId"],["releaseCandidateId","releaseCandidateId"],["batchId","batchId"],["sourceId","sourceId"]] as const)
     if(row[field]!==receipt.binding[key])throw Error("JOB_DELTA_BASELINE_TUPLE_MISMATCH");
   if(iso(row.finishedAt)!==receipt.verifiedAt)throw Error("JOB_DELTA_BASELINE_TIME_MISMATCH");
