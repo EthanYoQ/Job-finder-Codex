@@ -14,9 +14,17 @@ const slot = String(slotAt());
 const temporary = await mkdtemp(join(tmpdir(), "jobfinder-refresh-"));
 const cli = process.env.INSTABOX_CLI ?? "instabox";
 const target = process.env.JOBFINDER_PUBLIC_SNAPSHOT_FILE;
+let phase = "INITIALIZE";
 type Receipt = {slot:string;complete:boolean;snapshotFile:string;sha256:string;generatedAt:string;lastUpdatedAt:string|null;totalJobs:number;capturedSources:{sourceId:string;batchId:string}[]};
 async function command(args:string[], timeout=120_000) {
-  return exec(cli,args,{timeout,maxBuffer:2*1024*1024,env:process.env});
+  try {return await exec(cli,args,{timeout,maxBuffer:2*1024*1024,env:process.env});}
+  catch(error) {
+    const failure=error as {code?:string|number;signal?:string;stderr?:string};
+    const message=String(failure.stderr??"");
+    console.error(JSON.stringify({status:"CLOUD_COMMAND_FAILED",operation:args[0],exitCode:failure.code,
+      signal:failure.signal,homePresent:!!process.env.HOME,homeError:/home|user lookup/i.test(message)}));
+    throw error;
+  }
 }
 async function latest():Promise<Receipt|null> {
   try {
@@ -49,9 +57,12 @@ async function refresh() {
   if(!state.dailySince&&days){state.dailySince=new Date().toISOString();state.qualifyingDays=days;await saveState();}
   if(state.dailySince&&isNoonSlot(slot)){console.log(JSON.stringify({status:"NOON_SKIPPED_AFTER_THREE_STABLE_DAYS",days:state.qualifyingDays}));return;}
   // wake respects a manual stop/pause; it does not change lifetime/security settings.
+  phase = "WAKE";
   await command(["wake",machine,"--json"]);
+  phase = "READ_RECEIPT";
   let receipt=await latest();
   if(!receipt?.complete) {
+    phase = "RUN_ROUND";
     let jobId:string|undefined;
     try {
       const started=await command(["exec",machine,"--background","--json","--cwd","/data/job-finder/app","--",
@@ -66,12 +77,14 @@ async function refresh() {
     receipt=await latest();
   }
   if(!receipt)throw Error("CURRENT_SLOT_RESULT_NOT_CONFIRMED");
+  phase = "INSTALL_SNAPSHOT";
   const incoming=join(temporary,"public.json");
   await command(["pull",machine,receipt.snapshotFile,incoming,"--json"]);
   await installSavedSnapshot(incoming,resolve(target),receipt.sha256);
   const snapshot=validateSavedSnapshot(JSON.parse(await readFile(incoming,"utf8")));
   const search=searchPortableSnapshot({city:"全部城市",province:"全部地区",sort:"COMPANY_PINYIN_ASC"},snapshot);
   const coverage=coverageFromPortableSnapshot({keyword:"",offset:0,limit:60},snapshot);
+  phase = "WEBSITE_READBACK";
   for(const [path,expected] of [
     ["/api/search?city="+encodeURIComponent("全部城市")+"&sort=COMPANY_PINYIN_ASC&limit=50&offset=0&province="+encodeURIComponent("全部地区"),{...search,snapshotStorage:"SAVED"}],
     ["/api/coverage?keyword=&offset=0&limit=60",{...coverage,snapshotStorage:"SAVED"}]
@@ -81,6 +94,7 @@ async function refresh() {
     try{deepStrictEqual(await response.json(),expected);}catch{throw Error("WEBSITE_READBACK_MISMATCH");}
   }
   state.records=state.records.filter((row)=>Number((row as {slot:string}).slot)>Number(slot)-8*24*3600_000&&(row as {slot:string}).slot!==slot);
+  phase = "SAVE_STATE";
   state.records.push({slot,kind:"live",trigger:state.timerSlots.includes(slot)?"timer":"manual",complete:receipt.complete,
     webReadback:true,capturedSourceIds:receipt.capturedSources.map(row=>row.sourceId),sha256:receipt.sha256,verifiedAt:new Date().toISOString()});
   state.timerSlots=state.timerSlots.filter(value=>Number(value)>Number(slot)-8*24*3600_000);
@@ -92,6 +106,6 @@ async function refresh() {
 }
 try {await refresh();} catch (error) {
   const code=error instanceof Error&&/^[A-Z][A-Z_]+$/.test(error.message)?error.message:"REFRESH_FAILED";
-  console.error(code);
+  console.error(JSON.stringify({status:code,phase}));
   process.exitCode=75;
 } finally {await rm(temporary,{recursive:true,force:true});}

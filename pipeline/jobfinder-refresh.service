@@ -5,6 +5,7 @@ StartLimitBurst=3
 
 [Service]
 Type=oneshot
+User=root
 WorkingDirectory=/opt/jobfinder-new/app
 EnvironmentFile=/opt/jobfinder-new/private/refresh.env
 ExecStart=/usr/bin/flock -n /opt/jobfinder-new/refresh.lock /opt/jobfinder-new/app/bin/node --import tsx pipeline/refresh.ts

@@ -1,6 +1,6 @@
 # 无人值守链路
 
-代码已部署到新机 `/data/job-finder/app` 和阿里云 `/opt/jobfinder-new/app`。新库恢复、真实部分来源采集、快照安装及候选网页回读已通过。生产尚未切换，阿里云持续凭据配置仍按父任务要求暂停，refresh timer 尚未安装/启用。当前进度以项目根目录 `CURRENT-RESULT.md` 为准。
+代码已部署到新机 `/data/job-finder/app` 和阿里云 `/opt/jobfinder-new/app`。33/36源真实采集、入库及候选网页回读已通过。经用户明确授权，阿里云持续凭据、网页服务和refresh timer已启用；2026-10-31 12:22 UTC手工触发服务完成真实刷新，尚无实际定时完成记录。生产尚未切换。当前进度以项目根目录 `CURRENT-RESULT.md` 为准。
 
 `run-slot.sh` 用 flock 启动 `run-round.ts`，原36源串行抓取并使用数据库 lease、每来源北京时间00:01/12:01时段排重。原reader事务读取公开投影，生成不可变内容哈希快照，再原子替换latest收据。失败来源保留最近有效发布；更新时间沿用原数据，不把快照生成时间当抓取时间。
 
@@ -12,8 +12,8 @@
 
 - 新机已有 `runtime.env` 中的真实候选身份和 `postgres.env` 中的数据库凭据；用env-file载入，Docker bridge连接PG，不映射公网端口。旧candidate和未决记录不重放。
 - 两机均使用交付包 `bin/node`、根目录node_modules及runner/web相对链接。
-- 阿里云拟使用 `/opt/jobfinder-new/private/refresh.env`：INSTABOX_API_KEY、INSTABOX_CLI=/opt/jobfinder-new/bin/instabox、JOBFINDER_PUBLIC_SNAPSHOT_FILE=/opt/jobfinder-new/snapshots/public.json、JOBFINDER_VERIFY_BASE_URL。持续凭据配置尚未执行；文件不得进入仓库或日志。
-- 反馈/管理员写入使用 [私有后台](../web-candidate/REMOTE-WRITE-README.md)，公开GET只读本机快照。新机手动预览模板已安装但未启动请求。
+- 阿里云已使用 `/opt/jobfinder-new/private/refresh.env`，root0600，配置现有key、官方CLI、快照路径及候选回读URL。文件不进入仓库或日志。service显式User=root以获得CLI需要的HOME；原运行身份未改变。
+- 反馈/管理员写入使用 [私有后台](../web-candidate/REMOTE-WRITE-README.md)，公开GET只读本机快照。一次真实无个人信息反馈返回201，按ID核对后精确清理，零残留；管理员成功登录尚未验收。
 - 实际暂停唤醒、中断恢复、失败来源保旧、安装失败保旧、网页重启全部验证后，才生成JOBFINDER_RECOVERY_EVIDENCE记录。timer来源由实际INVOCATION_ID和LastTriggerUSec确认，不能手填运行记录。
 
 生产切换还需要剩余来源修复、私有写通道验收和源库最终同步。当前已验证的是候选链路，不代表无人值守迁移完成。
