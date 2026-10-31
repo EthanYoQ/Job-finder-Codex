@@ -16,7 +16,7 @@ test('00:01/12:01 Beijing schedule deduplicates successful sources across retrie
     const state = {sourceId:'s', consecutiveFailureCount:0, lastSuccessfulCrawlAt:now};
     assert.equal(isSourceDueForScheduledRun(state, new Date(+now + 60_000)), false);
     assert.equal(isSourceDueForScheduledRun(state, new Date(+now + 12 * 3600_000)), true);
-    assert.equal(isSourceDueForScheduledRun({...state, retryNotBefore:new Date(+now + 13 * 3600_000)}, new Date(+now + 12 * 3600_000)), false);
+    assert.equal(isSourceDueForScheduledRun({...state, consecutiveFailureCount:3}, new Date(+now + 60_000)), false);
   }
 });
 

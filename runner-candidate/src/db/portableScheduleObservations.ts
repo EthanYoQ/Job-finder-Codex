@@ -4,7 +4,6 @@ import { BATCH_ABORTED_BEFORE_SOURCE_TERMINAL, isProvenUnstartedBatchAbort } fro
 import { SOURCE_QUALITY_POLICY_ID, SOURCE_QUALITY_RECEIPT_SCHEMA } from "../crawler/sourceQualityAdmission";
 import type { Prisma } from '@prisma/client';
 import { selectPortableSourceSnapshots } from '../domain/portablePublicSnapshot';
-import { nextP0CrawlWindow } from '../crawler/schedule';
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from '../crawler/sourcePlan';
 import { portableSourceResultSelect, type PortableSourceResultRow } from './portablePublicSnapshotRepository';
 import type { PersistedCrawlObservationRow } from './crawlStateRepository';
@@ -30,8 +29,7 @@ export async function readPortableScheduleObservations(reader:PortableScheduleRe
     // reader. selected remains a historically valid acceptance even when stale.
     const selection=selectPortableSourceSnapshots([plan],[row],{currentTime:now})[0]!;
     if(selection.selected)return {crawledAt:new Date(selection.lastSuccessAt!),successful:true};
-    return {crawledAt:row.finishedAt,successful:false,
-      portableRetryNotBefore:new Date(nextP0CrawlWindow(row.finishedAt).startsAt)};
+    return {crawledAt:row.finishedAt,successful:false};
   });
 }
 

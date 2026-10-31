@@ -8,7 +8,7 @@ export const P0_CRAWL_WINDOWS: readonly P0CrawlWindowLabel[] = Object.freeze(
 );
 export type P0CrawlWindowLabel = (typeof P0_CRAWL_WINDOW_DEFINITIONS)[number]["label"];
 export interface P0CrawlWindow { label: P0CrawlWindowLabel; startsAt: string; }
-export interface SourceScheduleState { sourceId: string; lastSuccessfulCrawlAt?: string | Date; retryNotBefore?: string | Date; consecutiveFailureCount: number; }
+export interface SourceScheduleState { sourceId: string; lastSuccessfulCrawlAt?: string | Date; consecutiveFailureCount: number; }
 
 const CHINA_UTC_OFFSET_MS = CHINA_UTC_OFFSET_HOURS * 60 * 60 * 1000;
 const EXPLICIT_TIMEZONE_PATTERN = /(Z|[+-]\d{2}:\d{2})$/i;
@@ -32,11 +32,7 @@ export function nextP0SchedulerWindow(now: Date, latestAttemptStartedAt?: Date):
 }
 
 export function isSourceDueForScheduledRun(source: SourceScheduleState, now: Date): boolean {
-  if(source.retryNotBefore!==undefined){
-    const retryAt=timestamp(source.retryNotBefore);
-    if(!Number.isFinite(retryAt)||now.getTime()<retryAt)return false;
-  }
-  if (source.consecutiveFailureCount >= 3 || !source.lastSuccessfulCrawlAt) return true;
+  if (!source.lastSuccessfulCrawlAt) return true;
   const last = timestamp(source.lastSuccessfulCrawlAt);
   if (!Number.isFinite(last)) return true;
   const current = currentP0CrawlWindow(now);
