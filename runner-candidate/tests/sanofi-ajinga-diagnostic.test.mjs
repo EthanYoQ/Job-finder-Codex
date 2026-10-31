@@ -11,13 +11,13 @@ const marker='PRIVATE_AJINGA_TOKEN_SYNTHETIC';
 const start='2026-10-31T10:00:00.000Z',reqId='R1234567';
 const detail={id:'123',reqId,title:'合成职位',countryScope:'MAINLAND',description:'本职位职责',
   applyUrl:`https://www.ajinga.com/ats/job-detail-new/13537/${reqId}/c/?aj_source=sanofi_careersite&aj_code=radancyjoblist`};
-function transport(failure){
+function transport(failure,title=detail.title){
   let count=0;
   return async({url})=>{
     count++;
     const info={code:200,data:{data:{is_in_china:true,company:{id:13537,root_company:{id:13537}},
       job:{id:42,root_company_id:13537,company:{id:13537},short_unique_id:'Synthetic42',
-        i18n_name:`${reqId} ${failure==='TITLE_MATCH'?'不同职位':detail.title}`,
+        i18n_name:`${reqId} ${failure==='TITLE_MATCH'?'不同职位':title}`,
         description:`<p>${failure==='DESCRIPTION_MATCH'?'不同职责':detail.description}</p>`,
         job_visibility:'E',job_locations:[{city:{cn_name:'上海'}}]},privateToken:marker}}};
     const status={code:200,data:{show_apply:failure==='PROJECTION'?0:1,normal_share_url:'https://www.ajinga.com/recruiting/company/13537/job/42/job-detail'}};
@@ -67,5 +67,14 @@ test('private file failure preserves the original rejection and reports unavaila
       assert.equal(error.privateCaptureUnavailable,true);
       return error.message==='SANOFI_CN_AJINGA_CHAIN_INVALID';
     });
+  } finally {await rm(directory,{recursive:true,force:true});}
+});
+
+test('Ajinga title whitespace uses the same normalization as the official detail',async()=>{
+  const directory=await mkdtemp(join(tmpdir(),'sanofi-ajinga-'));
+  try {
+    const artifacts=await captureSanofiChineseAjinga({...detail,title:'合成 职位'},start,
+      transport(undefined,'合成  职位'),()=>{},{failureDirectory:directory});
+    assert.equal(artifacts.length,3);assert.deepEqual(await readdir(directory),[]);
   } finally {await rm(directory,{recursive:true,force:true});}
 });

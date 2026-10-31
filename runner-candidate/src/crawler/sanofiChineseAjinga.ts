@@ -23,7 +23,7 @@ export function replaySanofiChineseAjinga(detail:SanofiChineseDetail,start:strin
   assert(Date.parse(status!.capturedAt)-Date.parse(start)<=30*60_000);
   const projection=ajingaProjection(data,json(body(status!)),id,detail.reqId);assert(projection,"SANOFI_AJINGA_PROJECTION");
   const description=load(job.description).text().replace(/\s+/gu,"").normalize("NFKC");
-  assert(job.i18n_name===`${detail.reqId} ${detail.title}`,"SANOFI_AJINGA_TITLE_MATCH");
+  assert(job.i18n_name.replace(/\s+/gu," ").trim()===`${detail.reqId} ${detail.title}`,"SANOFI_AJINGA_TITLE_MATCH");
   assert(description===detail.description,"SANOFI_AJINGA_DESCRIPTION_MATCH");
   return {state:"PUBLISHING",nativePositionId:id,nativeDescriptionSha256:createHash("sha256").update(description).digest("hex"),...projection!};
 }
