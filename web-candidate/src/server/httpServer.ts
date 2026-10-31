@@ -10,6 +10,7 @@ import { encodePublicJsonResponse } from "./publicResponseEncoding";
 import { encodeStaticResponse } from "./staticResponse";
 import type { SnapshotReadTiming } from "../db/portablePublicSnapshotRepository";
 import { createSavedSnapshotReader } from "./savedPublicSnapshot";
+import { createRefreshStatusReader } from "./savedRefreshStatus";
 import { createRemoteWriteBackend } from "./remoteWriteBackend";
 
 const DEFAULT_HOST = "0.0.0.0";
@@ -62,7 +63,8 @@ export async function startServer(): Promise<Server> {
     ? createRemoteWriteBackend({machine: process.env.JOBFINDER_REMOTE_WRITE_MACHINE}) : undefined;
   // Prisma connects lazily. Database availability never gates public snapshot startup.
   const db = process.env.DATABASE_URL ? new PrismaClient() : undefined;
-  const server = createServer({readPortableSnapshot, ...(db ? {db} : {}), ...(forwardWrite ? {forwardWrite} : {})});
+  const readRefreshStatus = createRefreshStatusReader(snapshotFile, process.env.JOBFINDER_SCHEDULE_STATE_FILE);
+  const server = createServer({readPortableSnapshot, readRefreshStatus, ...(db ? {db} : {}), ...(forwardWrite ? {forwardWrite} : {})});
   server.once("close", () => { void db?.$disconnect().catch(() => console.error("WRITE_DATABASE_DISCONNECT_FAILED")); });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);

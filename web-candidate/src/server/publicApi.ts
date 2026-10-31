@@ -11,6 +11,7 @@ import { checkRateLimit, classifySuspiciousRequest, createMemoryRateLimitStore, 
 import { getStaticDocument } from "./staticDocuments";
 import type { PortablePublicSnapshot, SnapshotReadTiming } from "../db/portablePublicSnapshotRepository";
 import { searchPortableSnapshot, coverageFromPortableSnapshot } from "./portablePublicationApi";
+import type { RefreshStatus } from "./savedRefreshStatus";
 
 export interface PublicApiRequest {
   method: string;
@@ -37,6 +38,7 @@ export interface PublicApiDeps {
   rateLimitStore?: RateLimitStore;
   recordTiming?: SnapshotReadTiming;
   readPortableSnapshot: () => Promise<PortablePublicSnapshot>;
+  readRefreshStatus?: () => Promise<RefreshStatus>;
 }
 
 const DEFAULT_RATE_LIMIT_STORE = createMemoryRateLimitStore();
@@ -111,8 +113,9 @@ export async function handlePublicApi(request: PublicApiRequest, deps: PublicApi
     const ok = true;
     return {
       status: ok ? 200 : 503,
-      headers: { ...headers, "content-type": "application/json; charset=utf-8" },
-      body: { ok, mode: "SAVED_PUBLIC_SNAPSHOT", writeBackendConfigured: Boolean(deps.db || deps.forwardWrite) }
+      headers: { ...headers, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+      body: { ok, mode: "SAVED_PUBLIC_SNAPSHOT", writeBackendConfigured: Boolean(deps.db || deps.forwardWrite),
+        ...(request.method === "GET" && deps.readRefreshStatus ? { refresh: await deps.readRefreshStatus() } : {}) }
     };
   }
 
