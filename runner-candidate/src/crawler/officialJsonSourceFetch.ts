@@ -1,6 +1,7 @@
 import { hasBiSemanticPlan } from "./biSemanticCompleteness";
 import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
 import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
+import { CITY_PENDING } from "../domain/jobLocation";
 import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFailureArtifact, novoNativeGatewayRetryStart, novoNativeGatewayRetryArtifact, delayNovoNativeRetry } from "./novoNativeGatewayRetry";
 import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
 import { acquireBeisenDetailDates } from "./beisenDetailDates";
@@ -1013,10 +1014,10 @@ async function fetchSingleResponseOfficialJson({
           continue;
         }
         const application = await html(applyUrl, `novo-application-${raw.jobId}`, true);
-        const status = novoApplicationStatus(application.body, application.finalUrl!, String((raw.jobCity as { value: string }).value));
+        const status = novoApplicationStatus(application.body, application.finalUrl!, String((raw.jobCity as { value: string }).value), String((raw.jobState as { value: string }).value));
         if (!status) throw new Error("Novo official application status is UNKNOWN");
         if (status.status === "CLOSED") losses.push(novoClosedLoss(raw, i, application.capturedAt!));
-        else jobs.push({ ...projection, officialUrl: detailUrl, title: status.title! });
+        else jobs.push({ ...projection, ...(status.cityUncertain ? {cities: [CITY_PENDING]} : {}), officialUrl: detailUrl, title: status.title! });
       }
     } catch (error) {
       // Preserve failure classification, but do not restart a begun native traversal.

@@ -186,7 +186,7 @@ export function novoNativeApplicationUrl(body: string, detailUrl: string, jobId:
   } catch { return undefined; }
 }
 
-export function novoApplicationStatus(body: string, finalUrl: string, city: string): { status: "ACTIVE" | "CLOSED"; title?: string } | undefined {
+export function novoApplicationStatus(body: string, finalUrl: string, city: string, state?: string): { status: "ACTIVE" | "CLOSED"; title?: string; cityUncertain?: true } | undefined {
   let url: URL;
   try { url = new URL(finalUrl); } catch { return undefined; }
   if (url.origin !== "https://careers.novonordisk.com" || url.username || url.password || url.search || url.hash ||
@@ -198,13 +198,18 @@ export function novoApplicationStatus(body: string, finalUrl: string, city: stri
   const title = clean(job.find("[data-careersite-propertyid=title]").text());
   const location = clean(job.find(".jobGeoLocation").text()).split(/,\s*/u);
   const postingId = url.pathname.split("/").at(-2);
-  if (!title || location[0] !== city || location.at(-1) !== "CN" || links.length === 0 ||
+  // Official applications can truncate a locality. Confirm the same mainland province,
+  // preserve the original list label, and avoid claiming a precise city in that case.
+  const cityUncertain = location[0] !== city;
+  const sameMainlandProvince = state !== undefined && MAINLAND_STATES.has(state) &&
+    location.length === 3 && location[1] === state && Boolean(location[0]) && !explicitlyForeignOrNonMainlandLocation(location[0]!);
+  if (!title || cityUncertain && !sameMainlandProvince || location.at(-1) !== "CN" || links.length === 0 ||
     !links.every(node => {
       const apply = new URL($(node).attr("href")!, url);
       return apply.origin === url.origin && apply.pathname === `/talentcommunity/apply/${postingId}/` &&
         apply.search === "?locale=en_GB" && !apply.hash;
     })) return undefined;
-  return { status: "ACTIVE", title };
+  return { status: "ACTIVE", title, ...(cityUncertain ? {cityUncertain: true as const} : {}) };
 }
 
 export function novoClosedLoss(raw: Record<string, unknown>, recordIndex: number, recordedAt: string): PersistentSourceFetchEvidence["fetchLosses"][number] {
@@ -302,10 +307,10 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
     }
     const application = readNative(href, `novo-application-${raw.jobId}`, true);
     if (!application) return false;
-    const state = novoApplicationStatus(body(application), application.finalUrl!, String(record(raw.jobCity)!.value));
+    const state = novoApplicationStatus(body(application), application.finalUrl!, String(record(raw.jobCity)!.value), String(record(raw.jobState)!.value));
     if (!state) return false;
     if (state.status === "CLOSED") losses.push(novoClosedLoss(raw, i, application.capturedAt));
-    else expected.push({ ...projection, title: state.title! });
+    else expected.push({ ...projection, ...(state.cityUncertain ? {cities: [CITY_PENDING]} : {}), title: state.title! });
   }
   if (cursor !== evidence.artifacts.length) return false;
   const counts = evidence.fetchCounts;
