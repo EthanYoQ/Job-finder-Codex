@@ -1,0 +1,23 @@
+{
+  "scope": "Reuse first CURRENT tokenless web readback only",
+  "createdAt": "2026-10-30T23:34:36.429819+00:00",
+  "activeChanged": false,
+  "parentBackupCommit": "1acda9b39d532e1f151ad0a9d05c84d875bafc00",
+  "files": {
+    "before/readback-original-web.py": "edd72b06ed08a7d7c8748fa13d9311562c719242b42d88129ed2dca0e682bbfd",
+    "before/readback-recovery.test.py": "0f70e4f14dbb1aca7dbd486f814a28656d97aca665ae39a134e0cd6b0d5d4749",
+    "candidate/README.md": "09985d5b39bada13631635ac5a05fd3e0cca811d6f6b208788c7fbb83caf9d39",
+    "candidate/readback-current-reuse.test.py": "659164b693d2f8821ab79c6163e262694985a67c22b8800ce8608006cbf5b0ab",
+    "candidate/readback-original-web.py": "5eec9913ed58abf7868b087762a660900f377ff2e160c2b9ce8366ffaf82bfab",
+    "candidate/readback-recovery.test.py": "dc10dc64dc3acdb9b41f38eb6fe4820cd614783ff4e37b4d9d7478b6804231d1",
+    "change.patch": "4a7b4ae5ce8c18fb2406ae5c13e78045921bd40d53a5532317dc3224798a6085"
+  },
+  "tests": {
+    "recoveryFourCases": "PASS",
+    "newFiveCases": "PASS",
+    "newRegressionOnBaseline": "EXPECTED_FAILURE: two searches instead of one"
+  },
+  "productionDatabaseChanged": false,
+  "nativeCandidateChanged": false,
+  "sourceHoldsChanged": false
+}

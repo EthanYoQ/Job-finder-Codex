@@ -1,0 +1,11 @@
+--- a/readback-original-web.py
++++ b/readback-original-web.py
+@@ -10,7 +10,7 @@
+   headers.pop('x-job-snapshot-check',None)
+   first=get('/api/search',query)
+   if first['snapshotRefresh'].get('check'):headers['x-job-snapshot-check']=first['snapshotRefresh']['check']
+-  actual=get('/api/search',query)
++  actual=first if 'x-job-snapshot-check' not in headers and first['snapshotRefresh']['state']=='CURRENT' else get('/api/search',query)
+   while actual['snapshotRefresh']['state']=='UPDATING' and time.monotonic()<deadline:time.sleep(2);actual=get('/api/search',query)
+   if actual['snapshotRefresh']['state']=='FAILED':raise RuntimeError('WEB_REFRESH_FAILED')
+   assert actual['snapshotRefresh']['state']=='CURRENT',actual['snapshotRefresh']['state']
