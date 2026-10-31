@@ -1,0 +1,57 @@
+{
+  "verifiedAt": "2026-10-31T03:15:42.432Z",
+  "status": "BOTH_BACKUPS_EXACTLY_VERIFIED",
+  "githubRepository": "EthanYoQ/Job-finder-Codex",
+  "githubCommit": "97180ac2da74c4f677b4ddaaf51ec4705471b379",
+  "githubBranch": "recovery/failure-code-diagnostic-20261031T0312Z",
+  "githubTree": "d4c577e3f3c09798965a950e1c0903d96dae6c80",
+  "githubExactFiles": [
+    {
+      "path": "recovery/failure-code-diagnostic-20261031T0312Z/BACKUP_MANIFEST.json",
+      "gitBlobSha": "d78ff5822e2e953c88505256f594e87c17730d0e"
+    },
+    {
+      "path": "recovery/failure-code-diagnostic-20261031T0312Z/README.md",
+      "gitBlobSha": "f1877edcb5f4f3d5d6130cf79b29069cbd09e665"
+    },
+    {
+      "path": "recovery/failure-code-diagnostic-20261031T0312Z/baseline-new-test.log",
+      "gitBlobSha": "8b168334870ce56b6688270b22efa5c7a834a72b"
+    },
+    {
+      "path": "recovery/failure-code-diagnostic-20261031T0312Z/before/failure-summary.py",
+      "gitBlobSha": "d6eb475bcf42f14a3ea191c902832713ae985dae"
+    },
+    {
+      "path": "recovery/failure-code-diagnostic-20261031T0312Z/candidate-test.log",
+      "gitBlobSha": "4e8053d15841939b2fcf7a83315b8a24919cd7c3"
+    },
+    {
+      "path": "recovery/failure-code-diagnostic-20261031T0312Z/change.patch",
+      "gitBlobSha": "f386f9b1b3a3f95f3b5c0b0025e08c1b89b1bde0"
+    },
+    {
+      "path": "recovery/failure-code-diagnostic-20261031T0312Z/failure-summary.py",
+      "gitBlobSha": "916dd10afbd14514b86cf2127e4c3ad885306b57"
+    },
+    {
+      "path": "recovery/failure-code-diagnostic-20261031T0312Z/failure-summary.test.py",
+      "gitBlobSha": "cee2a4989ddb095137ed44889fc3dc4247bb886b"
+    },
+    {
+      "path": "recovery/failure-code-diagnostic-20261031T0312Z/fixtures/artifacts/dot-auto-amgen-20261031T000608564Z.failure-bc967b2c-eb4f-447f-9ea9-b4ddb93f7b4d.json",
+      "gitBlobSha": "31929d9d88d45ad1322425958284b38d17ce4900"
+    },
+    {
+      "path": "recovery/failure-code-diagnostic-20261031T0312Z/retained-artifact-regression.json",
+      "gitBlobSha": "b13023404d61aeadd3a30187c0d1e86fbf87f8ed"
+    }
+  ],
+  "driveFileId": "1SOAE6-WJwTlm4nsDQonvnIiUSdJ4tTCN",
+  "driveParentId": "11IB7F0xjEWueTzBLRfWv2oZGEoTW7u0J",
+  "driveShared": false,
+  "driveExactBytes": 5224,
+  "driveExactMembers": 10,
+  "driveSha256": "0379239def3f1180d829d4d39bbdeb87503254606eb68141888dc811bdce13ec",
+  "activeChanged": false
+}

@@ -1,0 +1,19 @@
+PASS: retained producer error code, ordered cause fallback, explicit top-level precedence and unchanged reason/phase/job count/empty-run behavior
+(node:18) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS: serial relay, single dispatch, unknown/expiry hold, failed source isolation, dedup skip
+PASS: 36 original routes, 20 portable, 12 original A and four original B configurations; configuration is not live acceptance
+PASS: post-dispatch transport failure remains UNKNOWN and prevents another source launch
+PASS: only the same job successful publication-context request is passed to review; missing/failed read cannot dispatch
+PASS: actual launch/session uncertainty and unterminated deadlines stop; known prelaunch refusal continues; reasons do not invent a DB dispatch
+PASS: explicit rejection/rollback receipt reported intact; one dispatch, original outcome read, next source unchanged
+PASS: 18 persisted holds survive empty store, original five reasons unchanged, other 18 sources remain eligible; no source or publication request
+(node:26) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS: yielded original session is awaited once; failed completion stays failed
+PASS: outer command preserves actual exit code even when stderr only contains warnings
+PASS: review uses earliest original deadline, without arbitrary 120-second sublimit
+PASS: packet process completes before raw and target; packet failure stops later steps
+PASS: exact ID lookup keeps request/response guards; three original reviewers reject compact missing ID and wrong source/config/snapshot; legacy needs no fallback read
+PASS: actual Functions review passes context ID, permits only a due source in the same slot, and rejects current-slot success or a crossed slot
+PASS: successful binding is reused only inside one helper; command and scope failures are not cached; a new source verifies independently

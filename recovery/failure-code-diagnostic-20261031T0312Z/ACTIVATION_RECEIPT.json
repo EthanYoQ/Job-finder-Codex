@@ -1,0 +1,34 @@
+{
+  "status": "ACTIVATED_AND_OFFLINE_REGRESSION_VERIFIED",
+  "verifiedAt": "2026-10-31T03:16:58.264195+00:00",
+  "changedFiles": [
+    "original-relay-automation-20261017T0609Z/failure-summary.py"
+  ],
+  "beforeSha256": "b0a64b9e2a05de69a735c37c8cee749093a5cdd2ca91d0c0d145e1a14c18beca",
+  "afterSha256": "c31bc7e1d80a6381b1ca64bc9555345616614fb676dc3d76624e056ff1399664",
+  "officialIdle": {
+    "checkedAt": "2026-10-31 03:16:17.438404+00",
+    "holder": "",
+    "running": 0,
+    "manual": 0
+  },
+  "localOriginalProducerAbsent": true,
+  "entrySha256Unchanged": "1804e10d9a11abe2c6e098b49941d8106084fd5a067a6a90f63443301f434cb3",
+  "testsPassed": [
+    "failure-summary.test.py against active helper",
+    "automatic-relay.test.mjs",
+    "host-session.test.mjs"
+  ],
+  "retainedFailureArtifactsVerified": 27,
+  "githubCandidateCommit": "97180ac2da74c4f677b4ddaaf51ec4705471b379",
+  "driveCandidateId": "1SOAE6-WJwTlm4nsDQonvnIiUSdJ4tTCN",
+  "githubExactFiles": 10,
+  "driveExactMembers": 10,
+  "rejectedOrUnknownRequestsRetried": false,
+  "productionEntryExecuted": false,
+  "databaseChanged": false,
+  "holdsChanged": false,
+  "scheduleChanged": false,
+  "architectureChanged": false,
+  "liveCapturePublicationAcceptance": false
+}
