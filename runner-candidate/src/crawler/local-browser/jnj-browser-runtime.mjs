@@ -58,6 +58,16 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
       try { value.dom=await list.playwright.domSnapshot(); } catch(readError) { value.domReadError=String(readError); }
       const cause = error instanceof Error ? error : Error('JNJ_DOM_READINESS_FAILED');
       cause.sourceFetchStage = sourceFetchStage;
+      cause.sourcePage = page;
+      try {cause.privateCapture=await savePrivateDomFailure({directory:failureDirectory,filePrefix:`jnj-list-${page}`,
+        context:{kind:'JNJ_FAILED_LIST_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE',sourceFetchStage,page,total,
+          collectedCards:current.length,legacyObservation:value},
+        observe:()=>list.playwright.evaluate(()=>({url:location.href,title:document.title,readyState:document.readyState,
+          navigationStatus:performance.getEntriesByType('navigation')[0]?.responseStatus ?? null,
+          resultCount:document.querySelectorAll('#js-job-search-results').length,
+          headings:Array.from(document.querySelectorAll('h1,h2,h3')).map(e=>e.textContent),
+          html:document.documentElement.outerHTML}))});}
+      catch {cause.privateCaptureUnavailable=true;}
       return {file:'jnj-list-page-'+page+'.json',raw:raw(value),failure:value.error,error:cause};
     }
     const heading = await headingLocator.innerText();

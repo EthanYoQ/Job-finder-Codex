@@ -58,7 +58,7 @@ export function sourceFetchDiagnostic(sourceId: string, failure: {result: Extrac
       ...(typeof stage === "string" && ["JNJ_RESULTS_READY", "JNJ_HEADING_READY", "JNJ_DETAIL_NAVIGATION", "JNJ_DETAIL_READY", "JNJ_APPLY_READY", "JNJ_DETAIL_READ", "SANOFI_PAGE_READ", "SANOFI_PAGE_NEXT", "PFIZER_ENTRY_NAVIGATION", "PFIZER_CARDS_READY", "PFIZER_COUNTRY_READY"].includes(stage) ? {stage} : {}),
       ...(privateCaptureSource && typeof context?.sourcePage === "number" && Number.isSafeInteger(context.sourcePage) && context.sourcePage > 0 && context.sourcePage <= 10000 ? {page:context.sourcePage} : {}),
       ...(jnj && typeof context?.sourceJobId === "string" && /^r-\d{1,20}$/.test(context.sourceJobId) ? {sourceJobId:context.sourceJobId} : {}),
-      ...(privateCaptureSource && typeof capture?.file === "string" && /^(?:jnj-detail-r-\d{1,20}|sanofi-page-\d{1,5}|pfizer-entry)-[0-9a-f-]{36}\.json$/.test(capture.file) &&
+      ...(privateCaptureSource && typeof capture?.file === "string" && /^(?:jnj-detail-r-\d{1,20}|jnj-list-\d{1,5}|sanofi-page-\d{1,5}|pfizer-entry)-[0-9a-f-]{36}\.json$/.test(capture.file) &&
         typeof capture.sha256 === "string" && /^[0-9a-f]{64}$/.test(capture.sha256) ? {privateCapture:{file:capture.file,sha256:capture.sha256}} : {}),
       ...(privateCaptureSource && context?.privateCaptureUnavailable === true ? {privateCaptureUnavailable:true} : {}),
       executionCode: sourceExecutionFailureCode(failure.error), reason: reason(message), reasonSha256: sha(message), locations};
