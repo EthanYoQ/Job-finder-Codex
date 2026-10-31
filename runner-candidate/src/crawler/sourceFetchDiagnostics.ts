@@ -18,7 +18,7 @@ const reasons = new Set([
   "Merck China quality policy requires the exact source and bootstrap", "Merck China official field validation failed",
   "Organon quality policy requires the exact source and bootstrap", "Organon official field validation failed",
   "ORGANON_NATIVE_DETAIL_UNKNOWN_PRESERVE_LAST_GOOD", "ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD",
-  "Expected exactly one new detail tab"
+  "Expected exactly one new detail tab", "Pfizer UI entry navigation failed", "Pfizer UI native detail navigation failed"
 ]);
 const lossCodes = new Set(["MERCK_RAW_FIELDS_INVALID", "MERCK_POSTED_DATE_INVALID", "ORGANON_RAW_FIELDS_INVALID",
   "ORGANON_POSTED_DATE_INVALID", "MISSING_REQUIRED_FIELD", "DUPLICATE_OFFICIAL_ID", "OUT_OF_SCOPE", "UNSAFE_OFFICIAL_URL", "SENSITIVE_OUTPUT"]);
@@ -47,18 +47,20 @@ export function sourceFetchDiagnostic(sourceId: string, failure: {result: Extrac
   if ("error" in failure) {
     const error = failure.error instanceof Error ? failure.error : undefined;
     const message = error?.message ?? "NON_ERROR_THROW";
-    const context = error as (Error & {sourceFetchStage?: unknown;sourceJobId?:unknown;privateCapture?:{file?:unknown;sha256?:unknown};privateCaptureUnavailable?:unknown}) | undefined;
+    const context = error as (Error & {sourceFetchStage?: unknown;sourceJobId?:unknown;sourcePage?:unknown;privateCapture?:{file?:unknown;sha256?:unknown};privateCaptureUnavailable?:unknown}) | undefined;
     const stage = context?.sourceFetchStage;
     const jnj = sourceId === "source-johnson-innovative-medicine-social";
+    const privateCaptureSource = jnj || sourceId === "source-sanofi-china-social" || sourceId === "source-pfizer-china-social";
     const capture = context?.privateCapture;
     const locations = error?.stack?.replaceAll("\\", "/").split("\n").slice(1)
       .flatMap(line => line.match(/(?:runner-candidate|web-candidate)\/(?:src|scripts)\/[A-Za-z0-9_./-]+\.[cm]?[jt]sx?:[0-9]+:[0-9]+/g) ?? []).slice(0, 6) ?? [];
     return {...common, phase: "THROWN", exceptionType: ["Error", "TypeError", "SyntaxError", "ReferenceError", "TimeoutError", "AbortError", "AssertionError"].includes(error?.name ?? "") ? error!.name : "OTHER_ERROR",
-      ...(typeof stage === "string" && ["JNJ_RESULTS_READY", "JNJ_HEADING_READY", "JNJ_DETAIL_NAVIGATION", "JNJ_DETAIL_READY", "JNJ_APPLY_READY", "JNJ_DETAIL_READ"].includes(stage) ? {stage} : {}),
+      ...(typeof stage === "string" && ["JNJ_RESULTS_READY", "JNJ_HEADING_READY", "JNJ_DETAIL_NAVIGATION", "JNJ_DETAIL_READY", "JNJ_APPLY_READY", "JNJ_DETAIL_READ", "SANOFI_PAGE_READ", "SANOFI_PAGE_NEXT", "PFIZER_ENTRY_NAVIGATION", "PFIZER_CARDS_READY", "PFIZER_COUNTRY_READY"].includes(stage) ? {stage} : {}),
+      ...(privateCaptureSource && typeof context?.sourcePage === "number" && Number.isSafeInteger(context.sourcePage) && context.sourcePage > 0 && context.sourcePage <= 10000 ? {page:context.sourcePage} : {}),
       ...(jnj && typeof context?.sourceJobId === "string" && /^r-\d{1,20}$/.test(context.sourceJobId) ? {sourceJobId:context.sourceJobId} : {}),
-      ...(jnj && typeof capture?.file === "string" && /^jnj-detail-r-\d{1,20}-[0-9a-f-]{36}\.json$/.test(capture.file) &&
+      ...(privateCaptureSource && typeof capture?.file === "string" && /^(?:jnj-detail-r-\d{1,20}|sanofi-page-\d{1,5}|pfizer-entry)-[0-9a-f-]{36}\.json$/.test(capture.file) &&
         typeof capture.sha256 === "string" && /^[0-9a-f]{64}$/.test(capture.sha256) ? {privateCapture:{file:capture.file,sha256:capture.sha256}} : {}),
-      ...(jnj && context?.privateCaptureUnavailable === true ? {privateCaptureUnavailable:true} : {}),
+      ...(privateCaptureSource && context?.privateCaptureUnavailable === true ? {privateCaptureUnavailable:true} : {}),
       executionCode: sourceExecutionFailureCode(failure.error), reason: reason(message), reasonSha256: sha(message), locations};
   }
   const {result} = failure, httpStatuses: Record<string, number> = {}, losses: Record<string, number> = {};

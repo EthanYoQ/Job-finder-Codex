@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import {join} from "node:path";
+import {savePrivateDomFailure} from "./local-browser/private-dom-failure.mjs";
 import type { OfficialJsonRenderedRawRow, OfficialJsonRenderedPageCapture, OfficialJsonRenderedReplay } from "./officialJsonRenderedTraversalValidator";
 import { irreversibleOfficialJsonEvidenceId } from "./officialJsonEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
@@ -106,14 +108,33 @@ export function assertPfizerRenderedPage(page: OfficialJsonRenderedPageCapture):
         typeof scope.capturedAt !== "string" || !Number.isFinite(Date.parse(scope.capturedAt))) throw Error("Pfizer archived rendered page scope mismatch");
 }
 
-export async function capturePfizerRenderedTraversal(page: import("playwright-core").Page, signal?: AbortSignal): Promise<OfficialJsonRenderedPageCapture[]> {
+export async function capturePfizerRenderedTraversal(page: import("playwright-core").Page, signal?: AbortSignal, options: {failureDirectory?: string} = {}): Promise<OfficialJsonRenderedPageCapture[]> {
     const entry = ENTRY + `?Location_Country=${COUNTRY}`;
-    const navigation = await page.goto(entry, { waitUntil: "domcontentloaded", timeout: 60000 });
+    const cards = page.locator('[data-automation-id="jobTitle"]');
+    let sourceFetchStage="PFIZER_ENTRY_NAVIGATION",navigation: import("playwright-core").Response | null | undefined;
+    try {
+    navigation = await page.goto(entry, { waitUntil: "domcontentloaded", timeout: 60000 });
     if (!navigation || navigation.status() !== 200 || page.url() !== entry)
         throw Error("Pfizer UI entry navigation failed");
-    const cards = page.locator('[data-automation-id="jobTitle"]');
+    sourceFetchStage="PFIZER_CARDS_READY";
     await cards.first().waitFor({ state: "visible", timeout: 60000 });
+    sourceFetchStage="PFIZER_COUNTRY_READY";
     await page.getByRole("button", { name: "China clear filter", exact: true }).waitFor({ state: "visible", timeout: 30000 });
+    } catch(error) {
+      const cause=(error instanceof Error?error:Error("Pfizer UI entry navigation failed")) as Error & {
+        sourceFetchStage:string;privateCapture?:{file:string;sha256:string};privateCaptureUnavailable?:boolean};
+      cause.sourceFetchStage=sourceFetchStage;
+      try {cause.privateCapture=await savePrivateDomFailure({
+        directory:options.failureDirectory ?? join(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder","diagnostics","pfizer"),filePrefix:"pfizer-entry",
+        context:{kind:"PFIZER_FAILED_ENTRY_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE",sourceFetchStage,expectedUrl:entry,
+          navigationStatus:navigation?.status(),navigationUrl:navigation?.url(),observedUrl:page.url()},
+        observe:()=>page.evaluate(()=>({url:location.href,title:document.title,readyState:document.readyState,
+          cardCount:document.querySelectorAll('[data-automation-id="jobTitle"]').length,
+          buttons:Array.from(document.querySelectorAll('button')).map(button=>({text:button.textContent,ariaLabel:button.getAttribute('aria-label')})),
+          html:document.documentElement.outerHTML}))});}
+      catch {cause.privateCaptureUnavailable=true;}
+      throw cause;
+    }
     const detail = await page.context().newPage();
     const pages: OfficialJsonRenderedPageCapture[] = [];
     let total: number | undefined, totalPages: number | undefined;

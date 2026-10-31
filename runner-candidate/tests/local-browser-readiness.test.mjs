@@ -1,9 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {mkdtemp} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {createCspcDomRuntime} from '../src/crawler/local-browser/cspc-browser-runtime.mjs';
 import {createSanofiDomRuntime} from '../src/crawler/local-browser/sanofi-browser-runtime.mjs';
 
 const timeout=()=>Object.assign(Error('page.waitForLoadState: Timeout 10000ms exceeded.'),{name:'TimeoutError'});
+const failureDirectory=await mkdtemp(join(tmpdir(),'readiness-private-diagnostic-'));
 function fixture(kind,{waitError=timeout(),navigationError,onWait=()=>{}}={}) {
   let waitCalls=0,navigations=0,url,bodyReads=0;
   const terminal={rowCount:1,disabledNextCount:1,disabledJumpNextCount:1,enabledNextCount:0,loadMoreCount:0};
@@ -17,7 +21,7 @@ function fixture(kind,{waitError=timeout(),navigationError,onWait=()=>{}}={}) {
       async waitForLoadState(options){assert(options.timeoutMs>0&&options.timeoutMs<=10000);onWait();if(++waitCalls===1)throw waitError;},
       async evaluate(){return '<html>synthetic</html>';},async domSnapshot(){return 'synthetic';}}};
   const cua={async createBrowserTab(_browser,value){if(value!==undefined)await tab.goto(value);return tab;}};
-  const runtime=kind==='sanofi'?createSanofiDomRuntime(cua):createCspcDomRuntime(cua);
+  const runtime=kind==='sanofi'?createSanofiDomRuntime(cua,{failureDirectory}):createCspcDomRuntime(cua);
   return {runtime,counts:()=>({waitCalls,navigations}),async run(){
     const now=Date.now();
     if(kind==='sanofi'){await runtime.start(now+60000);return runtime.readPage();}

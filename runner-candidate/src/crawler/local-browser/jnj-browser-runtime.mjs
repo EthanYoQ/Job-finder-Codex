@@ -15,30 +15,17 @@ async function waitOriginalDomVisible(locator, deadline) {
     }
   }
 }
-import {mkdir, writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
-import {createHash, randomUUID} from 'node:crypto';
+import {savePrivateDomFailure} from './private-dom-failure.mjs';
 
 async function saveDetailFailure(tab, context, directory) {
-  let timer, observation;
-  try {
-    observation = await Promise.race([
-      tab.playwright.evaluate(() => ({url:location.href, title:document.title, readyState:document.readyState,
+  return savePrivateDomFailure({directory,filePrefix:`jnj-detail-${context.sourceJobId}`,
+    context:{kind:'JNJ_FAILED_DETAIL_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE',...context},
+    observe:()=>tab.playwright.evaluate(() => ({url:location.href, title:document.title, readyState:document.readyState,
         detailCount:document.querySelectorAll('#js-job-detail').length,
         applyLinks:Array.from(document.querySelectorAll('a')).filter(a=>a.textContent.trim()==='Apply now')
           .map(a=>({text:a.textContent.trim(),href:a.href})),
-        html:document.documentElement.outerHTML})),
-      new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('JNJ_FAILURE_CAPTURE_TIMEOUT')),5000);})
-    ]);
-  } catch { observation = {captureUnavailable:true}; }
-  finally {clearTimeout(timer);}
-  // Private debugging only. It cannot be consumed as successful source evidence.
-  const bytes=JSON.stringify({kind:'JNJ_FAILED_DETAIL_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE',
-    capturedAt:new Date().toISOString(),...context,observation},null,2)+'\n';
-  const file=`jnj-detail-${context.sourceJobId}-${randomUUID()}.json`;
-  await mkdir(directory,{recursive:true,mode:0o700});
-  await writeFile(join(directory,file),bytes,{flag:'wx',mode:0o600});
-  return {file,sha256:createHash('sha256').update(bytes).digest('hex')};
+        html:document.documentElement.outerHTML}))});
 }
 // Original JNJ DOM collector using the local Chromium tab transport.
 export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBFINDER_STATE_ROOT ?? '/data/job-finder','diagnostics','jnj')} = {}) {
