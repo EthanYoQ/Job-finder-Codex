@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, open, rename, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { isIP } from "node:net";
 import { fileURLToPath } from "node:url";
@@ -40,13 +40,15 @@ try {
   const snapshotFile = join(snapshots, `public-${sha256}.json`);
   await savePublicSnapshot(snapshotFile, snapshot);
   const slot = process.env.JOBFINDER_SLOT ?? null;
-  let captured = new Map<string,string>();
-  try {
-    const previous = JSON.parse(await readFile(join(snapshots,"latest.json"),"utf8"));
-    if (previous.slot === slot) captured = new Map(previous.capturedSources.map((row:{sourceId:string;batchId:string})=>[row.sourceId,row.batchId]));
-  } catch (error) {if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;}
-  for (const row of results) if (row.status === "SUCCESS" && "successfulSourceCount" in row && row.successfulSourceCount === 1) captured.set(row.sourceId,row.batchId);
-  const complete = results.every(row => row.status !== "FAILED" &&
+  // The DB retains accepted captures even if the worker died before writing latest.json.
+  const accepted = slot ? await db.crawlBatchSourceResult.findMany({where:{
+    releaseCandidateId:candidateId,sourceId:{in:results.map(row=>row.sourceId)},
+    atomicCommitState:"COMMITTED",completenessState:"VERIFIED",
+    finishedAt:{gte:new Date(Number(slot)),lt:new Date(Number(slot)+12*3600_000)},
+    batch:{is:{kind:"SCHEDULED",ownerId:"direct-scheduler"}}
+  },select:{sourceId:true,batchId:true},orderBy:{finishedAt:"asc"}}) : [];
+  const captured = new Map(accepted.map(row=>[row.sourceId,row.batchId]));
+  const complete = results.every(row => captured.has(row.sourceId) && row.status !== "FAILED" &&
     (!("failedSourceCount" in row) || row.failedSourceCount === 0 && row.blockedSourceCount === 0));
   const receipt = {status:"SNAPSHOT_SAVED", slot, complete, snapshotFile, sha256, bytes:bytes.length,
     generatedAt:snapshot.generatedAt, lastUpdatedAt:snapshot.lastUpdatedAt, totalJobs:snapshot.totalJobs,

@@ -31,5 +31,7 @@ test('a committed current Merck receipt is selected by the reader; an older conf
   const select = input => selectPortableSourceSnapshots([plan], [input], { currentTime: new Date(at) })[0];
   assert.equal(select(row).state, 'PUBLISHING');
   const old = select({ ...row, sourceConfigHash: '3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38' });
-  assert.equal(old.selectedSourceResultId, null);
+  assert.equal(old.state, 'PUBLISHING');
+  assert.equal(old.selectedSourceResultId, row.id);
+  assert.equal(old.selected.result.sourceConfigHash, '3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38');
 });
