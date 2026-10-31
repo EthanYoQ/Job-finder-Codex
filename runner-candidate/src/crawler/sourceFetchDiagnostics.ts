@@ -47,9 +47,11 @@ export function sourceFetchDiagnostic(sourceId: string, failure: {result: Extrac
   if ("error" in failure) {
     const error = failure.error instanceof Error ? failure.error : undefined;
     const message = error?.message ?? "NON_ERROR_THROW";
+    const stage = (error as (Error & {sourceFetchStage?: unknown}) | undefined)?.sourceFetchStage;
     const locations = error?.stack?.replaceAll("\\", "/").split("\n").slice(1)
       .flatMap(line => line.match(/(?:runner-candidate|web-candidate)\/(?:src|scripts)\/[A-Za-z0-9_./-]+\.[cm]?[jt]sx?:[0-9]+:[0-9]+/g) ?? []).slice(0, 6) ?? [];
     return {...common, phase: "THROWN", exceptionType: ["Error", "TypeError", "SyntaxError", "ReferenceError", "TimeoutError", "AbortError", "AssertionError"].includes(error?.name ?? "") ? error!.name : "OTHER_ERROR",
+      ...(stage === "JNJ_RESULTS_READY" || stage === "JNJ_HEADING_READY" ? {stage} : {}),
       executionCode: sourceExecutionFailureCode(failure.error), reason: reason(message), reasonSha256: sha(message), locations};
   }
   const {result} = failure, httpStatuses: Record<string, number> = {}, losses: Record<string, number> = {};

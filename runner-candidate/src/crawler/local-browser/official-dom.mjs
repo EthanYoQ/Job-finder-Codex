@@ -22,7 +22,7 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
       await runtime.start(deadline);
       for (let page = 0; page < 20; page++) {
         const value = await runtime.readList();
-        if (value.failure) throw Error(value.failure);
+        if (value.failure) throw value.error ?? Error(value.failure);
         lists.push(value.raw);
         if (!value.next) {
           for (let index = 0; index < value.total; index++) details.push((await runtime.readDetail(index)).raw);
