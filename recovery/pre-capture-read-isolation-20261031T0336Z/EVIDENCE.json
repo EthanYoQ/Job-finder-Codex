@@ -1,0 +1,99 @@
+{
+  "mode": "READ_ONLY_OFFLINE_INSPECTION_NOT_LAUNCH_AUTHORITY",
+  "fixtureCheckedAt": "2026-10-31T03:10:00Z",
+  "eligibleSources": {
+    "source-boehringer-ingelheim-china-social": "PRE_CAPTURE_READ_UNKNOWN_PRODUCER_TERMINAL_NO_PUBLISH"
+  },
+  "eligibleRequestFiles": {
+    "rounds/round-c52bdb5ae1f54b97908292a2684ffdb4/connector-host-task/relay/48a6599c-69f9-4ac1-b93d-d30f5c3cfc23.request.json": "cdbbfcf40fba0c7340a3bd20185a025fee7c8870bcfbd0381abf3bcb0fee0d04"
+  },
+  "actualOriginalHoldReceiptExists": false,
+  "request": {
+    "schemaVersion": 1,
+    "requestId": "48a6599c-69f9-4ac1-b93d-d30f5c3cfc23",
+    "kind": "READ_CONTEXT",
+    "expiresAt": "2026-10-31T03:04:48.404Z",
+    "payload": {
+      "projectId": "yiopvxysxrtrnvqxwgbx",
+      "sourceId": "source-boehringer-ingelheim-china-social",
+      "sourceConfigSha256": "86abb89ac25980acc5e9e3c82741a3415138f53f321f1050c4ae849efd4132de",
+      "purpose": "PRE_CAPTURE",
+      "dispatchBefore": "2026-10-31T03:04:23.404Z"
+    },
+    "requestSha256": "c45519e5726607f77eea167be4b4114c531c678641ad0bc0202f91c440661620"
+  },
+  "dispatch": {
+    "schemaVersion": 1,
+    "requestId": "48a6599c-69f9-4ac1-b93d-d30f5c3cfc23",
+    "requestSha256": "c45519e5726607f77eea167be4b4114c531c678641ad0bc0202f91c440661620",
+    "kind": "READ_CONTEXT",
+    "state": "MAY_HAVE_BEEN_SENT",
+    "markedAt": "2026-10-31T03:03:54.669Z"
+  },
+  "responseExists": false,
+  "checkpoint": {
+    "sourceId": "source-boehringer-ingelheim-china-social",
+    "batchId": "dot-auto-boehringer-ingelheim-20261031T030207002Z",
+    "requestIds": [
+      "48a6599c-69f9-4ac1-b93d-d30f5c3cfc23"
+    ],
+    "relayDirectory": "/workspace/scratch/5e9614251709/rounds/round-c52bdb5ae1f54b97908292a2684ffdb4/connector-host-task/relay"
+  },
+  "lifecycle": [
+    {
+      "schemaVersion": 1,
+      "event": "WRAPPER_START",
+      "recordedAt": "2026-10-31T03:03:46.639Z",
+      "durationMs": 1,
+      "wrapperPid": 5,
+      "timeoutMs": 1800000,
+      "outerDeadline": 1793417626639
+    },
+    {
+      "schemaVersion": 1,
+      "event": "CHILD_STARTED",
+      "recordedAt": "2026-10-31T03:03:46.643Z",
+      "durationMs": 4,
+      "wrapperPid": 5,
+      "childPid": 13
+    },
+    {
+      "schemaVersion": 1,
+      "event": "CHILD_EXIT",
+      "recordedAt": "2026-10-31T03:04:48.432Z",
+      "durationMs": 61793,
+      "wrapperPid": 5,
+      "childPid": 13,
+      "exitCode": 1,
+      "signal": null,
+      "deadlineReached": false,
+      "wrapperExitCode": 1
+    }
+  ],
+  "failure": {
+    "schemaVersion": 1,
+    "purpose": "PRIVATE_DIAGNOSTIC_NOT_PUBLICATION_AUTHORITY",
+    "recordedAt": "2026-10-31T03:04:48.405Z",
+    "batchId": "dot-auto-boehringer-ingelheim-20261031T030207002Z",
+    "sourceId": "source-boehringer-ingelheim-china-social",
+    "phase": "PRE_CAPTURE_CONTEXT",
+    "errors": [
+      {
+        "class": "Error",
+        "code": "RELAY_DEADLINE",
+        "stage": null
+      }
+    ],
+    "attempts": {
+      "fetchAttemptCount": null,
+      "retryCount": null,
+      "retryReasonCodes": null,
+      "httpRequestCount": null
+    },
+    "crawlResult": null
+  },
+  "entryBeforeSha256": "1804e10d9a11abe2c6e098b49941d8106084fd5a067a6a90f63443301f434cb3",
+  "originalDispatchFileSha256": "e227927de4c7e4b627c640e3c9d58bd90b543813f3f7654109c16382d5a57529",
+  "readOutcome": "UNKNOWN",
+  "allOriginalFilesUnmodified": true
+}

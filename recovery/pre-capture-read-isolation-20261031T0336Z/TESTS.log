@@ -1,0 +1,24 @@
+test_actual_archive_resolved_old_reads_not_newly_held (__main__.IsolationTests.test_actual_archive_resolved_old_reads_not_newly_held) ... ok
+test_actual_entry_integration_and_original_reader (__main__.IsolationTests.test_actual_entry_integration_and_original_reader) ... ok
+test_failed_or_corrupt_hold_persistence_cannot_exempt (__main__.IsolationTests.test_failed_or_corrupt_hold_persistence_cannot_exempt) ... ok
+test_fsync_failure_is_retried_for_existing_hold (__main__.IsolationTests.test_fsync_failure_is_retried_for_existing_hold) ... ok
+test_generic_not_bi_allowlist (__main__.IsolationTests.test_generic_not_bi_allowlist) ... ok
+test_hold_persists_before_exemption_and_survives_response_file (__main__.IsolationTests.test_hold_persists_before_exemption_and_survives_response_file) ... ok
+test_marker_mismatch (__main__.IsolationTests.test_marker_mismatch) ... ok
+test_missing_or_mismatched_terminal (__main__.IsolationTests.test_missing_or_mismatched_terminal) ... ok
+test_not_expired_or_not_precapture_timeout (__main__.IsolationTests.test_not_expired_or_not_precapture_timeout) ... ok
+test_orphan_ready_or_modified_read_never_exempted (__main__.IsolationTests.test_orphan_ready_or_modified_read_never_exempted) ... ok
+test_payload_cannot_carry_sql_or_other_purpose (__main__.IsolationTests.test_payload_cannot_carry_sql_or_other_purpose) ... ok
+test_real_bi_read_retains_unknown_and_original_bytes (__main__.IsolationTests.test_real_bi_read_retains_unknown_and_original_bytes) ... ok
+test_responded_publish_in_same_batch_rejects (__main__.IsolationTests.test_responded_publish_in_same_batch_rejects) ... ok
+test_same_source_second_batch_rejects (__main__.IsolationTests.test_same_source_second_batch_rejects) ... ok
+test_selected_isolated_round_requires_fresh_queue (__main__.IsolationTests.test_selected_isolated_round_requires_fresh_queue) ... ok
+test_uncheckpointed_followup_rejects_even_if_responded (__main__.IsolationTests.test_uncheckpointed_followup_rejects_even_if_responded) ... ok
+test_unknown_write_rules_and_official_query_unchanged (__main__.IsolationTests.test_unknown_write_rules_and_official_query_unchanged) ... ok
+test_unknown_write_still_globally_blocks (__main__.IsolationTests.test_unknown_write_still_globally_blocks) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 1.373s
+
+OK
+PASS: actual candidate entry creates fresh queues; original serial loop holds the source across two fresh sessions without store and proceeds to other source; existing holds retained; original reader queries retain READ ONLY/ROLLBACK. No SQL or full entry executed.

@@ -1,0 +1,9 @@
+(node:47) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS: yielded original session is awaited once; failed completion stays failed
+PASS: outer command preserves actual exit code even when stderr only contains warnings
+PASS: review uses earliest original deadline, without arbitrary 120-second sublimit
+PASS: packet process completes before raw and target; packet failure stops later steps
+PASS: exact ID lookup keeps request/response guards; three original reviewers reject compact missing ID and wrong source/config/snapshot; legacy needs no fallback read
+PASS: actual Functions review passes context ID, permits only a due source in the same slot, and rejects current-slot success or a crossed slot
+PASS: successful binding is reused only inside one helper; command and scope failures are not cached; a new source verifies independently

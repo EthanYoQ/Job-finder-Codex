@@ -1,0 +1,65 @@
+{
+  "status": "COORDINATOR_APPROVED_FOR_BACKUP_AND_ENABLE_AFTER_READBACK_IDLE_CHECK",
+  "githubPrefix": "recovery/pre-capture-read-isolation-20261031T0336Z",
+  "baseCommit": "546ff1b414465351602fa8a547e586d41745c7e8",
+  "baseTree": "fdfd8d8f49d85e396551d21eb6869e3c5844bb74",
+  "secretPatternScan": "NO_MATCH",
+  "independentReviewedRuntimeSha256": {
+    "run-original-functions.js": "24ab0ea6ac0bf3d00ea5753f76a52bfcc1bd6f23b69ae7ce6b8eaa10a108f687",
+    "isolate-pre-capture-read.py": "72344581b1b5c53b477026d6baa64d40658621fddd3124746c53b1de32ad7b55"
+  },
+  "files": {
+    "EVIDENCE.json": {
+      "sha256": "754b0d6efb3c5c163b72553fcb4cb5944c64cc543226c76dab4ec614ac3495f6",
+      "bytes": 3355
+    },
+    "MANIFEST.json": {
+      "sha256": "27140fe5a2f8d642f4be5057d6ddf5dc41baa61e5ab4f8e9e378a66500b22ac3",
+      "bytes": 1604
+    },
+    "ORIGINAL_AUTOMATIC_TESTS.log": {
+      "sha256": "0d402946b3f1aa22182ccb87991e2f8f338ac88ecf6ff88e00226e348459efb8",
+      "bytes": 1012
+    },
+    "ORIGINAL_HOST_TESTS.log": {
+      "sha256": "13a1357b30cf9dc4f29583d6016f333e411202c38158dc930a2d2f59c76e49af",
+      "bytes": 962
+    },
+    "ORIGINAL_REJECTION_TESTS.log": {
+      "sha256": "f3ff2bbcf7f890356759ee105f99b9db111522d789c51258a645f9f2c2842a80",
+      "bytes": 252
+    },
+    "README.md": {
+      "sha256": "9c0d8a053db30f9bd26f6bc540109c472ffe974a1aed24a2962f1be319fa08eb",
+      "bytes": 5655
+    },
+    "TESTS.log": {
+      "sha256": "61bca5422cc8c115f9b2aaf4596bc41bf845dade1ed9d4ef3c23174bda28ae1e",
+      "bytes": 2623
+    },
+    "before-entry.js": {
+      "sha256": "1804e10d9a11abe2c6e098b49941d8106084fd5a067a6a90f63443301f434cb3",
+      "bytes": 27272
+    },
+    "entry.patch": {
+      "sha256": "eb1db20d3f8ef519038fe26a1884b7e39fa738a37681c8897795125e447e020c",
+      "bytes": 6836
+    },
+    "entry.test.mjs": {
+      "sha256": "2f8031039e69897d41c016580db2dd14e79bf08ce0c3e77859261d9147a69cbb",
+      "bytes": 3350
+    },
+    "isolate-pre-capture-read.py": {
+      "sha256": "72344581b1b5c53b477026d6baa64d40658621fddd3124746c53b1de32ad7b55",
+      "bytes": 8407
+    },
+    "isolation.test.py": {
+      "sha256": "fdfc806aaa64166eb5ea21488841a8b6933d933cde82721a8feb6a7140967e74",
+      "bytes": 12492
+    },
+    "run-original-functions.js": {
+      "sha256": "24ab0ea6ac0bf3d00ea5753f76a52bfcc1bd6f23b69ae7ce6b8eaa10a108f687",
+      "bytes": 28007
+    }
+  }
+}
