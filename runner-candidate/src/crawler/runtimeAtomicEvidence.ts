@@ -549,7 +549,7 @@ export function buildAtomicRuntimeCommit(input: {
     blockerReason: completenessAnomalyTriggerCodes.length > 0
       ? `Completeness anomaly requires successful independent validation: ${completenessAnomalyTriggerCodes.join(",")}`
       : qualityRequired && !qualityAccepted
-      ? "The owned source acquisition did not satisfy the reviewed plan-bound quality policy"
+      ? `The owned source acquisition did not satisfy the reviewed plan-bound quality policy: ${qualityAdmission?.status === "REJECTED" ? qualityAdmission.codes.join(",") : "SOURCE_QUALITY_ADMISSION_MISSING"}`
       : certificateRequired && !certificateCertified
       ? input.independentTraversalFailureCode
         ? input.independentTraversalFailureReason ??
