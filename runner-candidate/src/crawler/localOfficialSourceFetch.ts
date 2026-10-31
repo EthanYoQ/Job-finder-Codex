@@ -4,6 +4,7 @@ import { reviewBiDomHttp } from './local-browser/bi-dom-http-review';
 import { replayBiUiSemanticContract } from './biUiSemanticContract';
 import { createJnjCareersDomSourceFetch } from './jnjCareersDomEvidence';
 import type { SourceFetchFunction } from './runSourceCrawl';
+import { currentOfficialSourceAttemptSignal } from './officialHttpRuntimeLimits';
 
 /** Fresh DOM is mandatory for these routes; a failed browser never falls back to HTTP. */
 export function withLocalOfficialDom(http: SourceFetchFunction): SourceFetchFunction {
@@ -11,7 +12,7 @@ export function withLocalOfficialDom(http: SourceFetchFunction): SourceFetchFunc
     const sourceId = plan.source.id;
     if (!['source-cspc-social', 'source-boehringer-ingelheim-china-social', 'source-johnson-innovative-medicine-social'].includes(sourceId)) return http(plan, tracker);
     const runStartedAt = new Date().toISOString();
-    const capture = await captureLocalOfficialDom(sourceId, runStartedAt);
+    const capture = await captureLocalOfficialDom(sourceId, runStartedAt, currentOfficialSourceAttemptSignal());
     if (sourceId === 'source-johnson-innovative-medicine-social') {
       if (!capture.lists || !capture.details) throw Error('JNJ_DOM_CAPTURE_REQUIRED');
       return createJnjCareersDomSourceFetch({ lists: capture.lists, details: capture.details })(plan, tracker);

@@ -28,7 +28,7 @@ export function exactMerckChinaQualityPlan(plan: SourceCrawlPlan): boolean {
     config.postedDatePolicy === MERCK_POSTED_DATE_POLICY && config.cityScopePolicy === MERCK_CITY_SCOPE_POLICY &&
     config.publicVisibilityPolicy === MERCK_PUBLIC_VISIBILITY_POLICY &&
     config.countryFilter === "China" && config.detailBaseUrl === "https://careers.emdgroup.com/us/en/job" &&
-    config.allowOmittedOffsetForSinglePage === true && config.pageSize === 50 && config.maxPages === 10 &&
+    config.allowOmittedOffsetForSinglePage === true && config.pageSize === 100 && config.maxPages === 10 &&
     config.derivedDetailIdField === undefined && config.mixedLocationScopePolicy === undefined &&
     config.allowedApplyOrigins === undefined && config.allowedEntryRedirect === undefined && config.facetScope === undefined &&
     config.requestBoundOmittedOffsetPolicy === undefined && config.exactDuplicateReconciliationPolicy === undefined &&

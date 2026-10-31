@@ -46,6 +46,7 @@ export function AdminApp({
 }: AdminAppProps) {
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  useEffect(() => { setActionError(""); }, [isAuthenticated]);
   async function runAction(operation: () => Promise<void> | void) {
     if (actionBusy || actionError === UNKNOWN_WRITE_MESSAGE) return;
     setActionBusy(true); setActionError("");

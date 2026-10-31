@@ -1,6 +1,7 @@
 import { createChromiumDom } from './chromium-dom.mjs';
 import { createCspcDomRuntime } from './cspc-browser-runtime.mjs';
 import { createJnjDomRuntime } from './jnj-browser-runtime.mjs';
+import { createAbortableClose } from '../officialHttpRuntimeLimits.ts';
 
 /** Existing source collectors, with a local browser lifetime instead of a tool session. */
 export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date().toISOString()) {
@@ -55,10 +56,13 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
   throw Error('OFFICIAL_DOM_SOURCE_UNSUPPORTED');
 }
 
-export async function captureLocalOfficialDom(sourceId, runStartedAt) {
+export async function captureLocalOfficialDom(sourceId, runStartedAt, signal) {
+  signal?.throwIfAborted();
   const { chromium } = await import('playwright-core');
+  signal?.throwIfAborted();
   const cua = await createChromiumDom({ chromium, executablePath: process.platform === 'win32'
     ? 'C:/Program Files/Google/Chrome/Application/chrome.exe' : '/usr/bin/chromium' });
-  try { return await captureOfficialDom(sourceId, cua, runStartedAt); }
-  finally { await cua.close(); }
+  const cleanup = createAbortableClose(signal, () => cua.close());
+  try { signal?.throwIfAborted(); return await captureOfficialDom(sourceId, cua, runStartedAt); }
+  finally { cleanup.dispose(); await cleanup.close(); }
 }

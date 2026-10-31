@@ -1,6 +1,8 @@
+统一包增量复核：本轮修复管理员DB故障误报401及瞬时失败清除会话，保留草稿并支持只读刷新；真正401后允许重新登录。Merck三处配置由simplify_runner对齐。最新源码/产物哈希与定向验证见 `prepared/simple-review/manifest.json`；此前候选的独立构建manifest为历史参考。原手动抓取入队接口尚无新runner消费入口，不宣称手动抓取完整恢复。
+
 # 本机持久快照网页候选
 
-状态：`LOCAL_BUILD_AND_SYNTHETIC_VERIFIED_NOT_DEPLOYED`。只修改独立 `prepared/web-candidate` 及本次授权的 `tooling/web-build-native`，未改原恢复证据、原依赖或原 lock，未连接真实数据库、招聘来源或生产服务器。
+状态：`LOCAL_BUILD_AND_SYNTHETIC_VERIFIED_NOT_DEPLOYED`。候选首先在独立 `prepared/web-candidate` 构建，统一包增量修改位于 `prepared/simple-app/web-candidate`；构建工具位于 `tooling/web-build-native`。未改原恢复证据、原依赖或原 lock，本子任务未连接真实数据库、招聘来源或生产服务器。
 
 ## 已完成的查询与写入路径
 
@@ -20,9 +22,9 @@
 
 `dist` **已换成本机新构建**，不再是旧线上字节。`frontend-build-manifest.json` 记录所有源码输入、原 lock、Windows 原生工具完整性及 119 个产物的 SHA256。
 
-- 输入树：`0f787fee8a434b05be88bd47f2ee7c911950a06abdba4c15e5650919bc29ff9a`
-- dist 树：`99405d5299f35a3fd72d1902fdfa46f7dcf85227d06e05c4bf3cd04e6be0c996`
-- 产物：119 文件，5,721,963 字节。
+- 输入树：`213be285d5312b14e929c6dc9e7a6db4ea7be4f4e284cf239d5c6ac5110f268b`
+- dist 树：`9991351f3ab994c8d5a47073006d2ffc82c21e2cee361b8d9b8f9f0f2bf856bc`
+- 产物：119 文件，5,722,488 字节。
 - Vite 6.4.3、React 插件 4.7.0、Rollup 4.62.2，均为原 lock 版本。Vite 实际使用其嵌套 esbuild 0.25.12；根 esbuild 0.28.1 未替换或混用。
 
 补齐的构建输入只有标准 `index.html`、最小 `vite.config.mjs` 和 `public/fonts`。HTML 来自主任务取得的当前页面，脚本入口改为现有 `src/main.tsx`。110 个字体复用已取得的公开字节，fonts.css 用既有 PostCSS 从当前部署 CSS 提取 110 个原 @font-face 规则。原源码 logo 图片与当前部署图片 SHA256 一致。

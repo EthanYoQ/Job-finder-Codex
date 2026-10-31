@@ -298,8 +298,9 @@ async function getAdminSession(request: AdminApiRequest, deps: AdminApiDeps) {
       db: deps.db,
       ...(deps.now === undefined ? {} : { now: deps.now })
     });
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof Error && error.message === "Admin session is not active") return null;
+    throw error;
   }
 }
 

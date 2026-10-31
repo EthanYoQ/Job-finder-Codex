@@ -13,6 +13,8 @@ const EMPTY_MODEL: AdminDashboardModel = {
 export function BrowserAdminApp() {
   const [token, setToken] = useState<string | null>(() => window.sessionStorage.getItem("job-search-admin-token"));
   const [model, setModel] = useState<AdminDashboardModel>(EMPTY_MODEL);
+  const [dashboardError, setDashboardError] = useState("");
+  const [reload, setReload] = useState(0);
 
   const headers = useMemo(() => {
     if (token === null) {
@@ -26,17 +28,28 @@ export function BrowserAdminApp() {
   }, [token]);
 
   useEffect(() => {
+    let cancelled = false;
     if (token === null) {
       setModel(EMPTY_MODEL);
+      setDashboardError("");
       return;
     }
 
-    void loadDashboard(headers).then(setModel).catch(() => {
-      window.sessionStorage.removeItem("job-search-admin-token");
-      setToken(null);
-      setModel(EMPTY_MODEL);
+    void loadDashboard(headers).then(next => {
+      if (cancelled) return;
+      setModel(next); setDashboardError("");
+    }).catch(error => {
+      if (cancelled) return;
+      if (error instanceof Error && error.message === "ADMIN_AUTH_REQUIRED") {
+        window.sessionStorage.removeItem("job-search-admin-token");
+        setToken(null);
+        setModel(EMPTY_MODEL);
+      } else {
+        setDashboardError("后台数据暂不可用，登录状态和当前编辑内容已保留。可刷新后台数据后查看。");
+      }
     });
-  }, [headers, token]);
+    return () => { cancelled = true; };
+  }, [headers, token, reload]);
 
   async function login(input: { username: string; password: string }) {
     const response = await postJson<{ token: string }>("/admin/api/login", {
@@ -50,10 +63,14 @@ export function BrowserAdminApp() {
   async function refresh() {
     if (token !== null) {
       setModel(await loadDashboard(headers));
+      setDashboardError("");
     }
   }
 
   return (
+    <>
+    {dashboardError ? <p role="alert">{dashboardError}</p> : null}
+    {token !== null ? <button type="button" onClick={() => setReload(value => value + 1)}>刷新后台数据</button> : null}
     <AdminApp
       isAuthenticated={token !== null}
       model={model}
@@ -75,12 +92,14 @@ export function BrowserAdminApp() {
         await refresh();
       }}
     />
+    </>
   );
 }
 
 async function loadDashboard(headers: Record<string, string>): Promise<AdminDashboardModel> {
   const response = await fetch("/admin/api/dashboard", { headers });
   if (!response.ok) {
+    if (response.status === 401) throw new Error("ADMIN_AUTH_REQUIRED");
     throw new Error(`Admin dashboard failed with status ${response.status}`);
   }
 
