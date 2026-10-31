@@ -116,7 +116,7 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-const CHILD_OUTPUT_MAX_BYTES = 16 * 1024 * 1024;
+const CHILD_OUTPUT_MAX_BYTES = 64 * 1024 * 1024;
 const CHILD_ENVIRONMENT_ALLOWLIST = new Set([
   "COMSPEC",
   "FONTCONFIG_PATH",
