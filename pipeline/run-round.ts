@@ -7,6 +7,7 @@ import { isIP } from "node:net";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { runDirectRound } from "../runner-candidate/scripts/direct-round";
+import { recoverQueuedManualPreviews } from "./recover-manual";
 import { describePortableRuntimeError } from "../runner-candidate/src/crawler/portableRuntimeDiagnostics";
 import { readPortablePublicSnapshot } from "../web-candidate/src/db/portablePublicSnapshotRepository";
 import { validateSavedSnapshot } from "../web-candidate/src/server/savedPublicSnapshot";
@@ -67,5 +68,12 @@ try {
   console.error(JSON.stringify({status:"ROUND_FAILED",diagnostic:describePortableRuntimeError(error)}));
   process.exitCode=1;
 } finally {
+  // The scheduled round's shared lease has been released before manual units start.
+  if (db && candidateId) try {
+    const manual = await recoverQueuedManualPreviews({db,candidateId,workspaceRoot:stateRoot});
+    if (manual.queuedCount) console.error(JSON.stringify({status:"MANUAL_QUEUE_CHECKED",...manual}));
+  } catch (error) {
+    console.error(JSON.stringify({status:"MANUAL_QUEUE_CHECK_FAILED",diagnostic:describePortableRuntimeError(error)}));
+  }
   await Promise.allSettled([db?.$disconnect(),leaseDb?.$disconnect()]);
 }

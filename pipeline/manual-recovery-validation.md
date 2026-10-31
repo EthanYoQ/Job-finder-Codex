@@ -1,0 +1,9 @@
+# New manual request launch recovery
+
+`run-round.ts` calls `recoverQueuedManualPreviews` in its final cleanup after the scheduled crawl has released its shared lease, before disconnecting Prisma. This runs after either successful or failed scheduled work and does not wait for manual execution. The existing template and request table are reused; no new service, queue, permission or timer is introduced.
+
+Only QUEUED requests created after the current candidate's database registration and belonging to the exact 36-source catalog are considered. Imported manual IDs are excluded through migration-state, and the existing direct-manual eligibility assertion is reused. Each candidate's fixed systemd unit is read first. Active/activating units, pending systemd jobs, missing units and uncertain reads do not cause a start. After an explicitly inactive/failed unit with no systemd job is observed, the request is read again and must still be eligible QUEUED before starting the same ID unit. The consumer retains its exact-ID atomic claim, so a race cannot reclaim RUNNING or completed requests.
+
+A start timeout is reported as unconfirmed and is not retried in that invocation. A later scheduled round inspects both unit and request state again. It may request a new start only after observing an idle/failed unit and a still-QUEUED request. Historical requests remain untouched. Recovery summaries go to stderr so the existing snapshot JSON on stdout is unchanged.
+
+Three focused Node tests passed: historical/finished exclusions; active-unit/pending-job/unknown-state/claim-race handling; and an uncertain start followed by read-only active-unit observation and a later confirmed idle restart. Focused TypeScript check reports zero changed-file errors and 33 pre-existing transitive errors. No real systemd request or server operation was executed in this task; deployment and live launch recovery still require validation.
