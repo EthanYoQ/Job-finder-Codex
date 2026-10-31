@@ -38,6 +38,16 @@ The initial timer cadence is **00:01 and 12:01 Beijing time**. Only after three 
 
 The web candidate owns snapshot export. Export should follow completed source work even if another source failed, preserving atomic rename/last-good snapshots. Unknown database outcomes must be reconciled before a new snapshot export.
 
+## Explicit manual previews
+
+`scripts/direct-manual.ts --request-id <new-request-id>` consumes one original `ManualCrawlRequest` using the original worker and manual batch executor. It preserves preview-only semantics: `force: true` ignores scheduled windows, but the manual result does not publish Job rows or refresh the public snapshot. Only the exact QUEUED request created after the selected candidate's database registration is claimable. Manifest-listed old manual IDs and all earlier requests are excluded; RUNNING requests are never reclaimed or replayed.
+
+The entry uses the shared database lease and fenced transactions. While that lease is definitely busy, the service waits 30 seconds before attempting acquisition again; the request has not yet been claimed. Any uncertain acquisition, execution or terminal update stops without an automatic replay. `pipeline/jobfinder-manual@.service` is the fixed deployment template, uses the existing postgres/runtime environment files, and has `Restart=no`. It has not been enabled by this local implementation task.
+
+The original active-request uniqueness constraint remains. A source with a historical QUEUED/RUNNING request returns `409 ALREADY_ACTIVE` on enqueue; the consumer does not silently clear history or bypass the index. The web hook starts the fixed service only for a successfully returned new request ID and distinguishes request creation, launch requested, and launch unconfirmed.
+
+Two offline manual tests and three real local PostgreSQL claim/state tests passed. The SQL registration-time comparison uses an ISO UTC value cast to timestamp, matching Prisma's timestamp-without-time-zone field even when the session timezone differs. These tests do not establish that any live source preview succeeded.
+
 ## Verification and limits
 
 ```sh

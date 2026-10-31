@@ -118,6 +118,8 @@ export function createManualCrawlRequestRepository(input: {
   evaluateEligibility?: (source: ManualCrawlSource) => ManualCrawlEligibility;
   resolveEnqueueableSourceIds?: () => Promise<readonly string[]>;
   resolveClaimableSourceIds?: () => Promise<readonly string[]>;
+  /** Execute only this newly queued request; never reclaim an uncertain run. */
+  queuedRequest?: { id: string; createdAfter: Date };
 }) {
   const evaluateEligibility = input.evaluateEligibility ?? evaluateCanonicalManualCrawlEligibility;
 
@@ -211,7 +213,8 @@ export function createManualCrawlRequestRepository(input: {
           throw new ManualCrawlRequestRepositoryError("NOT_EXECUTABLE");
         }
         const rows = await transaction.$queryRawUnsafe<ClaimedManualCrawlRequest[]>(CLAIM_NEXT_SQL,
-          claim.ownerId, claim.leaseDurationMs, claimableSourceIds);
+          claim.ownerId, claim.leaseDurationMs, claimableSourceIds,
+          input.queuedRequest?.id ?? null, input.queuedRequest?.createdAfter.toISOString() ?? null);
         const claimed = rows[0] ?? null;
         if (!claimed) return null;
         const reclaimed = claimed.previousStatus === "RUNNING";
@@ -297,6 +300,8 @@ WITH candidate AS (
   WHERE (request."status" = 'QUEUED'
      OR (request."status" = 'RUNNING' AND request."leaseExpiresAt" <= clock_timestamp()))
     AND source."id" = ANY($3::text[])
+    AND ($4::text IS NULL OR (request."id" = $4 AND request."status" = 'QUEUED'
+      AND request."createdAt" > $5::timestamp))
     AND source."status" = 'VERIFIED_SCRAPABLE'
     AND source."kind" = 'SOCIAL'
     AND source."atsKind" <> 'UNKNOWN'
