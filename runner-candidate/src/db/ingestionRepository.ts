@@ -1500,11 +1500,7 @@ function validatePendingSourceTerminal(input: PendingSourceTerminalInput): void 
   );
   const attemptedFailure = (["FAILED", "ROLLED_BACK"] as string[]).includes(input.atomicCommitState) &&
     input.transportState === "SUCCEEDED" && input.adapterState === "SUCCEEDED";
-  // A new lease can prove an interrupted direct worker has no committed write,
-  // without inventing successful transport/adapter evidence or saying it never attempted.
-  const interrupted = input.failureCode === "DIRECT_WORKER_INTERRUPTED" &&
-    input.atomicCommitState === "ROLLED_BACK" && input.transportState === "FAILED" && input.adapterState === "SKIPPED";
-  if (input.completenessState !== "FAILED" || (!notAttempted && !attemptedFailure && !interrupted)) {
+  if (input.completenessState !== "FAILED" || (!notAttempted && !attemptedFailure)) {
     throw new Error("Terminal failure state is inconsistent");
   }
   const diagnosticValues = [

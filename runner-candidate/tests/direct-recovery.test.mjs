@@ -44,9 +44,11 @@ test('crash before atomic commit closes only the former fenced attempt and is sa
     assert.equal(await recoverDirectBatches(memory.db, lease, 'instabox-synthetic', ['s']), 1);
     assert.equal(await recoverDirectBatches(memory.db, lease, 'instabox-synthetic', ['s']), 0);
   });
-  assert.equal(memory.rows[0].atomicCommitState, 'ROLLED_BACK');
+  assert.equal(memory.rows[0].atomicCommitState, 'NOT_ATTEMPTED');
+  assert.equal(memory.rows[0].transportState, 'FAILED');
+  assert.equal(memory.rows[0].adapterState, 'SKIPPED');
   assert.equal(memory.rows[0].failureCode, 'DIRECT_WORKER_INTERRUPTED');
-  assert.equal(memory.batches[0].status, 'FAILED');
+  assert.equal(memory.batches[0].status, 'INCOMPLETE');
   assert.equal(memory.jobWrites(), 0);
 });
 

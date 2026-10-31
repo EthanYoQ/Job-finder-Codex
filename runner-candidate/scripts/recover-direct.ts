@@ -27,7 +27,7 @@ export async function recoverDirectBatches(db: PrismaClient, lease: PortableCraw
       // A remaining PENDING tuple therefore has no atomic Job commit; the old holder
       // cannot publish after takeover. Preserve its evidence and close this attempt.
       await terminatePendingSourceResult({ ...binding, id: row.id, sourceId: row.sourceId,
-        transportState: "FAILED", adapterState: "SKIPPED", completenessState: "FAILED", atomicCommitState: "ROLLED_BACK",
+        transportState: "FAILED", adapterState: "SKIPPED", completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
         finishedAt: new Date(), failureCode: "DIRECT_WORKER_INTERRUPTED",
         failureReason: "New lease acquired; previous fenced attempt has no committed source result"
       }, fenced as never);
