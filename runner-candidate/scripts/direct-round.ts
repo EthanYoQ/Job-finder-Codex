@@ -26,6 +26,14 @@ export async function loadDirectPlans() {
   });
 }
 
+export function selectDirectRoutes<T extends {sourceId:string}>(routes:readonly T[],onlySourceIds?:readonly string[]):readonly T[] {
+  if(onlySourceIds===undefined)return routes;
+  const requested=new Set(onlySourceIds),known=new Set(routes.map(row=>row.sourceId));
+  if(onlySourceIds.length===0||requested.size!==onlySourceIds.length||onlySourceIds.some(id=>!known.has(id)))
+    throw Error("INVALID_SOURCE_SELECTION");
+  return routes.filter(row=>requested.has(row.sourceId));
+}
+
 export function identityForSource(candidate: { id: string; commitSha: string; rosterHash: string; sourcePlanHash: string; sourceConfigHash: string; adapterBundleHash: string }, sourceId: string) {
   return { releaseCandidateId: candidate.id, commitSha: candidate.commitSha, rosterSha256: candidate.rosterHash,
     sourcePlanSha256: candidate.sourcePlanHash, sourceConfigSha256: candidate.sourceConfigHash,
@@ -55,8 +63,9 @@ export async function assertNoUnresolvedWrites(db: Pick<PrismaClient, "crawlBatc
   if (running) throw Error(`RECONCILE_RUNNING_BATCH:${running.id}`);
 }
 
-export async function runDirectRound(input: { db: PrismaClient; leaseDb: PortableLeaseDatabase; candidateId: string; workspaceRoot: string }) {
+export async function runDirectRound(input: { db: PrismaClient; leaseDb: PortableLeaseDatabase; candidateId: string; workspaceRoot: string; onlySourceIds?:string[] }) {
   const routes = await loadDirectPlans(), sourceIds = routes.map(row => row.sourceId);
+  const selectedRoutes = selectDirectRoutes(routes,input.onlySourceIds);
   assertLegacyAuditState(JSON.parse(await readFile(resolve(input.workspaceRoot, "migration-state.json"), "utf8")), input.candidateId);
   if (input.db === input.leaseDb) throw Error("SEPARATE_LEASE_CONNECTION_REQUIRED");
   return withPortableCrawlLease(input.leaseDb, async lease => {
@@ -68,7 +77,7 @@ export async function runDirectRound(input: { db: PrismaClient; leaseDb: Portabl
     if (routes.some(row => !sources.some(source => source.id === row.sourceId && source.companyId === row.companyId))) throw Error("RESTORED_SOURCE_CATALOG_REQUIRED");
     const portableFetch = createOwnedSourceQualityFetch(), certifiedFetch = withLocalOfficialDom(createHttpOnlyOfficialSourceFetch());
     const results = [];
-    for (const row of routes) {
+    for (const row of selectedRoutes) {
       const portable = row.route === "PORTABLE";
       const runtime = createPrismaCrawlRuntimeDeps(input.db as never, portable ? { portablePlans: [row.plan] } : {});
       try {

@@ -6,7 +6,8 @@ import { resolve, join } from "node:path";
 import { isIP } from "node:net";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
-import { runDirectRound } from "../runner-candidate/scripts/direct-round";
+import { loadDirectPlans, runDirectRound } from "../runner-candidate/scripts/direct-round";
+import { readRoundCoverage } from "./round-coverage";
 import { recoverQueuedManualPreviews } from "./recover-manual";
 import { describePortableRuntimeError } from "../runner-candidate/src/crawler/portableRuntimeDiagnostics";
 import { readPortablePublicSnapshot } from "../web-candidate/src/db/portablePublicSnapshotRepository";
@@ -16,6 +17,7 @@ import { savePublicSnapshot } from "../web-candidate/src/server/public-snapshot-
 const run = promisify(execFile);
 const stateRoot = resolve(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder");
 const candidateId = process.env.JOBFINDER_CANDIDATE_ID;
+const onlySourceIds = process.env.JOBFINDER_ONLY_SOURCE_IDS?.split(",").map(id=>id.trim());
 let db: PrismaClient | undefined, leaseDb: PrismaClient | undefined;
 try {
   if (!candidateId || !process.env.POSTGRES_PASSWORD) throw Error("REGISTERED_CANDIDATE_AND_POSTGRES_PASSWORD_REQUIRED");
@@ -30,7 +32,9 @@ try {
   url.searchParams.set("pool_timeout", "10");
   db = new PrismaClient({datasources:{db:{url:url.href}}});
   leaseDb = new PrismaClient({datasources:{db:{url:url.href}}});
-  const results = await runDirectRound({db, leaseDb, candidateId, workspaceRoot:stateRoot});
+  const sourceIds = (await loadDirectPlans()).map(row=>row.sourceId);
+  const results = await runDirectRound({db, leaseDb, candidateId, workspaceRoot:stateRoot,
+    ...(onlySourceIds===undefined?{}:{onlySourceIds})});
   // Read the original transactional public projection, even when some sources failed.
   // It retains each source's last accepted publication and original observation times.
   const snapshot = validateSavedSnapshot(await readPortablePublicSnapshot(db as never));
@@ -42,18 +46,10 @@ try {
   await savePublicSnapshot(snapshotFile, snapshot);
   const slot = process.env.JOBFINDER_SLOT ?? null;
   // The DB retains accepted captures even if the worker died before writing latest.json.
-  const accepted = slot ? await db.crawlBatchSourceResult.findMany({where:{
-    releaseCandidateId:candidateId,sourceId:{in:results.map(row=>row.sourceId)},
-    atomicCommitState:"COMMITTED",completenessState:"VERIFIED",
-    finishedAt:{gte:new Date(Number(slot)),lt:new Date(Number(slot)+12*3600_000)},
-    batch:{is:{kind:"SCHEDULED",ownerId:"direct-scheduler"}}
-  },select:{sourceId:true,batchId:true},orderBy:{finishedAt:"asc"}}) : [];
-  const captured = new Map(accepted.map(row=>[row.sourceId,row.batchId]));
-  const complete = results.every(row => captured.has(row.sourceId) && row.status !== "FAILED" &&
-    (!("failedSourceCount" in row) || row.failedSourceCount === 0 && row.blockedSourceCount === 0));
+  const {complete,capturedSources} = await readRoundCoverage(db,candidateId,slot,sourceIds,results);
   const receipt = {status:"SNAPSHOT_SAVED", slot, complete, snapshotFile, sha256, bytes:bytes.length,
     generatedAt:snapshot.generatedAt, lastUpdatedAt:snapshot.lastUpdatedAt, totalJobs:snapshot.totalJobs,
-    capturedSources:[...captured].map(([sourceId,batchId])=>({sourceId,batchId})),
+    capturedSources,
     sources:results.map(row=>({sourceId:row.sourceId,status:row.status}))};
   const temporary = join(snapshots, `latest-${randomUUID()}.tmp`);
   try {
