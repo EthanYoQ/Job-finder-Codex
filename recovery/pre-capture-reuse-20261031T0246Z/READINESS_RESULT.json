@@ -1,0 +1,66 @@
+{
+  "status": "ACTIVE_PRECONDITIONS_MATCH_AFTER_OTHER_TASK_ACTIVATION",
+  "checkedAt": "2026-10-31T02:45:28.365067+00:00",
+  "checkedFiles": [
+    {
+      "path": "original-relay-automation-20261017T0609Z/run-original-functions.js",
+      "requiresBeforeSha256": "c3044dd1cb909db8bb04b5a839ddadd2bc21b6149029cc3ac98e1a368b7b6877",
+      "afterSha256": "1804e10d9a11abe2c6e098b49941d8106084fd5a067a6a90f63443301f434cb3",
+      "afterBytes": 27272
+    },
+    {
+      "path": "original-relay-automation-20261017T0609Z/automatic-relay-functions.js",
+      "requiresBeforeSha256": "edc8393b759ea6d9744825bba4750c3fa13d8cc632dc0318360d0ae78844878e",
+      "afterSha256": "cb4f58b6fbc537b4f21a2426f00620d83c982b0e39fdde3b192e73ee7e72902a",
+      "afterBytes": 7213
+    },
+    {
+      "path": "takeda-original-recovery-20261017T0417Z/transport/original-host-stage-functions.js",
+      "requiresBeforeSha256": "401fcc25726ad398206739faadb3827e2a78cc2e58ae1db08f93e97f2eb7edba",
+      "afterSha256": "73b82eecda0623f73ddf217763723bd5dedd9978139bb530388564f7dfb152ba",
+      "afterBytes": 3250
+    },
+    {
+      "path": "takeda-original-recovery-20261017T0417Z/transport/adapted-host-helper-functions.js",
+      "requiresBeforeSha256": "1a128bbe91bbd90c649136ea59755c4c1a01cd9cd6327189309dec96ac3d77f8",
+      "afterSha256": "89efa4e2c89ad9b3414e657fd7617b33035b3cb7dd4c7edfefa2c3f5010be1fa",
+      "afterBytes": 11272
+    },
+    {
+      "path": "original-relay-automation-20261017T0609Z/pre-capture-reuse.test.mjs",
+      "requiresBeforeSha256": null,
+      "afterSha256": "4176017b181b38c5b77575e56f3da14b71bcee4cb1f859bf364c3a485ef4fd39",
+      "afterBytes": 8954
+    },
+    {
+      "path": "original-relay-automation-20261017T0609Z/pre-capture-projection.test.mjs",
+      "requiresBeforeSha256": null,
+      "afterSha256": "0c3b0ecee63e6647bf23bdc587992b814bcbb040467d99e440986265e1556347",
+      "afterBytes": 3989
+    },
+    {
+      "path": "original-relay-automation-20261017T0609Z/read-context-rejection.test.mjs",
+      "requiresBeforeSha256": null,
+      "afterSha256": "08e3aa2b050548ce4aaf279fa12037d504bd4e8ba67ef5e964140e903d341649",
+      "afterBytes": 11240
+    },
+    {
+      "path": "original-relay-automation-20261017T0609Z/explicit-review-rejection.test.mjs",
+      "requiresBeforeSha256": "dda4c968ac824d7dcf840831e0a3a3edb77224240d40c2cfc1856542b2a6e29d",
+      "afterSha256": "49209f49155e52d1988edcde7c3b6e17f85452873a44314d898dbecb295818f1",
+      "afterBytes": 978
+    }
+  ],
+  "preservedAlreadyActivated": [
+    "18 persistent HOLD entries and associated relay test",
+    "CURRENT tokenless readback response reuse and both readback suites"
+  ],
+  "originalCandidateSuitesPassed": 6,
+  "integratedBehaviorSuitesPassed": 8,
+  "integratedProjectionRoutesPassed": 36,
+  "functionsBodiesParsed": 4,
+  "patchReplayFilesMatched": 8,
+  "oldAmgenStillPending": true,
+  "remoteBackupPerformedByThisTask": false,
+  "activeFilesModifiedByThisTask": false
+}

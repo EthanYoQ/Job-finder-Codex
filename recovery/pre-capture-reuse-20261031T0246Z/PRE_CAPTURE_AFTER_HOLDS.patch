@@ -1,0 +1,433 @@
+--- a/original-relay-automation-20261017T0609Z/run-original-functions.js
++++ b/original-relay-automation-20261017T0609Z/run-original-functions.js
+@@ -8,7 +8,10 @@
+ async function command(cmd){let r=await tools.exec_command({cmd,max_output_tokens:200000}),output=r.output;while(r.session_id){r=await tools.write_stdin({session_id:r.session_id,chars:'',yield_time_ms:1000,max_output_tokens:200000});output+=r.output;}if(r.exit_code!==0)throw Error('LOCAL_STEP:exit='+String(r.exit_code)+'; '+output);return output;}
+ const read=p=>command('cat '+q(p)),save=async(p,x)=>{const r=await tools.apply_patch('*** Begin Patch\n*** Add File: '+p+'\n'+JSON.stringify(x).split('\n').map(s=>'+'+s).join('\n')+'\n*** End Patch');if(r?.isError)throw Error('SAVE_FAILED');};
+ function rows(raw){if(raw.isError)throw Error('OFFICIAL_SQL_FAILED: '+(raw.content?.filter(x=>x.type==='text').map(x=>x.text).join('\n')||JSON.stringify(raw.structuredContent??raw)));const t=raw.structuredContent?.result??JSON.parse(raw.content.find(x=>x.type==='text').text).result;return JSON.parse(t.match(/\n<untrusted-data-[^>]+>\n([\s\S]*?)\n<\/untrusted-data-/)[1]);}
+-const sql=async query=>rows(await tools.mcp__codex_apps__supabase_execute_sql({project_id:'yiopvxysxrtrnvqxwgbx',query}));
++const sql=async query=>{
++ const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:'yiopvxysxrtrnvqxwgbx',query});
++ try{return rows(raw);}catch(error){error.officialSqlRead={projectId:'yiopvxysxrtrnvqxwgbx',query,recordedAt:new Date().toISOString(),toolResult:raw};throw error;}
++};
+ store('cloudPilotHostHelpers',await read(R+'/transport/adapted-host-helper-functions.js'));store('cloudPilotHostStages',await read(R+'/transport/original-host-stage-functions.js'));
+ const {runOriginalSerial}=await new A(await read(D+'/automatic-relay-functions.js'))();
+ let backupSuccessfulSource;
+@@ -93,12 +96,20 @@
+  const compactSchema={'source-sanofi-china-social':'sanofi-cn-dual-chain-attestation-v1','source-bayer-healthcare-social':'bayer-cn-dual-chain-attestation-v1'}[sourceId];
+  const template=await read(R+'/transport/'+(compactSchema?'sanofi-reader-before-original.sql':'viatris-reader-before-original.sql'));
+  const query=template.replaceAll('__ORIGINAL_COMPACT_CERTIFICATE_SCHEMA__',compactSchema??'').replaceAll('__ORIGINAL_COMPACT_LEGACY_GUARD__',sourceId==='source-sanofi-china-social'?'':'false AND ').replaceAll('__ORIGINAL_CERTIFICATE_SCHEMA__',routeById[sourceId].route==='PORTABLE'?'plan-bound-source-quality-v1':routeById[sourceId].route==='TRUE_A'?'a-grade-official-total-v2':'b-grade-independent-traversal-v2').replaceAll('__ORIGINAL_REQUIRES_PORTABLE_POLICY__',String(routeById[sourceId].route==='PORTABLE')).replaceAll('source-viatris-social',sourceId).replaceAll('company-viatris',routeById[sourceId].companyId).replaceAll('5eab6bd8ba6973176376f492b9ce2105d81d8cae5afd4d3518daa6ad3dfcdad9',config.sourceConfigSha256).replaceAll('dot-cloud-native-c2b39d9-20261016',control.candidate.id).replaceAll('viatris-reader-before-v1',sourceFolders[sourceId]+'-reader-before-v1');
++ // Read only after the original PRE_CAPTURE request, so its clock stays fresh.
++ let preCaptureReadAttempted=false;
++ const readPreCaptureContext=async request=>{
++ if(preCaptureReadAttempted)throw Error('PRE_CAPTURE_READ_ALREADY_ATTEMPTED');
++ preCaptureReadAttempted=true;
++ const readSql=query=>{if(Date.now()>=Date.parse(request.expiresAt))throw Error('PRE_CAPTURE_READ_EXPIRED');return sql(query);};
+  let before;
+  if(['source-servier-china-social','source-sanofi-china-social','source-bayer-healthcare-social','source-hengrui-social'].includes(sourceId)){
+   const {readOriginalReaderBefore}=await new A(await read(D+'/reader-before-functions.js'))();
+-  before=await readOriginalReaderBefore(query,sql,['source-bayer-healthcare-social','source-hengrui-social'].includes(sourceId)?'15s':'8s');
+- }else {const {readOriginalReaderBeforeSingle}=await new A(await read(D+'/reader-before-functions.js'))();before=await readOriginalReaderBeforeSingle(query,sql);}
++  before=await readOriginalReaderBefore(query,readSql,['source-bayer-healthcare-social','source-hengrui-social'].includes(sourceId)?'15s':'8s');
++ }else {const {readOriginalReaderBeforeSingle}=await new A(await read(D+'/reader-before-functions.js'))();before=await readOriginalReaderBeforeSingle(query,readSql);}
+  await save(S+'/READER_BEFORE.json',before);await save(S+'/expected-candidate.json',before.publicationContext.candidateRow);
++ return before.publicationContext;
++ };
+  const batchId='dot-auto-'+sourceFolders[sourceId]+'-'+new Date().toISOString().replace(/[-:.]/g,''),run=S+'/'+batchId;
+  await command('mkdir -p '+q(run+'/artifacts'));
+  if(sourceId==='source-cspc-social'){
+@@ -148,7 +159,7 @@
+  try{started=await tools.exec_command({cmd:'PYTHONDONTWRITEBYTECODE=1 TSX_DISABLE_CACHE=1 NODE_DISABLE_COMPILE_CACHE=1 JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+(roundId?' JOBFINDER_CONNECTOR_ROUND_ID='+q(roundId):'')+' python3 '+q(R+'/capture-simple-guard.py')+' -- '+q(N)+' '+q(V+'/scripts/run-with-http-diagnostics.mjs')+' '+q(run+'/diagnostics')+' 1800000 -- '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(V+'/scripts/'+(config.route==='PORTABLE'?'p0-cloud-portable-source-pilot.ts':'p0-cloud-source-pilot.ts'))+' '+q(run+'/bootstrap.json')+' '+digest+' '+q(run+'/artifacts')+' '+q(relay)+' --db-started-control '+q(S+'/control-base.json'),yield_time_ms:1000,max_output_tokens:1000});await save(run+'/producer-session.json',{sessionId:started.session_id??null,exitCode:started.exit_code??null,recordedAt:new Date().toISOString()});}
+  catch(error){error.producerStateUnconfirmed=true;throw error;}
+  let process=started, terminalRecorded=false;
+- return {stage,sourceId,runDirectory:run,relayDirectory:relay,deadline:Date.now()+1800000,
++ return {stage,sourceId,runDirectory:run,relayDirectory:relay,deadline:Date.now()+1800000,readPreCaptureContext,
+   checkpoint:requestIds=>save(run+'/relay-checkpoint.json',{sourceId,batchId,requestIds,relayDirectory:relay}),
+   pollProducer:async()=>{if(process.session_id)process=await tools.write_stdin({session_id:process.session_id,chars:'',yield_time_ms:1000,max_output_tokens:1000});let outcome=null;try{outcome=process.exit_code===0?JSON.parse(await read(run+'/artifacts/'+batchId+'.outcome.json')):null;}finally{if(process.exit_code!==undefined&&process.exit_code!==null&&!terminalRecorded){await save(run+'/producer-session.json',{sessionId:started.session_id??null,exitCode:process.exit_code,outcomeState:outcome?.state??null,recordedAt:new Date().toISOString()});terminalRecorded=true;}}return {exitCode:process.exit_code??null,outcomeState:outcome?.state,diagnostic:process.exit_code?process.output?.trim()||await command('python3 '+q(D+'/failure-summary.py')+' '+q(run)):process.output?.slice(-1200)};},
+   reviewPublication:async (request,prepared,publicationContextRequestId)=>{const reviewed=JSON.parse((await command('JOBFINDER_CLOUD_SOURCE_ID='+q(sourceId)+' '+q(N)+' --import '+q(V+'/node_modules/tsx/dist/loader.mjs')+' '+q(D+'/review-original-publication.mjs')+' '+q(run)+' '+q(request.requestId)+' '+q(relay)+' '+q(publicationContextRequestId??'')+' > '+q(run+'/review-command.log')+' 2>&1; code=$?; printf \"%s\\n\" \"$code\" > '+q(run+'/review-command.exit')+'; cat '+q(run+'/review-command.log')+'; exit \"$code\"')).trim().split('\n').at(-1));
+--- a/original-relay-automation-20261017T0609Z/automatic-relay-functions.js
++++ b/original-relay-automation-20261017T0609Z/automatic-relay-functions.js
+@@ -12,7 +12,8 @@
+    results.push({sourceId, status: 'HELD', reason: String(error), ...(error?.producerStateUnconfirmed?{producerStateUnconfirmed:true}:{})});
+   }
+   if(typeof notify==='function')notify({sourceId,status:results.at(-1).status,reason:results.at(-1).reason,...(results.at(-1).publicationOutcome?{publicationOutcome:results.at(-1).publicationOutcome}:{})});
+-  if (results.at(-1).producerStateUnconfirmed || ['UNKNOWN_PUBLICATION','EXPIRED_OR_UNKNOWN_DISPATCH','SOURCE_DEADLINE','PUBLICATION_EXPIRED'].includes(results.at(-1).reason)) break;
++  if (results.at(-1).producerStateUnconfirmed || ['UNKNOWN_PUBLICATION','EXPIRED_OR_UNKNOWN_DISPATCH','SOURCE_DEADLINE','PUBLICATION_EXPIRED','READ_CONTEXT_REJECTION_NOT_ISOLATED'].includes(results.at(-1).reason)) break;
++  if (results.at(-1).reason==='READ_CONTEXT_REVIEW_REJECTED') continue;
+   if(afterSource && job){
+    try { results.at(-1).jobVerification=await afterSource(sourceId,results.at(-1),job); }
+    catch(error){results.at(-1).jobVerification={status:'HELD',reason:String(error)};break;}
+@@ -30,10 +31,12 @@
+  if (!Number.isFinite(deadline) || deadline <= Date.now()) throw Error('SOURCE_DEADLINE');
+  const handled = new Set();
+  job.relayRequestIds = [];
+- let publication, publicationRequestId, publicationContextRequestId, outcomeSeen = false, committedExact = false, producerTerminal = false;
++ let publication, publicationRequestId, publicationContextRequestId, readRejection, outcomeSeen = false, committedExact = false, producerTerminal = false;
+  try {
+  while (Date.now() < deadline) {
+-  const request = await h.next(relayDirectory);
++  // After refusal, never call next(): it can settle expired requests.
++  if(readRejection&&(await h.pendingMetadata(relayDirectory)).length)throw Error('REQUEST_AFTER_CONTEXT_REJECTION');
++  const request = readRejection?undefined:await h.next(relayDirectory);
+   if (request) {
+    // An uncertain dispatch belongs to reconciliation, never to the retry loop.
+    if (request.expired || request.dispatchRecorded || handled.has(request.requestId))
+@@ -43,7 +46,11 @@
+    handled.add(request.requestId);
+    job.relayRequestIds.push(request.requestId);
+    if(job.checkpoint)await job.checkpoint(job.relayRequestIds);
+-   const prepared = await stage.handle(request, relayDirectory);
++   const prepared = await stage.handle(request, relayDirectory, job.readPreCaptureContext);
++   if(prepared.status==='READ_CONTEXT_REVIEW_REJECTED'){
++    if(request.kind!=='READ_CONTEXT'||request.payload.purpose!=='PRE_CAPTURE'||job.relayRequestIds.length!==1||publication||publicationRequestId||publicationContextRequestId||outcomeSeen||prepared.requestId!==request.requestId||prepared.requestSha256!==request.requestSha256)throw Error('CONTEXT_REJECTION_STATE');
++    readRejection={requestId:request.requestId,requestSha256:request.requestSha256};
++   }
+    if (request.kind === 'READ_PUBLICATION_CONTEXT') publicationContextRequestId = prepared.status === 'SUCCEEDED' ? request.requestId : undefined;
+    if (request.kind === 'PUBLISH') {
+     if (publication || prepared.status !== 'AWAITING_PARENT_REVIEW') throw Error('PUBLICATION_STATE');
+@@ -71,6 +78,12 @@
+   if (producer.exitCode !== null) {
+    producerTerminal = true;
+    if (publication?.outcome === 'UNKNOWN' && !(outcomeSeen && producer.exitCode===0 && producer.outcomeState==='COMMITTED_EXACT')) return {status:'HELD',reason:'UNKNOWN_PUBLICATION',requestId:publicationRequestId,outcomeSeen,exitCode:producer.exitCode};
++   if(readRejection){
++    try{
++     if(producer.exitCode===0||producer.outcomeState||(await h.pendingMetadata(relayDirectory)).length)throw Error('CONTEXT_REJECTION_TERMINAL_NOT_ISOLATED');
++    }catch(error){return {status:'HELD',reason:'READ_CONTEXT_REJECTION_NOT_ISOLATED',...readRejection,exitCode:producer.exitCode,diagnostic:String(error)};}
++    return {status:'HELD',reason:'READ_CONTEXT_REVIEW_REJECTED',...readRejection,readOutcome:'REJECTED_BY_REVIEW',exitCode:producer.exitCode};
++   }
+    if (producer.exitCode !== 0 || (publication?.status !== 'SUCCEEDED' && producer.outcomeState!=='COMMITTED_EXACT') || !outcomeSeen)
+     return {status: 'HELD', reason: publication?.code??'PRODUCER_OR_OUTCOME_INCOMPLETE', ...(publication?.status==='FAILED'?{publicationOutcome:publication.outcome,requestId:publicationRequestId}:{}), exitCode: producer.exitCode, diagnostic:publication?.reviewFailure??producer.diagnostic};
+    committedExact = producer.outcomeState==='COMMITTED_EXACT';
+--- a/takeda-original-recovery-20261017T0417Z/transport/original-host-stage-functions.js
++++ b/takeda-original-recovery-20261017T0417Z/transport/original-host-stage-functions.js
+@@ -1,6 +1,6 @@
+ 
+ const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const h=await new AsyncFunction(load("cloudPilotHostHelpers"))(); const {cfg}=h;
+-async function handle(r,dir){
++async function handle(r,dir,readPreCaptureContext){
+  const b=await h.binding();if(dir!==b.relayDirectory)throw Error("RELAY_DIRECTORY_OUTSIDE_TASK");
+  if(r.expired||r.dispatchRecorded)throw Error("HOST_STALE_OR_UNCERTAIN_REQUEST:"+r.kind);
+  if(["ARCHIVE_STORE","CREATE_PENDING","LEASE_ACQUIRE","LEASE_RENEW","LEASE_RELEASE"].includes(r.kind))throw Error("HOST_DB_STARTED_KIND");
+@@ -9,9 +9,22 @@
+   if(packet.requestId!==r.requestId||packet.requestSha256!==r.requestSha256||packet.candidateId!==b.candidateId||packet.buildContentSha256!==b.buildContentSha256)throw Error("HOST_CONTEXT_PACKET_BINDING");
+   if(r.kind==="READ_PUBLICATION_CONTEXT")return h.sqlDispatch(r,dir,packet.sql);
+   if(r.payload.projectId!==cfg.project||r.payload.sourceId!==b.sourceId||r.payload.sourceConfigSha256!==b.sourceConfigSha256)throw Error("HOST_CONTEXT_SOURCE_BINDING");
+-  await h.mark(r,dir);const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:packet.sql});store("cloudLiveContextToolResult",raw);
+-  const out=h.rows(raw);if(out.length!==1||!out[0].context)throw Error("HOST_CONTEXT_RESPONSE");
+-  const context=out[0].context;if(!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+]00:00)$/.test(context.checkedAt))throw Error("HOST_CONTEXT_UTC");
++  await h.mark(r,dir);let context,observed;
++  try {
++   if(readPreCaptureContext)context=await readPreCaptureContext(r);
++   else {
++    const raw=await tools.mcp__codex_apps__supabase_execute_sql({project_id:cfg.project,query:packet.sql});store("cloudLiveContextToolResult",raw);
++    observed={projectId:cfg.project,query:packet.sql,recordedAt:new Date().toISOString(),toolResult:raw};
++    const out=h.rows(raw);if(out.length!==1||!out[0].context)throw Error("HOST_CONTEXT_RESPONSE");context=out[0].context;
++   }
++   if(!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+]00:00)$/.test(context.checkedAt))throw Error("HOST_CONTEXT_UTC");
++  }catch(error){
++   observed=observed??error?.officialSqlRead;
++   if(!observed||observed.projectId!==cfg.project||typeof observed.query!=='string'||!h.toolReviewRejected(observed.toolResult))throw error;
++   // A rejected read is not a publication outcome; retain the original marker.
++   await h.respond(r,dir,{status:'FAILED',code:'TOOL_REVIEW_REJECTED'},{...observed,responseExpired:Date.now()>=Date.parse(r.expiresAt)});
++   return {status:'READ_CONTEXT_REVIEW_REJECTED',requestId:r.requestId,requestSha256:r.requestSha256};
++  }
+   await h.respond(r,dir,{...context,checkedAt:new Date(context.checkedAt).toISOString()});return {status:"READ_CONTEXT"};
+  }
+  if(r.kind==="READ_OUTCOME")return h.sqlDispatch(r,dir,r.payload.sql);
+--- a/takeda-original-recovery-20261017T0417Z/transport/adapted-host-helper-functions.js
++++ b/takeda-original-recovery-20261017T0417Z/transport/adapted-host-helper-functions.js
+@@ -49,9 +49,12 @@
+  await cmd("node "+q(cfg.root+"/relay-files.mjs")+" respond "+q(dir)+" "+q(p));
+ }
+ 
++function toolReviewRejected(raw){
++ return raw?.isError===true&&raw.content?.length===1&&raw.content[0]?.type==='text'&&typeof raw.content[0].text==='string'&&raw.content[0].text.startsWith('This action was rejected due to unacceptable risk.\nReason: ')&&raw.content[0].text.includes('\nDo not bypass this rejection through a workaround or indirect execution.');
++}
+ function publicationFailure(raw,r,sql){
+  // An explicit tool-review rejection did not invoke SQL. Keep its diagnostic; never retry here.
+- if(r.kind==='PUBLISH'&&raw?.isError===true&&raw.content?.length===1&&raw.content[0]?.type==='text'&&raw.content[0].text.startsWith('This action was rejected due to unacceptable risk.\nReason: ')&&raw.content[0].text.includes('\nDo not bypass this rejection through a workaround or indirect execution.'))return {status:'FAILED',outcome:'NOT_DISPATCHED',code:'TOOL_REVIEW_REJECTED'};
++ if(r.kind==='PUBLISH'&&toolReviewRejected(raw))return {status:'FAILED',outcome:'NOT_DISPATCHED',code:'TOOL_REVIEW_REJECTED'};
+  // Only the observed database error envelope for one compiler-produced atomic
+  // DO establishes rollback. Transport exceptions and arbitrary error-like text
+  // remain UNKNOWN, including statement-completion ambiguity (40003).
+@@ -78,15 +81,18 @@
+  }
+  await respond(r,dir,result,diagnostic);return result;
+ }
++async function pendingMetadata(dir){
++ const rows=JSON.parse(await cmd("node "+q(cfg.root+"/relay-files.mjs")+" next-meta "+q(dir),2000));
++ if(!Array.isArray(rows))throw Error("HOST_PENDING_METADATA");return rows;
++}
+ async function next(dir){
+- const metadata=async()=>JSON.parse(await cmd("node "+q(cfg.root+"/relay-files.mjs")+" next-meta "+q(dir),2000));
+- let a=await metadata();if(!Array.isArray(a))throw Error("HOST_PENDING_METADATA");
++ let a=await pendingMetadata(dir);
+  let settled=false;
+  for(const meta of a)if(meta.expired){
+   const result=JSON.parse(await cmd("node "+q(cfg.root+"/relay-files.mjs")+" expire-undispatched "+q(dir)+" "+q(meta.requestId)+" "+q(meta.requestSha256),2000));
+   if(result.settled===true)settled=true;else if(result.settled!==false||result.reason!=="DISPATCH_UNCERTAIN")throw Error("HOST_EXPIRY_RESULT");
+  }
+- if(settled)a=await metadata();
++ if(settled)a=await pendingMetadata(dir);
+  if(!Array.isArray(a)||a.length>1)throw Error("HOST_MULTIPLE_PENDING_REQUESTS");if(!a.length)return undefined;
+  const meta=a[0],r=JSON.parse((await readFile(dir+"/"+meta.requestId+".request.json")).text);
+  if(r.requestId!==meta.requestId||r.requestSha256!==meta.requestSha256||r.kind!==meta.kind)throw Error("HOST_NEXT_REQUEST_CHANGED");
+@@ -99,5 +105,5 @@
+  const b=JSON.parse(await cmd("node "+q(cfg.root+"/host-files.mts")+" connector-validate"));
+  if(b.root!==cfg.root||b.repo!==cfg.repo||b.project!==cfg.project||b.mode!==cfg.mode||b.sourceId!==sourceId)throw Error("HOST_CONFIG_BINDING");validatedBinding=b;return b;
+ }
+-return {cfg,q,cmd,readFile,rows,mark,respond,sqlDispatch,next,binding,responseDigest};
++return {cfg,q,cmd,readFile,rows,mark,respond,sqlDispatch,next,pendingMetadata,binding,responseDigest,toolReviewRejected};
+ 
+--- /dev/null
++++ b/original-relay-automation-20261017T0609Z/pre-capture-reuse.test.mjs
+@@ -0,0 +1,84 @@
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import {isDeepStrictEqual} from 'node:util';
++const A=Object.getPrototypeOf(async function(){}).constructor;
++const entry=fs.readFileSync(new URL('./run-original-functions.js',import.meta.url),'utf8');
++const stageSource=fs.readFileSync(new URL('../takeda-original-recovery-20261017T0417Z/transport/original-host-stage-functions.js',import.meta.url),'utf8');
++const readerSource=fs.readFileSync(new URL('./reader-before-functions.js',import.meta.url),'utf8');
++const query=fs.readFileSync(new URL('../takeda-original-recovery-20261017T0417Z/transport/viatris-reader-before-original.sql',import.meta.url),'utf8');
++const callbackSource=entry.slice(entry.indexOf(' let preCaptureReadAttempted='),entry.indexOf(" const batchId='dot-auto-'"));
++assert(callbackSource.includes('return before.publicationContext'));
++assert(entry.includes('deadline:Date.now()+1800000,readPreCaptureContext,'));
++const NOW=Date.parse('2026-10-31T00:20:00Z'),SOURCE='source-amgen-china-social',CONFIG='config';
++const request=kind=>({requestId:'request',requestSha256:'request-sha',kind,expiresAt:new Date(NOW+60000).toISOString(),payload:{purpose:'PRE_CAPTURE',projectId:'yiopvxysxrtrnvqxwgbx',sourceId:SOURCE,sourceConfigSha256:CONFIG,dispatchBefore:new Date(NOW+35000).toISOString(),sql:'SELECT publication'}});
++const before=()=>({sourceId:SOURCE,sourceConfigSha256:CONFIG,transactionReadOnly:'on',isolationLevel:'repeatable read',results:[],publicationContext:{checkedAt:new Date(NOW).toISOString(),sourceId:SOURCE,sourceConfigSha256:CONFIG,jobs:[],firstAccepted:null,latestAccepted:null,candidateRow:{id:'candidate'},sourceRow:{id:SOURCE},companyRow:{id:'company'}}});
++async function fixture({sourceId=SOURCE,sqlError,clock=NOW,splitChange=false}={}){
++ const calls=[],saved=new Map(),snapshot=before();let sqlCalls=0;
++ const sql=async sql=>{
++  calls.push('reader-sql');sqlCalls++;
++  assert(sql.startsWith('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY; SET LOCAL statement_timeout='));
++  assert(sql.trimEnd().endsWith('ROLLBACK;'));
++  if(sqlError)throw sqlError;
++  if(sourceId==='source-hengrui-social')return sqlCalls===1?[{reader_before:snapshot,snapshot_sha256:'a'.repeat(64)}]:[{snapshot_sha256:(splitChange?'b':'a').repeat(64)}];
++  return [{reader_before:snapshot,compacted_member_ids:[]}];
++ };
++ const readPreCaptureContext=await new A('sourceId','D','read','A','query','sql','save','S','Date',callbackSource+'return readPreCaptureContext;')(sourceId,'/candidate',async()=>readerSource,A,query,sql,async(path,value)=>{calls.push('save');saved.set(path,structuredClone(value));},'/source',{parse:Date.parse,now:()=>clock});
++ const binding={sourceId:SOURCE,sourceConfigSha256:CONFIG,candidateId:'candidate',buildContentSha256:'build',relayDirectory:'/relay'};
++ const h={cfg:{project:'yiopvxysxrtrnvqxwgbx',root:'/host'},binding:async()=>binding,q:x=>x,
++  cmd:async()=>{calls.push('compile');return JSON.stringify({requestId:'request',requestSha256:'request-sha',candidateId:'candidate',buildContentSha256:'build',sql:'SELECT original-full-context'});},
++  mark:async()=>calls.push('mark'),respond:async(r,dir,result)=>{calls.push('respond');saved.set('response',result);},rows:x=>x,
++  sqlDispatch:async(r,dir,sql)=>{calls.push('publication-sql');assert.equal(sql,'SELECT original-full-context');return {status:'SUCCEEDED'};}};
++ const {handle}=await new A('h','tools','store','const cfg=h.cfg;\n'+stageSource.slice(stageSource.indexOf('async function handle')))(h,{mcp__codex_apps__supabase_execute_sql:async()=>{calls.push('duplicate-context-sql');return [{context:snapshot.publicationContext}];}},()=>{});
++ return {handle,readPreCaptureContext,calls,saved,snapshot,h,sqlCount:()=>sqlCalls};
++}
++const good=await fixture();
++assert.deepEqual(good.calls,[],'constructing the callback must not read before the producer request');
++assert.equal((await good.handle(request('READ_CONTEXT'),'/relay',good.readPreCaptureContext)).status,'READ_CONTEXT');
++assert.deepEqual(good.calls,['compile','mark','reader-sql','save','save','respond']);
++assert.equal(good.sqlCount(),1);
++assert.deepEqual(good.saved.get('/source/READER_BEFORE.json'),good.snapshot);
++assert.deepEqual(good.saved.get('response'),good.snapshot.publicationContext);
++assert.deepEqual(good.saved.get('/source/expected-candidate.json'),good.snapshot.publicationContext.candidateRow);
++await assert.rejects(good.readPreCaptureContext(request('READ_CONTEXT')),/PRE_CAPTURE_READ_ALREADY_ATTEMPTED/);
++assert.equal(good.sqlCount(),1);
++const beforePublication=good.calls.length;
++await good.handle(request('READ_PUBLICATION_CONTEXT'),'/relay',good.readPreCaptureContext);
++assert.deepEqual(good.calls.slice(beforePublication),['compile','publication-sql']);
++console.log('PASS: one original reader-before read after PRE_CAPTURE, unchanged context persisted/returned; fresh publication query is separate');
++
++for(const patch of [{expired:true},{dispatchRecorded:true},{payload:{...request('READ_CONTEXT').payload,sourceId:'wrong'}}]){
++ const bad=await fixture();await assert.rejects(bad.handle({...request('READ_CONTEXT'),...patch},'/relay',bad.readPreCaptureContext),/STALE_OR_UNCERTAIN|SOURCE_BINDING/);
++ assert.equal(bad.sqlCount(),0);assert(!bad.calls.includes('mark'));
++}
++const mismatch=await fixture();mismatch.h.cmd=async()=>JSON.stringify({requestId:'request',requestSha256:'other',candidateId:'candidate',buildContentSha256:'build'});
++await assert.rejects(mismatch.handle(request('READ_CONTEXT'),'/relay',mismatch.readPreCaptureContext),/HOST_CONTEXT_PACKET_BINDING/);
++assert.equal(mismatch.sqlCount(),0);
++for(const error of [Error('actual tool review rejection'),Error('transport response unavailable')]){
++ const failed=await fixture({sqlError:error});
++ await assert.rejects(failed.handle(request('READ_CONTEXT'),'/relay',failed.readPreCaptureContext),e=>e===error);
++ assert.equal(failed.sqlCount(),1);assert(!failed.calls.includes('respond'));assert(!failed.calls.includes('duplicate-context-sql'));
++ await assert.rejects(failed.readPreCaptureContext(request('READ_CONTEXT')),/ALREADY_ATTEMPTED/);assert.equal(failed.sqlCount(),1);
++}
++const expired=await fixture({clock:NOW+60000});await assert.rejects(expired.readPreCaptureContext(request('READ_CONTEXT')),/PRE_CAPTURE_READ_EXPIRED/);assert.equal(expired.sqlCount(),0);
++const split=await fixture({sourceId:'source-hengrui-social',splitChange:true});await assert.rejects(split.readPreCaptureContext(request('READ_CONTEXT')),/READER_SNAPSHOT_CHANGED/);assert.equal(split.sqlCount(),2);assert.equal(split.saved.size,0);
++console.log('PASS: original scope/binding/stale guards; rejection/transport failure never fall back or retry; split-read drift remains rejected');
++
++const relaySource=fs.readFileSync(new URL('./automatic-relay-functions.js',import.meta.url),'utf8');
++const {serviceOriginalRelay}=await new A(relaySource)();let next=true,forwarded;
++await serviceOriginalRelay({stage:{h:{cfg:{project:'yiopvxysxrtrnvqxwgbx',sourceId:SOURCE},next:async()=>{if(!next)return;next=false;return {...request('READ_CONTEXT'),expiresAt:new Date(Date.now()+60000).toISOString()};}},handle:async(r,d,callback)=>{forwarded=callback;return {status:'READ_CONTEXT'};}},sourceId:SOURCE,relayDirectory:'/relay',deadline:Date.now()+60000,readPreCaptureContext:good.readPreCaptureContext,pollProducer:async()=>({exitCode:1})});
++assert.strictEqual(forwarded,good.readPreCaptureContext);
++const liveRoot='/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source';
++for(const file of ['p0-cloud-source-pilot.ts','p0-cloud-portable-source-pilot.ts']){
++ const source=fs.readFileSync(liveRoot+'/scripts/'+file,'utf8');
++ const line=source.split('\n').find(s=>s.includes('Date.parse(pre.checkedAt)<preRequestedAt-1000'));assert(line);
++ const check=new Function('pre','preRequestedAt','Date',line);
++ check({checkedAt:new Date(NOW).toISOString()},NOW,{parse:Date.parse,now:()=>NOW+100});
++ assert.throws(()=>check({checkedAt:new Date(NOW-1001).toISOString()},NOW,{parse:Date.parse,now:()=>NOW+100}),/FRESH_READ_REQUIRED/);
++}
++const readerReview=fs.readFileSync(new URL('../takeda-original-recovery-20261017T0417Z/offline-checkers/original-portable-reader-replay.mts',import.meta.url),'utf8');
++const compare=readerReview.split('\n').find(s=>s.startsWith('const withoutTime='));assert(compare);
++const check=new Function('before','d','isDeepStrictEqual','assert',compare.replace('(x:any)','(x)'));
++check(good.snapshot,{context:good.snapshot.publicationContext},isDeepStrictEqual,assert);
++const changed=structuredClone(good.snapshot.publicationContext);changed.jobs.push({dedupeKey:'concurrent-write'});
++assert.throws(()=>check(good.snapshot,{context:changed},isDeepStrictEqual,assert),/LIVE_BEFORE_CONTEXT_CHANGED/);
++console.log('PASS: original service forwards callback; original producer freshness and final full-context concurrency comparison remain effective');
+--- /dev/null
++++ b/original-relay-automation-20261017T0609Z/pre-capture-projection.test.mjs
+@@ -0,0 +1,42 @@
++import fs from 'node:fs';
++import assert from 'node:assert/strict';
++import {execFileSync} from 'node:child_process';
++const B='/workspace/scratch/5e9614251709',V=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source';
++const entry=fs.readFileSync(new URL('./run-original-functions.js',import.meta.url),'utf8');
++const routes=JSON.parse(fs.readFileSync(new URL('./sources.json',import.meta.url))).rows;
++const folders=JSON.parse(entry.match(/const sourceFolders=(\{[^\n]+\});/)[1].replaceAll("'",'"'));
++const control=JSON.parse(fs.readFileSync(B+'/takeda-original-recovery-20261017T0417Z/hengrui/control-base.json'));
++const queryLine=entry.split('\n').find(line=>line.startsWith(' const query=template.replaceAll('));assert(queryLine);
++const build=new Function('template','compactSchema','sourceId','routeById','config','control','sourceFolders',queryLine+'return query;');
++const normalize=sql=>sql.split(/((?:E)?'(?:''|[^'])*')/).map((s,i)=>i%2?s:s.replace(/\s+/g,'')).join('');
++// Fold only the existing template's explicit constant-policy disjunction.
++const certificate="(CASE WHEN r.\"completenessCertificate\"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r.\"completenessCertificate\"->'legacyCertificate' ELSE r.\"completenessCertificate\" END)";
++function foldConstants(sql,portable){
++ const policy=certificate+"->>'policyId'=E'PLAN_BOUND_SOURCE_QUALITY_V1'";
++ const clause=' AND (NOT '+portable+' OR '+policy+')';assert(sql.includes(clause));
++ sql=sql.replace(clause,portable?' AND '+policy:'');
++ // Bayer's template disables the unchanged Sanofi legacy-artifact branch.
++ const start=sql.indexOf(' OR\n (false AND');
++ if(start>=0){
++  let depth=0,quoted=false,end=-1;
++  for(let i=sql.indexOf('(',start);i<sql.length;i++){
++   const c=sql[i];if(c==="'"){if(quoted&&sql[i+1]==="'"){i++;continue;}quoted=!quoted;continue;}
++   if(quoted)continue;if(c==='(')depth++;if(c===')'&&--depth===0){end=i+1;break;}
++  }
++  assert(end>start);sql=sql.slice(0,start)+sql.slice(end);
++ }
++ return sql;
++}
++const compileCode=`import fs from 'node:fs';const m=await import(${JSON.stringify(V+'/src/db/cloudPilotSqlControl.ts')});const c=JSON.parse(process.argv[1]);console.log(JSON.stringify({sourceConfigSha256:m.CLOUD_PILOT_SOURCE.sourceConfigSha256,sql:m.compileCloudPilotPublicationContextSql(c,process.argv[2]==='PORTABLE'?'PLAN_BOUND_SOURCE_QUALITY_V1':undefined)}));`;
++for(const row of routes){
++ const compactSchema={'source-sanofi-china-social':'sanofi-cn-dual-chain-attestation-v1','source-bayer-healthcare-social':'bayer-cn-dual-chain-attestation-v1'}[row.sourceId];
++ const template=fs.readFileSync(new URL('../takeda-original-recovery-20261017T0417Z/transport/'+(compactSchema?'sanofi-reader-before-original.sql':'viatris-reader-before-original.sql'),import.meta.url),'utf8');
++ const query=build(template,compactSchema,row.sourceId,{[row.sourceId]:row},row,control,folders);
++ const actual=JSON.parse(execFileSync(B+'/connector-host-runtime/node',['--import',V+'/node_modules/tsx/dist/loader.mjs','--input-type=module','-e',compileCode,JSON.stringify(control),row.route],{encoding:'utf8',stdio:['ignore','pipe','pipe'],env:{...process.env,JOBFINDER_CLOUD_SOURCE_ID:row.sourceId,TSX_DISABLE_CACHE:'1',NODE_DISABLE_COMPILE_CACHE:'1',PYTHONDONTWRITEBYTECODE:'1'}}));
++ assert.equal(row.sourceConfigSha256,actual.sourceConfigSha256,row.sourceId+' current plan');
++ const selected=query.slice(query.indexOf('WITH matching AS ('),query.indexOf('\n), latest_writer AS ('));
++ const compiled=actual.sql.slice(actual.sql.indexOf('WITH matching AS ('),actual.sql.lastIndexOf(') snapshot;'));
++ assert.equal(normalize(foldConstants(selected,row.route==='PORTABLE')),normalize(compiled),row.sourceId+' full publicationContext projection');
++ console.log('PASS: '+row.sourceId+' '+row.route+' exact projection after fixed constant folding');
++}
++console.log('PASS: all '+routes.length+' routes retain the original compiler projection; no SQL execution or network');
+--- /dev/null
++++ b/original-relay-automation-20261017T0609Z/read-context-rejection.test.mjs
+@@ -0,0 +1,107 @@
++import fs from 'node:fs';
++import assert from 'node:assert/strict';
++const A=Object.getPrototypeOf(async function(){}).constructor;
++const entry=fs.readFileSync(new URL('./run-original-functions.js',import.meta.url),'utf8');
++const stageSource=fs.readFileSync(new URL('../takeda-original-recovery-20261017T0417Z/transport/original-host-stage-functions.js',import.meta.url),'utf8');
++const helperSource=fs.readFileSync(new URL('../takeda-original-recovery-20261017T0417Z/transport/adapted-host-helper-functions.js',import.meta.url),'utf8');
++const relaySource=fs.readFileSync(new URL('./automatic-relay-functions.js',import.meta.url),'utf8');
++const {runOriginalSerial}=await new A(relaySource)();
++const sqlSource=entry.slice(entry.indexOf('function rows(raw)'),entry.indexOf("store('cloudPilotHostHelpers'"));
++const PROJECT='yiopvxysxrtrnvqxwgbx',SOURCE='source-novo-nordisk-china-social';
++const rejected={isError:true,content:[{type:'text',text:'This action was rejected due to unacceptable risk.\nReason: Synthetic rejected read.\nDo not bypass this rejection through a workaround or indirect execution.'}]};
++const cfg={mode:'NATIVE_PORTABLE_CONNECTOR_V1',sourceId:SOURCE,bindingSha256:'a'.repeat(64),root:'/host',repo:'/repo',project:PROJECT};
++const helper=await new A('load','tools',helperSource)(()=>cfg,{});
++async function fixture({raw=rejected,toolError,replyError,callback=true}={}){
++ const calls=[],responses=[];let marker;
++ const tools={mcp__codex_apps__supabase_execute_sql:async args=>{calls.push(['sql',args]);if(toolError)throw toolError;return raw;}};
++ const sql=await new A('tools',sqlSource+'return sql;')(tools);
++ const r={kind:'READ_CONTEXT',requestId:'request',requestSha256:'hash',expiresAt:new Date(Date.now()+60000).toISOString(),payload:{projectId:PROJECT,sourceId:SOURCE,sourceConfigSha256:'config',purpose:'PRE_CAPTURE'}};
++ const h={cfg,binding:async()=>({relayDirectory:'/relay',sourceId:SOURCE,sourceConfigSha256:'config',candidateId:'candidate',buildContentSha256:'build'}),q:x=>x,
++  cmd:async()=>JSON.stringify({requestId:r.requestId,requestSha256:r.requestSha256,candidateId:'candidate',buildContentSha256:'build',sql:'SELECT compiler context'}),
++  mark:async()=>{calls.push(['mark']);marker={state:'MAY_HAVE_BEEN_SENT'};},rows:helper.rows,toolReviewRejected:helper.toolReviewRejected,
++  respond:async(request,dir,result,diagnostic)=>{calls.push(['respond']);if(replyError)throw replyError;responses.push({request,dir,result,diagnostic});},
++  pendingMetadata:async()=>{calls.push(['pending-readonly']);return [];}};
++ const stage=await new A('h','tools','store','const cfg=h.cfg;\n'+stageSource.slice(stageSource.indexOf('async function handle')))(h,tools,()=>{});
++ const readPreCaptureContext=callback?async()=>{const rows=await sql('SELECT actual reader-before');return rows[0].context;}:undefined;
++ let first=true;h.next=async()=>{if(first){first=false;return r;}};
++ const job={stage,readPreCaptureContext,sourceId:SOURCE,relayDirectory:'/relay',deadline:Date.now()+60000,pollProducer:async()=>({exitCode:1}),readback:async()=>{throw Error('UNEXPECTED_READBACK');},reviewPublication:async()=>{throw Error('UNEXPECTED_PUBLICATION');}};
++ return {calls,responses,r,h,stage,readPreCaptureContext,job,marker:()=>marker};
++}
++for(const callback of [false,true]){
++ const f=await fixture({callback});const out=await f.stage.handle(f.r,'/relay',f.readPreCaptureContext);
++ assert.deepEqual(out,{status:'READ_CONTEXT_REVIEW_REJECTED',requestId:'request',requestSha256:'hash'});
++ assert.equal(f.responses.length,1);const {result,diagnostic}=f.responses[0];
++ assert.deepEqual(result,{status:'FAILED',code:'TOOL_REVIEW_REJECTED'});
++ assert(!Object.hasOwn(result,'outcome'));assert(!Object.hasOwn(result,'checkedAt'));
++ assert.strictEqual(diagnostic.toolResult,rejected);assert.equal(diagnostic.projectId,PROJECT);
++ assert.equal(diagnostic.query,callback?'SELECT actual reader-before':'SELECT compiler context');
++ assert(Number.isFinite(Date.parse(diagnostic.recordedAt)));assert.equal(diagnostic.responseExpired,false);
++ assert.equal(f.marker().state,'MAY_HAVE_BEEN_SENT');assert.equal(f.calls.filter(x=>x[0]==='sql').length,1);
++}
++console.log('PASS: direct and reused reads preserve actual bound raw evidence without write outcome or marker rewrite');
++for(const options of [
++ {toolError:Error(rejected.content[0].text)},
++ {raw:{isError:true,content:[{type:'text',text:'SQL error: '+rejected.content[0].text}]}},
++ {raw:{isError:false,content:rejected.content}},
++ {raw:{isError:true,content:[...rejected.content,...rejected.content]}}
++]){
++ const f=await fixture(options);await assert.rejects(f.stage.handle(f.r,'/relay',f.readPreCaptureContext));
++ assert.equal(f.responses.length,0);assert.equal(f.calls.filter(x=>x[0]==='sql').length,1);
++}
++const wrongProject=await fixture();await assert.rejects(wrongProject.stage.handle(wrongProject.r,'/relay',async()=>{const e=Error('wrong project');e.officialSqlRead={projectId:'other',query:'SELECT x',toolResult:rejected};throw e;}),/wrong project/);assert.equal(wrongProject.responses.length,0);
++for(const change of [{expired:true},{dispatchRecorded:true}]){
++ const f=await fixture();await assert.rejects(f.stage.handle({...f.r,...change},'/relay',f.readPreCaptureContext),/STALE_OR_UNCERTAIN/);assert.equal(f.calls.length,0);
++}
++console.log('PASS: absent raw, lookalike text, malformed envelope, project mismatch and old marked/expired request cannot create a rejection response');
++
++async function sequence(f,run=runOriginalSerial){
++ let following=0,hooks=0;
++ const results=await run([SOURCE,'next'],async source=>{if(source===SOURCE)return f.job;following++;return {skip:'SYNTHETIC_NEXT_SOURCE'};},async()=>{hooks++;throw Error('NOVO_HOOK_MUST_NOT_RUN');});
++ return {results,following,hooks};
++}
++const isolated=await sequence(await fixture());
++assert.equal(isolated.results[0].reason,'READ_CONTEXT_REVIEW_REJECTED');assert.equal(isolated.results[0].readOutcome,'REJECTED_BY_REVIEW');assert(!Object.hasOwn(isolated.results[0],'publicationOutcome'));assert.equal(isolated.following,1);assert.equal(isolated.hooks,0);
++for(const mode of ['no-raw','reply-failure','producer-lost','pending-read-failed','pending-publish','unexpected-success','post-rejection-request']){
++ const f=await fixture(mode==='no-raw'?{toolError:Error('transport unavailable')}:mode==='reply-failure'?{replyError:Error('response write uncertain')}:{});
++ if(mode==='producer-lost')f.job.pollProducer=async()=>{throw Error('producer session unavailable');};
++ if(mode==='pending-read-failed')f.h.pendingMetadata=async()=>{throw Error('metadata unavailable');};
++ if(mode==='pending-publish')f.h.pendingMetadata=async()=>[{kind:'PUBLISH',requestId:'unobserved-publish',dispatchRecorded:true}];
++ if(mode==='unexpected-success')f.job.pollProducer=async()=>({exitCode:0,outcomeState:'COMMITTED_EXACT'});
++ if(mode==='post-rejection-request'){
++  f.h.pendingMetadata=async()=>[{kind:'PUBLISH',requestId:'extra'}];f.job.pollProducer=async()=>({exitCode:null});
++ }
++ const result=await sequence(f);assert.equal(result.following,0,mode);assert.equal(result.hooks,0,mode);assert.notEqual(result.results[0].reason,'READ_CONTEXT_REVIEW_REJECTED',mode);
++ if(['pending-read-failed','pending-publish','unexpected-success'].includes(mode))assert.equal(result.results[0].reason,'READ_CONTEXT_REJECTION_NOT_ISOLATED');
++ else assert.equal(result.results[0].producerStateUnconfirmed,true);
++}
++let now=0;const timed=await new A('Date',relaySource)({now:()=>now,parse:Date.parse});const live=await fixture();live.job.deadline=100;live.job.pollProducer=async()=>{now=101;return {exitCode:null};};
++const unfinished=await sequence(live,timed.runOriginalSerial);assert.equal(unfinished.results[0].reason,'SOURCE_DEADLINE');assert.equal(unfinished.following,0);assert.equal(unfinished.hooks,0);
++console.log('PASS: only confirmed non-success producer terminal plus empty read-only pending list isolates source; Novo hook skipped; all uncertain boundaries stop');
++
++// A later rejected read cannot turn a prior ambiguous write into a safe skip.
++const requests=['READ_CONTEXT','READ_PUBLICATION_CONTEXT','PUBLISH','READ_CONTEXT'].map((kind,n)=>({kind,requestId:'q'+n,requestSha256:'h'+n,expiresAt:new Date(Date.now()+60000).toISOString(),payload:{purpose:'PRE_CAPTURE',dispatchBefore:new Date(Date.now()+50000).toISOString(),sql:'SQL'}}));
++let writes=0,following=0;
++const h={cfg:{project:PROJECT,sourceId:SOURCE},next:async()=>requests.shift(),sqlDispatch:async()=>{writes++;return {status:'FAILED',outcome:'UNKNOWN'};}};
++const job={sourceId:SOURCE,relayDirectory:'/relay',deadline:Date.now()+60000,stage:{h,handle:async r=>r.requestId==='q3'?{status:'READ_CONTEXT_REVIEW_REJECTED',requestId:r.requestId,requestSha256:r.requestSha256}:{status:r.kind==='PUBLISH'?'AWAITING_PARENT_REVIEW':'SUCCEEDED'}},reviewPublication:async r=>r,pollProducer:async()=>({exitCode:null})};
++const ambiguous=await runOriginalSerial([SOURCE,'next'],async source=>{if(source===SOURCE)return job;following++;return {skip:'unsafe'};});
++assert.equal(ambiguous[0].reason,'UNKNOWN_PUBLICATION');assert.equal(ambiguous[0].requestId,'q2');assert.equal(writes,1);assert.equal(following,0);
++console.log('PASS: prior PUBLISH uncertainty remains UNKNOWN with one write dispatch and no next source');
++
++const commands=[];const readOnly=await new A('load','tools',helperSource)(()=>cfg,{exec_command:async args=>{commands.push(args.cmd);return {exit_code:0,output:'[]'};}});
++assert.deepEqual(await readOnly.pendingMetadata('/relay'),[]);assert.equal(commands.length,1);assert(commands[0].includes(' next-meta '));assert(!commands[0].includes('expire-undispatched'));assert(!commands[0].includes('mark-dispatch'));
++console.log('PASS: terminal pending proof uses existing read-only next-meta, never expiry settlement or queue mutation');
++
++// Exercise the actual helper's expiry behavior in memory: it must not run after rejection.
++let settled=false;const expiryCommands=[];
++const expiryHelper=await new A('load','tools',helperSource)(()=>cfg,{exec_command:async args=>{
++ expiryCommands.push(args.cmd);
++ if(args.cmd.includes(' next-meta '))return {exit_code:0,output:JSON.stringify(settled?[]:[{requestId:'extra',requestSha256:'hash',kind:'PUBLISH',expired:true,dispatchRecorded:false}])};
++ if(args.cmd.includes(' expire-undispatched ')){settled=true;return {exit_code:0,output:JSON.stringify({settled:true})};}
++ throw Error('unexpected command');
++}});
++assert.equal(await expiryHelper.next('/relay'),undefined);assert(settled,'fixture must reproduce original mutating next behavior');
++settled=false;expiryCommands.length=0;const extraExpired=await fixture();let initial=true;
++extraExpired.h.next=async()=>{if(initial){initial=false;return extraExpired.r;}return expiryHelper.next('/relay');};
++extraExpired.h.pendingMetadata=expiryHelper.pendingMetadata;extraExpired.job.pollProducer=async()=>({exitCode:null});
++const guarded=await sequence(extraExpired);assert.equal(guarded.following,0);assert.equal(guarded.hooks,0);assert.equal(guarded.results[0].producerStateUnconfirmed,true);assert.equal(settled,false);assert(expiryCommands.every(cmd=>cmd.includes(' next-meta ')));
++console.log('PASS: extra expired undispatched PUBLISH is detected read-only, not auto-settled or hidden by original next()');
+--- a/original-relay-automation-20261017T0609Z/explicit-review-rejection.test.mjs
++++ b/original-relay-automation-20261017T0609Z/explicit-review-rejection.test.mjs
+@@ -1,7 +1,7 @@
+ import fs from 'node:fs';
+ import assert from 'node:assert/strict';
+ const source=fs.readFileSync(new URL('../takeda-original-recovery-20261017T0417Z/transport/adapted-host-helper-functions.js',import.meta.url),'utf8');
+-const failure=new Function(source.slice(source.indexOf('function publicationFailure('),source.indexOf('async function sqlDispatch('))+'; return publicationFailure;')();
++const failure=new Function(source.slice(source.indexOf('function toolReviewRejected('),source.indexOf('async function sqlDispatch('))+'; return publicationFailure;')();
+ const raw={isError:true,content:[{type:'text',text:'This action was rejected due to unacceptable risk.\nReason: This synthetic write was not approved.\nDo not bypass this rejection through a workaround or indirect execution.'}]};
+ const sql='synthetic atomic SQL';
+ assert.deepEqual(failure(raw,{kind:'PUBLISH'},sql),{status:'FAILED',outcome:'NOT_DISPATCHED',code:'TOOL_REVIEW_REJECTED'});

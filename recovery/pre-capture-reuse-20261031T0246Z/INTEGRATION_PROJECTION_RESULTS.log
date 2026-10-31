@@ -1,0 +1,39 @@
+(node:7) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS: source-abbvie-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-amgen-china-social TRUE_A exact projection after fixed constant folding
+PASS: source-astellas-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-astrazeneca-social TRUE_A exact projection after fixed constant folding
+PASS: source-bayer-healthcare-social TRUE_B exact projection after fixed constant folding
+PASS: source-biogen-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-bms-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-boehringer-ingelheim-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-cr-pharma-social TRUE_A exact projection after fixed constant folding
+PASS: source-csl-china-social TRUE_A exact projection after fixed constant folding
+PASS: source-cspc-social PORTABLE exact projection after fixed constant folding
+PASS: source-cttq-social TRUE_A exact projection after fixed constant folding
+PASS: source-daiichi-sankyo-china-social TRUE_A exact projection after fixed constant folding
+PASS: source-fosun-pharma-social PORTABLE exact projection after fixed constant folding
+PASS: source-gilead-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-grifols-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-gsk-china-social TRUE_A exact projection after fixed constant folding
+PASS: source-hansoh-social PORTABLE exact projection after fixed constant folding
+PASS: source-hengrui-social PORTABLE exact projection after fixed constant folding
+PASS: source-johnson-innovative-medicine-social TRUE_A exact projection after fixed constant folding
+PASS: source-kelun-social PORTABLE exact projection after fixed constant folding
+PASS: source-lilly-china-social TRUE_A exact projection after fixed constant folding
+PASS: source-merck-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-msd-china-social TRUE_A exact projection after fixed constant folding
+PASS: source-novartis-social PORTABLE exact projection after fixed constant folding
+PASS: source-novo-nordisk-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-organon-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-pfizer-china-social TRUE_B exact projection after fixed constant folding
+PASS: source-qilu-social PORTABLE exact projection after fixed constant folding
+PASS: source-roche-china-social TRUE_A exact projection after fixed constant folding
+PASS: source-sanofi-china-social TRUE_B exact projection after fixed constant folding
+PASS: source-servier-china-social TRUE_B exact projection after fixed constant folding
+PASS: source-shanghai-pharma-social TRUE_A exact projection after fixed constant folding
+PASS: source-takeda-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-ucb-china-social PORTABLE exact projection after fixed constant folding
+PASS: source-viatris-social PORTABLE exact projection after fixed constant folding
+PASS: all 36 routes retain the original compiler projection; no SQL execution or network

@@ -1,0 +1,17 @@
+import io,json,pathlib,runpy,sys,tempfile,unittest.mock as m
+script=pathlib.Path(__file__).with_name('readback-original-web.py')
+def run(final,with_check=True):
+ replies=iter([{'state':'UPDATING','check':'one'},{'state':'FAILED','check':'one'},{'state':'UPDATING','check':'two'},{'state':final,'check':'two'}]);calls=[]
+ def get(req,**kwargs):
+  reply=next(replies)
+  if not with_check:reply.pop('check')
+  calls.append(req.full_url);return io.BytesIO(json.dumps({'snapshotRefresh':reply,'companies':[]}).encode())
+ with tempfile.TemporaryDirectory() as d,m.patch('urllib.request.urlopen',get),m.patch.object(sys,'argv',[str(script),d,'company-test']):
+  try:runpy.run_path(str(script),run_name='__main__')
+  except SystemExit as e:assert final=='CURRENT' and e.code==0
+  except RuntimeError as e:
+   assert final=='FAILED' and str(e)=='WEB_REFRESH_FAILED'
+  else:raise AssertionError('script did not exit')
+  assert len(calls)==4
+  assert 'check' not in json.loads((pathlib.Path(d)/'WEB_REFRESH_INITIAL_FAILURE.json').read_text())
+run('CURRENT');run('FAILED');run('CURRENT',False);run('FAILED',False);print('PASS: one original read-only refresh recovery, persistent failure retained, check token excluded')

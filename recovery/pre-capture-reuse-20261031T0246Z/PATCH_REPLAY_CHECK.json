@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "checkedAt": "2026-10-31T02:45:28.364707+00:00",
+  "filesMatched": 8,
+  "temporaryTreeOnly": true,
+  "activeEntryModified": false,
+  "patchOutput": "patching file original-relay-automation-20261017T0609Z/run-original-functions.js\npatching file original-relay-automation-20261017T0609Z/automatic-relay-functions.js\npatching file takeda-original-recovery-20261017T0417Z/transport/original-host-stage-functions.js\npatching file takeda-original-recovery-20261017T0417Z/transport/adapted-host-helper-functions.js\npatching file original-relay-automation-20261017T0609Z/pre-capture-reuse.test.mjs\npatching file original-relay-automation-20261017T0609Z/pre-capture-projection.test.mjs\npatching file original-relay-automation-20261017T0609Z/read-context-rejection.test.mjs\npatching file original-relay-automation-20261017T0609Z/explicit-review-rejection.test.mjs\n",
+  "generationCorrection": "Earlier artifact used nonexistent candidate subpath as entry base; discarded and regenerated from confirmed c3044d active entry before any application."
+}
