@@ -1451,9 +1451,13 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     if(original.canonicalArtifactSha256!==validation.artifactSha256)throw Error("SANOFI_COMPACT_INDEPENDENT_ORIGINAL_MISMATCH");
     const artifacts=input.sanofiArchive.artifacts.map(a=>({kind:a.kind,extractorLocator:a.extractorLocator,sha256:a.sha256,byteCount:a.byteCount,capturedAt:a.capturedAt instanceof Date?a.capturedAt.toISOString():a.capturedAt}));
     const originalFile={kind:"COMMAND_OUTPUT",extractorLocator:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR,...original,capturedAt:sanofiChineseIndependentFinishedAt(pages)};
-    const originals=pages.flatMap(page=>page.rawRows.map(({rawPayload:v})=>({id:(v.domRow as SanofiChineseRow).id,
-      detailSha256:(v.detailResponse as {bodySha256:string}).bodySha256,nativeSha256:(v.nativeResponse as {bodySha256:string}|undefined)?.bodySha256??null,
-      domSha256:sha256((v.domPage as {searchResultsHtml:string}).searchResultsHtml)})));
+    const originals=pages.flatMap(page=>page.rawRows.map(({rawPayload:v})=>{
+      const ajingaInfo=(v.ajingaArtifacts as Array<{body:string|Uint8Array}>|undefined)?.[1];
+      return {id:(v.domRow as SanofiChineseRow).id,detailSha256:(v.detailResponse as {bodySha256:string}).bodySha256,
+        nativeSha256:(v.nativeResponse as {bodySha256:string}|undefined)?.bodySha256??
+          (ajingaInfo?createHash("sha256").update(ajingaInfo.body).digest("hex"):null),
+        domSha256:sha256((v.domPage as {searchResultsHtml:string}).searchResultsHtml)};
+    }));
     const certificate=sanofiCompactCertificateSchema.parse({...certificateDraft,schemaVersion:SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,
       proofBasis:"PRE_COMMIT_DUAL_ORIGINAL_REPLAY",artifacts,independentValidation:{...summary,schemaVersion:"sanofi-cn-independent-summary-v1",finishedAt:sanofiChineseIndependentFinishedAt(pages),originalFile,originals}});
     const certificateSha256=sha256(canonicalJson(certificate));
