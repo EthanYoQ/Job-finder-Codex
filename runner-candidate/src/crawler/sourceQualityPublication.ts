@@ -61,17 +61,13 @@ export function buildSourceQualityJobCommands(input:SourceQualityPublicationInpu
     ?replayNovartisOfficialPresence(input.plan,input.result.fetchEvidence!).closedUrls:new Set<string>();
   const previous=input.previousJobs.filter(job=>!closedUrls.has(job.record.officialUrl)&&!novoExclusions.closed.has(job.record.sourceJobId??"")&&!lillyClosed.has(job.record.sourceJobId??"")&&!organonClosed.has(job.record.sourceJobId??"")&&(currentKeys.has(job.dedupeKey)||
     priorReceipt!==null&&Date.parse(job.lastSeenAt)>=floor));
-  // The existing atomic protocol cannot retain a listed UNKNOWN as current.
-  // Hold known public rows; never fabricate an absence or refresh their old time.
-  if(previous.some(job=>job.lifecycleStatus==="ACTIVE"&&novoExclusions.insufficient.has(job.record.sourceJobId??"")))
-    throw new Error("NOVO_PREVIOUS_JOB_DETAIL_UNKNOWN_PRESERVE_LAST_GOOD");
   const unknownUrls=input.result.fetchEvidence&&hasNovartisPartitionEvidence(input.result.fetchEvidence)
     ?replayNovartisNativePartitions(input.plan,input.result.fetchEvidence).unknownUrls:new Set<string>();
-  const lifecycle=applyCrawlObservation(previous.filter(job=>!novoExclusions.insufficient.has(job.record.sourceJobId??"")),input.result.jobs,{
+  const lifecycle=applyCrawlObservation(previous,input.result.jobs,{
     observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:receipt.issuedAt,
     baselineCompletedBeforeCrawl:input.baselineCompletedBeforeCrawl
   }).map(decision=>{
-    if(!unknownUrls.has(decision.record.officialUrl))return decision;
+    if(!unknownUrls.has(decision.record.officialUrl)&&!novoExclusions.insufficient.has(decision.record.sourceJobId??""))return decision;
     const old=previous.find(job=>job.dedupeKey===decision.dedupeKey);
     if(!old||currentKeys.has(decision.dedupeKey))throw Error("NOVARTIS_UNKNOWN_CURRENT_CONTRADICTION");
     return {...old,missingSuccessfulCrawlCount:old.lifecycleStatus==="ACTIVE"?1:old.missingSuccessfulCrawlCount,isNew:false};

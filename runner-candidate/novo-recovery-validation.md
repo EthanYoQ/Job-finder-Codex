@@ -1,0 +1,16 @@
+# Novo description and UNKNOWN retention
+
+The archived failed capture contained 77 listed jobs and all 77 native details. The existing parser rejected 11 descriptions. Five contain concrete short Chinese duties or experience requirements; six contain only recruitment boilerplate, `na` or `*`. Removing the Chinese length/distinct-character quotas changes the detail result from 66 to 71 substantive descriptions. Placeholder, hidden-content and boilerplate rejection remain. The five newly accepted descriptions still require fresh application-page acquisition: those application pages were not captured in the old attempt. No archived capture was relabeled or submitted.
+
+One genuinely insufficient detail belongs to an existing ACTIVE job. The old publication builder rejected the entire source on that condition. The direct path now reuses the existing UNKNOWN handling: copy the previously eligible job's original record, firstSeenAt and lastSeenAt, retain ACTIVE membership with missing count 1, and write GRACE/VISIBLE membership only. New proven jobs remain CURRENT; an unknown job without eligible history is not created. Repeated UNKNOWN captures retain the same old time. Runtime attestation checks that each retained key was excluded by Novo's replayed detail evidence and that its old record/time are unchanged. The original ingestion validator now permits Novo in the same retained-UNKNOWN cases already supported for Novartis, Pfizer and Roche.
+
+The live direct runner calls `executePortableAtomicSourceEvidenceCommit` and writes the original full source-quality receipt and lifecycle sets. It does not call the cloud packet/delta compiler. No SQL function, constraint or historical receipt was changed. The existing SQL parent projection checks permit source-independent CURRENT/GRACE/VISIBLE membership; the current web reader permits original source-quality GRACE rows with old timestamps. The imported Novo delta receipt retains a later logical observation than the physical Job.lastSeenAt; this direct change preserves the physical original timestamp and does not manufacture a new sighting.
+
+Validation:
+
+- Four focused description/application-locality tests passed.
+- One end-to-end synthetic test passed through mocked official responses, owned acquisition, archived evidence, live admission issuance, `runP0CrawlBatch`, the original atomic write validation and the packaged web projector. Two successive rounds retain an old UNKNOWN in GRACE and publish the proven job; a third round without prior history creates no UNKNOWN placeholder. Explicitly closed application evidence remains excluded. The database adapter is in-memory: this is not a PostgreSQL trigger test.
+- Read-only parsing of the actual local archived bodies confirms 71 substantive and 6 insufficient details, with no missing detail files. Real pages and receipt data remain under `.private`, outside committed test fixtures.
+- Focused TypeScript check: zero diagnostics in the four changed implementation files; 33 existing transitive diagnostics remain. Scoped whitespace check passed.
+
+Real fresh acquisition, PostgreSQL commit and webpage readback remain deployment acceptance steps. The local tests made no external requests and changed no database records.

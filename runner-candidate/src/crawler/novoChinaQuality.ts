@@ -147,7 +147,7 @@ export function novoNativeDetailHasSubstantiveDescription(body: string): boolean
     // Formatting alone cannot distinguish a heading from a bold duty. Reject
     // label-only combinations, while retaining substantive bold paragraphs.
     const withoutLabels = value.replace(/\b(?:the|this|your|and|about|key|main|job|role|position|summary|responsibilities|duties|tasks|qualifications|requirements|education|background|professional|experience|skills|competencies|design|development|leadership|management)\b/giu, "")
-      .replace(/(?:重要职责|岗位职责|主要工作任务|任职资格|任职要求|教育背景|专业经验|职位介绍|职位描述)/gu, "");
+      .replace(/(?:重要职责|岗位职责|主要工作任务|任职资格|任职要求|教育背景|专业经验|工作经验|相关经验|学历|职位介绍|职位描述)/gu, "");
     if (!/\p{L}/u.test(withoutLabels)) return false;
     if (/^(?:[\s*•\-–—.\d()]+)?(?:TBD\b|TBC\b|N\/?A\b|to be (?:defined|confirmed|completed|updated)|coming soon|no (?:job )?description|(?:please\s+)?(?:insert|enter|add|write|describe)\b|待补充|待完善|暂无|敬请期待|请(?:填写|输入|补充)|此处填写)/iu.test(value)) return false;
     if (/\b(?:TBD|TBC)\b|\[(?:\s*(?:insert|enter|add|write|describe|TBD|TBC)\b)[^\]]*\]|\b(?:to be|will be) (?:defined|confirmed|completed|updated|specified|added)(?:\s+later)?\b|(?:待填写|待补充|此处填写|请填写)/iu.test(value)) return false;
@@ -160,10 +160,11 @@ export function novoNativeDetailHasSubstantiveDescription(body: string): boolean
       /\p{Script=Han}{2,12}(?:本科|硕士|博士|大专)(?:及以上)?学历/u.test(value)) return true;
     // Require role-bearing content, not just a heading keyword. These are
     // language-level duty/qualification signals, not job IDs or heading names.
-    const dutyOrQualification = /(?:负责|任职者需要|应聘者需要|承担|开展|制定|执行|设计|建立|维护|推动|分析|具备|学历|工作经验|相关.{0,8}经验)|\b(?:responsible for|accountable for|(?:you will|(?:this |the )?(?:role|position) (?:involves|includes|entails)) (?:design(?:ing)?|develop(?:ing)?|lead(?:ing)?|manag(?:e|ing)|perform(?:ing)?|analy[sz](?:e|ing)|support(?:ing)?|conduct(?:ing)?|coordinat(?:e|ing)|implement(?:ing)?|take ownership)|(?:candidate|applicant)s? (?:will|must|should|need)|(?:bachelor|master)[’']?s? degree|ph\.?d\.?|(?:professional|industrial|relevant|working|hands.on) experience|years?[’']? (?:of )?experience|experience (?:in|with))\b|^(?:[\s•●\-–—\d.)]+)?(?:design(?:ing)?|develop(?:ing)?|lead(?:ing)?|manag(?:e|ing)|coordinat(?:e|ing)|conduct(?:ing)?|perform(?:ing)?|deliver(?:ing)?|execut(?:e|ing)|support(?:ing)?|analy[sz](?:e|ing)|build(?:ing)?|driv(?:e|ing)|ensur(?:e|ing)|provid(?:e|ing)|maintain(?:ing)?|implement(?:ing)?|contribut(?:e|ing)|serv(?:e|ing)|own(?:ing)?|plan(?:ning)?)\b/iu;
+    const dutyOrQualification = /(?:负责|任职者需要|应聘者需要|承担|开展|制定|执行|设计|建立|维护|推动|分析|具备|学历|工作经验|相关.{0,8}经验|\d+\s*年以上.{0,12}经验)|\b(?:responsible for|accountable for|(?:you will|(?:this |the )?(?:role|position) (?:involves|includes|entails)) (?:design(?:ing)?|develop(?:ing)?|lead(?:ing)?|manag(?:e|ing)|perform(?:ing)?|analy[sz](?:e|ing)|support(?:ing)?|conduct(?:ing)?|coordinat(?:e|ing)|implement(?:ing)?|take ownership)|(?:candidate|applicant)s? (?:will|must|should|need)|(?:bachelor|master)[’']?s? degree|ph\.?d\.?|(?:professional|industrial|relevant|working|hands.on) experience|years?[’']? (?:of )?experience|experience (?:in|with))\b|^(?:[\s•●\-–—\d.)]+)?(?:design(?:ing)?|develop(?:ing)?|lead(?:ing)?|manag(?:e|ing)|coordinat(?:e|ing)|conduct(?:ing)?|perform(?:ing)?|deliver(?:ing)?|execut(?:e|ing)|support(?:ing)?|analy[sz](?:e|ing)|build(?:ing)?|driv(?:e|ing)|ensur(?:e|ing)|provid(?:e|ing)|maintain(?:ing)?|implement(?:ing)?|contribut(?:e|ing)|serv(?:e|ing)|own(?:ing)?|plan(?:ning)?)\b/iu;
     if (!dutyOrQualification.test(value)) return false;
     const chinese = value.match(/\p{Script=Han}/gu) ?? [], words = value.toLowerCase().match(/[a-z]+(?:['’\-][a-z]+)*/gu) ?? [];
-    return (chinese.length >= 20 && new Set(chinese).size >= 12) ||
+    // A short Chinese duty or qualification can be complete without padding or distinct-character quotas.
+    return chinese.length > 0 ||
       (words.length >= 8 && new Set(words).size >= 6 && words.join("").length >= 40 &&
         /\b(?:and|or|the|a|an|to|for|with|in|of|across|through|within|using|from|by|into|on)\b|[,;:]/iu.test(value));
   });
