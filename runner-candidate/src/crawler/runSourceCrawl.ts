@@ -1,4 +1,5 @@
 import { hasNovartisPartitionEvidence, replayNovartisNativePartitions, NOVARTIS_PARTITION_PAGINATION } from "./novartisNativePartitions";
+import { reportSourceFetchFailure } from "./sourceFetchDiagnostics";
 import {isSanofiChinesePlan,replaySanofiChineseNative,SANOFI_CN_PAGINATION_POLICY} from "./sanofiChineseNative";
 import { reviewedAbbvieCity } from "./abbvieChinaRowScope";
 import { exactKelunMainlandPlan, replayKelunMainlandScope } from "./kelunMainlandScope";
@@ -176,6 +177,7 @@ export async function runSourceCrawl(
     markInitialSourceFetchAttempt(attemptTracker);
     fetchResult = await deps.fetch(plan, attemptTracker);
   } catch (error) {
+    reportSourceFetchFailure(plan.source.id, {error});
     throw new SourceCrawlStageError("FETCH", error);
   }
 
@@ -186,6 +188,7 @@ export async function runSourceCrawl(
   }
 
   if (!fetchResult.ok) {
+    reportSourceFetchFailure(plan.source.id, {result: fetchResult});
     return finalizeTruth({
       ...failedFetchResult(plan, fetchResult.capturedAt, fetchResult.failureReason, safeEvidenceUrl),
       ...(fetchResult.fetchEvidence ? { fetchEvidence: fetchResult.fetchEvidence } : {}),

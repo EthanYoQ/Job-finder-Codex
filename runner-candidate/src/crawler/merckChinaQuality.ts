@@ -1,5 +1,6 @@
 import { isHengruiMainlandLocation } from "./hengruiMainlandGeography";
 import { CITY_PENDING } from "../domain/jobLocation";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import { ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
 
@@ -162,7 +163,11 @@ function merckTitleCityScope(raw: Record<string, unknown>, structuredCity: strin
       // Titles were reviewed with Chinese suffix labels. English city aliases
       // are supported only inside the explicit Location: ..., China. sentence.
       const labels = suffix.split("/");
-      if (labels.some(label => !isHengruiMainlandLocation({ country: "China", cityName: label })) || new Set(labels).size !== labels.length) return undefined;
+      if (labels.some(label => !isHengruiMainlandLocation({ country: "China", cityName: label }))) {
+        // The structured mainland location still stands; an unknown title suffix cannot prove a precise city.
+        return explicitlyForeignOrNonMainlandLocation(suffix) ? undefined : [CITY_PENDING];
+      }
+      if (new Set(labels).size !== labels.length) return undefined;
       labels.forEach(city => mentionedCities.add(city));
     }
   }

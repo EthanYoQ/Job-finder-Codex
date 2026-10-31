@@ -10,6 +10,9 @@ import type { SourceCrawlPlan } from "./sourcePlan";
 import type { PersistentSourceFetchEvidence } from "./sourceFetchEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { reviewedMainlandCity } from "./reviewedMainlandCity";
+import { PFIZER_OFFICIAL_LOCALITIES } from "./pfizerOfficialLocalities";
+import { CITY_PENDING } from "../domain/jobLocation";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 
 export const NOVO_CHINA_LOCATION_POLICY = "NOVO_CHINA_NESTED_LOCATION_V2" as const;
 export const NOVO_NATIVE_APPLICATION_POLICY = "NOVO_NATIVE_APPLICATION_V1" as const;
@@ -17,7 +20,7 @@ export const NOVO_CHINA_ENDPOINT = "https://www.novonordisk.com.cn/bin/nncorp/ca
 const ENTRY = "https://www.novonordisk.com.cn/careers/find-a-job/career-search-results.html?searchText=&countries=China&categories=";
 const SOURCE_ID = "source-novo-nordisk-china-social", COMPANY_ID = "company-novo-nordisk-china";
 // Retain source-specific reviewed pairs and reuse the shared reviewed geography.
-// A contradictory or unknown country/state/city never becomes city-pending.
+// Unknown country/province is rejected; unresolved city labels within a confirmed mainland province stay pending.
 const LOCATIONS = [
   { city: "Beijing", state: "Beijing", normalized: "北京" },
   { city: "Shanghai", state: "Shanghai", normalized: "上海" },
@@ -26,8 +29,12 @@ const LOCATIONS = [
   { city: "Songyuan", state: "Jilin", normalized: "松原" },
   { city: "Changchun", state: "Jilin", normalized: "长春" }
 ] as const;
+const MAINLAND_STATES = new Set([...LOCATIONS.map(item => item.state as string),
+  ...Object.keys(PFIZER_OFFICIAL_LOCALITIES).filter(key => key.startsWith("China - ")).map(key => key.split(" - ")[1]!)]);
 function novoChinaCity(city: string, state: string): string | undefined {
-  return LOCATIONS.find(item => item.city === city && item.state === state)?.normalized ?? reviewedMainlandCity(city, state);
+  const known = LOCATIONS.find(item => item.city === city && item.state === state)?.normalized ?? reviewedMainlandCity(city, state);
+  // Preserve official text; a confirmed mainland province permits a pending city, not a guessed correction.
+  return known ?? (MAINLAND_STATES.has(state) && !explicitlyForeignOrNonMainlandLocation(city) ? CITY_PENDING : undefined);
 }
 const RAW_FIELDS = ["jobId", "jobTitle", "jobLocale", "jobLocationLabel", "jobCountry", "jobCategory", "jobSubCategory", "jobState", "jobCity"];
 const record = (value: unknown): Record<string, unknown> | undefined => value !== null && typeof value === "object" && !Array.isArray(value)

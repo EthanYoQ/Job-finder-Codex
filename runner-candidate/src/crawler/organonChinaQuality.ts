@@ -324,9 +324,11 @@ export function organonNativeDetail(raw: Record<string,unknown>, artifact: Sourc
       typeof job.datePosted !== "string" || phenomOfficialPostedDate(raw.postedDate)?.slice(0,10) !== job.datePosted ||
       !record(job.jobLocation) || !record(job.jobLocation.address)) return undefined;
     const address=job.jobLocation.address;
-    // The native primary cannot erase an additional mainland list location.
+    // A validated native workLocation can differ from the URL locality; the existing city-pending projection remains intact.
     const primary=new URL(raw.applyUrl as string).pathname.split("/")[3]!.replaceAll("---"," - ");
-    return address.addressCountry === "China" && address.addressLocality === primary ? "ACTIVE" : undefined;
+    const localityMatches = address.addressLocality === primary ||
+      typeof raw.workLocation === "string" && organonOfficialCities(raw) !== undefined && address.addressLocality === raw.workLocation;
+    return address.addressCountry === "China" && localityMatches ? "ACTIVE" : undefined;
   } catch { return undefined; }
 }
 

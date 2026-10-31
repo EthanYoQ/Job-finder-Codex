@@ -1,0 +1,62 @@
+{
+  "baseCommit": "dac228c8eb20bb729b00f9f1b5550af3f2aa2015",
+  "files": [
+    {
+      "path": "runner-candidate/src/crawler/runSourceCrawl.ts",
+      "beforeSha256": "d3e4f39b4022d19fb7658828e1a82edbb075e532af03c577b0035112bffcba38",
+      "afterSha256": "4b3a423953dafb5968f83e658c43bfbe4a47ead48dc8b4693e7fd7124b182344"
+    },
+    {
+      "path": "runner-candidate/src/crawler/sourceFetchDiagnostics.ts",
+      "beforeSha256": null,
+      "afterSha256": "93583ce8577b872bd66f7617aa3960430fbe3b47021b0c96989238c4afe14698"
+    },
+    {
+      "path": "runner-candidate/src/crawler/merckChinaQuality.ts",
+      "beforeSha256": "bc275e602d18b422f5e6b008687deb740c819860f5c5460e5359b3429ca2ee7b",
+      "afterSha256": "65e8172bcdd48e4882cdde8b128fd0fe6d7e9fb78bafab9f78ffb9dfd0c3c406"
+    },
+    {
+      "path": "runner-candidate/src/crawler/novoChinaQuality.ts",
+      "beforeSha256": "ae2e39728f8bf9e29b0231cdd187950a65bc126333d7979754513466f6fe6ef6",
+      "afterSha256": "8594c600af83977c3ca7f655b45ed1202b186e8b9a3e7bdb162ccd35b1b43b6f"
+    },
+    {
+      "path": "runner-candidate/src/crawler/organonChinaQuality.ts",
+      "beforeSha256": "0bb8070bfb3425f129a3d799c9ce3219e68e8e8f8bf19d24d52b12081446166e",
+      "afterSha256": "db678319cd6bc8eb7db32d3b3e37e13221c6a103ac355d27d2ef77140da84681"
+    }
+  ],
+  "verification": {
+    "focusedTests": "6/6 PASS",
+    "network": "FORBIDDEN in replay/tests",
+    "typecheck": "1 pre-existing TS2345 in unchanged Hansoh dependency",
+    "hansohUnchangedFromHead": true
+  },
+  "captures": [
+    {
+      "file": "0.body",
+      "sha256": "41cc03f6a8bd20a6f0b57634d1d98691157b27e435f589c39ff45a780f0c8e74"
+    },
+    {
+      "file": "1.body",
+      "sha256": "44a9d3115c8f0099fbad4f4b7f5d1503b5f17e024b1e5aa5f93a2f35f4280ffa"
+    },
+    {
+      "file": "2.body",
+      "sha256": "6ee0b8215aa2769be647d266784df3cbe054f05aba04c99c2ae01169c4b8132b"
+    },
+    {
+      "file": "3.body",
+      "sha256": "04f69237096bccc10b1c4bbffcb0d3aa86cd418b065992b397158f9cdd603c84"
+    },
+    {
+      "file": "4.body",
+      "sha256": "8af3c11bfacc380b5121e26ee0c260c65f63c6906fc428d55091940a3e428622"
+    },
+    {
+      "file": "5.body",
+      "sha256": "249db0bbcacf4bb80f527199b61af3d4dfdf9dcc5a4f83d65e029d1f0a82599a"
+    }
+  ]
+}
