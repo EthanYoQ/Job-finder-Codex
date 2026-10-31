@@ -1,0 +1,28 @@
+# Inactive preparation. Start only after the target, credentials and schema route are approved.
+# Reuses web-ready/ops/docker-compose.yml's PostgreSQL 16 image and healthcheck.
+services:
+  postgres:
+    image: postgres:16-bookworm@sha256:da788743d2060767375896de4d646f7576f5911461444b372616f19ea61db2ec
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-jobfinder}
+      POSTGRES_USER: ${POSTGRES_USER:-jobfinder}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?configure only after approval}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - type: bind
+        source: /data/jobfinder/postgres
+        target: /var/lib/postgresql/data
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
