@@ -1,7 +1,7 @@
 import { memoryDb } from './memory-db.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadDirectPlans, identityForSource, assertLegacyReconciled, assertNoUnresolvedWrites } from '../scripts/direct-round.ts';
+import { loadDirectPlans, identityForSource, assertLegacyAuditState, assertNoUnresolvedWrites } from '../scripts/direct-round.ts';
 import { runP0CrawlBatch } from '../src/crawler/runCrawlBatch.ts';
 import { withPortableCrawlLease } from '../src/crawler/portableCrawlLease.ts';
 import { SOURCE_QUALITY_POLICY_ID, getSourceQualityPolicy } from '../src/crawler/sourceQualityAdmission.ts';
@@ -24,20 +24,44 @@ test('catalog preserves all 36 original plans and the 20/12/4 admission split', 
   }
 });
 
-test('migration UNKNOWN cannot be cleared by an empty new database', () => {
-  assert.throws(() => assertLegacyReconciled(undefined), /MIGRATION_RECONCILIATION_STATE_REQUIRED/);
-  assert.throws(() => assertLegacyReconciled({ unresolvedRequests: [{ requestId: 'old-publish', outcome: 'UNKNOWN' }] }), /LEGACY_UNKNOWN_RECONCILE_ONLY/);
-  assert.doesNotThrow(() => assertLegacyReconciled({ unresolvedRequests: [], holds: { oldSource: 'EXPIRED_APPROVAL' } }));
+test('historical UNKNOWN remains in the audit while only a fresh candidate can run', () => {
+  const id = 'instabox-new', audit = { candidateId: id, legacyCandidateIds: ['instabox-old'], replayLegacy: false,
+    unresolvedRequests: [{ kind: 'SOURCE_RESULT', id: 'old-publish', outcome: 'UNKNOWN', sourceId: 's' }] };
+  const before = JSON.stringify(audit);
+  assert.doesNotThrow(() => assertLegacyAuditState(audit, id));
+  assert.equal(JSON.stringify(audit), before);
+  assert.throws(() => assertLegacyAuditState(undefined, id), /MIGRATION_AUDIT_STATE_REQUIRED/);
+  assert.throws(() => assertLegacyAuditState({ ...audit, replayLegacy: true }, id), /LEGACY_REPLAY_FORBIDDEN/);
+  assert.throws(() => assertLegacyAuditState({ ...audit, candidateId: 'instabox-old' }, 'instabox-old'), /NEW_INSTABOX_CANDIDATE_REQUIRED/);
+  assert.throws(() => assertLegacyAuditState(audit, 'different-candidate'), /NEW_INSTABOX_CANDIDATE_REQUIRED/);
 });
 
-test('pending commits, unfinished batches and manual writers block a fresh round', async () => {
-  const db = { crawlBatchSourceResult: { findFirst: async () => null }, crawlBatch: { findFirst: async () => null }, manualCrawlRequest: { findFirst: async () => null } };
-  await assertNoUnresolvedWrites(db, ['s']);
-  for (const [model, row, code] of [
-    ['crawlBatchSourceResult', { id: 'r', batchId: 'b' }, /RECONCILE_PENDING_COMMIT:b:r/],
-    ['crawlBatch', { id: 'b' }, /RECONCILE_RUNNING_BATCH:b/],
-    ['manualCrawlRequest', { id: 'm' }, /RECONCILE_MANUAL_REQUEST:m/]
-  ]) await assert.rejects(assertNoUnresolvedWrites({ ...db, [model]: { findFirst: async () => row } }, ['s']), code);
+test('only unresolved writes from this candidate and direct scheduler block new work', async () => {
+  const candidateId = 'instabox-new';
+  const batches = [
+    { id: 'legacy', releaseCandidateId: 'legacy-candidate', ownerId: 'direct-scheduler', kind: 'SCHEDULED', status: 'RUNNING' },
+    { id: 'manual', releaseCandidateId: candidateId, ownerId: 'manual-owner', kind: 'MANUAL_SOURCE', status: 'RUNNING' },
+    { id: 'other-owner', releaseCandidateId: candidateId, ownerId: 'legacy-owner', kind: 'SCHEDULED', status: 'RUNNING' }
+  ];
+  const pending = batches.map(batch => ({ id: `r-${batch.id}`, batchId: batch.id, releaseCandidateId: batch.releaseCandidateId, sourceId: 's', atomicCommitState: 'PENDING', batch }));
+  const match = (row, where) => Object.entries(where).every(([key, value]) => {
+    if (key === 'batch') return match(row.batch, value.is);
+    if (value && typeof value === 'object' && 'in' in value) return value.in.includes(row[key]);
+    return row[key] === value;
+  });
+  const db = { crawlBatchSourceResult: { findFirst: async ({ where }) => pending.find(row => match(row, where)) ?? null },
+    crawlBatch: { findFirst: async ({ where }) => batches.find(row => match(row, where)) ?? null },
+    manualCrawlRequest: { findFirst: async () => { throw Error('historical manual requests must not be consumed'); } } };
+  const before = JSON.stringify({ batches, pending });
+  await assertNoUnresolvedWrites(db, candidateId, ['s']);
+  assert.equal(JSON.stringify({ batches, pending }), before);
+  const own = { id: 'own', releaseCandidateId: candidateId, ownerId: 'direct-scheduler', kind: 'SCHEDULED', status: 'RUNNING' };
+  batches.push(own);
+  await assert.rejects(assertNoUnresolvedWrites(db, candidateId, ['s']), /RECONCILE_RUNNING_BATCH:own/);
+  pending.push({ id: 'own-result', batchId: own.id, releaseCandidateId: candidateId, sourceId: 's', atomicCommitState: 'PENDING', batch: own });
+  await assert.rejects(assertNoUnresolvedWrites(db, candidateId, ['s']), /RECONCILE_PENDING_COMMIT:own:own-result/);
+  own.status = 'FAILED';
+  await assert.rejects(assertNoUnresolvedWrites(db, candidateId, ['s']), /RECONCILE_PENDING_COMMIT:own:own-result/);
 });
 
 test('A/B last-good runs cannot bypass the same owned lease as portable runs', async () => {

@@ -34,30 +34,34 @@ export function identityForSource(candidate: { id: string; commitSha: string; ro
     expectedPlannedSourceSetSha256: hashCanonicalStringSet([sourceId]) };
 }
 
-export function assertLegacyReconciled(state: unknown) {
-  if (!state || typeof state !== "object" || !Array.isArray((state as { unresolvedRequests?: unknown }).unresolvedRequests)) throw Error("MIGRATION_RECONCILIATION_STATE_REQUIRED");
-  if ((state as { unresolvedRequests: unknown[] }).unresolvedRequests.length) throw Error("LEGACY_UNKNOWN_RECONCILE_ONLY");
+export function assertLegacyAuditState(state: unknown, candidateId: string) {
+  const audit = state as { unresolvedRequests?: unknown; legacyCandidateIds?: unknown; candidateId?: unknown; replayLegacy?: unknown } | null;
+  if (!audit || !Array.isArray(audit.unresolvedRequests) || !Array.isArray(audit.legacyCandidateIds)) throw Error("MIGRATION_AUDIT_STATE_REQUIRED");
+  if (!candidateId.startsWith("instabox-") || audit.candidateId !== candidateId || audit.legacyCandidateIds.includes(candidateId)) throw Error("NEW_INSTABOX_CANDIDATE_REQUIRED");
+  if (audit.replayLegacy !== false) throw Error("LEGACY_REPLAY_FORBIDDEN");
+  // Historical UNKNOWN stays UNKNOWN. This entry only creates fresh batches;
+  // it accepts no request, batch or source-result ID to replay from this archive.
 }
 
-export async function assertNoUnresolvedWrites(db: Pick<PrismaClient, "crawlBatchSourceResult" | "crawlBatch" | "manualCrawlRequest">, sourceIds: string[]) {
-  // A previous process can die after dispatch; lease expiry alone does not prove rollback.
+export async function assertNoUnresolvedWrites(db: Pick<PrismaClient, "crawlBatchSourceResult" | "crawlBatch">, candidateId: string, sourceIds: string[]) {
+  // recoverDirectBatches owns this same scope. Historical writers were stopped
+  // at cutover; their archived states neither prove rollback nor block new work.
+  const scope = { releaseCandidateId: candidateId, ownerId: "direct-scheduler", kind: "SCHEDULED" as const };
   const pending = await db.crawlBatchSourceResult.findFirst({
-    where: { sourceId: { in: sourceIds }, atomicCommitState: "PENDING" }, select: { id: true, batchId: true }
+    where: { releaseCandidateId: candidateId, sourceId: { in: sourceIds }, atomicCommitState: "PENDING", batch: { is: scope } }, select: { id: true, batchId: true }
   });
   if (pending) throw Error(`RECONCILE_PENDING_COMMIT:${pending.batchId}:${pending.id}`);
-  const running = await db.crawlBatch.findFirst({ where: { status: "RUNNING" }, select: { id: true } });
+  const running = await db.crawlBatch.findFirst({ where: { ...scope, status: "RUNNING" }, select: { id: true } });
   if (running) throw Error(`RECONCILE_RUNNING_BATCH:${running.id}`);
-  const manual = await db.manualCrawlRequest.findFirst({ where: { status: "RUNNING" }, select: { id: true } });
-  if (manual) throw Error(`RECONCILE_MANUAL_REQUEST:${manual.id}`);
 }
 
 export async function runDirectRound(input: { db: PrismaClient; leaseDb: PortableLeaseDatabase; candidateId: string; workspaceRoot: string }) {
   const routes = await loadDirectPlans(), sourceIds = routes.map(row => row.sourceId);
-  assertLegacyReconciled(JSON.parse(await readFile(resolve(input.workspaceRoot, "migration-state.json"), "utf8")));
+  assertLegacyAuditState(JSON.parse(await readFile(resolve(input.workspaceRoot, "migration-state.json"), "utf8")), input.candidateId);
   if (input.db === input.leaseDb) throw Error("SEPARATE_LEASE_CONNECTION_REQUIRED");
   return withPortableCrawlLease(input.leaseDb, async lease => {
     await recoverDirectBatches(input.db, lease, input.candidateId, sourceIds);
-    await assertNoUnresolvedWrites(input.db, sourceIds);
+    await assertNoUnresolvedWrites(input.db, input.candidateId, sourceIds);
     const candidate = await input.db.releaseCandidate.findUniqueOrThrow({ where: { id: input.candidateId } });
     if (!["BUILDING", "READY_FOR_QA", "RELEASED"].includes(candidate.status)) throw Error("CANDIDATE_NOT_ACTIVE");
     const sources = await input.db.recruitmentSource.findMany({ where: { id: { in: sourceIds } }, select: { id: true, companyId: true } });
@@ -78,7 +82,7 @@ export async function runDirectRound(input: { db: PrismaClient; leaseDb: Portabl
         results.push({ sourceId: row.sourceId, route: row.route, ...result });
       } catch (error) {
         if (lease.signal.aborted) throw error;
-        await assertNoUnresolvedWrites(input.db, sourceIds);
+        await assertNoUnresolvedWrites(input.db, input.candidateId, sourceIds);
         // Keep driver messages private; a source failure does not stop other companies.
         results.push({ sourceId: row.sourceId, route: row.route, status: "FAILED", diagnostic: describePortableRuntimeError(error) });
       }
