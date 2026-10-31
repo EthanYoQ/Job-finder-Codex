@@ -1,0 +1,60 @@
+
+=== pre-capture-reuse ===
+(node:8) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS: one original reader-before read after PRE_CAPTURE, unchanged context persisted/returned; fresh publication query is separate
+PASS: original scope/binding/stale guards; rejection/transport failure never fall back or retry; split-read drift remains rejected
+PASS: original service forwards callback; original producer freshness and final full-context concurrency comparison remain effective
+
+=== automatic-relay ===
+(node:16) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS: serial relay, single dispatch, unknown/expiry hold, failed source isolation, dedup skip
+PASS: 36 original routes, 20 portable, 12 original A and four original B configurations; configuration is not live acceptance
+PASS: post-dispatch transport failure remains UNKNOWN and prevents another source launch
+PASS: only the same job successful publication-context request is passed to review; missing/failed read cannot dispatch
+PASS: actual launch/session uncertainty and unterminated deadlines stop; known prelaunch refusal continues; reasons do not invent a DB dispatch
+PASS: explicit rejection/rollback receipt reported intact; one dispatch, original outcome read, next source unchanged
+PASS: 18 persisted holds survive empty store, original five reasons unchanged, other 18 sources remain eligible; no source or publication request
+
+=== host-session ===
+(node:24) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS: yielded original session is awaited once; failed completion stays failed
+PASS: outer command preserves actual exit code even when stderr only contains warnings
+PASS: review uses earliest original deadline, without arbitrary 120-second sublimit
+PASS: packet process completes before raw and target; packet failure stops later steps
+PASS: exact ID lookup keeps request/response guards; three original reviewers reject compact missing ID and wrong source/config/snapshot; legacy needs no fallback read
+PASS: actual Functions review passes context ID, permits only a due source in the same slot, and rejects current-slot success or a crossed slot
+PASS: successful binding is reused only inside one helper; command and scope failures are not cached; a new source verifies independently
+
+=== explicit-review-rejection ===
+(node:32) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS observed explicit rejection NOT_DISPATCHED; transport exception UNKNOWN
+
+=== read-context-rejection ===
+(node:40) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS: direct and reused reads preserve actual bound raw evidence without write outcome or marker rewrite
+PASS: absent raw, lookalike text, malformed envelope, project mismatch and old marked/expired request cannot create a rejection response
+PASS: only confirmed non-success producer terminal plus empty read-only pending list isolates source; Novo hook skipped; all uncertain boundaries stop
+PASS: prior PUBLISH uncertainty remains UNKNOWN with one write dispatch and no next source
+PASS: terminal pending proof uses existing read-only next-meta, never expiry settlement or queue mutation
+PASS: extra expired undispatched PUBLISH is detected read-only, not auto-settled or hidden by original next()
+
+=== novo-hook ===
+(node:48) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS: confirmed producer terminal hook; recent/prelaunch/uncertain producer skip; closure UNKNOWN/throw stop; source outcome retained
+
+=== readback-recovery ===
+{"baselineSaved": true}
+{"baselineSaved": true}
+PASS: one original read-only refresh recovery, persistent failure retained, check token excluded
+
+=== readback-current-reuse ===
+{"status": "WEB_VERIFIED", "allFieldsMatch": true, "lastSuccessAt": "2026-10-30T12:00:00Z", "uniqueJobs": 1, "snapshotRefresh": {"state": "CURRENT"}}
+{"status": "WEB_VERIFIED", "allFieldsMatch": true, "lastSuccessAt": "2026-10-30T12:00:00Z", "uniqueJobs": 1, "snapshotRefresh": {"state": "CURRENT"}}
+{"status": "WEB_VERIFIED", "allFieldsMatch": true, "lastSuccessAt": "2026-10-30T12:00:00Z", "uniqueJobs": 1, "snapshotRefresh": {"state": "CURRENT"}}
+PASS: settled no-token response uses one search; check/UPDATING paths retained; full job and coverage equality still reject mismatches
