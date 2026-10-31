@@ -1,0 +1,109 @@
+{
+  "recordedAt": "2026-10-31T02:44:33.892287+00:00",
+  "scope": "Two original reviewed code/test backup operations; no source capture or publication retries",
+  "hold": {
+    "verifiedAt": "2026-10-31T02:40:52.713730+00:00",
+    "githubTree": "400723ee895a2b5eaba69bdc1c62f69aa58b357f",
+    "githubCommit": "883db1e9d44604a9ac333991b9735b91c6a4830d",
+    "githubRef": "recovery/persistent-source-holds-20261030T2202Z",
+    "driveFileId": "18mLT0QRUXDBUUR-C6OHODqRF2IUaGkbI",
+    "driveReadbackExact": true,
+    "driveBytes": 36078,
+    "driveMembers": 14,
+    "originalDeniedOperationsRetried": {
+      "create_tree": 1,
+      "upload_file": 1
+    },
+    "originalDeniedOperationsOutcome": "BOTH_SUCCEEDED",
+    "activeEntryChanged": true,
+    "githubReadbackExact": true,
+    "activatedAt": "2026-10-31T02:41:17.396332+00:00",
+    "officialIdleAt": "2026-10-31T02:40:43.414285Z",
+    "officialHolder": "",
+    "officialRunning": 0,
+    "officialManual": 0,
+    "noLocalProducer": true,
+    "status": "ACTIVATED_AND_REGRESSION_VERIFIED",
+    "tests": {
+      "automatic-relay": "PASS: 36 routes, 18 holds, 18 eligible",
+      "novo-hook": "PASS",
+      "host-session": "PASS original full layout"
+    },
+    "productionEntryExecuted": false,
+    "sourceRequestRetried": false,
+    "databaseChanged": false
+  },
+  "readback": {
+    "checkedAt": "2026-10-31T02:42:40.839110+00:00",
+    "githubTree": "cc3aa16f40d0dc3cc5b3b250930a065b91446df8",
+    "driveFileId": "1b8tAW-6KTK9s1jOs-6Yezk9MAbkTg_Ak",
+    "originalDeniedOperationsRetried": {
+      "create_tree": 1,
+      "upload_file": 1
+    },
+    "originalDeniedOperationsOutcome": "BOTH_SUCCEEDED",
+    "status": "ACTIVATED_AND_REGRESSION_VERIFIED",
+    "activeChanged": true,
+    "githubCommit": "dcc29d1ce6c8649c56fecff9ce6f6ea538a3dad7",
+    "githubBranch": "recovery/readback-current-reuse-20261030T2332Z",
+    "githubReadbackExact": true,
+    "githubReadbackFiles": 8,
+    "driveReadbackExact": true,
+    "driveMembers": 8,
+    "activatedAt": "2026-10-31T02:43:44.164195+00:00",
+    "officialIdleAt": "2026-10-31T02:43:36.052311Z",
+    "officialHolder": "",
+    "officialRunning": 0,
+    "officialManual": 0,
+    "noLocalProducer": true,
+    "changedFiles": [
+      "readback-original-web.py",
+      "readback-recovery.test.py",
+      "readback-current-reuse.test.py"
+    ],
+    "tests": [
+      {
+        "test": "readback-recovery.test.py",
+        "exitCode": 0
+      },
+      {
+        "test": "readback-current-reuse.test.py",
+        "exitCode": 0
+      },
+      {
+        "test": "automatic-relay.test.mjs",
+        "exitCode": 0
+      },
+      {
+        "test": "novo-hook.test.mjs",
+        "exitCode": 0
+      },
+      {
+        "test": "host-session.test.mjs",
+        "exitCode": 0
+      }
+    ],
+    "verifiedAt": "2026-10-31T02:44:07.533659+00:00",
+    "activeSha256": {
+      "readback-original-web.py": "5eec9913ed58abf7868b087762a660900f377ff2e160c2b9ce8366ffaf82bfab",
+      "readback-recovery.test.py": "dc10dc64dc3acdb9b41f38eb6fe4820cd614783ff4e37b4d9d7478b6804231d1",
+      "readback-current-reuse.test.py": "659164b693d2f8821ab79c6163e262694985a67c22b8800ce8608006cbf5b0ab"
+    },
+    "offlineReadbackCases": 9,
+    "productionApiCalled": false,
+    "productionEntryExecuted": false,
+    "databaseChanged": false,
+    "sourceHoldsUnchangedAfterReadbackActivation": true,
+    "optionalTestsNotRun": [
+      "committed-tail.test.mjs absent from original active directory; no production failure observed",
+      "committed-tail-adapter.test.mjs not attempted after missing first test"
+    ],
+    "liveSavingsNotMeasured": true
+  },
+  "productionEntryExecuted": false,
+  "databaseChanged": false,
+  "scheduleChanged": false,
+  "architectureChanged": false,
+  "realScheduledAcceptance": "NOT_ESTABLISHED"
+}
+
