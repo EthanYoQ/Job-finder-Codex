@@ -34,8 +34,7 @@ const processResponseSchema = z.discriminatedUnion("decision", [
 const RETRIABLE_VALIDATOR_FAILURE_CODES = new Set<string>([
   "B_GRADE_BROWSER_NAVIGATION_FAILED",
   "B_GRADE_BROWSER_READINESS_FAILED",
-  "B_GRADE_REQUEST_PROTOCOL_FAILED",
-  "B_GRADE_VALIDATOR_EXECUTION_FAILED"
+  "B_GRADE_REQUEST_PROTOCOL_FAILED"
 ] as const);
 const VALIDATOR_RETRY_BACKOFF_MS = 10_000;
 
@@ -55,10 +54,6 @@ export function createIsolatedBGradeTraversalValidator(
         reportSourceFetchFailure(input.sourceId, {error});
         if (signal?.aborted) {
           throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
-        }
-        if (attempt === 1) {
-          await awaitRetryDelay(delay, signal);
-          continue;
         }
         throw tagBGradeIndependentTraversalFailure(error, "B_GRADE_VALIDATOR_EXECUTION_FAILED");
       }
