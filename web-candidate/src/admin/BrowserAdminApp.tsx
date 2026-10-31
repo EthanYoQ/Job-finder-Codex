@@ -96,15 +96,15 @@ export function BrowserAdminApp() {
       }}
       onReviewFeedback={async (input) => {
         await postJson("/admin/api/feedback-review", input, headers);
-        await refresh();
+        await refresh().catch(() => setDashboardError("反馈复核已保存，后台数据刷新暂时失败，请勿重复提交。"));
       }}
       onReviewRecommendation={async (input) => {
         await postJson("/admin/api/recommendation-review", input, headers);
-        await refresh();
+        await refresh().catch(() => setDashboardError("推荐复核已保存，后台数据刷新暂时失败，请勿重复提交。"));
       }}
       onApplyCategoryCorrection={async (input) => {
         await postJson("/admin/api/category-correction", input, headers);
-        await refresh();
+        await refresh().catch(() => setDashboardError("分类修正已保存，后台数据刷新暂时失败，请勿重复提交。"));
       }}
     />
     </>

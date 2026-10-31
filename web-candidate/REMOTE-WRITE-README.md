@@ -31,6 +31,10 @@ Aliyun 长驻进程在转发公共 POST 前继续执行原同意检查和原每 
 
 新机安装 `pipeline/jobfinder-manual@.service` 后需要 `systemctl daemon-reload`，无需启用任意实例。模板和只消费新请求的实现由 runner 交付，`Restart=no`；保留原数据库状态和共享 lease。既有 user 的 sudo 权限须由部署方实测，不修改 sudoers 或增加权限。若模板未安装或无权限，记录仍留在原队列，页面明确显示启动未确认；每轮采集释放lease后会检查登记后的新QUEUED：先查同ID unit状态、再查数据库，仅确认未启动时请求启动；状态不明时不重发，不重放RUNNING或历史请求。
 
-本机证据：`prepared/simple-review/remote-write.test.mjs` / `remote-write.tap`（5 项合成测试通过），`remote-typecheck.json`（零类型诊断）。覆盖未唤醒不发送、人工暂停不发送、发送后不重放、加密回执、原登录/反馈处理、公开查询与唤醒隔离、长驻限流和实际 stdin 子进程。新增 `manual-launch.test.mjs` / `manual-launch.tap` 3 项通过（固定 unit、失败保留回执及原隐私请求），`manual-launch-browser.json` 验证新 dist 的实际回环交互，`remote-frontend-build.log` 记录重建。以上为合成验证记录；随后本机通过现有授权 CLI 对已部署新机完成真实错误会话401加密回执测试。尚未向阿里云配置持续key，也未执行真实反馈或管理员写入。
+本机证据：`prepared/simple-review/remote-write.test.mjs` / `remote-write.tap`（5 项合成测试通过），`remote-typecheck.json`（零类型诊断）。覆盖未唤醒不发送、人工暂停不发送、发送后不重放、加密回执、原登录/反馈处理、公开查询与唤醒隔离、长驻限流和实际 stdin 子进程。新增 `manual-launch.test.mjs` / `manual-launch.tap` 3 项通过（固定 unit、失败保留回执及原隐私请求），`manual-launch-browser.json` 验证新 dist 的实际回环交互，`remote-frontend-build.log` 记录重建。
+
+阿里云持续 key 已配置。真实反馈返回 201，随后按返回 ID 核对、删除并确认零残留，记录见 `diagnostics/live-feedback-verified-cleaned.json`。真实错误会话的 401 加密回执也已验证；成功管理员登录及真实管理员业务写入仍未验收。
+
+`pipeline/admin-write-readback.test.mjs` 使用新构建 dist 和 sandbox Chrome 回环验证：反馈复核、推荐复核、分类修正的 POST 已成功时，后续 dashboard GET 失败只显示刷新错误，不误报写入未知；真正的未知写入仍保留草稿并禁止重发。该验证全部使用合成接口，不代表真实管理员登录或写入成功。
 
 
