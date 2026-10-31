@@ -1,0 +1,238 @@
+--- a/original-relay-automation-20261017T0609Z/review-original-publication.mjs
++++ b/original-relay-automation-20261017T0609Z/review-original-publication.mjs
+@@ -1,5 +1,5 @@
+ import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {execFileSync} from 'node:child_process';
+-const B='/workspace/scratch/5e9614251709',R=B+'/takeda-original-recovery-20261017T0417Z',V=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source';
++const B=path.resolve(import.meta.dirname,'..'),R=B+'/takeda-original-recovery-20261017T0417Z',V=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source';
+ const [run,id,relay,contextRequestId,phase]=process.argv.slice(2),read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
+ const sqlNegativeTests=phase==='packet-only-sql-selftest';
+ fs.mkdirSync(run+'/relay',{recursive:true});fs.mkdirSync(run+'/review',{recursive:true});
+--- a/takeda-original-recovery-20261017T0417Z/offline-checkers/original-portable-sql-review.mts
++++ b/takeda-original-recovery-20261017T0417Z/offline-checkers/original-portable-sql-review.mts
+@@ -1,25 +1,25 @@
+-import {compileAtomicJsonRecords as originalSqlRecords} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/atomicJsonDeclarations.ts';
++import {compileAtomicJsonRecords as originalSqlRecords} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/atomicJsonDeclarations.ts';
+ 
+ /** Local read-only SQL parser/recompiler. Never submits SQL or edits producer/run. */
+ import assert from 'node:assert/strict';
+-import {verifyNodeRuntimeProfile} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/scripts/verify-node-runtime-profile.ts";
+-import {createBuildIdentity} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/readiness/buildIdentity.ts";
++import {verifyNodeRuntimeProfile} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/scripts/verify-node-runtime-profile.ts";
++import {createBuildIdentity} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/readiness/buildIdentity.ts";
+ 
+ import {readFileSync,writeFileSync} from 'node:fs';
+ import {resolve,join} from 'node:path';
+ import {createHash} from 'node:crypto';
+ import {execFileSync} from 'node:child_process';
+-import ts from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/typescript/lib/typescript.js";
+-import {decodeDeclarations} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/review-packet-envelope.mts";
+-import {prepareCloudPilotDbStartedControl,publicationContextComparisonValue,CLOUD_PILOT_SOURCE} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/cloudPilotSqlControl.ts";
+-import {deriveCurrentStagedScheduleExpectation} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/stagedScheduleAuthority.ts";
+-import {buildPendingRuntimeBatch} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts";
+-import {hashCanonicalStringSet} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeBatchIdentity.ts";
+-import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts";
++import ts from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/typescript/lib/typescript.js";
++import {decodeDeclarations} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/review-packet-envelope.mts";
++import {prepareCloudPilotDbStartedControl,publicationContextComparisonValue,CLOUD_PILOT_SOURCE} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/cloudPilotSqlControl.ts";
++import {deriveCurrentStagedScheduleExpectation} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/stagedScheduleAuthority.ts";
++import {buildPendingRuntimeBatch} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts";
++import {hashCanonicalStringSet} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeBatchIdentity.ts";
++import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts";
+ export async function reviewOriginalPortableSql(runArg:string,requestId:string,output:string,{originalOuterDeadline,publicationContext,sqlNegativeTests=false}: {originalOuterDeadline:number;publicationContext?:any;sqlNegativeTests?:boolean}){
+ assert(runArg&&requestId&&output);
+ assert(Number.isFinite(originalOuterDeadline)&&Date.now()<originalOuterDeadline);
+-const R=resolve("/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native",'../vendor'),run=resolve(runArg),host=resolve(run,'..');
++const R=resolve(import.meta.dirname,'../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native','../vendor'),run=resolve(runArg),host=resolve(run,'..');
+ const json=(p:string)=>JSON.parse(readFileSync(p,'utf8'));const sha=(b:any)=>createHash('sha256').update(b).digest('hex');
+ const rawPath=join(run,'relay',requestId+'.request.json'),sqlPath=rawPath+'.sql';
+ const request=json(rawPath),sql=readFileSync(sqlPath,'utf8');assert.equal(sql,request.payload.sql);
+--- a/takeda-original-recovery-20261017T0417Z/offline-checkers/biogen-packet-gate.mts
++++ b/takeda-original-recovery-20261017T0417Z/offline-checkers/biogen-packet-gate.mts
+@@ -1,37 +1,37 @@
+-import {compileAtomicJsonRecords as originalSqlRecords} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/atomicJsonDeclarations.ts';
+-import {readBiogenOriginalDeadline} from "/workspace/scratch/5e9614251709/takeda-original-recovery-20261017T0417Z/offline-checkers/original-wrapper-deadline.mjs";
+-import {assertBiogenPacketDeadline} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/biogen-deadline-gate.mts";
+-import {verifySourceQualityReceipt} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceQualityAdmission.ts";
+-import {buildJobDedupeKey} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/normalizedJob.ts";
+-import {canonicalPageTraceSha256,canonicalStringSetSha256} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts";
+-import {requiresAGradeOfficialTotalCertificate,issueAGradeOfficialTotalCertificate,verifyAGradeCompletenessCertificateReceipt} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/completenessCertificate.ts";
+-import {createWorkdaySourceFetch} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/workdaySourceFetch.ts";
+-import {assertBiogenRefreshPlan} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/biogen-native-capture.mts";
+-import {loadPilotContext} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/cloudPilotContext.ts";
+-import {reviewBiogenRawPages} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/biogen-raw-review.mts";
+-import {requestContractV2Matches} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/strictPageRequestContract.ts";
++import {compileAtomicJsonRecords as originalSqlRecords} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/atomicJsonDeclarations.ts';
++import {readBiogenOriginalDeadline} from "../../takeda-original-recovery-20261017T0417Z/offline-checkers/original-wrapper-deadline.mjs";
++import {assertBiogenPacketDeadline} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/biogen-deadline-gate.mts";
++import {verifySourceQualityReceipt} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceQualityAdmission.ts";
++import {buildJobDedupeKey} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/normalizedJob.ts";
++import {canonicalPageTraceSha256,canonicalStringSetSha256} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts";
++import {requiresAGradeOfficialTotalCertificate,issueAGradeOfficialTotalCertificate,verifyAGradeCompletenessCertificateReceipt} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/completenessCertificate.ts";
++import {createWorkdaySourceFetch} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/workdaySourceFetch.ts";
++import {assertBiogenRefreshPlan} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/biogen-native-capture.mts";
++import {loadPilotContext} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/cloudPilotContext.ts";
++import {reviewBiogenRawPages} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/biogen-raw-review.mts";
++import {requestContractV2Matches} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/strictPageRequestContract.ts";
+ /** Local read-only SQL parser/recompiler. Never submits SQL or edits producer/run. */
+ import assert from 'node:assert/strict';
+-import {verifyNodeRuntimeProfile} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/scripts/verify-node-runtime-profile.ts";
+-import {createBuildIdentity} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/readiness/buildIdentity.ts";
+-import {sanitizeEvidenceHttpUrl} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts";
+-import {runSourceCrawl,replayStrictSourceQualityEvidence,supportsStrictOfficialTotalCertificate,validateStrictOfficialTotalCertificateEvidence} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runSourceCrawl.ts";
+-import {load} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/cheerio/dist/esm/index.js";
++import {verifyNodeRuntimeProfile} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/scripts/verify-node-runtime-profile.ts";
++import {createBuildIdentity} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/readiness/buildIdentity.ts";
++import {sanitizeEvidenceHttpUrl} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts";
++import {runSourceCrawl,replayStrictSourceQualityEvidence,supportsStrictOfficialTotalCertificate,validateStrictOfficialTotalCertificateEvidence} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runSourceCrawl.ts";
++import {load} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/cheerio/dist/esm/index.js";
+ import {readFileSync,writeFileSync} from 'node:fs';
+ import {resolve,join} from 'node:path';
+ import {createHash} from 'node:crypto';
+ import {execFileSync} from 'node:child_process';
+-import ts from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/typescript/lib/typescript.js";
+-import {decodeDeclarations} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/review-packet-envelope.mts";
+-import {prepareCloudPilotDbStartedControl,publicationContextComparisonValue,CLOUD_PILOT_SOURCE} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/cloudPilotSqlControl.ts";
+-import {deriveCurrentStagedScheduleExpectation} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/stagedScheduleAuthority.ts";
+-import {buildPendingRuntimeBatch} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts";
+-import {hashCanonicalStringSet} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeBatchIdentity.ts";
+-import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection,hashProjectionJson} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts";
++import ts from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/typescript/lib/typescript.js";
++import {decodeDeclarations} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/review-packet-envelope.mts";
++import {prepareCloudPilotDbStartedControl,publicationContextComparisonValue,CLOUD_PILOT_SOURCE} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/cloudPilotSqlControl.ts";
++import {deriveCurrentStagedScheduleExpectation} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/stagedScheduleAuthority.ts";
++import {buildPendingRuntimeBatch} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts";
++import {hashCanonicalStringSet} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeBatchIdentity.ts";
++import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection,hashProjectionJson} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts";
+ export async function reviewBiogenPacket(runArg:string,requestId:string,output:string,{originalOuterDeadline,publicationContext,sqlNegativeTests=false}: {originalOuterDeadline:number;publicationContext?:any;sqlNegativeTests?:boolean}){
+ assert(runArg&&requestId&&output);
+ assert.equal(originalOuterDeadline,readBiogenOriginalDeadline(runArg),'BIOGEN_ORIGINAL_DEADLINE_PROVENANCE');
+-const R=resolve("/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native",'../vendor'),run=resolve(runArg),host=resolve(run,'..');
++const R=resolve(import.meta.dirname,'../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native','../vendor'),run=resolve(runArg),host=resolve(run,'..');
+ const json=(p:string)=>JSON.parse(readFileSync(p,'utf8'));const sha=(b:any)=>createHash('sha256').update(b).digest('hex');
+ const rawPath=join(run,'relay',requestId+'.request.json'),sqlPath=rawPath+'.sql';
+ const request=json(rawPath),sql=readFileSync(sqlPath,'utf8');assert.equal(sql,request.payload.sql);
+--- a/takeda-original-recovery-20261017T0417Z/offline-checkers/hengrui-packet-gate.mts
++++ b/takeda-original-recovery-20261017T0417Z/offline-checkers/hengrui-packet-gate.mts
+@@ -1,37 +1,37 @@
+-import {compileAtomicJsonRecords as originalSqlRecords} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/atomicJsonDeclarations.ts';
++import {compileAtomicJsonRecords as originalSqlRecords} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/atomicJsonDeclarations.ts';
+ import {readOriginalWrapperDeadline} from './original-wrapper-deadline.mjs';
+-import {assertHengruiPacketDeadline} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/hengrui-deadline-gate.mts';
+-import {verifySourceQualityReceipt} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceQualityAdmission.ts";
+-import {buildJobDedupeKey} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/normalizedJob.ts";
+-import {canonicalPageTraceSha256,canonicalStringSetSha256} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts";
+-import {requiresAGradeOfficialTotalCertificate,issueAGradeOfficialTotalCertificate,verifyAGradeCompletenessCertificateReceipt} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/completenessCertificate.ts";
+-import {createMokaSourceFetch} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/mokaSourceFetch.ts";
+-import {assertHengruiRefreshPlan} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/hengrui-native-capture.mts";
+-import {loadPilotContext} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/cloudPilotContext.ts';
+-import {reviewHengruiRawPages} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/hengrui-raw-review.mts";
+-import {requestContractV2Matches} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/strictPageRequestContract.ts";
++import {assertHengruiPacketDeadline} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/hengrui-deadline-gate.mts';
++import {verifySourceQualityReceipt} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceQualityAdmission.ts";
++import {buildJobDedupeKey} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/normalizedJob.ts";
++import {canonicalPageTraceSha256,canonicalStringSetSha256} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts";
++import {requiresAGradeOfficialTotalCertificate,issueAGradeOfficialTotalCertificate,verifyAGradeCompletenessCertificateReceipt} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/completenessCertificate.ts";
++import {createMokaSourceFetch} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/mokaSourceFetch.ts";
++import {assertHengruiRefreshPlan} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/hengrui-native-capture.mts";
++import {loadPilotContext} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/cloudPilotContext.ts';
++import {reviewHengruiRawPages} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/hengrui-raw-review.mts";
++import {requestContractV2Matches} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/strictPageRequestContract.ts";
+ /** Local read-only SQL parser/recompiler. Never submits SQL or edits producer/run. */
+ import assert from 'node:assert/strict';
+-import {verifyNodeRuntimeProfile} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/scripts/verify-node-runtime-profile.ts";
+-import {createBuildIdentity} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/readiness/buildIdentity.ts";
+-import {sanitizeEvidenceHttpUrl} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts";
+-import {runSourceCrawl,replayStrictSourceQualityEvidence,supportsStrictOfficialTotalCertificate,validateStrictOfficialTotalCertificateEvidence} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runSourceCrawl.ts";
+-import {load} from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/cheerio/dist/esm/index.js";
++import {verifyNodeRuntimeProfile} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/scripts/verify-node-runtime-profile.ts";
++import {createBuildIdentity} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/readiness/buildIdentity.ts";
++import {sanitizeEvidenceHttpUrl} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts";
++import {runSourceCrawl,replayStrictSourceQualityEvidence,supportsStrictOfficialTotalCertificate,validateStrictOfficialTotalCertificateEvidence} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runSourceCrawl.ts";
++import {load} from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/cheerio/dist/esm/index.js";
+ import {readFileSync,writeFileSync} from 'node:fs';
+ import {resolve,join} from 'node:path';
+ import {createHash} from 'node:crypto';
+ import {execFileSync} from 'node:child_process';
+-import ts from "/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/typescript/lib/typescript.js";
+-import {decodeDeclarations} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/review-packet-envelope.mts';
+-import {prepareCloudPilotDbStartedControl,publicationContextComparisonValue,CLOUD_PILOT_SOURCE} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/cloudPilotSqlControl.ts';
+-import {deriveCurrentStagedScheduleExpectation} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/stagedScheduleAuthority.ts';
+-import {buildPendingRuntimeBatch} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts';
+-import {hashCanonicalStringSet} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeBatchIdentity.ts';
+-import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection,hashProjectionJson} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts';
++import ts from "../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/node_modules/typescript/lib/typescript.js";
++import {decodeDeclarations} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native/review-packet-envelope.mts';
++import {prepareCloudPilotDbStartedControl,publicationContextComparisonValue,CLOUD_PILOT_SOURCE} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/db/cloudPilotSqlControl.ts';
++import {deriveCurrentStagedScheduleExpectation} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/stagedScheduleAuthority.ts';
++import {buildPendingRuntimeBatch} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeAtomicEvidence.ts';
++import {hashCanonicalStringSet} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/runtimeBatchIdentity.ts';
++import {JOB_SOURCE_UPDATE_FIELDS,parseJobProjectionDeltaReceipt,hashJobPersistedProjection,hashProjectionJson} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/domain/jobProjectionDeltaReceipt.ts';
+ export async function reviewHengruiPacket(runArg:string,requestId:string,output:string,{originalOuterDeadline,publicationContext,sqlNegativeTests=false}: {originalOuterDeadline:number;publicationContext?:any;sqlNegativeTests?:boolean}){
+ assert(runArg&&requestId&&output);
+ assert.equal(originalOuterDeadline,readOriginalWrapperDeadline(runArg,'hengrui'),'HENGRUI_ORIGINAL_DEADLINE_PROVENANCE');
+-const R=resolve("/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native",'/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor'),run=resolve(runArg),host=resolve(run,'..');
++const R=resolve(import.meta.dirname,'../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native','../vendor'),run=resolve(runArg),host=resolve(run,'..');
+ const json=(p:string)=>JSON.parse(readFileSync(p,'utf8'));const sha=(b:any)=>createHash('sha256').update(b).digest('hex');
+ const rawPath=join(run,'relay',requestId+'.request.json'),sqlPath=rawPath+'.sql';
+ const request=json(rawPath),sql=readFileSync(sqlPath,'utf8');assert.equal(sql,request.payload.sql);
+--- a/takeda-original-recovery-20261017T0417Z/offline-checkers/replay-original-json-archive.mts
++++ b/takeda-original-recovery-20261017T0417Z/offline-checkers/replay-original-json-archive.mts
+@@ -1,6 +1,6 @@
+ import {assertMokaArchivedRequest} from './moka-archive-request.mts';
+ import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
+-const B='/workspace/scratch/5e9614251709',V=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source';
++const B=path.resolve(import.meta.dirname,'../..'),V=B+'/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source';
+ const run=process.argv[2],d=JSON.parse(fs.readFileSync(run+'/review/PACKET_REVIEW.json.decoded.json','utf8')),a=JSON.parse(fs.readFileSync(run+'/artifacts/'+d.terminal.batchId+'.archive.json','utf8'));
+ assert.equal(a.schemaVersion,1);for(const[k,v]of Object.entries({releaseCandidateId:d.terminal.releaseCandidateId,batchId:d.terminal.batchId,sourceId:d.terminal.sourceId,sourceResultId:d.terminal.id}))assert.equal(a.sidecar[k],v);
+ assert.equal(a.files.length,d.decoded.filter((x:any)=>x.table==='EvidenceArtifact').flatMap((x:any)=>x.rows).length);
+--- a/takeda-original-recovery-20261017T0417Z/offline-checkers/original-portable-reader-replay.mts
++++ b/takeda-original-recovery-20261017T0417Z/offline-checkers/original-portable-reader-replay.mts
+@@ -1,7 +1,7 @@
+ // One source, one real packet, two explicitly supplied deployed reader roots. No SQL, network, or host writes.
+ import {isDeepStrictEqual} from 'node:util';import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {pathToFileURL} from 'node:url';
+ export async function replayOriginalPortableReaders({run,outputDirectory,before,packet}:any){
+-const BASE=path.resolve("/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native",'../vendor'),OUT=outputDirectory,RUN=run,H=path.resolve(run,'..'),SOURCE=packet.decoded.terminal.sourceId,CONFIG=packet.decoded.terminal.sourceConfigHash;
++const BASE=path.resolve(import.meta.dirname,'../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native','../vendor'),OUT=outputDirectory,RUN=run,H=path.resolve(run,'..'),SOURCE=packet.decoded.terminal.sourceId,CONFIG=packet.decoded.terminal.sourceConfigHash;
+ const sha=(x:any)=>createHash('sha256').update(x).digest('hex');const read=(p:string)=>JSON.parse(fs.readFileSync(p,'utf8'));const sorted=(x:string[])=>[...x].sort((a,b)=>Buffer.compare(Buffer.from(a),Buffer.from(b)));
+ const cfg=read(path.join(H,'host-config.json'));const beforeRaw=Buffer.from(JSON.stringify(before));assert.equal(before.sourceId,SOURCE);assert.equal(before.sourceConfigSha256,CONFIG);assert.equal(before.transactionReadOnly,'on');assert.equal(before.isolationLevel,'repeatable read');
+ const d=packet.decoded,review=packet.review;assert(review.controlsExactOriginalRecompile&&review.mutationsExactOriginalCompilerRecompile&&review.allMutationBytesConsumed);const request=read(path.join(RUN,'relay',review.requestId+'.request.json')),sql=request.payload.sql;assert.equal(sha(sql),review.sqlSha256);const now=new Date();assert(now.getTime()<Date.parse(request.payload.dispatchBefore));
+@@ -21,7 +21,7 @@
+ const visibleMembers=d.receipt.members.filter((m:any)=>m.setKind==='VISIBLE'),visibleByKey=new Map<string,any>();for(const m of visibleMembers)if(!visibleByKey.has(m.jobKey))visibleByKey.set(m.jobKey,m);
+ const results:any[]=[];
+ for(const [name,rel,commit] of [['main','baseline','6510baecc784ec87999cb5ea546b0995afe9222f'],['fallback','fallback-baseline','600ad0ab23e886ae9ac429d3d1b076e00af76e88']]){
+- const root=path.join(BASE,'reader-'+name);const pin=read(path.resolve("/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native",'../config/reader-pins.json'))[name];assert.equal(pin.originCommit,commit);assert.equal(pin.capsuleClassification,'PRIVACY_SANITIZED_DERIVATIVE');for(const [f,expected] of Object.entries(pin.localDerivativeFileHashes))assert.equal(sha(fs.readFileSync(path.join(root,f))),expected);for(const [f,expected] of Object.entries(pin.readerFileHashes))assert.equal(sha(fs.readFileSync(path.join(root,f))),expected);const mod=await import(pathToFileURL(path.join(root,'src/domain/portablePublicSnapshot.ts')).href);const reg=await import(pathToFileURL(path.join(root,'src/data/companyRegistry.ts')).href);const pl=await import(pathToFileURL(path.join(root,'src/crawler/sourcePlan.ts')).href);const delta=await import(pathToFileURL(path.join(root,'src/domain/jobProjectionDeltaReceipt.ts')).href);const mapper=await import(pathToFileURL(path.join(root,'src/db/prismaMappers.ts')).href);
++ const root=path.join(BASE,'reader-'+name);const pin=read(path.resolve(import.meta.dirname,'../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/native','../config/reader-pins.json'))[name];assert.equal(pin.originCommit,commit);assert.equal(pin.capsuleClassification,'PRIVACY_SANITIZED_DERIVATIVE');for(const [f,expected] of Object.entries(pin.localDerivativeFileHashes))assert.equal(sha(fs.readFileSync(path.join(root,f))),expected);for(const [f,expected] of Object.entries(pin.readerFileHashes))assert.equal(sha(fs.readFileSync(path.join(root,f))),expected);const mod=await import(pathToFileURL(path.join(root,'src/domain/portablePublicSnapshot.ts')).href);const reg=await import(pathToFileURL(path.join(root,'src/data/companyRegistry.ts')).href);const pl=await import(pathToFileURL(path.join(root,'src/crawler/sourcePlan.ts')).href);const delta=await import(pathToFileURL(path.join(root,'src/domain/jobProjectionDeltaReceipt.ts')).href);const mapper=await import(pathToFileURL(path.join(root,'src/db/prismaMappers.ts')).href);
+  const plan=pl.buildStagedSourceCrawlPlans(reg.candidateCompanies).find((p:any)=>p.source.id===SOURCE);assert(plan);assert.equal(pl.sourcePlanConfigSha256(plan),CONFIG);assert.deepEqual(plan,d.plan);
+  const raw=after,data=revive(raw,mapper.toPrismaJobCategory);const selected=mod.selectPortableSourceSnapshots([plan],data.results,{currentTime:now});assert.equal(selected.length,1);const s=selected[0];const relevant=data.members.filter((m:any)=>m.sourceResultId===s.selectedSourceResultId);let projected;
+  if(SOURCE==='source-novo-nordisk-china-social'){
+--- a/takeda-original-recovery-20261017T0417Z/offline-checkers/project-original-target-api.mts
++++ b/takeda-original-recovery-20261017T0417Z/offline-checkers/project-original-target-api.mts
+@@ -1,4 +1,5 @@
++import path from 'node:path';
+ import fs from 'node:fs';import assert from 'node:assert/strict';
+-const P='/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller',run=process.argv[2];const read=(p:string)=>JSON.parse(fs.readFileSync(p,'utf8'));const raw=read(run+'/review/reader-diagnostic-main.json');let expected:any;
++const P=path.resolve(import.meta.dirname,'../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller'),run=process.argv[2];const read=(p:string)=>JSON.parse(fs.readFileSync(p,'utf8'));const raw=read(run+'/review/reader-diagnostic-main.json');let expected:any;
+ for(const reader of ['main','fallback']){const root=P+'/vendor/reader-'+reader;const api=await import(root+'/src/server/portablePublicationApi.ts');const {candidateCompanies}=await import(root+'/src/data/companyRegistry.ts');const c=candidateCompanies.find((x:any)=>x.id===raw.after.companyId);assert(c);const source=raw.after,company={id:c.id,companyName:c.officialChineseName,pinyin:c.pinyinName,category:c.category,sourceIds:[source.sourceId],publishingSourceIds:[source.sourceId],required:true,exclusionReason:null,coverage:'COMPLETE',health:source.health,jobs:source.jobs};const snapshot={sources:[source],companies:[company],lastUpdatedAt:source.lastSuccessAt,coverage:{requiredCompanyCount:1,excludedCompanyCount:0}};const out={after:api.searchPortableSnapshot({city:'全部城市',companyIds:[c.id],categories:[]},snapshot).companies[0],afterCoverage:api.coverageFromPortableSnapshot({keyword:'',offset:0,limit:41},snapshot).companies[0]};if(expected)assert.deepEqual(expected,out);else expected=out;}
+ fs.writeFileSync(run+'/review/EXPECTED_TARGET_API.json',JSON.stringify(expected,null,2),{flag:'wx'});console.log(JSON.stringify({bothReadersMatch:true,afterJobs:expected.after.jobs.length}));
+--- a/takeda-original-recovery-20261017T0417Z/offline-checkers/original-wrapper-deadline.mjs
++++ b/takeda-original-recovery-20261017T0417Z/offline-checkers/original-wrapper-deadline.mjs
+@@ -1,7 +1,7 @@
+ import fs from 'node:fs';import path from 'node:path';import assert from 'node:assert/strict';
+ const pinned=new Map();
+ export function readOriginalWrapperDeadline(runArg,sourceFolder){
+- const run=path.resolve(runArg);assert(run.startsWith('/workspace/scratch/5e9614251709/takeda-original-recovery-20261017T0417Z/'+sourceFolder+'/'));
++ const run=path.resolve(runArg);assert(run.startsWith(path.resolve(import.meta.dirname,'..',sourceFolder)+path.sep));
+  const rows=fs.readFileSync(path.join(run,'diagnostics/process.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
+  const starts=rows.filter(r=>r.event==='WRAPPER_START'),children=rows.filter(r=>r.event==='CHILD_STARTED');assert.equal(starts.length,1);assert.equal(children.length,1);
+  const s=starts[0],c=children[0];assert.equal(s.timeoutMs,1800000);assert.equal(c.wrapperPid,s.wrapperPid);assert(Number.isSafeInteger(c.childPid)&&c.childPid>0);assert(Number.isSafeInteger(s.outerDeadline));assert(Math.abs(s.outerDeadline-Date.parse(s.recordedAt)-s.timeoutMs)<10);
+--- a/takeda-original-recovery-20261017T0417Z/offline-checkers/moka-archive-request.mts
++++ b/takeda-original-recovery-20261017T0417Z/offline-checkers/moka-archive-request.mts
+@@ -1,6 +1,6 @@
+ import assert from 'node:assert/strict';
+-import {requestContractV2Matches} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/strictPageRequestContract.ts';
+-import {sanitizeEvidenceHttpUrl} from '/workspace/scratch/5e9614251709/five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts';
++import {requestContractV2Matches} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/strictPageRequestContract.ts';
++import {sanitizeEvidenceHttpUrl} from '../../five-source-sequence-source-candidate-20261016T1235Z/tools/dot-auto-controller/vendor/c60-source/src/crawler/sourceFetchEvidence.ts';
+ 
+ export function assertMokaArchivedRequest(plan:any,req:any,artifact:any,index:number):void {
+  if(index===0){

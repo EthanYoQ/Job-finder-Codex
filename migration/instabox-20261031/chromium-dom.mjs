@@ -1,0 +1,76 @@
+const browserName = name => { if (name !== undefined && name !== 'cdp') throw Error('LOCAL_CHROMIUM_BROWSER_REQUIRED'); };
+function options(value) {
+  if (!value) return value;
+  const {timeoutMs, ...rest} = value;
+  return timeoutMs === undefined ? rest : {...rest, timeout: timeoutMs};
+}
+
+// Only the locator methods used by the existing DOM collectors; no script/tool evaluator.
+function locator(native) {
+  const wrapped = {};
+  for (const name of ['locator','frameLocator','getByRole','getByText','first','last','nth','filter']) {
+    if (typeof native[name] === 'function') wrapped[name] = (...args) => locator(native[name](...args));
+  }
+  for (const name of ['click','check','uncheck','waitFor','innerText','isEnabled','isVisible']) {
+    if (typeof native[name] === 'function') wrapped[name] = value => native[name](options(value));
+  }
+  for (const name of ['fill','press','getAttribute','selectOption']) {
+    if (typeof native[name] === 'function') wrapped[name] = (value, config) => native[name](value, options(config));
+  }
+  for (const name of ['evaluate','evaluateAll','allTextContents','count']) {
+    if (typeof native[name] === 'function') wrapped[name] = (...args) => native[name](...args);
+  }
+  return wrapped;
+}
+
+/** Local Playwright transport with the existing collectors' tab/locator vocabulary.
+ * Snapshots are local Chromium ARIA observations, not CUA or network evidence.
+ * Does not grant source access, produce source admission, or change any HOLD.
+ */
+export async function createChromiumDom({chromium, executablePath = '/usr/bin/chromium'}) {
+  const env = {...process.env};
+  delete env.JOBFINDER_POSTGRES_PASSWORD;
+  const browser = await chromium.launch({executablePath, headless: true, chromiumSandbox: true, env});
+  let context;
+  try { context = await browser.newContext(); }
+  catch (error) { await browser.close(); throw error; }
+  const tabs = new Map(), pages = new WeakMap();
+  let sequence = 0;
+  function tabFor(page) {
+    if (pages.has(page)) return pages.get(page);
+    const id = 'local-chromium-' + (++sequence);
+    const snapshot = async () => {
+      const frames = [];
+      for (const frame of page.frames()) frames.push({url: frame.url(), aria: await frame.locator('body').ariaSnapshot()});
+      return JSON.stringify({kind: 'LOCAL_CHROMIUM_ARIA_SNAPSHOT', pageUrl: page.url(),
+        observedAt: new Date().toISOString(), networkCapture: false, frames});
+    };
+    const tab = {id, url: async () => page.url(), goto: (url, config) => page.goto(url, options(config)),
+      close: () => page.close(), getAXState: snapshot,
+      playwright: {
+        locator: (...args) => locator(page.locator(...args)),
+        frameLocator: (...args) => locator(page.frameLocator(...args)),
+        getByRole: (...args) => locator(page.getByRole(...args)),
+        getByText: (...args) => locator(page.getByText(...args)),
+        evaluate: (...args) => page.evaluate(...args),
+        waitForLoadState: ({state = 'load', ...config} = {}) => page.waitForLoadState(state, options(config)),
+        domSnapshot: snapshot
+      }};
+    tabs.set(id, tab); pages.set(page, tab);
+    page.once('close', () => tabs.delete(id));
+    return tab;
+  }
+  context.on('page', tabFor);
+  const listTabs = async ({browser: name} = {}) => {
+    browserName(name);
+    return context.pages().map(page => ({id: tabFor(page).id, url: page.url(), browser: 'cdp', transport: 'LOCAL_CHROMIUM'}));
+  };
+  return {
+    transport: 'LOCAL_CHROMIUM',
+    createBrowserTab: async (name, url) => {browserName(name); const tab = tabFor(await context.newPage()); if (url !== undefined) await tab.goto(url); return tab;},
+    listTabs,
+    getTab: async (id, {browser: name} = {}) => {browserName(name); const tab = tabs.get(id); if (!tab) throw Error('LOCAL_CHROMIUM_TAB_NOT_FOUND'); return tab;},
+    getState: async () => ({transport: 'LOCAL_CHROMIUM', tabs: await listTabs()}),
+    close: () => browser.close()
+  };
+}

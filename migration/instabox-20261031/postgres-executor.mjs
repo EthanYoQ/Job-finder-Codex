@@ -4,10 +4,11 @@
  */
 export function createPostgresExecutor(createClient) {
   return async function execute(sql) {
-    const client = createClient();
-    client.on('error', () => {});
+    let client;
     let submitted = false;
     try {
+      client = await createClient();
+      client.on('error', () => {});
       await client.connect();
       submitted = true;
       // One simple query preserves the producer's transaction and lock boundaries.
@@ -16,9 +17,10 @@ export function createPostgresExecutor(createClient) {
       return {status: 'SUCCEEDED', rows: results.flatMap(item => item.rows)};
     } catch {
       // A lost response can follow a commit. No retry or fabricated rollback.
-      return {status: 'FAILED', outcome: submitted ? 'UNKNOWN' : 'NOT_DISPATCHED'};
+      return {status: 'FAILED', code: submitted ? 'PG_QUERY_OUTCOME_UNKNOWN' : 'PG_CONNECT_FAILED',
+        outcome: submitted ? 'UNKNOWN' : 'NOT_DISPATCHED'};
     } finally {
-      await client.end().catch(() => {});
+      if (client) await client.end().catch(() => {});
     }
   };
 }
