@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { sourceExecutionFailureCode } from "./sourceFailureDiagnostics";
 import type { SourceFetchResult } from "./runSourceCrawl";
+import {isRetryableSourceTransportFailure} from "./sourceFetchFailure";
 
 // Only fixed source-code reasons are printable; unknown upstream text stays private.
 const reasons = new Set([
@@ -18,7 +19,8 @@ const reasons = new Set([
   "Merck China quality policy requires the exact source and bootstrap", "Merck China official field validation failed",
   "Organon quality policy requires the exact source and bootstrap", "Organon official field validation failed",
   "ORGANON_NATIVE_DETAIL_UNKNOWN_PRESERVE_LAST_GOOD", "ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD",
-  "Expected exactly one new detail tab", "Pfizer UI entry navigation failed", "Pfizer UI native detail navigation failed"
+  "Expected exactly one new detail tab", "Pfizer UI entry navigation failed", "Pfizer UI native detail navigation failed",
+  "Official recruitment endpoint temporarily rate limited the request (HTTP 429)", "Official recruitment browser session failed before evidence capture"
 ]);
 const lossCodes = new Set(["MERCK_RAW_FIELDS_INVALID", "MERCK_POSTED_DATE_INVALID", "ORGANON_RAW_FIELDS_INVALID",
   "ORGANON_POSTED_DATE_INVALID", "MISSING_REQUIRED_FIELD", "DUPLICATE_OFFICIAL_ID", "OUT_OF_SCOPE", "UNSAFE_OFFICIAL_URL", "SENSITIVE_OUTPUT"]);
@@ -74,6 +76,8 @@ export function sourceFetchDiagnostic(sourceId: string, failure: {result: Extrac
     losses[key] = (losses[key] ?? 0) + 1;
   }
   return {...common, phase: "RETURNED_FAILURE", reason: reason(result.failureReason), reasonSha256: sha(result.failureReason),
+    ...(isRetryableSourceTransportFailure(result.transportFailure)?{transportCode:result.transportFailure.code,
+      ...(result.transportFailure.retryAfterMs===undefined?{}:{retryAfterMs:result.transportFailure.retryAfterMs})}:{}),
     httpStatuses, validationLosses: losses};
 }
 export function reportSourceFetchFailure(sourceId: string, failure: Parameters<typeof sourceFetchDiagnostic>[1]) {

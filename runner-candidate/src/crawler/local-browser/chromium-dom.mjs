@@ -47,7 +47,13 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
       return ['LOCAL_CHROMIUM_ARIA_SNAPSHOT', `Page: ${page.url()}`, 'networkCapture: false',
         ...frames.map(frame => `Frame: ${frame.url}\n${frame.aria}`)].join('\n');
     };
-    const tab = {id, url: async () => page.url(), goto: (url, config) => page.goto(url, options(config)),
+    let navigationInfo;
+    const tab = {id, url: async () => page.url(), navigationInfo: async () => navigationInfo,
+      goto: async (url, config) => {
+        const response=await page.goto(url, options(config));
+        navigationInfo=response?{httpStatus:response.status(),retryAfter:await response.headerValue('retry-after')}:undefined;
+        return response;
+      },
       close: () => page.close(), getAXState: snapshot,
       playwright: {
         locator: (...args) => locator(page.locator(...args)),

@@ -17,6 +17,23 @@ async function waitOriginalDomVisible(locator, deadline) {
 }
 import {join} from 'node:path';
 import {savePrivateDomFailure} from './private-dom-failure.mjs';
+import {parseOfficialRetryAfter,retryableHttpTransportFailure} from '../sourceFetchFailure.ts';
+
+async function rejectTemporaryAccessFailure(tab,selector) {
+  const navigation=await tab.navigationInfo?.();
+  if(!navigation)return;
+  if(navigation.httpStatus===429) {
+    const retryAfter=parseOfficialRetryAfter(navigation.retryAfter ?? null,Date.now());
+    throw Object.assign(Error('JNJ_HTTP_429'),{transportFailure:retryableHttpTransportFailure(429,retryAfter) ??
+      {code:'OFFICIAL_HTTP_429',retryable:true}});
+  }
+  const challenge=await tab.playwright.evaluate(normalSelector=>
+    !document.querySelector(normalSelector) && document.title.trim()==='Just a moment...' &&
+    Array.from(document.scripts).some(script=>script.src.includes('/cdn-cgi/challenge-platform/') ||
+      script.textContent.includes('window._cf_chl_opt')),selector);
+  if(challenge)throw Object.assign(Error('JNJ_BROWSER_CHALLENGE'),{
+    transportFailure:{code:'OFFICIAL_BROWSER_SESSION_ERROR',retryable:true}});
+}
 
 async function saveDetailFailure(tab, context, directory) {
   return savePrivateDomFailure({directory,filePrefix:`jnj-detail-${context.sourceJobId}`,
@@ -48,6 +65,7 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     let headingLocator;
     let sourceFetchStage = 'JNJ_RESULTS_READY';
     try {
+      await rejectTemporaryAccessFailure(list,'#js-job-search-results');
       await list.playwright.locator('#js-job-search-results').waitFor({state:'visible',timeoutMs:30000});
       headingLocator = list.playwright.getByRole('heading',{name:total===undefined?/^Displaying 1 to \d+ of \d+ matching jobs$/:`Displaying ${(page-1)*20+1} to ${Math.min(page*20,total)} of ${total} matching jobs`,exact:true});
       sourceFetchStage = 'JNJ_HEADING_READY';
@@ -109,8 +127,9 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     try {
     const response=await detail.goto(card.url);
     if(typeof response?.status==='function')navigationStatus=response.status();
-    await detail.getAXState({emit:false});
     sourceFetchStage='JNJ_DETAIL_READY';
+    await rejectTemporaryAccessFailure(detail,'#js-job-detail');
+    await detail.getAXState({emit:false});
     await detail.playwright.locator('#js-job-detail').waitFor({state:'visible',timeoutMs:30000});
     sourceFetchStage='JNJ_APPLY_READY';
     await detail.playwright.getByRole('link',{name:'Apply now',exact:true}).waitFor({state:'visible',timeoutMs:30000});

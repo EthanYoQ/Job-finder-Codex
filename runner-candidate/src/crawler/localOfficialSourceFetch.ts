@@ -5,14 +5,24 @@ import { replayBiUiSemanticContract } from './biUiSemanticContract';
 import { createJnjCareersDomSourceFetch } from './jnjCareersDomEvidence';
 import type { SourceFetchFunction } from './runSourceCrawl';
 import { currentOfficialSourceAttemptSignal } from './officialHttpRuntimeLimits';
+import {isRetryableSourceTransportFailure,safeSourceTransportFailureReason} from './sourceFetchFailure';
+import {reportSourceFetchFailure} from './sourceFetchDiagnostics';
 
 /** Fresh DOM is mandatory for these routes; a failed browser never falls back to HTTP. */
-export function withLocalOfficialDom(http: SourceFetchFunction): SourceFetchFunction {
+export function withLocalOfficialDom(http: SourceFetchFunction, captureDom = captureLocalOfficialDom): SourceFetchFunction {
   return async (plan, tracker) => {
     const sourceId = plan.source.id;
     if (!['source-cspc-social', 'source-boehringer-ingelheim-china-social', 'source-johnson-innovative-medicine-social'].includes(sourceId)) return http(plan, tracker);
     const runStartedAt = new Date().toISOString();
-    const capture = await captureLocalOfficialDom(sourceId, runStartedAt, currentOfficialSourceAttemptSignal());
+    let capture;
+    try {capture=await captureDom(sourceId, runStartedAt, currentOfficialSourceAttemptSignal());}
+    catch(error) {
+      const failure=error instanceof Error && 'transportFailure' in error?error.transportFailure:undefined;
+      if(sourceId!=='source-johnson-innovative-medicine-social'||!isRetryableSourceTransportFailure(failure))throw error;
+      reportSourceFetchFailure(sourceId,{error});
+      return {ok:false,capturedAt:runStartedAt,failureReason:safeSourceTransportFailureReason(failure),
+        transportFailure:failure,sourceRetryExhausted:true};
+    }
     if (sourceId === 'source-johnson-innovative-medicine-social') {
       if (!capture.lists || !capture.details) throw Error('JNJ_DOM_CAPTURE_REQUIRED');
       return createJnjCareersDomSourceFetch({ lists: capture.lists, details: capture.details })(plan, tracker);
