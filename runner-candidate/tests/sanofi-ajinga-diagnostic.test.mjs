@@ -4,7 +4,7 @@ import {mkdtemp,readFile,readdir,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
-import {captureSanofiChineseAjinga} from '../src/crawler/sanofiChineseAjinga.ts';
+import {captureSanofiChineseAjinga,replaySanofiChineseAjinga} from '../src/crawler/sanofiChineseAjinga.ts';
 import {sourceFetchDiagnostic} from '../src/crawler/sourceFetchDiagnostics.ts';
 
 const marker='PRIVATE_AJINGA_TOKEN_SYNTHETIC';
@@ -76,5 +76,26 @@ test('Ajinga title whitespace uses the same normalization as the official detail
     const artifacts=await captureSanofiChineseAjinga({...detail,title:'合成 职位'},start,
       transport(undefined,'合成  职位'),()=>{},{failureDirectory:directory});
     assert.equal(artifacts.length,3);assert.deepEqual(await readdir(directory),[]);
+  } finally {await rm(directory,{recursive:true,force:true});}
+});
+
+test('replacement characters allow the bound job without rewriting originals or field projections',async()=>{
+  const directory=await mkdtemp(join(tmpdir(),'sanofi-ajinga-'));
+  try {
+    const artifacts=await captureSanofiChineseAjinga(detail,start,transport(),()=>{},{failureDirectory:directory});
+    const expected=replaySanofiChineseAjinga(detail,start,artifacts);
+    for(const description of ['本职位职\uFFFD','官网其他段落含\uFFFD\uFFFD']) {
+      const corrupt={...detail,description,datePosted:'2026-10-01',locationRaw:'温州'};
+      const before=JSON.stringify({corrupt,artifacts});
+      assert.deepEqual(replaySanofiChineseAjinga(corrupt,start,artifacts),expected);
+      assert.equal(JSON.stringify({corrupt,artifacts}),before);
+      assert.throws(()=>replaySanofiChineseAjinga({...corrupt,reqId:'R7654321'},start,artifacts));
+      assert.throws(()=>replaySanofiChineseAjinga({...corrupt,title:'另一个岗位'},start,artifacts));
+      assert.throws(()=>replaySanofiChineseAjinga({...corrupt,countryScope:'OUTSIDE'},start,artifacts));
+    }
+    const corruptArtifacts=structuredClone(artifacts);
+    const info=JSON.parse(corruptArtifacts[1].body);info.data.data.job.description='<p>职责\uFFFD</p>';
+    corruptArtifacts[1].body=JSON.stringify(info);
+    assert.equal(replaySanofiChineseAjinga(detail,start,corruptArtifacts).state,'PUBLISHING');
   } finally {await rm(directory,{recursive:true,force:true});}
 });
