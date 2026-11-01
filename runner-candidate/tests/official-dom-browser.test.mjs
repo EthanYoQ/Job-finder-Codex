@@ -27,6 +27,7 @@ const cspcRow = { REQUEST_ID: id, PUBLISH_NAME: title, JOB_DUTY: '1', JOB_REQUES
 const rawCspc = JSON.stringify({ state: '1', total: '', jsonList: [cspcRow] });
 const jnjUrl = 'https://www.careers.jnj.com/en/jobs/?country=China&origin=global#results';
 const jnjDetail = 'https://www.careers.jnj.com/en/jobs/r-000001/synthetic-role/';
+const jnjDetails = [jnjDetail, jnjDetail.replace('r-000001','r-000002')];
 const pfizerCountry = '6cb77610a8a543aea2d6bc10457e35d4';
 const pfizerDetail = `https://pfizer.wd1.myworkdayjobs.com/en-US/PfizerCareers/job/China/Synthetic_1234567?Location_Country=${pfizerCountry}`;
 function cspcCandidateHtml() {
@@ -38,16 +39,17 @@ const pages = {
   'cspc-list': `<h1>全部岗位</h1><input placeholder="请输入岗位名称"><div class="vxe-table--body"><table><tbody><tr><td><a target="_blank" href="${cspcDetail}">${title}</a></td></tr></tbody></table></div><div class="vxe-pager"><button class="vxe-pager--next-btn is--disabled" disabled>下一页</button><button class="vxe-pager--jump-next is--disabled" disabled>末页</button></div>`,
   'cspc-detail': `<div class="school-recruit-detail-head-L-h1"><span>${title}</span></div><h2>岗位职责</h2><div class="school-recruit-detail-textBox">1</div><h2>任职要求</h2><div class="school-recruit-detail-textBox">1</div><button onclick="parent.document.querySelector('#login').hidden=false">投递</button>`,
   'bi-list': `<div><a href="recruit_article_detail3.html?jobId=123">详情</a><span>${title}</span><span>1</span><span>上海</span><span>2026-10-01</span></div>`,
-  'jnj-list': `<h1>Displaying 1 to 1 of 1 matching jobs</h1>${['team', 'subteam', 'country', 'state', 'location', 'type', 'pattern'].map(name => `<select multiple name="${name}" id="l-${name}">${name === 'country' ? '<option value="China" selected>China</option>' : ''}</select>`).join('')}<ul id="js-job-search-results" data-results="1"><li class="PageList-items-item card-job" data-id="r-000001"><a href="${jnjDetail}">${title}</a><div class="PagePromo-category">Pharmaceutical Sales</div><address class="PagePromo-location">Guiyang</address></li></ul><a aria-label="Page 1" href="${jnjUrl}">1</a>`,
+  'jnj-list': `<h1>Displaying 1 to 2 of 2 matching jobs</h1>${['team', 'subteam', 'country', 'state', 'location', 'type', 'pattern'].map(name => `<select multiple name="${name}" id="l-${name}">${name === 'country' ? '<option value="China" selected>China</option>' : ''}</select>`).join('')}<ul id="js-job-search-results" data-results="2">${jnjDetails.map((url,index)=>`<li class="PageList-items-item card-job" data-id="r-00000${index+1}"><a href="${url}">${title}</a><div class="PagePromo-category">Pharmaceutical Sales</div><address class="PagePromo-location">Guiyang</address></li>`).join('')}</ul><a aria-label="Page 1" href="${jnjUrl}">1</a>`,
   'jnj-detail': `<h1>${title}</h1><div id="js-job-detail" data-id="r-000001" data-jobtitle="${title}"><article class="RichTextBody"><ul class="job-meta"><li>Job title<span>${title}</span></li><li>Function<span>Pharmaceutical Sales</span></li><li>Location<span>Guiyang / China</span></li><li>Requisition number<span>R-000001</span></li></ul><h2>Description</h2><p>Job Description: ${'Responsibilities include scientific work and collaboration. '.repeat(6)}</p></article></div><a href="https://careers.jnj.com.cn/jnj/apply?exid=R-000001&m=1">Apply now</a>`,
   'pfizer-list': `<title>Search for Jobs</title><input><button>China clear filter</button><button>Clear All (1)</button><div data-automation-id="jobFoundText">1 JOBS FOUND</div><div data-automation-id="jobOutOfText">1 - 1 of 1 jobs</div><ul aria-label="Page 1 of 1"><li><a data-automation-id="jobTitle" href="${pfizerDetail}">${title}</a></li></ul>`,
   'pfizer-detail': `<title>Synthetic job</title><h1 data-automation-id="jobPostingHeader">${title}</h1><button>Apply</button><div data-automation-id="job-posting-details"><dl data-automation-id="requisitionId"><dd>1234567</dd></dl><dl data-automation-id="locations"><dd>China - Beijing</dd></dl></div><script type="application/ld+json">${JSON.stringify({ '@type': 'JobPosting', identifier: { value: '1234567' }, title, datePosted: '2026-10-01', jobLocation: { address: { addressCountry: 'China', addressLocality: 'CHN - Beijing' } } })}</script>`
 };
 
 test('CSPC, BI, JNJ and Pfizer use original collectors on sandboxed loopback pages', { timeout: 90000 }, async () => {
-  const requests = [], contexts = [];
+  const requests = [], contexts = [], detailTimes = [];
   const server = createServer((request, response) => {
     requests.push(request.url);
+    if(request.url==='/jnj-detail')detailTimes.push(Date.now());
     if(request.url==='/slow-image')return;
     response.setHeader('content-type', 'text/html; charset=utf-8');
     response.end(pages[request.url.slice(1)] ?? 'missing synthetic page');
@@ -72,7 +74,9 @@ test('CSPC, BI, JNJ and Pfizer use original collectors on sandboxed loopback pag
           else if (url.hostname === 'www.careers.jnj.com') name = url.pathname === '/en/jobs/' ? 'jnj-list' : 'jnj-detail';
           else if (url.hostname === 'pfizer.wd1.myworkdayjobs.com') name = url.pathname.includes('/job/') ? 'pfizer-detail' : 'pfizer-list';
           else return route.abort();
-          await route.fulfill({ contentType: 'text/html; charset=utf-8', body: (await (await fetch(`${base}/${name}`)).text())+(name==='jnj-list'?`<img src="${base}/slow-image">`:'') });
+          let body = await (await fetch(`${base}/${name}`)).text();
+          if(name==='jnj-detail' && url.pathname.includes('/r-000002/'))body=body.replaceAll('000001','000002');
+          await route.fulfill({ contentType: 'text/html; charset=utf-8', body: body+(name==='jnj-list'?`<img src="${base}/slow-image">`:'') });
         }); return context;
       } };
     } };
@@ -98,7 +102,9 @@ test('CSPC, BI, JNJ and Pfizer use original collectors on sandboxed loopback pag
     const jnjPlan = plan('source-johnson-innovative-medicine-social');
     const jnjResult = await runSourceCrawl(jnjPlan, { fetch: createJnjCareersDomSourceFetch(jnj) });
     assert.equal(jnjResult.truth.completenessVerified, true, JSON.stringify(jnjResult));
-    assert.equal(jnjResult.jobs.length, 1);
+    assert.equal(jnjResult.jobs.length, 2);
+    assert.equal(detailTimes.length,2);
+    assert(detailTimes[1]-detailTimes[0]>=1900,'Detail requests must remain spaced');
     assert.equal((await createJnjCareersDomSourceFetch({ ...jnj, details: [] })(jnjPlan)).ok, false);
     const memory = memoryDb(), db = memory.db, workspaceRoot = await mkdtemp(join(tmpdir(), 'jnj-direct-synthetic-'));
     const h = 'a'.repeat(64), identity = identityForSource({ id: 'instabox-synthetic', commitSha: 'a'.repeat(40), rosterHash: h, sourcePlanHash: h, sourceConfigHash: h, adapterBundleHash: h }, jnjPlan.source.id);
@@ -108,7 +114,7 @@ test('CSPC, BI, JNJ and Pfizer use original collectors on sandboxed loopback pag
         getPreviousJobs: async () => [], getRecentObservations: async () => [], isBaselineCompleted: async () => false, getTrustedCompletenessBaseline: async () => null });
       assert.equal(result.status, 'SUCCESS', JSON.stringify(memory.rows));
     });
-    assert.equal(memory.jobWrites(), 1);
+    assert.equal(memory.jobWrites(), 2);
     const pfizerPage = await contexts[0].newPage(), pfizer = await capturePfizerRenderedTraversal(pfizerPage);
     const row = plans.find(row => row.sourceId === 'source-pfizer-china-social');
     const observedAt = pfizer[0].rawRows[0].rawPayload.capturedAt;

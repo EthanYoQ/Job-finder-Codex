@@ -19,7 +19,7 @@ const hooks = registerHooks({load(url, context, next) {
 const {loadDirectPlans, runDirectRound} = await import('../scripts/direct-round.ts');
 hooks.deregister();
 
-test('direct round gives only Pfizer thirty minutes and preserves every lease signal', async () => {
+test('direct round gives JNJ and Pfizer thirty minutes and preserves every lease signal', async () => {
   const routes = await loadDirectPlans(), calls = [];
   const candidate = {id: 'instabox-timeout-test', status: 'BUILDING'};
   const lease = {signal: new AbortController().signal};
@@ -37,7 +37,8 @@ test('direct round gives only Pfizer thirty minutes and preserves every lease si
     assert.equal(results.length, 36);
     assert.equal(calls.length, 36);
     assert.deepEqual(calls.filter(({deps}) => Object.hasOwn(deps, 'sourceAttemptTimeoutMs'))
-      .map(({sourceId, deps}) => [sourceId, deps.sourceAttemptTimeoutMs]), [['source-pfizer-china-social', 1_800_000]]);
+      .map(({sourceId, deps}) => [sourceId, deps.sourceAttemptTimeoutMs]),
+      [['source-johnson-innovative-medicine-social', 1_800_000], ['source-pfizer-china-social', 1_800_000]]);
     assert(calls.every(({deps}) => deps.portableLease === lease && deps.portableLease.signal === lease.signal));
   } finally {
     await unlink(join(workspaceRoot, 'migration-state.json'));

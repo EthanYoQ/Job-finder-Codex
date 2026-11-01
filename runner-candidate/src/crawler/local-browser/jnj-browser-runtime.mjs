@@ -142,6 +142,9 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     checkTime();
     const card=current?.[index];
     if(!card) throw Error('JNJ_DOM_DETAIL_NOT_IN_CURRENT_PAGE');
+    // Sequential requests still caused HTTP 429; leave space between detail pages.
+    if(index>0)await new Promise(resolve=>setTimeout(resolve,2000));
+    checkTime();
     let sourceFetchStage='JNJ_DETAIL_NAVIGATION', navigationStatus;
     try {
     const response=await detail.goto(card.url);
@@ -166,7 +169,7 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
       cause.sourceFetchStage=sourceFetchStage;
       cause.sourceJobId=card.id;
       try { cause.privateCapture=await saveDetailFailure(detail,{sourceJobId:card.id,sourceFetchStage,
-        detailIndex:index,completedDetails:index,total,navigationStatus,expectedUrl:card.url,expectedTitle:card.title},failureDirectory); }
+        detailIndex:index,completedDetails:index,total,navigationStatus,navigation:await detail.navigationInfo?.(),expectedUrl:card.url,expectedTitle:card.title},failureDirectory); }
       catch { cause.privateCaptureUnavailable=true; }
       throw cause;
     }
