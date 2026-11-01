@@ -1,7 +1,6 @@
 [Unit]
 Description=Collect Job Finder and install its public snapshot
-StartLimitIntervalSec=1h
-StartLimitBurst=3
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
