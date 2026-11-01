@@ -1,0 +1,82 @@
+# REVIEW ONLY. Not installed under .github/workflows and not authorized to run.
+# Requires explicit approval of GitHub execution and reviewed source/input integration.
+# Resolve action tags and postgres:17 to reviewed immutable revisions before activation.
+name: Full49 native retirement acceptance (review draft)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-full49:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CONTROLLER: tools/dot-auto-controller
+      INPUTS: tools/dot-auto-controller/validation/full49
+      PG_SOCKET: /workspace/scratch/5e9614251709/pg-isolated-20261014T1256Z/private/socket
+      JOBFINDER_CLOUD_SOURCE_ID: source-hansoh-social
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.3
+      - name: Install locked dependencies and reviewed test overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$INPUTS/INPUT_MANIFEST.json"
+          cd "$CONTROLLER/vendor/c60-source"
+          npm ci --ignore-scripts
+          DATABASE_URL='postgresql://agent@localhost/jf_synthetic_generation_only' ./node_modules/.bin/prisma generate
+          cd "$GITHUB_WORKSPACE"
+          test ! -e "$CONTROLLER/node_modules"
+          ln -s vendor/c60-source/node_modules "$CONTROLLER/node_modules"
+          cp "$INPUTS"/overlay/tests/helpers/*.ts "$CONTROLLER/vendor/c60-source/tests/helpers/"
+          (cd "$INPUTS" && python test_offline.py && python test_native_structure.py && python test_acceptance_structure.py)
+          (cd "$CONTROLLER/vendor/c60-source" && node --import tsx tests/helpers/nativeFull49Acceptance.offline.test.ts)
+      - name: Start disposable native PG17 with no TCP or external network
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo mkdir -p "$PG_SOCKET"
+          sudo chmod 0777 "$PG_SOCKET"
+          docker run -d --name jf-full49-native --network none \
+            -e POSTGRES_USER=agent -e POSTGRES_DB=postgres \
+            -e POSTGRES_PASSWORD=synthetic-ci-only-not-a-secret \
+            -e 'POSTGRES_INITDB_ARGS=--auth-local=trust --auth-host=reject' \
+            -v "$PG_SOCKET:/var/run/postgresql" postgres:17 \
+            -p 55439 -c listen_addresses='' -c unix_socket_directories=/var/run/postgresql
+          ready=false
+          for n in $(seq 1 60); do
+            if docker exec jf-full49-native pg_isready -U agent -p 55439; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true
+      - name: Run all seven complete-schema cases and verify matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          inputs="$GITHUB_WORKSPACE/$INPUTS"
+          evidence="$RUNNER_TEMP/full49-evidence"
+          mkdir "$evidence"
+          cd "$CONTROLLER/vendor/c60-source"
+          for case_id in publish_commit publish_rollback retire_commit retire_rollback deferred_commit_failure lock_timeout post_retire_trigger_atomicity; do
+            docker exec jf-full49-native createdb -U agent -p 55439 "jf_retirement_test_${case_id}"
+            node --import tsx tests/helpers/nativeFull49Acceptance.cli.ts \
+              --run-authorized-local-full49-acceptance "$PG_SOCKET" "jf_retirement_test_${case_id}" \
+              "$inputs" "$evidence/$case_id" "$case_id"
+          done
+          node --import tsx tests/helpers/nativeFull49Summarize.cli.ts "$inputs" "$evidence"
+      - name: Preserve synthetic evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full49-native-synthetic-evidence
+          path: ${{ runner.temp }}/full49-evidence
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove only this job's disposable PG container
+        if: always()
+        run: docker rm -f jf-full49-native || true

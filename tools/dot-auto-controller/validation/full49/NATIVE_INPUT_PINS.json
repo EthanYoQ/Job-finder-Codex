@@ -1,0 +1,6 @@
+{
+  "before-cohort.synthetic.sql": "935be0de7107f25ab244990b57acb5a76eca7e66e3d00d4aa324a7702c37c662",
+  "after-cohort.synthetic.sql": "e22d967b2bb74821632f2925f20f05d64c54e29b786331d55598fca043841fae",
+  "READ_FULL49_CATALOG.sql": "d81822c15193c48ce767f4a94766909231624a033b87409c29e4c68128da62b2",
+  "CATALOG_EXPECTED.json": "bf217dd2f1f619d6d5e9bb2d0f33bf42f744bebf4588fed6baf33644ca17781e"
+}

@@ -1,0 +1,6 @@
+{
+  "fixed-host/scripts/render-schema50-retirement.py": "156b6d796a83daaba689a7fd39320385f44c23b02f80797cd4ba6319db524ef3",
+  "vendor/c60-source/prisma/migrations/20261014141000_v75_retired_candidate_fence/migration.sql": "b7c868b224ce1f13789f6f2cdcebafe95f1b2d83da1ac037d9a298cff79e3284",
+  "vendor/c60-source/src/db/v75FenceProfile.ts": "27bc7b2d21798778562908d18085f50cb06ac7d04810428c982d5d2f9a66f6fb",
+  "vendor/c60-source/src/db/cloudPilotSqlControl.ts": "bee8caafd5ade4111f2db8b19c9ebd1d3c94241764cb1f1be83209efe2c1aa90"
+}
