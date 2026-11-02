@@ -1,0 +1,51 @@
+{
+  "type": "Full Time",
+  "descriptionTeaser": "Synthetic role description.",
+  "state": "Shanghai",
+  "siteType": "external",
+  "multi_category": [
+    "Other"
+  ],
+  "reqId": "R-114134",
+  "city": "Shanghai",
+  "latitude": "31.22222",
+  "multi_location": [
+    "Shanghai, Shanghai, China"
+  ],
+  "address": "16F No.288 Shimen 1RD, Shanghai, 200041 Shanghai, China",
+  "applyUrl": "https://lilly.wd115.myworkdayjobs.com/LLY/job/China-Bao-Ding-/-_R-114134/apply",
+  "externalApply": false,
+  "cityState": "Shanghai, Shanghai",
+  "country": "China",
+  "visibilityType": "External",
+  "longitude": "121.45806",
+  "workerSubType": "Regular",
+  "jobId": "R-114134",
+  "locale": "en_US",
+  "title": "Synthetic pharmaceutical role",
+  "jobSeqNo": "LILLUSR114134EXTERNALENUS",
+  "postedDate": "2026-11-02T00:00:00.000+0000",
+  "cityStateCountry": "Shanghai, Shanghai, China",
+  "jobVisibility": [
+    "external"
+  ],
+  "location": "Shanghai, Shanghai, China",
+  "category": "Other",
+  "isMultiLocation": true,
+  "multi_location_array": [
+    {
+      "latlong": {
+        "lon": 121.45806,
+        "lat": 31.22222
+      },
+      "location": "Shanghai, Shanghai, China"
+    }
+  ],
+  "isMultiCategory": false,
+  "multi_category_array": [
+    {
+      "category": "Other"
+    }
+  ],
+  "badge": ""
+}

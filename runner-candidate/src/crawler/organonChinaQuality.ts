@@ -18,16 +18,16 @@ const RAW_FIELDS = new Set([
   "isMultiCategory", "multi_category_array", "badge"
 ]);
 const LOCALITIES = [
-  { city:"Shanghai", state:"Shanghai", chinese:"上海", latitude:"31.22222", longitude:"121.45806", path:"CHN---Shanghai---Shanghai", applySuffix:"-[1-9]\\d*" },
-  { city:"Wenzhou", state:"Zhejiang", chinese:"温州", latitude:"27.99942", longitude:"120.66682", path:"CHN---Zhejiang---Wenzhou", applySuffix:"-[1-9]\\d*" },
-  { city:"Guangzhou", state:"Guangdong", chinese:"广州", latitude:"23.11667", longitude:"113.25", path:"CHN---Guangdong---Guangzhou", applySuffix:"(?:-[1-9]\\d*)?" },
-  { city:"", state:"Henan – Zhengzhou", chinese:"郑州", latitude:"33.81876", longitude:"112.13664", path:"CHN---Henan--Zhengzhou", applySuffix:"-[1-9]\\d*" },
-  { city:"Nanchang", state:"Jiangxi", chinese:"南昌", latitude:"28.68396", longitude:"115.85306", path:"CHN---Jiangxi---Nanchang", applySuffix:"-[1-9]\\d*" },
-  { city:"Shijiazhuang", state:"Hebei", chinese:"石家庄", latitude:"38.04139", longitude:"114.47861", path:"CHN---Hebei---Shijiazhuang", applySuffix:"-[1-9]\\d*" },
-  { city:"Taiyuan", state:"Shanxi", chinese:"太原", latitude:"37.86944", longitude:"112.56028", path:"CHN---Shanxi---Taiyuan", applySuffix:"-[1-9]\\d*" },
+  { city:"Shanghai", state:"Shanghai", chinese:"上海", latitude:"31.22222", longitude:"121.45806", path:"CHN---Shanghai---Shanghai" },
+  { city:"Wenzhou", state:"Zhejiang", chinese:"温州", latitude:"27.99942", longitude:"120.66682", path:"CHN---Zhejiang---Wenzhou" },
+  { city:"Guangzhou", state:"Guangdong", chinese:"广州", latitude:"23.11667", longitude:"113.25", path:"CHN---Guangdong---Guangzhou" },
+  { city:"", state:"Henan – Zhengzhou", chinese:"郑州", latitude:"33.81876", longitude:"112.13664", path:"CHN---Henan--Zhengzhou" },
+  { city:"Nanchang", state:"Jiangxi", chinese:"南昌", latitude:"28.68396", longitude:"115.85306", path:"CHN---Jiangxi---Nanchang" },
+  { city:"Shijiazhuang", state:"Hebei", chinese:"石家庄", latitude:"38.04139", longitude:"114.47861", path:"CHN---Hebei---Shijiazhuang" },
+  { city:"Taiyuan", state:"Shanxi", chinese:"太原", latitude:"37.86944", longitude:"112.56028", path:"CHN---Shanxi---Taiyuan" },
   // The observed Chengdu schema deliberately leaves city empty in both the
   // primary and nested records. Every redundant field must match this shape.
-  { city:"", state:"Chengdu", chinese:"成都", latitude:"30.66667", longitude:"104.06667", path:"CHN---Chengdu", applySuffix:"" }
+  { city:"", state:"Chengdu", chinese:"成都", latitude:"30.66667", longitude:"104.06667", path:"CHN---Chengdu" }
 ] as const;
 // These official addresses and work-location labels were independently
 // inspected. Neither wins over other mainland evidence when cities disagree.
@@ -49,8 +49,23 @@ function exactFields(value:Record<string,unknown>, fields:readonly string[]):boo
 }
 function cityLabel(value:string):string|undefined { return value === "Chengdu" || value === "成都" ? "成都" : LOCALITIES.find(place => (place.city !== "" && place.city === value) || place.chinese === value)?.chinese; }
 
-/** Require matching external requisition identities and a reviewed official
- * Workday path. This proves URL identity, never application availability.
+function mainlandPlace(raw: Record<string, unknown>) {
+  const known = LOCALITIES.find(place => raw.city === place.city && raw.state === place.state);
+  if (known) return known;
+  const chinese = typeof raw.city === "string" && typeof raw.state === "string" ? reviewedMainlandCity(raw.city, raw.state) : undefined;
+  const coordinate = (value: unknown, max: number) => typeof value === "string" && /^-?\d+(?:\.\d+)?$/u.test(value) && Math.abs(Number(value)) <= max;
+  return chinese && coordinate(raw.latitude, 90) && coordinate(raw.longitude, 180)
+    ? {city: raw.city as string, state: raw.state as string, chinese, latitude: raw.latitude as string, longitude: raw.longitude as string} : undefined;
+}
+function applyCity(path: string): string | undefined {
+  const known = LOCALITIES.find(place => place.path === path);
+  if (known) return known.chinese;
+  const parts = path.split("---");
+  return parts.length === 3 && parts[0] === "CHN" ? reviewedMainlandCity(parts[2]!, parts[1]!) : undefined;
+}
+
+/** Require matching external requisition identities and an official Workday path
+ * with a known mainland locality. This proves identity, never availability.
  * The URL locality is separately audited as geographic evidence. */
 export function organonOfficialIdentity(raw:Record<string,unknown>):boolean {
   if (typeof raw.reqId !== "string" || !/^R\d+$/u.test(raw.reqId) || raw.jobId !== raw.reqId ||
@@ -60,10 +75,10 @@ export function organonOfficialIdentity(raw:Record<string,unknown>):boolean {
     new Set(raw.jobVisibility).size !== raw.jobVisibility.length || typeof raw.applyUrl !== "string") return false;
   let url:URL;
   try {url=new URL(raw.applyUrl);} catch {return false;}
-  const place=LOCALITIES.find(item=>url.pathname.split("/")[3]===item.path);
+  const path=url.pathname.split("/")[3]??"";
   return url.origin === "https://organon.wd5.myworkdayjobs.com" && !url.username && !url.password && !url.search && !url.hash &&
-    raw.applyUrl === url.toString() && !!place &&
-    new RegExp(`^/SearchJobs/job/${place.path}/[A-Za-z0-9-]+_${raw.reqId}${place.applySuffix}/apply$`,"u").test(url.pathname);
+    raw.applyUrl === url.toString() && !!applyCity(path) &&
+    new RegExp(`^/SearchJobs/job/[A-Za-z-]+/[A-Za-z0-9-]+_${raw.reqId}(?:-[1-9]\\d*)?/apply$`,"u").test(url.pathname);
 }
 
 /** Audits all redundant primary/nested geography and explicit textual job
@@ -82,7 +97,7 @@ export function organonOfficialCities(raw:Record<string,unknown>):string[]|undef
   if (Object.hasOwn(raw,"isMultiCategory") && raw.isMultiCategory !== false) return undefined;
   if (Object.hasOwn(raw,"multi_category_array") && (!Array.isArray(raw.multi_category_array) || raw.multi_category_array.some(value =>
     !record(value) || !exactFields(value,["category"]) || typeof value.category!=="string"))) return undefined;
-  const primary=LOCALITIES.find(place=>raw.city===place.city && raw.state===place.state);
+  const primary=mainlandPlace(raw);
   if(!primary)return undefined;
   const primaryCityState=[primary.city,primary.state].filter(Boolean).join(", "),location=`${primaryCityState}, China`;
   if(raw.location!==location || raw.cityStateCountry!==location || raw.cityState!==primaryCityState ||
@@ -92,16 +107,8 @@ export function organonOfficialCities(raw:Record<string,unknown>):string[]|undef
   for(let index=0;index<raw.multi_location.length;index++){
     const nested=raw.multi_location_array[index];
     if(!record(nested)||!exactFields(nested,["country","cityState","city","latlong","latitude","location","state","cityCountry","cityStateCountry","mapQueryLocation","stateCountry","longitude"]))return undefined;
-    // Additional structured mainland locations reuse the shared exact province/city
-    // pairs. They do not replace the reviewed primary locality or infer a city
-    // from coordinates; the redundant coordinate representations still agree.
-    const known=LOCALITIES.find(item=>nested.city===item.city && nested.state===item.state);
-    const chinese=typeof nested.city === "string" && typeof nested.state === "string"
-      ? reviewedMainlandCity(nested.city, nested.state) : undefined;
-    const coordinate=(value:unknown,max:number)=>typeof value === "string" && /^-?\d+(?:\.\d+)?$/u.test(value) &&
-      Number.isFinite(Number(value)) && Math.abs(Number(value)) <= max;
-    const place=known ?? (chinese && coordinate(nested.latitude,90) && coordinate(nested.longitude,180)
-      ? {city:nested.city as string,state:nested.state as string,chinese,latitude:nested.latitude as string,longitude:nested.longitude as string} : undefined);
+    // Primary and additional locations share the mainland city/province mapping.
+    const place=mainlandPlace(nested);
     if(!place)return undefined;
     const cityState=[place.city,place.state].filter(Boolean).join(", "),expected=`${cityState}, China`;
     if(nested.country!=="China" || nested.location!==expected || nested.cityStateCountry!==expected || nested.mapQueryLocation!==expected ||
@@ -114,13 +121,9 @@ export function organonOfficialCities(raw:Record<string,unknown>):string[]|undef
   if(!address||(hasWorkLocation&&!work)||!organonOfficialIdentity(raw))return undefined;
   cities.add(address);if(work)cities.add(work);
   const path=new URL(raw.applyUrl as string).pathname.split("/")[3]!;
-  const urlPlace=LOCALITIES.find(place=>path===place.path);
-  if(!urlPlace)return undefined;
-  cities.add(urlPlace.chinese);
-  // Only the observed Guangzhou omission is supported. Its audited primary,
-  // nested, coordinates, address and native URL must all agree; a blank/null
-  // field or another locality is not equivalent official evidence.
-  if(!hasWorkLocation&&(primary.city!=="Guangzhou"||cities.size!==1))return undefined;
+  const urlCity=applyCity(path);
+  if(!urlCity)return undefined;
+  cities.add(urlCity);
   // Audit every permitted descriptive surface; an allowed field name is not
   // permission to hide new job geography in a label, skill or category.
   const descriptiveFields = ["title", "descriptionTeaser", "subCategory", "type", "industry", "employeeType", "category", "badge"];
@@ -131,7 +134,7 @@ export function organonOfficialCities(raw:Record<string,unknown>):string[]|undef
     if(!record(raw.ml_job_parser)||Object.keys(raw.ml_job_parser).some(key=>!PARSER_FIELDS.has(key)))return undefined;
     texts.push(...Object.values(raw.ml_job_parser));
   }
-  let pending = false;
+  let pending = !hasWorkLocation;
   for (const original of texts) {
     if (typeof original !== "string") return undefined;
     const scope = organonTextLocationScope(original);

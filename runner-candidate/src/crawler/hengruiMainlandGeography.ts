@@ -1,3 +1,5 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+
 /** Source-local positive mainland geography vocabulary. Prefecture names reuse the
  * reviewed CNSTAFF_MAINLAND_PREFECTURES vocabulary; region prefixes are mainland
  * administrative province codes. These are geography identities, never job IDs.
@@ -95,9 +97,13 @@ export function isHengruiMainlandLocation(value: unknown): boolean {
   if (province !== undefined && !provinceCode) return false;
   const cityCore = typeof city === "string" ? city.trim().replace(/市$/u, "") : undefined;
   const explicitCityId = cityCore === undefined ? undefined : ADDITIONAL_LOCALITIES.get(cityCore);
-  const cityProvince = explicitCityId === undefined
+  let cityProvince = explicitCityId === undefined
     ? cityCore === undefined ? undefined : CITY_PROVINCES.get(cityCore)
     : String(explicitCityId).slice(0, 2);
+  // County names need not be pre-enumerated when the official mainland province and region ID agree.
+  if (!cityProvince && cityCore && provinceCode && /^[\p{Script=Han}]{2,20}$/u.test(cityCore) &&
+      !explicitlyForeignOrNonMainlandLocation(cityCore) && typeof location.cityId === "number" &&
+      /^\d{6}$/u.test(String(location.cityId)) && String(location.cityId).startsWith(provinceCode)) cityProvince = provinceCode;
   if (cityCore !== undefined && !cityProvince || cityProvince && provinceCode && cityProvince !== provinceCode) return false;
   if (explicitCityId !== undefined && location.cityId !== explicitCityId) return false;
   const expectedProvince = cityProvince ?? provinceCode;
