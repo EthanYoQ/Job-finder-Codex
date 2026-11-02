@@ -46,6 +46,10 @@ test('Bayer official ChiZhou label maps to mainland Chizhou without title infere
  const detail={...dom,orgId:'bayer',status:'open',locations:[],customFields:{'283170':{name:'Division',value:'Pharmaceuticals'},'290891':{name:'国家',value:'China'},'289157':{name:'城市',value:'ChiZhou'}}};
  assert.deepEqual(bayerIndependentDetailScope(dom,detail).locations,[{cityName:'池州',country:'中国'}]);
  detail.customFields['290891'].value='Singapore';assert.throws(()=>bayerIndependentDetailScope(dom,detail));
+ delete detail.customFields['290891'];assert.throws(()=>bayerIndependentDetailScope(dom,detail));
+ detail.locations=[{country:'中国',countryDescription:'中国',cityName:'中山市',cityId:442000,provinceName:'广东'}];
+ assert.deepEqual(bayerIndependentDetailScope(dom,detail).locations,detail.locations);
+ detail.locations[0].country='Singapore';assert.throws(()=>bayerIndependentDetailScope(dom,detail));
 });
 test('Organon reuses known mainland city/province pairs and permits absent optional workLocation',()=>{
  const raw=fixture('organon');assert(organonOfficialIdentity(raw));assert.deepEqual(organonOfficialCities(raw),[CITY_PENDING]);

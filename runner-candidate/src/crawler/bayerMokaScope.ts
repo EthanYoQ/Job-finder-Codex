@@ -64,9 +64,9 @@ export function bayerIndependentDetailScope(dom: { id: string; title: string }, 
     return f.value;
   };
   const country = value("290891", "国家");
-  // An explicitly blank custom field still requires positive mainland locations below.
+  // A missing or blank optional country field still requires mainland locations below.
   if (!["Pharmaceuticals", "Consumer Health"].includes(value("283170", "Division") ?? "") ||
-      country !== "China" && country !== "") throw new Error("Bayer detail is outside the selected medical mainland scope");
+      country !== undefined && country !== "China" && country !== "") throw new Error("Bayer detail is outside the selected medical mainland scope");
   const pauseStart = value("291952", "职位暂停开始时间"), pauseEnd = value("298038", "职位暂停结束时间");
   const paused = detail.status === "pause";
   if (paused ? !pauseStart || !/^\d{4}-\d{2}-\d{2}$/.test(pauseStart) || !Number.isFinite(Date.parse(`${pauseStart}T00:00:00Z`)) ||

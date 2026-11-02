@@ -1,12 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {candidateCompanies} from '../src/data/companyRegistry.ts';
 import {buildStagedSourceCrawlPlans,sourcePlanConfigSha256} from '../src/crawler/sourcePlan.ts';
 import {createOfficialJsonSourceFetch} from '../src/crawler/officialJsonSourceFetch.ts';
 import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
 import {issueAGradeOfficialTotalCertificate,verifyAGradeCompletenessCertificateReceipt} from '../src/crawler/completenessCertificate.ts';
+import {memoryDb} from './memory-db.mjs';
+import {identityForSource} from '../scripts/direct-round.ts';
+import {withPortableCrawlLease} from '../src/crawler/portableCrawlLease.ts';
+import {runP0CrawlBatch} from '../src/crawler/runCrawlBatch.ts';
 
 test('closed Lilly applications reconcile across pages and altered closure evidence remains rejected',async()=>{
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-lilly-china-social');
@@ -30,4 +37,17 @@ test('closed Lilly applications reconcile across pages and altered closure evide
  assert.equal(verifyAGradeCompletenessCertificateReceipt({certificate:decision.certificate,certificateSha256:decision.certificateSha256,expected:{...binding,sourceId:plan.source.id}}).status,'PASS');
  const changed=structuredClone(evidence);changed.fetchLosses[0].details.code='UNVERIFIED_FAILURE';
  assert.equal(issueAGradeOfficialTotalCertificate({...input,evidence:changed}).status,'REJECTED');
+ const workspaceRoot=await mkdtemp(join(tmpdir(),'lilly-atomic-')),memory=memoryDb();
+ try {
+  page=0;
+  const candidate={id:'synthetic-lilly',commitSha:'a'.repeat(40),rosterHash:'b'.repeat(64),sourcePlanHash:'c'.repeat(64),sourceConfigHash:'d'.repeat(64),adapterBundleHash:'e'.repeat(64)};
+  const round=await withPortableCrawlLease(memory.db,lease=>runP0CrawlBatch([plan],{
+   db:memory.db,identity:identityForSource(candidate,plan.source.id),publicationPolicy:'SOURCE_ATOMIC_LAST_GOOD_V1',portableLease:lease,
+   workspaceRoot,fetch,now:()=>new Date(),createBatchId:()=> 'b',evidenceSubdirectory:'e',
+   getPreviousJobs:async()=>[],getRecentObservations:async()=>[],isBaselineCompleted:async()=>false,
+   getTrustedCompletenessBaseline:async()=>null,getFirstAcceptedCurrentPolicyReceipt:async()=>null
+  }));
+  assert.equal(round.status,'SUCCESS',JSON.stringify(memory.rows));
+  assert.equal(memory.rows[0].atomicCommitState,'COMMITTED');assert.equal(memory.rows[0].completenessState,'VERIFIED');assert.equal(memory.jobWrites(),49);
+ }finally{await rm(workspaceRoot,{recursive:true,force:true});}
 });
