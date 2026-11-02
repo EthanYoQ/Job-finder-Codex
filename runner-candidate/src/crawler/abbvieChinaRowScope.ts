@@ -27,6 +27,10 @@ export function reviewedAbbvieCity(locationRaw:string):string|undefined {
   return parts.length !== 2 ? undefined : MAINLAND_CITY_PROVINCE.get(parts[0]!) === parts[1]
     ? MAINLAND_CITY_NAMES[parts[0]!] : reviewedMainlandCity(parts[0]!, parts[1]!);
 }
+export function isReviewedAbbvieLocation(locationRaw:string):boolean {
+  // Official province-only posting: mainland scope is known, but no city is given.
+  return !!reviewedAbbvieCity(locationRaw) || /^guangdong\s*,\s*gd$/u.test(normalized(locationRaw));
+}
 const GEO_CLASS = /^attrax-vacancy-tile__(?:.*-)?(?:location|country|city|province|region|address)(?:-|$)/u;
 const KNOWN_GEO_CLASS = /^attrax-vacancy-tile__(?:location-freetext|option-location(?:--[^ ]+|-label|-valueset)?|option-work-location-type(?:--(?:remote|onsite)|-label|-valueset)?)$/u;
 const normalized = (value: string) => value.replace(/\s+/gu, " ").trim().toLowerCase();
@@ -53,7 +57,7 @@ export function validateAbbvieChinaRowScope(html: string): boolean {
     const expiry = $row.find(".attrax-vacancy-tile__expiry-value");
     if (location.length !== 1 || option.length !== 1 || optionValues.length !== 1 || workType.length !== 1 || expiry.length !== 1) return false;
     const parts = normalized(location.text()).split(",").map(part => part.trim());
-    if (parts.length !== 2 || !reviewedAbbvieCity(location.text())) return false;
+    if (parts.length !== 2 || !isReviewedAbbvieLocation(location.text())) return false;
     const declaredLocation = normalized(optionValues.text());
     if (declaredLocation !== "china" && declaredLocation !== parts[0]) return false;
     const locationClasses = (option.attr("class") ?? "").split(/\s+/u)

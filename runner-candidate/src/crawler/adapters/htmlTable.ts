@@ -1,4 +1,5 @@
 import { reviewedAbbvieCity, validateAbbvieChinaRowScope } from "../abbvieChinaRowScope";
+import { CITY_PENDING } from "../../domain/jobLocation";
 import { createHash } from "node:crypto";
 import { load } from "cheerio";
 import type { AnyNode } from "domhandler";
@@ -123,7 +124,7 @@ function normalizeTableRow(input: HtmlTableAdapterInput, $: ReturnType<typeof lo
     officialUrl,
     listUrl: input.source.officialEntryUrl,
     locationRaw,
-    cities: abbvieReviewed ? [reviewedAbbvieCity(locationRaw)!] : citiesFromLocation(locationRaw),
+    cities: abbvieReviewed ? [reviewedAbbvieCity(locationRaw) ?? CITY_PENDING] : citiesFromLocation(locationRaw),
     category,
     isBaseline: input.isBaseline ?? true,
     evidence: {

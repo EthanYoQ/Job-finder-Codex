@@ -1,7 +1,7 @@
 import { hasNovartisPartitionEvidence, replayNovartisNativePartitions, NOVARTIS_PARTITION_PAGINATION } from "./novartisNativePartitions";
 import { reportSourceFetchFailure } from "./sourceFetchDiagnostics";
 import {isSanofiChinesePlan,replaySanofiChineseNative,SANOFI_CN_PAGINATION_POLICY} from "./sanofiChineseNative";
-import { reviewedAbbvieCity } from "./abbvieChinaRowScope";
+import { isReviewedAbbvieLocation } from "./abbvieChinaRowScope";
 import { exactKelunMainlandPlan, replayKelunMainlandScope } from "./kelunMainlandScope";
 import { isServierTraversalPlan, replayServierTraversal } from "./servierMokaScope";
 import { hasNovartisOfficialPresencePlan, hasNovartisPresenceArtifacts, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
@@ -410,7 +410,7 @@ async function finalizeTruth(
     observation.completenessBlockerReason = "ASTRAZENECA_DETAIL_EVIDENCE_REQUIRED";
   }
   if (!completenessVerified && plan.source.id === "source-abbvie-china-social" &&
-      result.jobs.some(job => !reviewedAbbvieCity(job.locationRaw))) {
+      result.jobs.some(job => !isReviewedAbbvieLocation(job.locationRaw))) {
     observation.completenessBlockerReason = "ABBVIE_UNRECOGNIZED_CITY_PROVINCE_PAIR";
   }
   if (!completenessVerified && hasAstellasPdfCityPlan(plan)) {
