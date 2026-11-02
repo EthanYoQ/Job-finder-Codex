@@ -11,11 +11,10 @@ export function createMokaDomRuntime(cua) {
     const until = Math.min(deadline, Date.now() + 60000);
     while (Date.now() < until) {
       try {
-        await tab.playwright.waitForLoadState({ state: 'load', timeoutMs: Math.min(10000, until - Date.now()) });
         await locator.waitFor({ state: 'visible', timeoutMs: Math.max(1, Math.min(10000, until - Date.now())) });
         return;
       } catch (error) {
-        if (!/Timed out waiting for load|Runtime.evaluate timed out|locator.waitFor\(visible\) timed out/.test(String(error))) throw error;
+        if (error?.name !== 'TimeoutError' && !/Runtime.evaluate timed out|locator.waitFor\(visible\) timed out/.test(String(error))) throw error;
       }
     }
     throw Error('MOKA_B_DOM_LOADING_TIMEOUT');
