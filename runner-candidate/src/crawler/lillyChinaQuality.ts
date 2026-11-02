@@ -268,7 +268,7 @@ export function lillyNativeDetail(raw: Record<string, unknown>, artifact: Source
       typeof job.title !== "string" || typeof raw.title !== "string" ||
       loadHtml(job.title).text().replace(/\s+/gu, " ").trim() !== raw.title.replace(/\s+/gu, " ").trim() ||
       typeof job.description !== "string" || !job.description.trim() ||
-      typeof job.datePosted !== "string" || lillyOfficialPostedDate(raw.postedDate)?.slice(0, 10) !== job.datePosted ||
+      typeof job.datePosted !== "string" || !lillyOfficialPostedDate(`${job.datePosted}T00:00:00.000+0000`) ||
       !record(job.jobLocation) || !record(job.jobLocation.address)) return undefined;
     const address = job.jobLocation.address;
     if (address.addressCountry !== "China" || typeof address.addressLocality !== "string" || !address.addressLocality.trim() ||

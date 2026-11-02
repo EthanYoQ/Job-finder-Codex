@@ -329,8 +329,11 @@ export function organonNativeDetail(raw: Record<string,unknown>, artifact: Sourc
     const address=job.jobLocation.address;
     // A validated native workLocation can differ from the URL locality; the existing city-pending projection remains intact.
     const primary=new URL(raw.applyUrl as string).pathname.split("/")[3]!.replaceAll("---"," - ");
+    const cities = organonOfficialCities(raw);
     const localityMatches = address.addressLocality === primary ||
-      typeof raw.workLocation === "string" && organonOfficialCities(raw) !== undefined && address.addressLocality === raw.workLocation;
+      typeof raw.workLocation === "string" && cities !== undefined && address.addressLocality === raw.workLocation ||
+      cities?.includes(CITY_PENDING) && typeof address.addressLocality === "string" &&
+        !!applyCity(address.addressLocality.replaceAll(" - ", "---"));
     return address.addressCountry === "China" && localityMatches ? "ACTIVE" : undefined;
   } catch { return undefined; }
 }
