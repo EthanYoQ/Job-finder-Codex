@@ -1,6 +1,6 @@
 import { load as loadHtml } from "cheerio";
 import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
-import { irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from "./officialJsonEvidence";
+import { explicitlyForeignOrNonMainlandLocation, irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from "./officialJsonEvidence";
 import { CITY_PENDING } from "../domain/jobLocation";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import { ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
@@ -44,19 +44,6 @@ export function exactLillyChinaBootstrap(config: {
     config.pageName === "search-results" && config.pageId === "page11-ds";
 }
 
-// Positively reviewed URL location tokens. These corroborate or contradict the
-// named primary locality; a token never silently replaces that locality.
-const URL_MAINLAND_LOCATIONS = new Set([
-  "CN-Ji-Nan", "CN-Shanghai-LAL", "China-An-Shan-", "China-Bei-Jing-", "China-Cang-Zhou-", "China-Chang-Sha-",
-  "China-Chong-Qing-", "China-Da-Lian-", "China-E-Er-Duo-Si-", "China-Fu-Zhou-", "China-Guang-Zhou-", "China-Gui-Yang-",
-  "China-Hang-Zhou-", "China-He-Fei-", "China-He-Ze-", "China-Hu-He-Hao-Te-", "China-Ji-Nan-", "China-Kun-Ming-",
-  "China-Lang-Fang-", "China-Nan-Chang-", "China-Nan-Jing-", "China-Ning-Bo-", "China-Quan-Zhou-", "China-Shang-Hai-",
-  "China-Shen-Zhen-", "China-Shi-Jia-Zhuang-", "China-Si-Ping-", "China-Suzhou-Manufacturing-", "China-Tian-Jin-",
-  "China-Urumuqi-", "China-Wu-Hai-", "China-Wu-Han-", "China-Xi-An-", "China-Xia-Men-", "China-Yue-Yang-",
-  "China-Zheng-Zhou-", "China-Zhu-Hai-", "China-Zhu-Ma-Dian-",
-  "China-Chang-Chun-", "China-Chang-De-", "China-Chen-Zhou-", "China-Cheng-Du-", "China-Fo-Shan-",
-  "China-Ka-Shi-", "China-Lan-Zhou-", "China-Xiao-Gan-", "China-Zhong-Shan-", "China-Nan-Yang-", "China-Tai-An-", "China-Xin-Xiang-", "China-Qing-Dao-"
-]);
 const RAW_FIELDS = new Set(["address", "applyUrl", "badge", "category", "city", "cityState", "cityStateCountry", "country",
   "dateCreated", "descriptionTeaser", "externalApply", "hiringManager", "isMultiCategory", "isMultiLocation", "jobId",
   "jobSeqNo", "jobVisibility", "latitude", "locale", "location", "longitude", "ml_job_parser", "ml_skills", "multi_category",
@@ -74,7 +61,9 @@ function officialUrlLocation(raw: Record<string, unknown>): string | undefined {
   let url: URL; try { url = new URL(raw.applyUrl); } catch { return undefined; }
   if (url.origin !== "https://lilly.wd115.myworkdayjobs.com" || url.username || url.password || url.search || url.hash || url.href !== raw.applyUrl) return undefined;
   const match = /^\/LLY\/job\/([^/]+)\/([A-Za-z0-9_-]*)_(R-\d+)(?:-\d+)?\/apply$/u.exec(url.pathname);
-  return match && match[3] === raw.reqId && URL_MAINLAND_LOCATIONS.has(match[1]!) ? match[1] : undefined;
+  // Native detail supplies country and locality; new China URL tokens are not a source-wide failure.
+  return match && match[3] === raw.reqId && /^(?:China|CN)-[A-Za-z-]+$/u.test(match[1]!) &&
+    !explicitlyForeignOrNonMainlandLocation(match[1]!.replaceAll("-", " ")) ? match[1] : undefined;
 }
 
 // The exact contextual HQ introduction is company background. Remove only that
@@ -279,10 +268,11 @@ export function lillyNativeDetail(raw: Record<string, unknown>, artifact: Source
       typeof job.title !== "string" || typeof raw.title !== "string" ||
       loadHtml(job.title).text().replace(/\s+/gu, " ").trim() !== raw.title.replace(/\s+/gu, " ").trim() ||
       typeof job.description !== "string" || !job.description.trim() ||
-      typeof job.datePosted !== "string" || lillyOfficialPostedDate(raw.postedDate)?.slice(0, 10) !== job.datePosted ||
+      typeof job.datePosted !== "string" || !lillyOfficialPostedDate(`${job.datePosted}T00:00:00.000+0000`) ||
       !record(job.jobLocation) || !record(job.jobLocation.address)) return undefined;
     const address = job.jobLocation.address;
-    if (address.addressCountry !== "China" || typeof address.addressLocality !== "string" || !address.addressLocality.trim()) return undefined;
+    if (address.addressCountry !== "China" || typeof address.addressLocality !== "string" || !address.addressLocality.trim() ||
+      explicitlyForeignOrNonMainlandLocation(address.addressLocality)) return undefined;
     const city = NATIVE_CITIES[address.addressLocality.replace(/^CN: /u, "")];
     return {status: "ACTIVE", cities: [city ?? CITY_PENDING], locationRaw: `${address.addressLocality}, China`};
   } catch { return undefined; }

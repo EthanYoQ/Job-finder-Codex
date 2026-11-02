@@ -12,6 +12,7 @@ export function reviewedMainlandCity(city: string, province: string): string | u
 export function reviewedMainlandCityLabel(city: string, country: string): string | undefined {
   if (country !== "China") return undefined;
   const key = city.trim().toLowerCase();
+  if (key === "chizhou") return "池州";
   const cities = new Set(Object.entries(PFIZER_OFFICIAL_LOCALITIES).flatMap(([location, chinese]) => {
     const [nation, , label] = location.split(" - ");
     // STIT is a reviewed office label, not a city name.

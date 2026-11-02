@@ -92,7 +92,7 @@ const legalDedupeEntrySchema = z.object({
 const legalScopeExclusionEntrySchema = z.object({
   rawLocatorSha256: SHA256,
   recordIndex: z.number().int().nonnegative(),
-  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE", "ROCHE_DETAIL_DENIED"])
+  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE", "ROCHE_DETAIL_DENIED", "LILLY_OFFICIAL_APPLICATION_CLOSED"])
 }).strict();
 const certificateSchema = z.object({
   schemaVersion: z.literal(A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION),
@@ -292,7 +292,12 @@ export function issueAGradeOfficialTotalCertificate(
     : plan.source.id === "source-roche-china-social"
       // Strict source replay above already verified the exact approved denial and complete list.
       ? evidence.fetchLosses.map(loss=>({rawLocatorSha256:sha256(loss.rawLocator),recordIndex:loss.details.recordIndex as number,code:"ROCHE_DETAIL_DENIED" as const}))
-      : exactGrifolsScopeExclusionLedger(plan, evidence);
+      : plan.source.id === "source-lilly-china-social"
+        // Strict source replay above bound every closed shell to its original listed requisition.
+        ? evidence.fetchLosses.map(loss=>({rawLocatorSha256:sha256(loss.rawLocator),
+          recordIndex:evidence.pages.slice(0,loss.details.pageSequence as number).reduce((n,page)=>n+page.rawJobIds.length,0)+(loss.details.recordIndex as number),
+          code:"LILLY_OFFICIAL_APPLICATION_CLOSED" as const}))
+        : exactGrifolsScopeExclusionLedger(plan, evidence);
   const legalValidationDiscardCount = legalScopeExclusionLedger?.length ?? 0;
   if (evidence.fetchCounts.parseDiscardCount !== 0 || ledger.adapterLosses.length !== 0 ||
       evidence.fetchCounts.validationDiscardCount !== legalValidationDiscardCount ||

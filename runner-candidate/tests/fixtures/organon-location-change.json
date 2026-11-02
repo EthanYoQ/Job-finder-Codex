@@ -1,0 +1,63 @@
+{
+  "subCategory": "Sales",
+  "type": "Full time",
+  "descriptionTeaser": "Synthetic role description.",
+  "state": "Henan",
+  "siteType": "external",
+  "multi_category": [
+    "销售"
+  ],
+  "reqId": "R543101",
+  "city": "Zhengzhou",
+  "latitude": "34.75778",
+  "industry": "Pharma",
+  "multi_location": [
+    "Zhengzhou, Henan, China"
+  ],
+  "address": "3 Xi Yu Jie, East Tower, Chengdu, 610041 Sichuan, China",
+  "applyUrl": "https://organon.wd5.myworkdayjobs.com/SearchJobs/job/CHN---Henan---Zhengzhou/Customer-Rep--Sales-GHH_R543101/apply",
+  "externalApply": true,
+  "cityState": "Zhengzhou, Henan",
+  "country": "China",
+  "visibilityType": "External",
+  "longitude": "113.64861",
+  "jobId": "R543101",
+  "locale": "zh_CN",
+  "title": "Synthetic pharmaceutical role",
+  "jobSeqNo": "MECEUSR543101ZHCN",
+  "postedDate": "2026-11-02T00:00:00.000+0000",
+  "cityStateCountry": "Zhengzhou, Henan, China",
+  "employeeType": "Full time Regular",
+  "jobVisibility": [
+    "external"
+  ],
+  "location": "Zhengzhou, Henan, China",
+  "category": "销售",
+  "isMultiLocation": true,
+  "multi_location_array": [
+    {
+      "country": "China",
+      "cityState": "Zhengzhou, Henan",
+      "city": "Zhengzhou",
+      "latlong": {
+        "lon": 113.64861,
+        "lat": 34.75778
+      },
+      "latitude": "34.75778",
+      "location": "Zhengzhou, Henan, China",
+      "state": "Henan",
+      "cityCountry": "Zhengzhou, China",
+      "cityStateCountry": "Zhengzhou, Henan, China",
+      "mapQueryLocation": "Zhengzhou, Henan, China",
+      "stateCountry": "Henan, China",
+      "longitude": "113.64861"
+    }
+  ],
+  "isMultiCategory": false,
+  "multi_category_array": [
+    {
+      "category": "销售"
+    }
+  ],
+  "badge": ""
+}

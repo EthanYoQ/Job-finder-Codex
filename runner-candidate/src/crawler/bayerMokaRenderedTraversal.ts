@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { load } from "cheerio";
+import { join } from "node:path";
+import { savePrivateDomFailure } from "./local-browser/private-dom-failure.mjs";
 import type { OfficialJsonRenderedPageCapture, OfficialJsonRenderedReplay } from "./officialJsonRenderedTraversalValidator";
 import { createDefaultMokaHttpClient, type MokaHttpClient } from "./mokaSourceFetch";
 import { bayerIndependentDetailScope, BAYER_MOKA_DETAIL, BAYER_MOKA_ENTRY, decryptBayerArtifact } from "./bayerMokaScope";
@@ -19,6 +21,7 @@ interface HttpReceipt { method: "GET" | "POST"; url: string; requestBody?: Recor
 export async function captureBayerIndependentDetails(input: {
   dom: BayerDomCapture; http?: MokaHttpClient; now?: () => Date;
   onReceipt?: (receipt: HttpReceipt, sequence: number) => Promise<void>;
+  failureDirectory?: string;
 }): Promise<{ observedAt: string; pages: OfficialJsonRenderedPageCapture[] }> {
   const now = input.now ?? (() => new Date()), http = input.http ?? createDefaultMokaHttpClient(now);
   const total = validateDomCapture(input.dom);
@@ -48,7 +51,18 @@ export async function captureBayerIndependentDetails(input: {
       const detailResponse = await request(BAYER_MOKA_DETAIL, { orgId: "bayer", siteId: "148387", jobId: identity.id, locale: "zh-CN" });
       const root = decryptBayerArtifact(detailResponse, iv), detail = record(root.data);
       if (root.success !== true || !detail) throw new Error("Bayer independent HTTP detail failed");
-      const scope = bayerIndependentDetailScope(identity, detail), sourceJobId = evidenceId(identity.id);
+      let scope: ReturnType<typeof bayerIndependentDetailScope>;
+      try { scope = bayerIndependentDetailScope(identity, detail); }
+      catch (error) {
+        const cause = error instanceof Error ? error : Error("Bayer detail scope failed");
+        try { Object.assign(cause, {privateCapture: await savePrivateDomFailure({
+          directory: input.failureDirectory ?? join(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder", "diagnostics", "bayer"),
+          filePrefix: "bayer-detail", context: {kind: "BAYER_FAILURE_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE"},
+          observe: async () => ({entry, detailResponse, domRow})
+        })}); } catch { Object.assign(cause, {privateCaptureUnavailable: true}); }
+        throw cause;
+      }
+      const sourceJobId = evidenceId(identity.id);
       if (String(detail.publishedAt).slice(0, 10) !== identity.publishedDate) throw new Error("Bayer independent DOM/detail date mismatch");
       rawRows.push({ sourceJobId, rawEvidenceId: sourceJobId, recordIndex, scopeMarker: String(detail.status),
         scopeDecision: scope.paused ? "EXCLUDED_AUDITED" : "INCLUDED_MAINLAND",
