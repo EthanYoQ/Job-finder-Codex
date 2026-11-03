@@ -1,8 +1,8 @@
 import { reviewedMainlandCity } from "./reviewedMainlandCity";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { load } from "cheerio";
 
-// Source-specific reviewed spelling, not a title/URL-to-location lookup. New
-// geography is retained by acquisition but cannot certify completeness until reviewed.
+// Reviewed city identities; a known mainland province can admit a city-pending row.
 const MAINLAND_CITY_PROVINCE = new Map(Object.entries({
   Beijing: "Beijing", Changchun: "Jilin", Changsha: "Hunan", Chengdu: "Sichuan",
   Chongqing: "Chongqing", Guangzhou: "Guangdong Province", Guiyang: "Guizhou",
@@ -27,9 +27,19 @@ export function reviewedAbbvieCity(locationRaw:string):string|undefined {
   return parts.length !== 2 ? undefined : MAINLAND_CITY_PROVINCE.get(parts[0]!) === parts[1]
     ? MAINLAND_CITY_NAMES[parts[0]!] : reviewedMainlandCity(parts[0]!, parts[1]!);
 }
+const MAINLAND_PROVINCES = "beijing|shanghai|tianjin|chongqing|hebei|shanxi|liaoning|jilin|heilongjiang|jiangsu|zhejiang|anhui|fujian|jiangxi|shandong|henan|hubei|hunan|guangdong|hainan|sichuan|guizhou|yunnan|shaanxi|gansu|qinghai|inner mongolia|guangxi|tibet|ningxia|xinjiang".split("|");
+const provinceName = (value:string) => normalized(value).replace(/ province$/u, "");
 export function isReviewedAbbvieLocation(locationRaw:string):boolean {
-  // Official province-only posting: mainland scope is known, but no city is given.
-  return !!reviewedAbbvieCity(locationRaw) || /^guangdong\s*,\s*gd$/u.test(normalized(locationRaw));
+  if (reviewedAbbvieCity(locationRaw) || /^guangdong\s*,\s*gd$/u.test(normalized(locationRaw))) return true;
+  const parts=normalized(locationRaw).split(",").map(part=>part.trim());
+  if (parts.length!==2 || !parts[0] || explicitlyForeignOrNonMainlandLocation(locationRaw)) return false;
+  const province=provinceName(parts[1]!);
+  if (!MAINLAND_PROVINCES.includes(province)) return false;
+  const knownRegion=MAINLAND_CITY_PROVINCE.get(parts[0]!)
+    ?? MAINLAND_PROVINCES.find(region=>reviewedMainlandCity(parts[0]!,region)
+      || (region==="inner mongolia" && reviewedMainlandCity(parts[0]!,"Neimenggu")))
+    ?? (MAINLAND_PROVINCES.includes(provinceName(parts[0]!)) ? provinceName(parts[0]!) : undefined);
+  return !knownRegion || provinceName(knownRegion)===province;
 }
 const GEO_CLASS = /^attrax-vacancy-tile__(?:.*-)?(?:location|country|city|province|region|address)(?:-|$)/u;
 const KNOWN_GEO_CLASS = /^attrax-vacancy-tile__(?:location-freetext|option-location(?:--[^ ]+|-label|-valueset)?|option-work-location-type(?:--(?:remote|onsite)|-label|-valueset)?)$/u;
@@ -59,7 +69,7 @@ export function validateAbbvieChinaRowScope(html: string): boolean {
     const parts = normalized(location.text()).split(",").map(part => part.trim());
     if (parts.length !== 2 || !isReviewedAbbvieLocation(location.text())) return false;
     const declaredLocation = normalized(optionValues.text());
-    if (declaredLocation !== "china" && declaredLocation !== parts[0]) return false;
+    if (declaredLocation !== "china" && declaredLocation !== parts[0] && declaredLocation !== parts[1]) return false;
     const locationClasses = (option.attr("class") ?? "").split(/\s+/u)
       .filter(name => name.startsWith("attrax-vacancy-tile__option-location--"));
     if (locationClasses.length !== 1 || locationClasses[0] !== `attrax-vacancy-tile__option-location--${declaredLocation}`) return false;
