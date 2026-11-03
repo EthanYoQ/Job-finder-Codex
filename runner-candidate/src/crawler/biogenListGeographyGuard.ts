@@ -36,9 +36,8 @@ export function exactBiogenListGeographyPlan(plan: SourceCrawlPlan): boolean {
     !plan.officialJsonFetch && !plan.moka && !plan.hotjob && !plan.hotjobLegacy && !plan.profileBoundSource;
 }
 
-/** The exact list country/location establishes mainland scope. A known mainland
- * title-location disagreement preserves the job with only the pending marker;
- * it does not select either city. Foreign/unknown/opaque evidence still fails. */
+/** The list country/location establishes mainland scope. Unrecognized or conflicting
+ * domestic title locations stay pending; explicit foreign locations still fail. */
 export function biogenListCities(raw: Record<string, unknown>): string[] | undefined {
   if (typeof raw.locationsText !== "string" || typeof raw.title !== "string" || !raw.title.trim() ||
     typeof raw.externalPath !== "string" || !/^[^,]+, China$/u.test(raw.locationsText) ||
@@ -47,11 +46,12 @@ export function biogenListCities(raw: Record<string, unknown>): string[] | undef
   const path = /^\/job\/([^/]+)-China\/[^/?#\s]+_(REQ[0-9]+)-[1-9][0-9]*$/u.exec(raw.externalPath);
   if (!path || path[1] !== cityLabel.replaceAll(" ", "-") || !same(raw.bulletFields, [path[2]])) return undefined;
   const city = reviewedMainlandCityLabel(cityLabel, "China");
-  const locationClause = /(?:\blocations?|工作(?:地点|城市|地址)|地点)\s*[:：]\s*([^()（）;；\n]+)/giu;
+  // Include bracketed alternatives, but stop after a closed location unless a list separator follows.
+  const locationClause = /(?:\blocations?|工作(?:地点|城市|地址)|地点)\s*[:：]\s*((?:[(（]\s*)*[^()（）;；\n]+(?:[)）]\s*)*(?:[/,，、|]\s*(?:[(（]\s*)*[^()（）;；\n]+(?:[)）]\s*)*)*)/giu;
   const clauses = [...raw.title.matchAll(locationClause)];
   if (clauses.some(match => explicitlyForeignOrNonMainlandLocation(match[1]!))) return undefined;
   const residual = raw.title.replace(locationClause, "");
-  return !city || clauses.some(match => match[1]!.trim() !== cityLabel) || /\blocations?\b|工作地点|地点/iu.test(residual)
+  return !city || clauses.some(match => match[1]!.replace(/[()（）]/gu, "").trim() !== cityLabel) || /\blocations?\b|工作地点|地点/iu.test(residual)
     ? [CITY_PENDING] : [city];
 }
 
