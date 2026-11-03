@@ -76,9 +76,9 @@ export function rocheNativeDetail(raw: Record<string, unknown>, artifact: Source
     ...(officialPublishedAt ? {officialPublishedAt} : {}) };
 }
 
-// Only the user-approved listed identity may retain old data on its exact official denial.
+// An exact listed identity with an official denial retains its previous data.
 export function rocheDeniedDetail(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined, startedAt: string): boolean {
-  if (raw.reqId !== "202610-125686" || !artifact || !rocheDetailBound(raw,artifact,startedAt,403)) return false;
+  if (!artifact || !rocheDetailBound(raw,artifact,startedAt,403)) return false;
   try { const body=typeof artifact.body==="string"?artifact.body:Buffer.from(artifact.body).toString("utf8");
     if(!hasUniqueJsonObjectKeys(body))return false;
     const denied=record(JSON.parse(body));
@@ -91,6 +91,16 @@ export function rocheDeniedLoss(raw: Record<string, unknown>, pageSequence: numb
 }
 /** Used only after strict replay has bound the loss to the exact fresh list/detail. */
 export function rocheQuarantinedSourceJobIds(evidence: PersistentSourceFetchEvidence): Set<string> {
-  return new Set(evidence.fetchLosses.some(loss=>loss.details.code==="ROCHE_DETAIL_DENIED")
-    ?[persistentOfficialJsonJobId("ROCHGLOBAL202610125686EXTERNALZHCN")]:[]);
+  const ids = new Set<string>();
+  for (const loss of evidence.fetchLosses.filter(loss => loss.details.code === "ROCHE_DETAIL_DENIED")) {
+    const page = evidence.pages[loss.details.pageSequence!];
+    const artifact = page && evidence.artifacts.find(a => a.logicalKey === page.artifactLogicalKey);
+    const body = artifact && (typeof artifact.body === "string" ? artifact.body : Buffer.from(artifact.body).toString("utf8"));
+    const rows = body && record(record(record(JSON.parse(body))?.refineSearch)?.data)?.jobs;
+    const raw = Array.isArray(rows) ? record(rows[loss.details.recordIndex!]) : undefined;
+    if (!raw || !rocheNativeDetailUrl(raw) || officialJsonRawLocator(raw,loss.details.recordIndex!) !== loss.rawLocator)
+      throw Error("ROCHE_DENIED_IDENTITY_UNBOUND");
+    ids.add(persistentOfficialJsonJobId(raw.jobSeqNo as string));
+  }
+  return ids;
 }
