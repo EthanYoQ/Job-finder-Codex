@@ -10,7 +10,7 @@ import { evaluatePaginationEvidence } from "./paginationEvidence";
 import { retryableHttpTransportFailure, retryableTransportFailureFromError, type SourceTransportFailure } from "./sourceFetchFailure";
 
 const ORIGIN = "https://www.novartis.com.cn", PATH = "/careers/career-search";
-export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"2" };
+export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"3" };
 export const NOVARTIS_PARTITION_PAGINATION = { allowCompleteTraversalOfEmptyFirstPage:true } as const;
 const FAIL = "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE", AUDIT = "novartis-partitions-audit";
 const FIELDS = ["FN","BS","CM","CA","DD","FA","HR","IT","NN","LI","MA","MM","OT","PR","QA","RD","SA","TO","EE","ZZ"].map(s=>`FCT_${s}`);
@@ -42,7 +42,7 @@ function total(html:string):number {
 function partitionUrl(field:string,page=0):string {
   const u=new URL(NOVARTIS_DEFAULT_ENTRY);u.searchParams.delete("country[]");u.searchParams.set("country[0]","LOC_CN");
   u.searchParams.set("functional_area[0]",field);u.searchParams.set("sort","asc");
-  u.searchParams.set("order",field==="FCT_SA"?"发布日期":"职位名称");if(page)u.searchParams.set("page",String(page));return u.href;
+  u.searchParams.set("order","职位名称");if(page)u.searchParams.set("page",String(page));return u.href;
 }
 // Query order and [] versus [0] are equivalent native Drupal form encodings.
 function sameUrl(actual:string,expected:string):boolean {
