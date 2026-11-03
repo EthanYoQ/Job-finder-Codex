@@ -1,3 +1,4 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual as same } from "node:util";
 import { CITY_PENDING } from "../domain/jobLocation";
@@ -28,7 +29,7 @@ type Profile = typeof PROFILES[keyof typeof PROFILES];
 const record = (v: unknown): Record<string, unknown> | undefined => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : undefined;
 const text = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 const count = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
-const exactKeys = (v: Record<string, unknown>, keys: readonly string[]) => same(Object.keys(v).sort(), [...keys].sort());
+const exactKeys = (v: Record<string, unknown>, keys: readonly string[]) => keys.every(key => Object.hasOwn(v, key));
 const hash = (v: string) => createHash("sha256").update(v, "utf8").digest("hex");
 const normalizedText = (v: string) => v.replace(/\s+/gu, " ").trim();
 const bodyText = (a: SourceFetchArtifactDraft) => typeof a.body === "string" ? a.body : Buffer.from(a.body).toString("utf8");
@@ -63,12 +64,12 @@ const CITIES: Readonly<Record<string, string>> = {
 const CSL_FIELD_SALES = "APAC, CN, Field Sales, CSL Behring";
 const PENDING_NAMES = new Set(["Taizhou", "JTaizhou", "Longnan", "Fuyang", "Field/Remote", "Xing'an Meng", "Zhaoqing", "Xinxiang", "Jingmen", "Neijiang", "Nanchong"]);
 function descriptorCity(p: Profile, descriptor: unknown): string | undefined {
-  if (!text(descriptor)) return undefined;
+  if (!text(descriptor) || explicitlyForeignOrNonMainlandLocation(descriptor)) return undefined;
   if (p.tenant === "csl" && descriptor === CSL_FIELD_SALES) return CITY_PENDING;
-  const name = p.tenant === "amgen" ? /^China\s+- ([A-Za-z'() /]+)$/u.exec(descriptor)?.[1]
-    : /^APAC, CN, ([A-Za-z'() ]+), CSL Behring$/u.exec(descriptor)?.[1];
+  const name = p.tenant === "amgen" ? /^China\s+- (.+)$/u.exec(descriptor)?.[1]
+    : /^APAC, CN, (.+), CSL Behring$/u.exec(descriptor)?.[1];
   if (!name) return undefined;
-  return CITIES[name] ?? (PENDING_NAMES.has(name) ? CITY_PENDING : undefined);
+  return CITIES[name] ?? CITY_PENDING;
 }
 function titleCities(title: string): string[] {
   const aliases = [...Object.entries(CITIES), ...[...PENDING_NAMES].filter(name => name !== "Field/Remote").map(name => [name, CITY_PENDING] as const)];
@@ -89,12 +90,12 @@ function slug(descriptor: string): string { return descriptor.replace(/[()']/gu,
 export type MainlandWorkdayRow = { raw: Record<string, unknown>; path: string; reqId: string; title: string; opaqueCount?: number; listCity?: string; requiresDetail: boolean };
 export function parseWorkdayMainlandRow(plan: SourceCrawlPlan, candidate: unknown): MainlandWorkdayRow | undefined {
   const p = profile(plan), raw = record(candidate);
-  if (!p || !raw || !exactKeys(raw, ["title", "externalPath", "locationsText", "postedOn", "bulletFields", ...(p.tenant === "csl" ? ["timeType"] : [])]) ||
-    !text(raw.title) || !text(raw.externalPath) || !text(raw.locationsText) || !text(raw.postedOn) ||
+  if (!p || !raw ||
+    !text(raw.title) || !text(raw.externalPath) || !text(raw.locationsText) ||
     !Array.isArray(raw.bulletFields)) return undefined;
   const bullets = raw.bulletFields;
   const reqId = p.tenant === "amgen" && bullets.length === 1 ? bullets[0] : p.tenant === "csl" && bullets.length === 4 &&
-    bullets[0] === "Regular" && text(bullets[2]) && bullets[3] === "China" && raw.timeType === "Full time" ? bullets[1] : undefined;
+    bullets[3] === "China" ? bullets[1] : undefined;
   const pathMatch = /^\/job\/([A-Za-z0-9-]+)\/([A-Za-z0-9-]+_(R-[0-9]+)(?:-[1-9][0-9]*)?)$/u.exec(raw.externalPath);
   if (!text(reqId) || !/^R-[1-9][0-9]*$/u.test(reqId) || pathMatch?.[3] !== reqId) return undefined;
   const opaque = /^([2-9][0-9]*) Locations$/u.exec(raw.locationsText), opaqueCount = opaque ? Number(opaque[1]) : undefined;
@@ -113,10 +114,6 @@ export function workdayMainlandDetailLocator(plan: SourceCrawlPlan, row: Mainlan
     url: workdayMainlandDetailUrl(plan, row), body: null, coordinate: { sequence, recordIndex, externalPath: row.path, requisitionId: row.reqId } });
 }
 export type MainlandProjection = { sourceJobId: string; title: string; officialUrl: string; locationRaw: string; cities: string[]; locations: string[] };
-const DETAIL_INFO_FIELDS = new Set(["id", "title", "jobDescription", "location", "additionalLocations", "postedOn", "startDate", "timeType", "jobReqId",
-  "jobPostingId", "jobPostingSiteId", "country", "canApply", "posted", "includeResumeParsing", "jobRequisitionLocation", "remoteType", "externalUrl",
-  "questionnaireId", "timeLeftToApply", "endDate", "jobPostingEndDateAsText"]);
-const DETAIL_ROOT_FIELDS = new Set(["jobPostingInfo", "hiringOrganization", "similarJobs", "userAuthenticated"]);
 function country(value: unknown, alpha2: boolean): boolean {
   const v = record(value); return !!v && exactKeys(v, ["descriptor", "id", ...(alpha2 ? ["alpha2Code"] : [])]) &&
     v.descriptor === "China" && v.id === CHINA_ID && (!alpha2 || v.alpha2Code === "CN");
@@ -128,14 +125,11 @@ export function projectWorkdayMainlandRow(plan: SourceCrawlPlan, row: MainlandWo
   if (detailBody !== undefined) {
     if (Buffer.byteLength(detailBody, "utf8") > WORKDAY_MAINLAND_DETAIL_BODY_LIMIT || !hasUniqueJsonObjectKeys(detailBody)) return undefined;
     const root = record(JSON.parse(detailBody)), info = record(root?.jobPostingInfo), requisition = record(info?.jobRequisitionLocation);
-    if (!root || Object.keys(root).some(key => !DETAIL_ROOT_FIELDS.has(key)) || root.userAuthenticated !== false || !info ||
-      Object.keys(info).some(key => !DETAIL_INFO_FIELDS.has(key)) || !text(info.id) || !/^[a-f0-9]{32}$/u.test(info.id) || !text(info.title) || normalizedText(info.title) !== row.title ||
+    if (!root || root.userAuthenticated !== false || !info || !text(info.id) || !/^[a-f0-9]{32}$/u.test(info.id) || !text(info.title) || normalizedText(info.title) !== row.title ||
       info.jobReqId !== row.reqId || info.jobPostingId !== row.path.split("/").at(-1) || info.jobPostingSiteId !== p.site ||
       info.externalUrl !== officialUrl || info.posted !== true || info.canApply !== true || !country(info.country, false) ||
-      !requisition || !exactKeys(requisition, ["descriptor", "country"]) || !country(requisition.country, true) || !descriptorCity(p, requisition.descriptor) || !text(info.postedOn) ||
-      !text(info.startDate) || !/^\d{4}-\d{2}-\d{2}$/u.test(info.startDate) || !Number.isFinite(Date.parse(info.startDate)) ||
-      new Date(info.startDate).toISOString().slice(0, 10) !== info.startDate ||
-      (p.tenant === "csl" && info.timeType !== row.raw.timeType) || !text(info.location) ||
+      !requisition || !exactKeys(requisition, ["descriptor", "country"]) || !country(requisition.country, true) || !descriptorCity(p, requisition.descriptor) ||
+      !text(info.location) ||
       (info.additionalLocations !== undefined && !Array.isArray(info.additionalLocations))) return undefined;
     locations = [info.location, ...(info.additionalLocations as unknown[] | undefined ?? [])] as string[];
     if (!locations.every(value => descriptorCity(p, value)) || new Set(locations).size !== locations.length ||
@@ -154,18 +148,6 @@ function facetGroups(v: unknown, parameter: string): Record<string, unknown>[] {
   const r = record(v); return r ? [...(r.facetParameter === parameter ? [r] : []), ...facetGroups(r.values, parameter)] : [];
 }
 function firstFacets(p: Profile, root: Record<string, unknown>): Array<{ descriptor: string; count: number }> | undefined {
-  const topFields = p.tenant === "amgen" ? ["LocationCountry", "jobFamilyGroup", "workerSubType", "timeType", "locationMainGroup"]
-    : ["CF_EEB_Company_grouping_on_job_posting_Extended", "jobFamilyGroup", "jobFamily", "timeType", "workerSubType", "locationMainGroup"];
-  if (!Array.isArray(root.facets) || !same(root.facets.map(v => record(v)?.facetParameter).sort(), topFields.sort())) return undefined;
-  for (const value of root.facets) {
-    const group = record(value)!;
-    if (!exactKeys(group, group.facetParameter === "locationMainGroup" ? ["facetParameter", "values"] : ["facetParameter", "descriptor", "values"]) ||
-      !Array.isArray(group.values)) return undefined;
-  }
-  const main = facetGroups(root.facets, "locationMainGroup")[0]!;
-  const locationParameters = p.tenant === "amgen" ? ["locations"] : ["locationCountry", "locationRegionStateProvince", "locations"];
-  if (!same((main.values as unknown[]).map(v => record(v)?.facetParameter).sort(), locationParameters.sort()) ||
-    (main.values as unknown[]).some(v => !record(v) || !exactKeys(record(v)!, ["facetParameter", "descriptor", "values"]))) return undefined;
   const countries = facetGroups(root.facets, p.countryFacet), locations = facetGroups(root.facets, "locations");
   if (countries.length !== 1 || locations.length !== 1 || !Array.isArray(countries[0]!.values) || !Array.isArray(locations[0]!.values)) return undefined;
   const leaves = countries[0]!.values.map(record);

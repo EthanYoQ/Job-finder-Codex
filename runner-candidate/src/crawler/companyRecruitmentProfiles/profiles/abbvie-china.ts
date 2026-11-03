@@ -16,6 +16,7 @@ export const profile_abbvie_china = {
                   totalPagesAttribute: "data-total-pages",
                   totalPagesPattern: "(\\d+)",
                   pageSearchParam: "page",
+                  // Retained in the historical plan binding; the owned fetcher follows the official total.
                   maxPages: 10,
                   expectedJobCountSelector: ".attrax-pagination__total-results",
                   expectedJobCountPattern: "(\\d+)"

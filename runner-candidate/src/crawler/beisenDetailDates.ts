@@ -47,7 +47,7 @@ function rows(plan:SourceCrawlPlan,evidence:PersistentSourceFetchEvidence):Array
     total=count;const expectedPages=Math.max(1,Math.ceil(count/size)),next=index+1<expectedPages;
     if(evidence.pages.length!==expectedPages||expectedPages>(config.maxPages??50)||body.Data.length!==Math.min(size,count-index*size)||page.sequence!==index||page.requestedPage!==index||page.requestedPageSize!==size||page.returnedPage!==(body.PageIndex??null)||body.PageIndex!==undefined&&body.PageIndex!==index||page.declaredTotal!==count||page.nextPageSignalBefore!==(index===0?null:`page:${index}`)||page.nextPageSignalAfter!==(next?`page:${index+1}`:null)||page.termination!==(count===0?'EMPTY_PAGE':next?'CONTINUE':'NEXT_ABSENT')||page.responseFingerprintSha256!==createHash('sha256').update(artifact.body).digest('hex'))throw Error('BEISEN_DETAIL_DATE_PAGE_INVALID');
     const values=body.Data.map(raw=>{
-      if(!raw||typeof raw!=='object'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(raw.Id)||typeof raw.JobAdName!=='string'||!Array.isArray(raw.LocNames)||!raw.LocNames.length||!raw.LocNames.every((v:unknown)=>typeof v==='string'&&v.trim())||raw.Category!=='社会招聘'||raw.CategoryId!=='1'||raw.Kind!=='全职')throw Error('BEISEN_DETAIL_DATE_LIST_ROW_INVALID');
+      if(!raw||typeof raw!=='object'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(raw.Id)||typeof raw.JobAdName!=='string'||!Array.isArray(raw.LocNames)||!raw.LocNames.length||!raw.LocNames.every((v:unknown)=>typeof v==='string'&&v.trim())||raw.Category!=='社会招聘'||raw.CategoryId!=='1')throw Error('BEISEN_DETAIL_DATE_LIST_ROW_INVALID');
       const country=raw.Country??raw.CountryName;if(country!==undefined&&typeof country!=='string'||beisenDomesticRecordScopeReview(country,raw.LocNames,raw.LocNames.join(' / '),config.geographyScope,config.mixedLocationPolicy).scope!=='CHINA')throw Error('BEISEN_DETAIL_DATE_LIST_SCOPE_INVALID');
       return raw;
     });
@@ -72,7 +72,7 @@ function verifyDetail(plan:SourceCrawlPlan,row:ReturnType<typeof rows>[number],a
   const expected=sanitizeEvidenceHttpUrl(url(plan,row.Id)),started=Date.parse(capturedAt),observed=Date.parse(artifact.capturedAt);
   if(artifact.logicalKey!==key(row.Id)||artifact.kind!=='ATS_API_RESPONSE'||artifact.requestedUrl!==expected||artifact.finalUrl!==expected||artifact.httpStatus!==200||artifact.bodyRepresentation!=='EXACT'||artifact.extractorLocator!==POLICY||!Number.isFinite(started)||!Number.isFinite(observed)||observed<started||observed>started+30*60_000)throw Error('BEISEN_DETAIL_DATE_ARTIFACT_INVALID');
   const root=json(artifact.body),raw=root.Data as Record<string,unknown>|undefined;
-  if(root.Code!==200||!raw||raw.Id!==row.Id||raw.JobAdName!==row.JobAdName||raw.CategoryId!=='1'||raw.Category!=='社会招聘'||raw.Kind!=='全职'||raw.Status!==1||!isDeepStrictEqual(raw.LocNames,row.LocNames)||!(typeof raw.Duty==='string'&&raw.Duty.trim()||typeof raw.Require==='string'&&raw.Require.trim()))throw Error('BEISEN_DETAIL_DATE_IDENTITY_INVALID');
+  if(root.Code!==200||!raw||raw.Id!==row.Id||raw.JobAdName!==row.JobAdName||raw.CategoryId!=='1'||raw.Category!=='社会招聘'||raw.Status!==1||!isDeepStrictEqual(raw.LocNames,row.LocNames)||!(typeof raw.Duty==='string'&&raw.Duty.trim()||typeof raw.Require==='string'&&raw.Require.trim()))throw Error('BEISEN_DETAIL_DATE_IDENTITY_INVALID');
   return beisenNativePublishedAt(raw);
 }
 async function fetchDetail(request:OfficialJsonHttpRequest,sourceSignal:AbortSignal,onBlocked:()=>void):Promise<OfficialJsonHttpResponse>{

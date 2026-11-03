@@ -124,7 +124,7 @@ function normalizeTableRow(input: HtmlTableAdapterInput, $: ReturnType<typeof lo
     officialUrl,
     listUrl: input.source.officialEntryUrl,
     locationRaw,
-    cities: abbvieReviewed ? [reviewedAbbvieCity(locationRaw) ?? CITY_PENDING] : citiesFromLocation(locationRaw),
+    cities: abbvieReviewed ? [reviewedAbbvieCity(locationRaw, $(row).find(".attrax-vacancy-tile__option-location .attrax-vacancy-tile__item-value").text()) ?? CITY_PENDING] : citiesFromLocation(locationRaw),
     category,
     isBaseline: input.isBaseline ?? true,
     evidence: {

@@ -1,3 +1,4 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { replayKelunMainlandScope } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,validateSanofiNativeQuality} from "./sanofiNativeQuality";
 import type {NormalizedJobRecord} from "./normalizedJob";
@@ -455,8 +456,11 @@ function strictNovartisRows(
     const url = rawUrl ? strictSameOriginUrl(rawUrl, plan.source.officialEntryUrl) : undefined;
     const title = normalizedText(titleLink.text());
     const location = normalizedText($(row).find("td.views-field-field-job-work-location").text());
-    if (titleLink.length !== 1 || !url || !title || !location ||
-      !strictNovartisMainlandChinaLocation(location, plan.table.strictLocationScope) ||
+    const country=$(row).find("td.views-field-field-job-country").clone();
+    country.find(".alternative-locations").remove();
+    const explicitChina=country.length===1 && normalizedText(country.text())==="China";
+    if (titleLink.length !== 1 || !url || !title || !location || NOVARTIS_NON_MAINLAND_LOCATION.test(location) || explicitlyForeignOrNonMainlandLocation(location) ||
+      !explicitChina && !strictNovartisMainlandChinaLocation(location, plan.table.strictLocationScope) ||
       !url.pathname.startsWith("/careers/career-search/job/details/") || url.search || url.hash) {
       htmlProofTrace(plan, "NOVARTIS_INVALID_ROW");
       return undefined;

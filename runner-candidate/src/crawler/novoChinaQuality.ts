@@ -10,7 +10,6 @@ import type { SourceCrawlPlan } from "./sourcePlan";
 import type { PersistentSourceFetchEvidence } from "./sourceFetchEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { reviewedMainlandCity } from "./reviewedMainlandCity";
-import { PFIZER_OFFICIAL_LOCALITIES } from "./pfizerOfficialLocalities";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 
@@ -20,7 +19,7 @@ export const NOVO_CHINA_ENDPOINT = "https://www.novonordisk.com.cn/bin/nncorp/ca
 const ENTRY = "https://www.novonordisk.com.cn/careers/find-a-job/career-search-results.html?searchText=&countries=China&categories=";
 const SOURCE_ID = "source-novo-nordisk-china-social", COMPANY_ID = "company-novo-nordisk-china";
 // Retain source-specific reviewed pairs and reuse the shared reviewed geography.
-// Unknown country/province is rejected; unresolved city labels within a confirmed mainland province stay pending.
+// The caller verifies China country; unresolved city/province labels stay pending.
 const LOCATIONS = [
   { city: "Beijing", state: "Beijing", normalized: "北京" },
   { city: "Shanghai", state: "Shanghai", normalized: "上海" },
@@ -29,14 +28,11 @@ const LOCATIONS = [
   { city: "Songyuan", state: "Jilin", normalized: "松原" },
   { city: "Changchun", state: "Jilin", normalized: "长春" }
 ] as const;
-const MAINLAND_STATES = new Set([...LOCATIONS.map(item => item.state as string),
-  ...Object.keys(PFIZER_OFFICIAL_LOCALITIES).filter(key => key.startsWith("China - ")).map(key => key.split(" - ")[1]!)]);
 function novoChinaCity(city: string, state: string): string | undefined {
   const known = LOCATIONS.find(item => item.city === city && item.state === state)?.normalized ?? reviewedMainlandCity(city, state);
-  // Preserve official text; a confirmed mainland province permits a pending city, not a guessed correction.
-  return known ?? (MAINLAND_STATES.has(state) && !explicitlyForeignOrNonMainlandLocation(city) ? CITY_PENDING : undefined);
+  // Preserve official text without making the city vocabulary an admission rule.
+  return known ?? (!explicitlyForeignOrNonMainlandLocation(state) && !explicitlyForeignOrNonMainlandLocation(city) ? CITY_PENDING : undefined);
 }
-const RAW_FIELDS = ["jobId", "jobTitle", "jobLocale", "jobLocationLabel", "jobCountry", "jobCategory", "jobSubCategory", "jobState", "jobCity"];
 const record = (value: unknown): Record<string, unknown> | undefined => value !== null && typeof value === "object" && !Array.isArray(value)
   ? value as Record<string, unknown> : undefined;
 const exactKeys = (value: Record<string, unknown>, keys: readonly string[]) => same(Object.keys(value).sort(), [...keys].sort());
@@ -44,7 +40,7 @@ const count = (value: unknown): value is number => typeof value === "number" && 
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 function pair(value: unknown): { label: string; value: string } | undefined {
   const raw = record(value);
-  return raw && exactKeys(raw, ["label", "value"]) && text(raw.label) && text(raw.value)
+  return raw && text(raw.label) && text(raw.value)
     ? { label: raw.label, value: raw.value } : undefined;
 }
 function pairs(value: unknown): Array<{ label: string; value: string }> | undefined {
@@ -83,9 +79,8 @@ export function parseNovoChinaResponse(body: string): { rawJobs: Record<string, 
   let parsed: unknown;
   try { parsed = JSON.parse(body); } catch { return undefined; }
   const root = record(parsed), data = record(root?.data);
-  if (!root || !exactKeys(root, ["data", "status", "message"]) || root.status !== 200 || root.message !== "success" ||
-    !data || !exactKeys(data, ["executionTimeMs", "totalMatches", "keywordParam", "localeParam", "countriesParam", "categoriesParam", "subCategories", "states", "cities", "jobs"]) ||
-    !count(data.executionTimeMs) || !count(data.totalMatches) || data.keywordParam !== "" || data.localeParam !== "zh-cn" ||
+  if (!root || root.status !== 200 || root.message !== "success" ||
+    !data || !count(data.executionTimeMs) || !count(data.totalMatches) || data.keywordParam !== "" || data.localeParam !== "zh-cn" ||
     !same(data.countriesParam, ["China"]) || !same(data.categoriesParam, []) || !Array.isArray(data.jobs) || data.jobs.length !== data.totalMatches) return undefined;
   const states = pairs(data.states), cities = pairs(data.cities), subcategories = pairs(data.subCategories);
   if (!states || !cities || !subcategories ||
@@ -94,7 +89,7 @@ export function parseNovoChinaResponse(body: string): { rawJobs: Record<string, 
   const rawJobs: Record<string, unknown>[] = [], jobs: Projection[] = [], ids = new Set<string>();
   for (const value of data.jobs) {
     const raw = record(value);
-    if (!raw || !exactKeys(raw, RAW_FIELDS) || typeof raw.jobId !== "string" || !/^[1-9][0-9]{5}\.en_GB$/u.test(raw.jobId) ||
+    if (!raw || typeof raw.jobId !== "string" || !/^[1-9][0-9]{5}\.en_GB$/u.test(raw.jobId) ||
       raw.jobLocale !== "en_GB" || !text(raw.jobTitle) || ids.has(raw.jobId) || !same(pair(raw.jobCountry), { label: "China", value: "China" })) return undefined;
     const state = pair(raw.jobState), city = pair(raw.jobCity), category = pair(raw.jobCategory), subcategory = pair(raw.jobSubCategory);
     const normalizedCity = state && city ? novoChinaCity(city.value, state.value) : undefined;
@@ -202,7 +197,7 @@ export function novoApplicationStatus(body: string, finalUrl: string, city: stri
   // Official applications can truncate a locality. Confirm the same mainland province,
   // preserve the original list label, and avoid claiming a precise city in that case.
   const cityUncertain = location[0] !== city;
-  const sameMainlandProvince = state !== undefined && MAINLAND_STATES.has(state) &&
+  const sameMainlandProvince = state !== undefined && !explicitlyForeignOrNonMainlandLocation(state) &&
     location.length === 3 && location[1] === state && Boolean(location[0]) && !explicitlyForeignOrNonMainlandLocation(location[0]!);
   if (!title || cityUncertain && !sameMainlandProvince || location.at(-1) !== "CN" || links.length === 0 ||
     !links.every(node => {

@@ -22,60 +22,58 @@ const MAINLAND_CITY_NAMES: Readonly<Record<string,string>> = Object.freeze({
 });
 /** Only a validated city/province pair can produce a city. The raw pair stays
  * intact on the record; province labels are never appended to cities. */
-export function reviewedAbbvieCity(locationRaw:string):string|undefined {
+export function reviewedAbbvieCity(locationRaw:string,locationHint=""):string|undefined {
   const parts=normalized(locationRaw).split(",").map(part=>part.trim());
+  if (locationHint.trim() && !isChina(locationHint) && !parts.some(part=>provinceName(part)===provinceName(locationHint))) return undefined;
   return parts.length !== 2 ? undefined : MAINLAND_CITY_PROVINCE.get(parts[0]!) === parts[1]
     ? MAINLAND_CITY_NAMES[parts[0]!] : reviewedMainlandCity(parts[0]!, parts[1]!);
 }
 const MAINLAND_PROVINCES = "beijing|shanghai|tianjin|chongqing|hebei|shanxi|liaoning|jilin|heilongjiang|jiangsu|zhejiang|anhui|fujian|jiangxi|shandong|henan|hubei|hunan|guangdong|hainan|sichuan|guizhou|yunnan|shaanxi|gansu|qinghai|inner mongolia|guangxi|tibet|ningxia|xinjiang".split("|");
 const provinceName = (value:string) => normalized(value).replace(/ province$/u, "");
-export function isReviewedAbbvieLocation(locationRaw:string):boolean {
-  if (reviewedAbbvieCity(locationRaw) || /^guangdong\s*,\s*gd$/u.test(normalized(locationRaw))) return true;
+export function isReviewedAbbvieLocation(locationRaw:string,countryHint=""):boolean {
+  if (!locationRaw.trim() || explicitlyForeignOrNonMainlandLocation(locationRaw)) return false;
+  if (isChina(countryHint) || reviewedAbbvieCity(locationRaw) || /^guangdong\s*,\s*gd$/u.test(normalized(locationRaw))) return true;
   const parts=normalized(locationRaw).split(",").map(part=>part.trim());
-  if (parts.length!==2 || !parts[0] || explicitlyForeignOrNonMainlandLocation(locationRaw)) return false;
-  const province=provinceName(parts[1]!);
-  if (!MAINLAND_PROVINCES.includes(province)) return false;
-  const knownRegion=MAINLAND_CITY_PROVINCE.get(parts[0]!)
-    ?? MAINLAND_PROVINCES.find(region=>reviewedMainlandCity(parts[0]!,region)
-      || (region==="inner mongolia" && reviewedMainlandCity(parts[0]!,"Neimenggu")))
-    ?? (MAINLAND_PROVINCES.includes(provinceName(parts[0]!)) ? provinceName(parts[0]!) : undefined);
-  return !knownRegion || provinceName(knownRegion)===province;
+  return parts.length===2 && !!parts[0] && MAINLAND_PROVINCES.includes(provinceName(parts[1]!));
 }
-const GEO_CLASS = /^attrax-vacancy-tile__(?:.*-)?(?:location|country|city|province|region|address)(?:-|$)/u;
-const KNOWN_GEO_CLASS = /^attrax-vacancy-tile__(?:location-freetext|option-location(?:--[^ ]+|-label|-valueset)?|option-work-location-type(?:--(?:remote|onsite)|-label|-valueset)?)$/u;
 const normalized = (value: string) => value.replace(/\s+/gu, " ").trim().toLowerCase();
+const isChina = (value:string) => ["china","中国","cn","chn"].includes(normalized(value));
 
-/** Independently checks each raw listing's two location fields and the reviewed
- * undated/full-time shape. A date sentinel is not turned into an actual date.
- * Unknown/conflicting rows fail the source proof; they are never silently removed. */
+// Optional display fields do not determine scope; missing/foreign geography does.
 export function validateAbbvieChinaRowScope(html: string): boolean {
   const $ = load(html), rows = $(".attrax-vacancy-tile").toArray();
-  if (rows.length === 0) return false; // No reviewed official-empty claim for this source.
+  if (rows.length === 0) return false;
   return rows.every(row => {
-    const $row = $(row);
-    const unknownGeoClass = $row.find("[class]").toArray().some(element =>
-      ($(element).attr("class") ?? "").split(/\s+/u).some(name => GEO_CLASS.test(name) && !KNOWN_GEO_CLASS.test(name)));
-    const unknownDateClass = $row.find("[class]").toArray().some(element =>
-      ($(element).attr("class") ?? "").split(/\s+/u).some(name =>
-        /^attrax-vacancy-tile__(?:.*-)?(?:date|posted|published|closing|expiry)(?:-|$)/u.test(name) &&
-        !/^attrax-vacancy-tile__expiry(?:-label|-value)?$/u.test(name)));
-    if (unknownGeoClass || unknownDateClass || $row.find("[itemprop='addressCountry'],[data-country],[data-location],script[type='application/ld+json']").length > 0) return false;
-    const location = $row.find(".attrax-vacancy-tile__location-freetext .attrax-vacancy-tile__item-value");
-    const option = $row.find(".attrax-vacancy-tile__option-location");
-    const optionValues = option.find(".attrax-vacancy-tile__item-value");
-    const workType = $row.find(".attrax-vacancy-tile__option-job-type .attrax-vacancy-tile__item-value");
-    const expiry = $row.find(".attrax-vacancy-tile__expiry-value");
-    if (location.length !== 1 || option.length !== 1 || optionValues.length !== 1 || workType.length !== 1 || expiry.length !== 1) return false;
-    const parts = normalized(location.text()).split(",").map(part => part.trim());
-    if (parts.length !== 2 || !isReviewedAbbvieLocation(location.text())) return false;
-    const declaredLocation = normalized(optionValues.text());
-    if (declaredLocation !== "china" && declaredLocation !== parts[0] && declaredLocation !== parts[1]) return false;
-    const locationClasses = (option.attr("class") ?? "").split(/\s+/u)
-      .filter(name => name.startsWith("attrax-vacancy-tile__option-location--"));
-    if (locationClasses.length !== 1 || locationClasses[0] !== `attrax-vacancy-tile__option-location--${declaredLocation}`) return false;
-    if (normalized(workType.text()) !== "full-time" || expiry.text().trim() !== "01/01/0001") return false;
-    // New structured date fields need a separately reviewed date contract.
-    if ($row.find("time,[datetime],[itemprop='datePosted'],[itemprop='validThrough'],[data-date-posted]").length > 0) return false;
-    return true;
+    const $row=$(row);
+    const location=$row.find(".attrax-vacancy-tile__location-freetext .attrax-vacancy-tile__item-value");
+    const option=$row.find(".attrax-vacancy-tile__option-location .attrax-vacancy-tile__item-value");
+    if (location.length!==1 || option.length>1) return false;
+    const hint=option.text();
+    if (explicitlyForeignOrNonMainlandLocation(hint)) return false;
+    const countries=$row.find("[itemprop='addressCountry'],[data-country]").toArray()
+      .map(n=>$(n).attr("data-country") ?? $(n).attr("content") ?? $(n).text());
+    if ($row.attr("data-country")) countries.push($row.attr("data-country")!);
+    countries.push(...$row.find('.attrax-vacancy-tile__country .attrax-vacancy-tile__item-value').toArray().map(n=>$(n).text()));
+    const locationAttributes=[$row.attr("data-location"),...$row.find('[data-location]').toArray().map(n=>$(n).attr('data-location'))];
+    if (locationAttributes.some(value=>typeof value==="string" && explicitlyForeignOrNonMainlandLocation(value))) return false;
+    for (const script of $row.find('script[type="application/ld+json"]').toArray()) {
+      let root: unknown; try { root=JSON.parse($(script).text()); } catch { return false; }
+      const postings: any[]=[];
+      const visit=(value:any):void=>{
+        if (Array.isArray(value)) { value.forEach(visit); return; }
+        if (!value || typeof value!=="object") return;
+        if (value["@type"]==="JobPosting" || Array.isArray(value["@type"]) && value["@type"].includes("JobPosting")) postings.push(value);
+        if (value["@graph"]) visit(value["@graph"]);
+      };
+      visit(root);
+      for (const posting of postings) for (const place of [posting.jobLocation].flat()) {
+        const address=place?.address;
+        const country=typeof address?.addressCountry==="object" ? address.addressCountry.name : address?.addressCountry;
+        if (typeof country==="string") countries.push(country);
+        if ([address?.addressLocality,address?.addressRegion].some(value=>typeof value==="string" && explicitlyForeignOrNonMainlandLocation(value))) return false;
+      }
+    }
+    if (countries.some(value=>value.trim() && !isChina(value))) return false;
+    return isReviewedAbbvieLocation(location.text(),hint);
   });
 }

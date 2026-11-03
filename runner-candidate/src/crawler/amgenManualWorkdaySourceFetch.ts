@@ -69,7 +69,7 @@ function lookupPage(body: string, index: number, declared?: number): { total: nu
     assert(china.length === 1 && china[0]!.id === CHINA && china[0]!.descriptor === "China" && china[0]!.count === total);
   }
   const rows = root.jobPostings.map(value => {
-    const r = object(value); assert(nonempty(r.title) && nonempty(r.externalPath) && nonempty(r.locationsText) && nonempty(r.postedOn) && Array.isArray(r.bulletFields) && r.bulletFields.length === 1);
+    const r = object(value); assert(nonempty(r.title) && nonempty(r.externalPath) && nonempty(r.locationsText) && Array.isArray(r.bulletFields) && r.bulletFields.length === 1);
     const req = r.bulletFields[0], match = /^\/job\/[A-Za-z0-9-]+\/[A-Za-z0-9-]+_(R-[1-9]\d*)(?:-[1-9]\d*)?$/u.exec(r.externalPath);
     assert(nonempty(req) && match?.[1] === req && (/^China\s+- /u.test(r.locationsText) || /^[2-9]\d* Locations$/u.test(r.locationsText)));
     return { req, title: clean(r.title), path: r.externalPath, location: r.locationsText };

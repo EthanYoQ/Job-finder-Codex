@@ -1,4 +1,5 @@
 import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { CITY_PENDING } from "../domain/jobLocation";
 
 /** Source-local positive mainland geography vocabulary. Prefecture names reuse the
  * reviewed CNSTAFF_MAINLAND_PREFECTURES vocabulary; region prefixes are mainland
@@ -83,6 +84,33 @@ const ADDITIONAL_LOCALITIES = new Map<string, number>([
   ["阆中", 511381], ["雷州", 440882], ["乐清", 330382], ["泰兴", 321283], ["长葛", 411082], ["枣阳", 420683]
 ]);
 const COUNTRIES = new Set(["中国", "中国大陆", "中华人民共和国", "China", "CN"]);
+
+/** An official country field admits a locality even when its display name is unmapped. */
+export function hasMainlandCountryLocation(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const location = value as Record<string, unknown>;
+  if (typeof location.country !== "string" || !COUNTRIES.has(location.country)) return false;
+  for (const field of ["cityName", "provinceName", "countryDescription"]) {
+    if (location[field] !== undefined && (typeof location[field] !== "string" || !location[field].trim() ||
+      explicitlyForeignOrNonMainlandLocation(location[field]))) return false;
+  }
+  for (const field of ["cityId", "provinceId"]) {
+    if (location[field] !== undefined && (!Number.isSafeInteger(location[field]) ||
+      ![...PROVINCES.values()].includes(String(location[field]).slice(0, 2)))) return false;
+  }
+  return true;
+}
+
+export function mokaDisplayCities(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const cities = value.flatMap(location => {
+    if (!location || typeof location !== "object") return [];
+    if (hasMainlandCountryLocation(location) && !isHengruiMainlandLocation(location)) return [CITY_PENDING];
+    const label=location.cityName ?? location.provinceName ?? location.country;
+    return typeof label === "string" && label.trim() ? [label.replace(/\s+/gu," ").trim()] : [];
+  });
+  return cities.includes(CITY_PENDING) ? [CITY_PENDING] : cities;
+}
 
 export function isHengruiMainlandLocation(value: unknown): boolean {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;

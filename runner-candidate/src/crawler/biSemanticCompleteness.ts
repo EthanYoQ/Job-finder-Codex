@@ -1,3 +1,7 @@
+import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { reviewedMainlandCityLabel } from "./reviewedMainlandCity";
+import { CITY_PENDING } from "../domain/jobLocation";
 import { createHash } from "node:crypto";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
@@ -9,17 +13,14 @@ const SOURCE = "source-boehringer-ingelheim-china-social";
 const COMPANY = "company-boehringer-ingelheim-china";
 const CHAIN = "https://www.boehringer-ingelheim.cn/careers/jobs";
 const API_LOCATOR = "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode";
-// Exact labels from the 2026-10-01, 2026-10-18 and 2026-10-29 captures, reviewed against the existing
-// mainland prefecture vocabulary. No prefixes, suffix stripping or runtime extension.
-const FULL_MAINLAND_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  "上海": "Shanghai", "信阳": "Xinyang", "北京": "Beijing", "南昌": "Nanchang",
-  "成都": "Chengdu", "杭州": "Hangzhou", "武汉": "Wuhan", "泰州": "Taizhou",
-  "秦皇岛": "Qinhuangdao", "银川": "Yinchuan", "长沙": "Changsha", "驻马店": "Zhumadian",
-  "六安": "Luan", "宿州": "Suzhou", "漯河": "Luohe",
-  "合肥": "Hefei", "乌鲁木齐": "Urumqi", "张掖": "Zhangye"
-});
 const ROW_FIELDS = "address coid coname ctmid degreefrom divid divname edegreefrom efuntype ejobareaname eworkareaname eworkyearname funtype issuedate jkeyword jobareaname jobid jobname jobnum joborder monthlysalary poscode providesalarname term workareaname workyearname".split(" ");
 const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
+
+export function biDisplayCities(raw: Record<string, unknown>): string[] {
+  const cities=mainlandDisplayCities([String(raw.jobareaname)]);
+  const english=reviewedMainlandCityLabel(String(raw.ejobareaname),"China");
+  return cities.length===1 && cities[0]===english ? cities : [CITY_PENDING];
+}
 
 export interface BiSemanticReplay {
   policyId: typeof BI_UI_RECONSTRUCTION_POLICY;
@@ -84,7 +85,7 @@ export function replayBiSemanticCompleteness(
     if (!same(evidence.declaredCompleteness, { kind: "OFFICIAL_TOTAL_COUNT", value: total,
       artifactLogicalKey: api.logicalKey, extractorLocator: api.extractorLocator, scope: "SOURCE" })) return undefined;
     const rawIds: string[] = [], validIds: string[] = [], excludedRecordIndexes: number[] = [];
-    const expected = new Map<string, { title: string; location: string; url: string }>();
+    const expected = new Map<string, { title: string; location: string; cities: string[]; url: string }>();
     const seen = new Set<string>();
     const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
     for (let index = 0; index < rows.length; index++) {
@@ -93,8 +94,9 @@ export function replayBiSemanticCompleteness(
           row.ctmid !== "3479" || !text(row.jobname) || !id(row.jobid) || !id(row.coid) || !text(row.coname) ||
           seen.has(row.jobid as string)) return undefined;
       const location = row.jobareaname as string;
-      const english = Object.hasOwn(FULL_MAINLAND_LABELS, location) ? FULL_MAINLAND_LABELS[location] : undefined;
-      if (!english || row.workareaname !== location || row.ejobareaname !== english || row.eworkareaname !== english) return undefined;
+      if (!hasExactFosunMainlandGeography({LocNames:[location]}) || row.workareaname !== location ||
+        typeof row.ejobareaname !== "string" || !row.ejobareaname.trim() || row.eworkareaname !== row.ejobareaname ||
+        explicitlyForeignOrNonMainlandLocation(row.ejobareaname)) return undefined;
       const jobId = row.jobid as string;
       seen.add(jobId); rawIds.push(`sha256:${hash(JSON.stringify(jobId))}`);
       if (ui.exclusions.some(rule => (row.jobname as string).includes(rule.code) && location.includes(rule.jobareaname))) {
@@ -106,7 +108,7 @@ export function replayBiSemanticCompleteness(
         const sourceId = `official-json:sha256:${hash(JSON.stringify(jobId))}`;
         validIds.push(`sha256:${hash(JSON.stringify(sourceId))}`);
         const url = new URL(BI_DETAIL_URL); url.searchParams.set("jobId", jobId);
-        expected.set(sourceId, { title: clean(row.jobname as string), location, url: url.toString() });
+        expected.set(sourceId, { title: clean(row.jobname as string), location, cities:biDisplayCities(row), url: url.toString() });
       }
     }
     if (!sameSet(rawIds, page.rawJobIds) || !sameSet(validIds, page.validJobIds) ||
@@ -120,7 +122,7 @@ export function replayBiSemanticCompleteness(
         companyId: COMPANY, sourceId: SOURCE, sourceKind: "SOCIAL", atsKind: "OFFICIAL_JSON",
         officialChineseCompanyName: plan.company.officialChineseName, officialTitle: target.title,
         officialUrl: target.url, listUrl: BI_ENTRY_URL, sourceJobId: job.sourceJobId,
-        locationRaw: target.location, cities: [target.location], category: "其他", isBaseline: job.isBaseline,
+        locationRaw: target.location, cities: target.cities, category: "其他", isBaseline: job.isBaseline,
         evidence: { officialEntryUrl: BI_ENTRY_URL, officialChainEvidenceUrl: CHAIN, capturedAt }
       }) || typeof job.isBaseline !== "boolean") return undefined;
     }

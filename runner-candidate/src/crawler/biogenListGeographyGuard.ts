@@ -1,3 +1,5 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { reviewedMainlandCityLabel } from "./reviewedMainlandCity";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -9,12 +11,6 @@ import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 export const BIOGEN_SOURCE_ID = "source-biogen-china-social";
 export const BIOGEN_LIST_GEOGRAPHY_POLICY = "BIOGEN_MAINLAND_CITY_PENDING_V1" as const;
 const CHINA_ID = "6cb77610a8a543aea2d6bc10457e35d4";
-const LOCATION_FACETS = [
-  { descriptor: "Shanghai, China", id: "c20707a4650c018390f4e48ed845efa6", city: "Shanghai", normalized: "上海" },
-  { descriptor: "Beijing, China", id: "1d1ae2cf252d013639674034b420cda4", city: "Beijing", normalized: "北京" }
-] as const;
-const MAINLAND_TITLE_CITIES = new Set(["Shanghai", "Beijing", "Wuhan", "Urumqi", "Urumqi\u200c", "Changsha"]);
-const RAW_FIELDS = new Set(["title", "externalPath", "locationsText", "postedOn", "remoteType", "bulletFields"]);
 const hash = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 const record = (value: unknown): Record<string, unknown> | undefined => value !== null && typeof value === "object" && !Array.isArray(value)
   ? value as Record<string, unknown> : undefined;
@@ -44,20 +40,20 @@ export function exactBiogenListGeographyPlan(plan: SourceCrawlPlan): boolean {
  * title-location disagreement preserves the job with only the pending marker;
  * it does not select either city. Foreign/unknown/opaque evidence still fails. */
 export function biogenListCities(raw: Record<string, unknown>): string[] | undefined {
-  const location = LOCATION_FACETS.find(value => raw.locationsText === value.descriptor);
-  if (!location || Object.keys(raw).some(key => !RAW_FIELDS.has(key)) || typeof raw.title !== "string" ||
-    !raw.title.trim() || typeof raw.externalPath !== "string") return undefined;
-  const path = /^\/job\/(Shanghai|Beijing)-China\/[^/?#\s]+_(REQ[0-9]+)-[1-9][0-9]*$/u.exec(raw.externalPath);
-  if (!path || path[1] !== location.city || !same(raw.bulletFields, [path[2]])) return undefined;
-  if (/\blocations?\b|工作地点|工作地|地点/iu.test(raw.title)) {
-    const clauses = [...raw.title.matchAll(/\(Location:\s*([^()]+)\)/gu)];
-    const titleCity = clauses[0]?.[1]?.trim();
-    if (clauses.length !== 1 || !titleCity || !MAINLAND_TITLE_CITIES.has(titleCity) ||
-      /\blocations?\b|工作地点|工作地|地点/iu.test(raw.title.replace(clauses[0]![0], ""))) return undefined;
-    if (titleCity !== location.city) return [CITY_PENDING];
-  }
-  return [location.normalized];
+  if (typeof raw.locationsText !== "string" || typeof raw.title !== "string" || !raw.title.trim() ||
+    typeof raw.externalPath !== "string" || !/^[^,]+, China$/u.test(raw.locationsText) ||
+    explicitlyForeignOrNonMainlandLocation(raw.locationsText)) return undefined;
+  const cityLabel = raw.locationsText.slice(0, -7);
+  const path = /^\/job\/([^/]+)-China\/[^/?#\s]+_(REQ[0-9]+)-[1-9][0-9]*$/u.exec(raw.externalPath);
+  if (!path || path[1] !== cityLabel.replaceAll(" ", "-") || !same(raw.bulletFields, [path[2]])) return undefined;
+  const city = reviewedMainlandCityLabel(cityLabel, "China");
+  const clauses = [...raw.title.matchAll(/\(Location:\s*([^()]+)\)/gu)];
+  if (clauses.some(match => explicitlyForeignOrNonMainlandLocation(match[1]!))) return undefined;
+  const residual = raw.title.replace(/\(Location:\s*([^()]+)\)/gu, "");
+  return !city || clauses.some(match => match[1]!.trim() !== cityLabel) || /\blocations?\b|工作地点|地点/iu.test(residual)
+    ? [CITY_PENDING] : [city];
 }
+
 
 function facetGroups(value: unknown, parameter: string): Record<string, unknown>[] {
   if (Array.isArray(value)) return value.flatMap(child => facetGroups(child, parameter));
@@ -76,9 +72,11 @@ function facetsMatch(root: Record<string, unknown>, total: number): Array<{ desc
   if (china.length !== 1 || china[0]!.id !== CHINA_ID || china[0]!.descriptor !== "China" || china[0]!.count !== total) return undefined;
   const values: Array<{ descriptor: string; count: number }> = [];
   for (const raw of locations[0]!.values) {
-    const value = record(raw), known = LOCATION_FACETS.find(item => item.id === value?.id && item.descriptor === value?.descriptor);
-    if (!value || !known || !count(value.count) || value.count === 0 || values.some(item => item.descriptor === known.descriptor)) return undefined;
-    values.push({ descriptor: known.descriptor, count: value.count });
+    const value = record(raw);
+    if (!value || typeof value.id !== "string" || typeof value.descriptor !== "string" ||
+      !/^[^,]+, China$/u.test(value.descriptor) || explicitlyForeignOrNonMainlandLocation(value.descriptor) ||
+      !count(value.count) || value.count === 0 || values.some(item => item.descriptor === value.descriptor)) return undefined;
+    values.push({ descriptor: value.descriptor, count: value.count });
   }
   return values.reduce((sum, value) => sum + value.count, 0) === total
     ? values.sort((a, b) => a.descriptor.localeCompare(b.descriptor)) : undefined;

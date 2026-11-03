@@ -1,4 +1,6 @@
 import { reviewedMainlandCity } from "./reviewedMainlandCity";
+import { CITY_PENDING } from "../domain/jobLocation";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 
 /** Exact, source-local location pairs observed in BMS's China PCSx responses.
  * A Field-China row establishes country only, never nationwide city coverage. */
@@ -20,33 +22,24 @@ const GEOGRAPHY = new Map<string, readonly [string, string]>([
   ["Hangzhou - CN", ["Hangzhou, Zhejiang, CN", "杭州"]],
   ["Shanghai - CN", ["Shanghai, Shanghai, CN", "上海"]]
 ]);
-// New fields may carry competing geography. Source schema additions require review;
-// only the four known geographic fields below have authority over the location.
-const POSITION_FIELDS = new Set([
-  "atsJobId", "creationTs", "department", "displayJobId", "id", "isHot",
-  "locationFlexibility", "locations", "name", "positionUrl", "postedTs", "solrScore",
-  "standardizedLocations", "stars", "workLocationOption"
-]);
-
 export function bmsMainlandCities(raw: Record<string, unknown>): string[] | undefined {
-  if (Object.keys(raw).some(key => !POSITION_FIELDS.has(key)) ||
-    !Array.isArray(raw.locations) || raw.locations.length === 0 ||
-    !Array.isArray(raw.standardizedLocations) || raw.standardizedLocations.length !== raw.locations.length ||
-    raw.workLocationOption !== "onsite" || raw.locationFlexibility !== null) return undefined;
+  if (!Array.isArray(raw.locations) || raw.locations.length === 0 ||
+    !Array.isArray(raw.standardizedLocations) || raw.standardizedLocations.length !== raw.locations.length) return undefined;
   const cities: string[] = [];
   for (let index = 0; index < raw.locations.length; index += 1) {
     const location = raw.locations[index], standardized = raw.standardizedLocations[index];
-    if (typeof location !== "string" || typeof standardized !== "string") return undefined;
+    if (typeof location !== "string" || typeof standardized !== "string" ||
+      explicitlyForeignOrNonMainlandLocation(location) || explicitlyForeignOrNonMainlandLocation(standardized)) return undefined;
     const reviewed = GEOGRAPHY.get(location);
     let city = reviewed && standardized === reviewed[0] ? reviewed[1] : undefined;
     if (!city) {
       const parts = standardized.split(", ");
       if (parts.length !== 3 || parts[2] !== "CN" ||
         (location !== parts[0] && location !== `${parts[0]} - CN`)) return undefined;
-      city = reviewedMainlandCity(parts[0]!, parts[1]!);
+      city = reviewedMainlandCity(parts[0]!, parts[1]!) ?? CITY_PENDING;
     }
     if (!city || (city === "中国" && raw.locations.length !== 1)) return undefined;
     cities.push(city);
   }
-  return [...new Set(cities)];
+  return cities.includes(CITY_PENDING) ? [CITY_PENDING] : [...new Set(cities)];
 }

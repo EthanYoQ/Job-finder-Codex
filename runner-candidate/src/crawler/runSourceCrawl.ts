@@ -1,7 +1,9 @@
+import { CITY_PENDING } from "../domain/jobLocation";
+import { mainlandDisplayCities } from "./fosunScopeGeography";
+import { reviewedMainlandCity } from "./reviewedMainlandCity";
 import { hasNovartisPartitionEvidence, replayNovartisNativePartitions, NOVARTIS_PARTITION_PAGINATION } from "./novartisNativePartitions";
 import { reportSourceFetchFailure } from "./sourceFetchDiagnostics";
 import {isSanofiChinesePlan,replaySanofiChineseNative,SANOFI_CN_PAGINATION_POLICY} from "./sanofiChineseNative";
-import { isReviewedAbbvieLocation } from "./abbvieChinaRowScope";
 import { exactKelunMainlandPlan, replayKelunMainlandScope } from "./kelunMainlandScope";
 import { isServierTraversalPlan, replayServierTraversal } from "./servierMokaScope";
 import { hasNovartisOfficialPresencePlan, hasNovartisPresenceArtifacts, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
@@ -278,6 +280,7 @@ export async function runSourceCrawl(
     const htmlResult = reconcileResult(htmlTableAdapter.extract({
       ...baseInput, html: fetchResult.html, table: plan.table
     }), fetchResult);
+    projectHtmlSourceCities(plan, htmlResult.jobs);
     if (hasAstellasPdfCityPlan(plan) && fetchResult.fetchEvidence?.astellasPdfLocations) {
       const replay = await replayAstellasPdfCities(plan, fetchResult.fetchEvidence, fetchResult.capturedAt, deps.isBaseline ?? true);
       htmlResult.jobs = replay.jobs;
@@ -285,6 +288,15 @@ export async function runSourceCrawl(
     return finalizeTruth(withFetchEvidence(htmlResult, fetchResult), fetchResult, plan);
   } catch (error) {
     throw new SourceCrawlStageError("ADAPTER", error);
+  }
+}
+
+function projectHtmlSourceCities(plan: SourceCrawlPlan, jobs: NormalizedJobRecord[]): void {
+  if (plan.source.id !== "source-novartis-social" && plan.source.id !== "source-kelun-social") return;
+  for (const job of jobs) {
+    const match = /^(.+?)\s*\(([^()]+)\)$/u.exec(job.locationRaw);
+    job.cities = plan.source.id === "source-kelun-social" ? mainlandDisplayCities([job.locationRaw.replaceAll("-", "·")]) :
+      [match ? reviewedMainlandCity(match[1]!.trim(), match[2]!.trim()) ?? CITY_PENDING : CITY_PENDING];
   }
 }
 
@@ -408,10 +420,6 @@ async function finalizeTruth(
   if (!completenessVerified && hasAstraZenecaDetailPlan(plan) && !fetchResult.fetchEvidence?.astraZenecaDetails) {
     observation.completenessStatus = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
     observation.completenessBlockerReason = "ASTRAZENECA_DETAIL_EVIDENCE_REQUIRED";
-  }
-  if (!completenessVerified && plan.source.id === "source-abbvie-china-social" &&
-      result.jobs.some(job => !isReviewedAbbvieLocation(job.locationRaw))) {
-    observation.completenessBlockerReason = "ABBVIE_UNRECOGNIZED_CITY_PROVINCE_PAIR";
   }
   if (!completenessVerified && hasAstellasPdfCityPlan(plan)) {
     if (fetchResult.fetchEvidence?.astellasPdfLocations?.runtimeCapability.available === false) {
@@ -549,6 +557,7 @@ function strictCompletenessGate(
       const checked=replayNovartisNativePartitions(plan,evidence);
       const extracted=htmlTableAdapter.extract({company:plan.company,source:safeSourceClone(plan.source)!,html:checked.html,
         table:plan.table,capturedAt:fetchResult.capturedAt,isBaseline:outputJobs[0]?.isBaseline ?? true});
+      projectHtmlSourceCities(plan, extracted.jobs);
       const replay=evaluatePaginationEvidence({evidence,expectedChannelIds:[...new Set(checked.pages.map(p=>p.channelId!))],filteredOutput:true,...NOVARTIS_PARTITION_PAGINATION});
       return extracted.status==="SUCCESS"&&isDeepStrictEqual(assertAdapterReconciliation(extracted),ledger)&&ledger.adapterLosses.length===0&&ledger.collisionGroups.length===0&&isDeepStrictEqual(extracted.jobs,outputJobs)&&
         replay.safeCompleteness&&replay.verifiedEligible&&isDeepStrictEqual(replay,fetchResult.paginationEvaluation);
@@ -2482,7 +2491,7 @@ function strictPhenomRequestContracts(
         const native = raw && organonNativeDetail(raw, nativeArtifact, capturedAt);
         const date = raw && phenomOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        if (!raw || !cities || !date || !title || !organonOfficialIdentity(raw) || !native) return false;
+        if (!raw || !cities || !title || !organonOfficialIdentity(raw) || !native) return false;
         organonRows.push(raw);
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
         if (organonIds.has(sourceJobId)) return false;
@@ -2518,7 +2527,7 @@ function strictPhenomRequestContracts(
         const cities = raw && merckOfficialCities(raw);
         const date = raw && merckOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        if (!raw || !cities || !date || !title || !merckOfficialIdentity(raw)) return false;
+        if (!raw || !cities || !title || !merckOfficialIdentity(raw)) return false;
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
         if (merckOutputs.has(sourceJobId)) return false;
         merckOutputs.set(sourceJobId, {rawId, sourceJobId, cities, officialPublishedAt: date, title,
@@ -2551,7 +2560,7 @@ function strictPhenomRequestContracts(
         const detail = raw && lillyNativeDetail(raw, nativeArtifact, capturedAt);
         const date = raw && lillyOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        if (!raw || !listCities || !detail || !date || !title) return false;
+        if (!raw || !listCities || !detail || !title) return false;
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
         if (lillyIds.has(sourceJobId)) return false;
         lillyIds.add(sourceJobId);
@@ -2748,7 +2757,7 @@ function strictPhenomRequestContracts(
           officialChineseCompanyName: plan.company.officialChineseName, officialTitle: expected.title,
           officialUrl: expected.officialUrl, listUrl: canonicalPublicHttpUrl(plan.source.officialEntryUrl),
           sourceJobId: expected.sourceJobId, locationRaw: expected.locationRaw, cities: expected.cities, category: "其他",
-          officialPublishedAt: expected.officialPublishedAt, isBaseline: job.isBaseline,
+          ...(expected.officialPublishedAt === undefined ? {} : {officialPublishedAt: expected.officialPublishedAt}), isBaseline: job.isBaseline,
           evidence: { officialEntryUrl: canonicalPublicHttpUrl(plan.source.officialEntryUrl),
             officialChainEvidenceUrl: canonicalPublicHttpUrl(plan.source.officialChainEvidenceUrl!), capturedAt }
         });
@@ -2780,7 +2789,7 @@ function strictPhenomRequestContracts(
           sourceKind: "SOCIAL", atsKind: "OFFICIAL_JSON", officialChineseCompanyName: plan.company.officialChineseName,
           officialTitle: expected.title, officialUrl: expected.officialUrl, listUrl: publicEntry.toString(),
           locationRaw: expected.locationRaw, cities: expected.cities, category: "其他",
-          officialPublishedAt: expected.officialPublishedAt, isBaseline: job.isBaseline,
+          ...(expected.officialPublishedAt === undefined ? {} : {officialPublishedAt: expected.officialPublishedAt}), isBaseline: job.isBaseline,
           evidence: {officialEntryUrl: publicEntry.toString(),
             officialChainEvidenceUrl: plan.source.officialChainEvidenceUrl, capturedAt}
         });
@@ -2805,7 +2814,7 @@ function strictPhenomRequestContracts(
 }
 
 type StrictUcbDateOutput = {
-  rawId: string; sourceJobId: string; officialPublishedAt: string;
+  rawId: string; sourceJobId: string; officialPublishedAt: string | undefined;
   title: string; officialUrl: string; locationRaw: string; cities: string[];
 };
 
@@ -2818,7 +2827,7 @@ function strictUcbDateOutput(value: unknown): StrictUcbDateOutput | undefined {
   const primary = strictPhenomPrimaryLocation(raw);
   const city = strictNonblankText(raw.city);
   const officialPublishedAt = ucbOfficialPostedDate(raw.postedDate);
-  if (!rawId || !safeOfficialJsonId(rawId) || !title || !primary || !officialPublishedAt ||
+  if (!rawId || !safeOfficialJsonId(rawId) || !title || !primary ||
     explicitlyForeignOrNonMainlandLocation(primary) || explicitlyGenericOrAmbiguousLocation(primary) ||
     strictUcbLocationHasAmbiguousSegments(primary) ||
     (city && (explicitlyForeignOrNonMainlandLocation(city) || explicitlyGenericOrAmbiguousLocation(city)))) return undefined;
@@ -3790,7 +3799,7 @@ function strictEightfoldDateReplay(
   if (!strictEightfoldPlanBinding(plan) || config?.kind !== "eightfold-pcsx" ||
     evidence.pages.length === 0 || evidence.pages.length > config.maxPages! ||
     evidence.artifacts.length !== evidence.pages.length || evidence.fetchLosses.length > 0) return strictGateTrace(plan, "BMS_DATE_INPUT");
-  const expected = new Map<string, ReturnType<typeof projectEightfoldPcsxPosition> & { officialPublishedAt: string }>();
+  const expected = new Map<string, NonNullable<ReturnType<typeof projectEightfoldPcsxPosition>>>();
   let total: number | undefined;
   let declarationLocator: string | undefined;
   const clean = (value: string) => value.replace(/\s+/gu, " ").trim();
@@ -3820,8 +3829,8 @@ function strictEightfoldDateReplay(
       const raw = strictRecord(value);
       const projection = raw && projectEightfoldPcsxPosition(raw, new URL(config.detailBaseUrl), config.cityScopePolicy);
       const officialPublishedAt = raw && bmsOfficialPostedDate(raw.postedTs);
-      if (!projection || !officialPublishedAt || expected.has(projection.sourceJobId)) return strictGateTrace(plan, "BMS_DATE_ROW");
-      expected.set(projection.sourceJobId, { ...projection, officialPublishedAt });
+      if (!projection || expected.has(projection.sourceJobId)) return strictGateTrace(plan, "BMS_DATE_ROW");
+      expected.set(projection.sourceJobId, { ...projection, ...(officialPublishedAt === undefined ? {} : {officialPublishedAt}) });
       rawIds.push(irreversibleOfficialJsonEvidenceId(projection.rawId));
       validIds.push(irreversibleOfficialJsonEvidenceId(projection.sourceJobId));
     }

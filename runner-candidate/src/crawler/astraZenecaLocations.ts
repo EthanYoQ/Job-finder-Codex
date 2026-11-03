@@ -30,7 +30,7 @@ const nonMainland=/(香港|澳门|澳門|台湾|臺灣|hong\s*kong|macau|macao|t
 const mainlandRegions=new Set('北京 上海 天津 重庆 河北 山西 辽宁 吉林 黑龙江 江苏 浙江 安徽 福建 江西 山东 河南 湖北 湖南 广东 海南 四川 贵州 云南 陕西 甘肃 青海 内蒙古 广西 西藏 宁夏 新疆'.split(' '));
 export function astraZenecaRegion(region:string):string|undefined{
   const chinese=region.replace(/省$/u,'');if(mainlandRegions.has(chinese))return chinese;
-  const alias:Record<string,string>={tianjin:'天津',xinjiang:'新疆',guangxi:'广西'};if(alias[key(region)])return alias[key(region)];
+  const alias:Record<string,string>={tianjin:'天津',xinjiang:'新疆',guangxi:'广西',guizhou:'贵州',gansu:'甘肃',qinghai:'青海',ningxia:'宁夏',tibet:'西藏',xizang:'西藏',hainan:'海南','inner mongolia':'内蒙古'};if(alias[key(region).replace(/ province$/u,'')])return alias[key(region).replace(/ province$/u,'')];
   return places.find(([,r,,ra])=>[r,...ra].some(v=>key(v)===key(region)))?.[1];
 }
 export function astraZenecaCity(city:string,region:string):string|undefined{

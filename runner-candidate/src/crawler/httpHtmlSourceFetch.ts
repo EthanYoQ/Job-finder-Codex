@@ -132,6 +132,12 @@ function createUnpartitionedHttpHtmlSourceFetch(
       }
 
       const pagination = readPaginationEvidence(response.body, plan.table.pagination);
+      // The official finite total, not the legacy ten-page budget, bounds AbbVie traversal.
+      if (plan.source.id === "source-abbvie-china-social" &&
+          plan.table.abbvieRowScopePolicy === "ABBVIE_CHINA_LISTED_ROWS_V1" &&
+          pagination.declaredTotalPages !== undefined && Number.isSafeInteger(pagination.declaredTotalPages)) {
+        pagination.pagesToVisit = pagination.declaredTotalPages;
+      }
       if (pagination.pagesToVisit <= 1) {
         return attachHtmlEvidence({
           ok: true,

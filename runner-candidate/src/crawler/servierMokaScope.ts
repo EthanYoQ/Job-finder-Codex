@@ -6,7 +6,7 @@ import type { NormalizedJobRecord } from "./normalizedJob";
 import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import { sanitizeEvidenceHttpUrl } from "./sourceFetchEvidence";
 import { requestContractV2Locator } from "./strictPageRequestContract";
-import { isHengruiMainlandLocation } from "./hengruiMainlandGeography";
+import { hasMainlandCountryLocation, mokaDisplayCities } from "./hengruiMainlandGeography";
 import { MOKA_JSON_CONFIG } from "./companyRecruitmentProfiles/shared";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { decryptBayerArtifact } from "./bayerMokaScope";
@@ -80,7 +80,7 @@ export function servierIndependentDetailScope(identity: { id: string; title: str
       (location.provinceId === undefined || location.provinceId === 110000) ||
       location.cityName === "下城区（旧）" && location.cityId === 330103 && location.provinceName === "浙江" &&
       (location.provinceId === undefined || location.provinceId === 330000);
-    return isHengruiMainlandLocation(location) || district;
+    return hasMainlandCountryLocation(location) || district;
   })) throw Error("Servier detail has unreviewed or conflicting mainland geography");
   return { locations: locations as Record<string, unknown>[], unknownGeography: false };
 }
@@ -178,7 +178,7 @@ export function replayServierTraversal(
         if (job.companyId !== plan.company.id || job.sourceId !== plan.source.id || job.sourceKind !== "SOCIAL" || job.atsKind !== "MOKA" ||
             job.officialChineseCompanyName !== plan.company.officialChineseName || job.category !== "其他" || job.auxiliaryChineseTitle !== undefined ||
             job.officialTitle !== String(item.raw.title).replace(/\s+/gu, " ").trim() || job.officialUrl !== `${SERVIER_MOKA_CAMPAIGN}#/job/${encodeURIComponent(String(item.raw.id))}` ||
-            job.locationRaw !== cities.join("、") || !isDeepStrictEqual(job.cities, cities) || job.officialPublishedAt !== undefined ||
+            job.locationRaw !== cities.join("、") || !isDeepStrictEqual(job.cities, mokaDisplayCities(item.locations)) || job.officialPublishedAt !== undefined ||
             job.listUrl !== SERVIER_MOKA_CAMPAIGN) return undefined;
       }
     }
