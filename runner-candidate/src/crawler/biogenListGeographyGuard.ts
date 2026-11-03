@@ -46,12 +46,28 @@ export function biogenListCities(raw: Record<string, unknown>): string[] | undef
   const path = /^\/job\/([^/]+)-China\/[^/?#\s]+_(REQ[0-9]+)-[1-9][0-9]*$/u.exec(raw.externalPath);
   if (!path || path[1] !== cityLabel.replaceAll(" ", "-") || !same(raw.bulletFields, [path[2]])) return undefined;
   const city = reviewedMainlandCityLabel(cityLabel, "China");
-  // Include bracketed alternatives, but stop after a closed location unless a list separator follows.
-  const locationClause = /(?:\blocations?|工作(?:地点|城市|地址)|地点)\s*[:：]\s*((?:[(（]\s*)*[^()（）;；\n]+(?:[)）]\s*)*(?:[/,，、|]\s*(?:[(（]\s*)*[^()（）;；\n]+(?:[)）]\s*)*)*)/giu;
-  const clauses = [...raw.title.matchAll(locationClause)];
-  if (clauses.some(match => explicitlyForeignOrNonMainlandLocation(match[1]!))) return undefined;
-  const residual = raw.title.replace(locationClause, "");
-  return !city || clauses.some(match => match[1]!.replace(/[()（）]/gu, "").trim() !== cityLabel) || /\blocations?\b|工作地点|地点/iu.test(residual)
+  const locationLabel = /(?:\blocations?|工作(?:地点|城市|地址)|地点)\s*[:：]\s*/giu;
+  const clauses = [...raw.title.matchAll(locationLabel)];
+  const titlePlaces: string[] = [];
+  for (const clause of clauses) {
+    let rest = raw.title.slice(clause.index! + clause[0].length);
+    while (rest) {
+      rest = rest.replace(/^[\s(（]+/u, "");
+      const boundary = rest.search(/[()（）;；\n,/，、|&和或及]|\s+(?:and|or)\s+|\s[-–—]\s/iu);
+      const place = (boundary < 0 ? rest : rest.slice(0, boundary)).trim();
+      if (place) titlePlaces.push(place);
+      if (boundary < 0) break;
+      rest = rest.slice(boundary).replace(/^[)）\s]+/u, "");
+      // A closed location may continue as a list, not as arbitrary title prose.
+      const separator = /^(?:[/,，、|&和或及]|\b(?:and|or)\b)\s*/iu.exec(rest);
+      if (!separator) break;
+      rest = rest.slice(separator[0].length);
+    }
+  }
+  if (titlePlaces.some(explicitlyForeignOrNonMainlandLocation)) return undefined;
+  const residual = raw.title.replace(locationLabel, "");
+  // shortcut: labelled location lists only; unstructured prose needs official field evidence, not more title inference.
+  return !city || titlePlaces.length < clauses.length || titlePlaces.some(place => place !== cityLabel) || /\blocations?\b|工作地点|地点/iu.test(residual)
     ? [CITY_PENDING] : [city];
 }
 

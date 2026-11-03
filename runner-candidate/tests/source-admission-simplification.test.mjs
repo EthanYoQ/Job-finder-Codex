@@ -32,11 +32,15 @@ test('country-qualified new cities survive without inventing a canonical city',(
  const shanghai={...biogen,locationsText:'Shanghai, China',externalPath:'/job/Shanghai-China/Role_REQ123-1'};
  for(const title of ['Role 工作地点：东京','Role Location: Tokyo','Role (Location: Tokyo)','Role （LOCATION：Tokyo）',
   'Role Location: (Tokyo)','Role 工作地点：（东京）','Role (Location: ((Tokyo)))','Role 工作地点：( （ 东京 ） )',
-  'Role Location: (Shanghai) / (Tokyo)','Role 工作地点：（Shanghai）/（东京）'])assert.equal(biogenListCities({...shanghai,title}),undefined,title);
+  'Role Location: (Shanghai) / (Tokyo)','Role 工作地点：（Shanghai）/（东京）',
+  'Role Location: (Shanghai) and (Tokyo)','Role 工作地点：（上海）或（东京）'])assert.equal(biogenListCities({...shanghai,title}),undefined,title);
  assert.deepEqual(biogenListCities({...shanghai,title:'Role 工作地点：新城区'}),pending);
  assert.deepEqual(biogenListCities({...shanghai,title:'Role (Location: Shanghai)'}),['上海']);
  assert.deepEqual(biogenListCities({...shanghai,title:'Role Location: (Shanghai)'}),['上海']);
  assert.deepEqual(biogenListCities({...shanghai,title:'Role (Location: Shanghai) - Japan market support'}),['上海']);
+ assert.deepEqual(biogenListCities({...shanghai,title:'Role Location: Shanghai - Japan market support'}),['上海']);
+ for(const title of ['Regional Security Lead, APAC','External Stakeholder Engagement (ESE), Senior Analyst (Korean Speaking)'])assert.deepEqual(biogenListCities({...shanghai,title}),['上海'],title);
+ for(const title of ['Senior Medical Representive (Location: Wuhan)','Medical Representative (Location:Urumqi‌)','Senior Medical Science Liaison (Location: Changsha)'])assert.deepEqual(biogenListCities({...shanghai,title}),pending,title);
  assert.deepEqual(biogenListCities({...shanghai,title:'Role 工作地点：（新城区）'}),pending);
  for(const title of ['Role Location: (Shanghai) / (Beijing)','Role 工作地点：（Shanghai）/（新城区）'])assert.deepEqual(biogenListCities({...shanghai,title}),pending,title);
  const csl={title:'Role',externalPath:'/job/APAC-CN-Puyang-CSL-Behring/Role_R-123',locationsText:'APAC, CN, Puyang, CSL Behring',bulletFields:['Temporary','R-123','Sales','China'],timeType:'Part time',displayBadge:'New'};
