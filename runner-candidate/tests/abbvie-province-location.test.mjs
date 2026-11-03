@@ -31,6 +31,13 @@ test('city rows retain their city beside a province-only row',()=>{
  assert.deepEqual(extract(html).jobs.map(j=>j.cities),[[CITY_PENDING],['上海']]);
 });
 test('unknown, foreign and conflicting province labels remain outside the accepted scope',()=>{
- for(const [location,option] of [['Guangdong, XX','Guangdong'],['Guangdong, GD','Hong Kong'],['Hong Kong, HK','Hong Kong'],['Taipei, Taiwan','Taipei'],['Unknown, GD','Unknown']])
+ for(const [location,option] of [['Guangdong, XX','Guangdong'],['Guangdong, GD','Hong Kong'],['Hong Kong, HK','Hong Kong'],['Taipei, Taiwan','Taipei'],['Unknown, GD','Unknown'],['Taipei, Henan','China'],['Beijing, Guangdong Province','China'],['Deyang, Sichuan','Henan'],['Guiyang, Henan','China'],['Hohhot, Henan','China'],['Shenyang, Sichuan','China'],['Baotou, Henan','China'],['Henan Province, Sichuan','China']])
   assert.equal(validateAbbvieChinaRowScope(row(location,option)),false,location+' / '+option);
+});
+test('official mainland province admits new city labels without inventing a city',()=>{
+ for(const [location,option] of [['Puyang, Henan','China'],['Deyang, Sichuan','Sichuan'],['Tongren, Guizhou','China'],['Sanya, Hainan','China']]){
+  const html=row(location,option);assert.equal(validateAbbvieChinaRowScope(html),true);
+  const result=extract(html);assert.equal(result.jobs.length,1);assert.equal(result.jobs[0].locationRaw,location);
+  assert.deepEqual(result.jobs[0].cities,[CITY_PENDING]);
+ }
 });
