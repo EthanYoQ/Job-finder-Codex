@@ -464,9 +464,10 @@ function reviewGrifolsDetail(html: string, listed: GrifolsListJob): DetailReview
   const ambiguous: DetailReview = { scope: "AMBIGUOUS", officialLocation, cities: [] };
   if (locations.length !== 1) return ambiguous;
 
-  // Semantic reconstruction from the surviving, reviewed examples. Unknown cities
-  // or path tails require fresh source review; a China prefix is not sufficient.
-  if (officialLocation === "Location:Open to candidates across China, not limited to Shanghai.") {
+  // A bounded nationwide China statement need not repeat a historical city or punctuation.
+  const nationwide = /^Location:(?:Open to candidates\s+)?(?:across|throughout)\s+(?:mainland\s+)?China(?:,\s*not limited to\s+([^.;]+))?\.?$/iu.exec(officialLocation);
+  if (nationwide && !explicitlyForeignOrNonMainlandLocation(officialLocation) &&
+    !explicitlyForeignOrNonMainlandLocation(nationwide[1] ?? "")) {
     return listed.locationRaw === "Home Office, CN"
       ? { scope: "CHINA", officialLocation, cities: ["全国"] }
       : ambiguous;

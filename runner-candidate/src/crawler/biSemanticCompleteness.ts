@@ -13,10 +13,11 @@ const SOURCE = "source-boehringer-ingelheim-china-social";
 const COMPANY = "company-boehringer-ingelheim-china";
 const CHAIN = "https://www.boehringer-ingelheim.cn/careers/jobs";
 const API_LOCATOR = "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode";
-const ROW_FIELDS = "address coid coname ctmid degreefrom divid divname edegreefrom efuntype ejobareaname eworkareaname eworkyearname funtype issuedate jkeyword jobareaname jobid jobname jobnum joborder monthlysalary poscode providesalarname term workareaname workyearname".split(" ");
 const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 
 export function biDisplayCities(raw: Record<string, unknown>): string[] {
+  if (raw.workareaname !== undefined && raw.workareaname !== raw.jobareaname ||
+    raw.eworkareaname !== undefined && raw.eworkareaname !== raw.ejobareaname) return [CITY_PENDING];
   const cities=mainlandDisplayCities([String(raw.jobareaname)]);
   const english=reviewedMainlandCityLabel(String(raw.ejobareaname),"China");
   return cities.length===1 && cities[0]===english ? cities : [CITY_PENDING];
@@ -90,13 +91,13 @@ export function replayBiSemanticCompleteness(
     const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index];
-      if (!record(row) || !exactKeys(row, ROW_FIELDS) || Object.values(row).some(v => typeof v !== "string") ||
+      if (!record(row) ||
           row.ctmid !== "3479" || !text(row.jobname) || !id(row.jobid) || !id(row.coid) || !text(row.coname) ||
           seen.has(row.jobid as string)) return undefined;
       const location = row.jobareaname as string;
-      if (!hasExactFosunMainlandGeography({LocNames:[location]}) || row.workareaname !== location ||
-        typeof row.ejobareaname !== "string" || !row.ejobareaname.trim() || row.eworkareaname !== row.ejobareaname ||
-        explicitlyForeignOrNonMainlandLocation(row.ejobareaname)) return undefined;
+      if (!hasExactFosunMainlandGeography({LocNames:[location]}) ||
+        [row.workareaname,row.ejobareaname,row.eworkareaname].some(value =>
+          typeof value === "string" && explicitlyForeignOrNonMainlandLocation(value))) return undefined;
       const jobId = row.jobid as string;
       seen.add(jobId); rawIds.push(`sha256:${hash(JSON.stringify(jobId))}`);
       if (ui.exclusions.some(rule => (row.jobname as string).includes(rule.code) && location.includes(rule.jobareaname))) {

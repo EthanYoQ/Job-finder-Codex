@@ -94,8 +94,9 @@ export function parseWorkdayMainlandRow(plan: SourceCrawlPlan, candidate: unknow
     !text(raw.title) || !text(raw.externalPath) || !text(raw.locationsText) ||
     !Array.isArray(raw.bulletFields)) return undefined;
   const bullets = raw.bulletFields;
-  const reqId = p.tenant === "amgen" && bullets.length === 1 ? bullets[0] : p.tenant === "csl" && bullets.length === 4 &&
-    bullets[3] === "China" ? bullets[1] : undefined;
+  const requisitions = bullets.filter(value => typeof value === "string" && /^R-[1-9][0-9]*$/u.test(value));
+  const reqId = p.tenant === "amgen" && bullets.length === 1 ? bullets[0] : p.tenant === "csl" &&
+    requisitions.length === 1 && bullets.filter(value => value === "China").length === 1 ? requisitions[0] : undefined;
   const pathMatch = /^\/job\/([A-Za-z0-9-]+)\/([A-Za-z0-9-]+_(R-[0-9]+)(?:-[1-9][0-9]*)?)$/u.exec(raw.externalPath);
   if (!text(reqId) || !/^R-[1-9][0-9]*$/u.test(reqId) || pathMatch?.[3] !== reqId) return undefined;
   const opaque = /^([2-9][0-9]*) Locations$/u.exec(raw.locationsText), opaqueCount = opaque ? Number(opaque[1]) : undefined;

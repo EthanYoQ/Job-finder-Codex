@@ -29,8 +29,14 @@ test('country-qualified new cities survive without inventing a canonical city',(
  const biogen={title:'Role',locationsText:'Newtown, China',externalPath:'/job/Newtown-China/Role_REQ123-1',bulletFields:['REQ123'],displayBadge:'New'};
  assert.deepEqual(biogenListCities(biogen),pending);
  assert.equal(biogenListCities({...biogen,locationsText:'Tokyo, China'}),undefined);
+ const shanghai={...biogen,locationsText:'Shanghai, China',externalPath:'/job/Shanghai-China/Role_REQ123-1'};
+ for(const title of ['Role 工作地点：东京','Role Location: Tokyo','Role (Location: Tokyo)','Role （LOCATION：Tokyo）'])assert.equal(biogenListCities({...shanghai,title}),undefined,title);
+ assert.deepEqual(biogenListCities({...shanghai,title:'Role 工作地点：新城区'}),pending);
+ assert.deepEqual(biogenListCities({...shanghai,title:'Role (Location: Shanghai)'}),['上海']);
  const csl={title:'Role',externalPath:'/job/APAC-CN-Puyang-CSL-Behring/Role_R-123',locationsText:'APAC, CN, Puyang, CSL Behring',bulletFields:['Temporary','R-123','Sales','China'],timeType:'Part time',displayBadge:'New'};
  assert(parseWorkdayMainlandRow({source:{id:'source-csl-china-social'}},csl));
+ for(const bulletFields of [['China','R-123'],['Sales','China','Part time','R-123','New badge']])assert(parseWorkdayMainlandRow({source:{id:'source-csl-china-social'}},{...csl,bulletFields}));
+ for(const bulletFields of [['Sales','R-123'],['China'],['China','R-123','R-456'],['China','R-456'],['China','China','R-123']])assert.equal(parseWorkdayMainlandRow({source:{id:'source-csl-china-social'}},{...csl,bulletFields}),undefined);
  assert.equal(parseWorkdayMainlandRow({source:{id:'source-csl-china-social'}},{...csl,bulletFields:['Temporary','R-123','Sales','Japan']}),undefined);
 });
 
@@ -48,6 +54,7 @@ test('Phenom optional presentation, coordinates and addresses do not control adm
  assert.equal(organonOfficialCities({...organon,workLocation:'CHN - Hong Kong'}),undefined);
  assert.deepEqual(merckOfficialCities({...merck,city:'Shanghai',state:'Shanghai',location:'Shanghai, Shanghai, China',multi_location_array:[{country:'China',location:'Shanghai, Shanghai, China',mapQueryLocation:'Beijing, Beijing, China'}]}),pending);
  assert.deepEqual(biDisplayCities({jobareaname:'上海',ejobareaname:'Beijing'}),pending);
+ assert.deepEqual(biDisplayCities({jobareaname:'上海',workareaname:'静安区',ejobareaname:'Shanghai-Jingan',eworkareaname:'Shanghai-Jingan'}),pending);
 });
 
 test('PDF page position is irrelevant; explicit China is required for an unknown locality',()=>{

@@ -47,9 +47,10 @@ export function biogenListCities(raw: Record<string, unknown>): string[] | undef
   const path = /^\/job\/([^/]+)-China\/[^/?#\s]+_(REQ[0-9]+)-[1-9][0-9]*$/u.exec(raw.externalPath);
   if (!path || path[1] !== cityLabel.replaceAll(" ", "-") || !same(raw.bulletFields, [path[2]])) return undefined;
   const city = reviewedMainlandCityLabel(cityLabel, "China");
-  const clauses = [...raw.title.matchAll(/\(Location:\s*([^()]+)\)/gu)];
+  const locationClause = /(?:\blocations?|工作(?:地点|城市|地址)|地点)\s*[:：]\s*([^()（）;；\n]+)/giu;
+  const clauses = [...raw.title.matchAll(locationClause)];
   if (clauses.some(match => explicitlyForeignOrNonMainlandLocation(match[1]!))) return undefined;
-  const residual = raw.title.replace(/\(Location:\s*([^()]+)\)/gu, "");
+  const residual = raw.title.replace(locationClause, "");
   return !city || clauses.some(match => match[1]!.trim() !== cityLabel) || /\blocations?\b|工作地点|地点/iu.test(residual)
     ? [CITY_PENDING] : [city];
 }
