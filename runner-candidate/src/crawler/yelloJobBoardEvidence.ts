@@ -137,7 +137,7 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
       const extraContent = row.clone();
       extraContent.find(".search-results__flag, .search-results__jobinfo, .search-results__post-time").remove();
       const locationMarker = /\b(?:location|country|city)\b/iu;
-      const locationClassToken = /(?:^|[\s_-])(?:location|country|city)(?=\s|$)/iu;
+      const locationClassToken = /(?:^|[\s_-])location(?:[\s_-]|$)|(?:^|[\s_-])(?:country|city)(?=\s|$)/iu;
       const additionalLocation = extraContent.find("*").addBack().toArray().some(node => "attribs" in node && Object.entries(node.attribs).some(([name, value]) =>
         locationMarker.test(name) || ["class", "role"].includes(name) && locationClassToken.test(value)));
       if (additionalLocation || /\bChina\s*-\s*\S/iu.test(extraContent.text())) throw new YelloScopeReviewError(rawRows, rowIndex);

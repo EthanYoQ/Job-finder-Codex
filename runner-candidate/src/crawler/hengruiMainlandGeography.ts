@@ -105,7 +105,8 @@ export function mokaDisplayCities(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const cities = value.flatMap(location => {
     if (!location || typeof location !== "object") return [];
-    if (hasMainlandCountryLocation(location) && !isHengruiMainlandLocation(location)) return [CITY_PENDING];
+    if (hasMainlandCountryLocation(location) &&
+        (location.cityName === undefined && location.provinceName === undefined || !isHengruiMainlandLocation(location))) return [CITY_PENDING];
     const label=location.cityName ?? location.provinceName ?? location.country;
     return typeof label === "string" && label.trim() ? [label.replace(/\s+/gu," ").trim()] : [];
   });

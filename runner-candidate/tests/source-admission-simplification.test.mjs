@@ -102,6 +102,18 @@ test('domestic scope uses country or province evidence without fixed county or j
  assert.equal(hasMainlandCountryLocation({cityName:'新城区'}),false);
 });
 
+test('Moka country-only mainland evidence stays admitted with its city pending',()=>{
+ for(const country of ['China','CN','中国','中国大陆','中华人民共和国']){
+  const location={country};
+  assert(hasMainlandCountryLocation(location));
+  assert.deepEqual(mokaDisplayCities([location]),pending);
+ }
+ const shanghai={country:'中国',cityName:'上海'};
+ assert.deepEqual(mokaDisplayCities([shanghai]),['上海']);
+ assert.deepEqual(mokaDisplayCities([shanghai,{country:'China'}]),pending);
+ assert.deepEqual(mokaDisplayCities([]),[]);
+});
+
 test('unrecognized display age stays unknown instead of rejecting the job',()=>{
  assert.equal(mokaPublishedAtIso('2026-11-03 25:61:00'),undefined);
  assert.deepEqual(classifyGileadPublicAge('Recently posted'),{kind:'UNKNOWN'});
@@ -121,7 +133,8 @@ test('Gilead Hong Kong exclusion holds additional location evidence without rest
  assert.equal(parseYelloJobBoardResponse(body('<span class="country-manager">New</span>'),config).excludedJobs.length,1);
  assert.equal(parseYelloJobBoardResponse(body('', 'data-id="synthetic"'),config).excludedJobs.length,1);
  assert.throws(()=>parseYelloJobBoardResponse(body('', 'data-location="China - Shanghai"'),config),YelloScopeReviewError);
- for(const extra of ['<div class="alternate-location">China - Shanghai</div>','<div>China - Shanghai</div>','<div class="alternate-location">Unknown country</div>','<span data-location="Unknown"></span>']){
+ for(const extra of ['<div class="alternate-location">China - Shanghai</div>','<div>China - Shanghai</div>','<div class="alternate-location">Unknown country</div>','<span data-location="Unknown"></span>',
+  ...['alternate-location-details','location-details','details-location','alternate_location_details','ALTERNATE-LOCATION-DETAILS'].map(name=>`<div class="${name}">Shanghai</div>`)]){
   assert.throws(()=>parseYelloJobBoardResponse(body(extra),config),YelloScopeReviewError,extra);
  }
 });
