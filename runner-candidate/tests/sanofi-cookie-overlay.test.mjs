@@ -8,6 +8,42 @@ import {chromium} from 'playwright-core';
 import {createChromiumDom} from '../src/crawler/local-browser/chromium-dom.mjs';
 import {createSanofiDomRuntime} from '../src/crawler/local-browser/sanofi-browser-runtime.mjs';
 
+test('Sanofi waits for each current page and captures its DOM without requesting ARIA snapshots', async () => {
+  const events = [];
+  let page = 1;
+  const tab = {
+    url: async () => 'https://jobs.sanofi.cn/synthetic',
+    close: async () => events.push('close'),
+    playwright: {
+      waitForLoadState: async ({state}) => events.push(`load:${state}:${page}`),
+      locator(selector) {
+        if(selector === '#onetrust-reject-all-handler')return {isVisible:async()=>false};
+        if(selector === '#search-results a.next')return {click:async()=>{events.push(`next:${page}`);page++;}};
+        assert.equal(selector, `#search-results[data-current-page="${page}"]`);
+        return {
+          waitFor:async ({state})=>events.push(`root:${state}:${page}`),
+          evaluate:async callback=>{
+            events.push(`capture:${page}`);
+            return callback({outerHTML:`<section data-current-page="${page}"></section>`,
+              querySelector:()=>({classList:{contains:()=>page===2}})});
+          }
+        };
+      }
+    }
+  };
+  const runtime=createSanofiDomRuntime({createBrowserTab:async()=>tab});
+  try {
+    await runtime.start();
+    assert.equal((await runtime.readPage()).nextDisabled,false);
+    assert.deepEqual(await runtime.advance(),{pageNumber:2});
+    const last=await runtime.readPage();
+    assert.equal(last.nextDisabled,true);
+    assert.equal(last.page.searchResultsHtml,'<section data-current-page="2"></section>');
+  } finally {await runtime.close();}
+  assert.deepEqual(events,['load:load:1','root:visible:1','capture:1','next:1',
+    'load:load:2','root:visible:2','capture:2','close']);
+});
+
 test('Sanofi normally rejects optional cookies then clicks next through the original UI',async()=>{
   const server=createServer((request,response)=>{response.setHeader('content-type','text/html; charset=utf-8');
     const cookie=request.url==='/cookie';
