@@ -7,15 +7,21 @@ import {join} from 'node:path';
 import {chromium} from 'playwright-core';
 import {createChromiumDom} from '../src/crawler/local-browser/chromium-dom.mjs';
 import {createSanofiDomRuntime} from '../src/crawler/local-browser/sanofi-browser-runtime.mjs';
+import {validateSanofiChineseDom} from '../src/crawler/sanofiChineseRenderedTraversal.ts';
+import {SANOFI_CN_ENTRY} from '../src/crawler/sanofiChineseNative.ts';
 
-test('Sanofi waits for each current page and captures its DOM without requesting ARIA snapshots', async () => {
+test('Sanofi waits for each current page and captures complete DOM without document load or ARIA snapshots', async () => {
   const events = [];
   let page = 1;
+  const html = number => `<section id="search-results" data-location="中国" data-keywords="" data-location-path="1814991" data-organization-ids="2649" data-current-page="${number}" data-total-pages="2" data-total-job-results="16" data-records-per-page="15"><ul id="search-results-list">${Array.from({length:number===1?15:1},(_,index)=>{
+    const id=(number-1)*15+index+1;
+    return `<li><button class="js-save-job-btn" data-job-id="${id}"></button><a data-job-id="${id}" href="/job/synthetic/3036/${id}"><h2>Synthetic role ${id}</h2></a></li>`;
+  }).join('')}</ul><input class="pagination-current" value="${number}" max="2"><a class="next${number===2?' disabled':''}">Next</a></section>`;
   const tab = {
-    url: async () => 'https://jobs.sanofi.cn/synthetic',
+    url: async () => SANOFI_CN_ENTRY,
     close: async () => events.push('close'),
     playwright: {
-      waitForLoadState: async ({state}) => events.push(`load:${state}:${page}`),
+      waitForLoadState: async () => assert.fail('Complete current-page DOM must not wait for document load'),
       locator(selector) {
         if(selector === '#onetrust-reject-all-handler')return {isVisible:async()=>false};
         if(selector === '#search-results a.next')return {click:async()=>{events.push(`next:${page}`);page++;}};
@@ -24,7 +30,7 @@ test('Sanofi waits for each current page and captures its DOM without requesting
           waitFor:async ({state})=>events.push(`root:${state}:${page}`),
           evaluate:async callback=>{
             events.push(`capture:${page}`);
-            return callback({outerHTML:`<section data-current-page="${page}"></section>`,
+            return callback({outerHTML:html(page),
               querySelector:()=>({classList:{contains:()=>page===2}})});
           }
         };
@@ -34,14 +40,17 @@ test('Sanofi waits for each current page and captures its DOM without requesting
   const runtime=createSanofiDomRuntime({createBrowserTab:async()=>tab});
   try {
     await runtime.start();
-    assert.equal((await runtime.readPage()).nextDisabled,false);
+    const first=await runtime.readPage();
+    assert.equal(first.nextDisabled,false);
     assert.deepEqual(await runtime.advance(),{pageNumber:2});
     const last=await runtime.readPage();
     assert.equal(last.nextDisabled,true);
-    assert.equal(last.page.searchResultsHtml,'<section data-current-page="2"></section>');
+    assert.equal(last.page.searchResultsHtml,html(2));
+    assert.equal(validateSanofiChineseDom({schemaVersion:'sanofi-cn-cua-dom-list-v1',
+      observedAt:first.page.capturedAt,pages:[first.page,last.page]}).total,16);
   } finally {await runtime.close();}
-  assert.deepEqual(events,['load:load:1','root:visible:1','capture:1','next:1',
-    'load:load:2','root:visible:2','capture:2','close']);
+  assert.deepEqual(events,['root:visible:1','capture:1','next:1',
+    'root:visible:2','capture:2','close']);
 });
 
 test('Sanofi normally rejects optional cookies then clicks next through the original UI',async()=>{

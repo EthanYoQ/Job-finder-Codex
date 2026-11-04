@@ -35,7 +35,6 @@ export function createSanofiDomRuntime(cua, {failureDirectory=join(process.env.J
     let ready = false;
     while (Date.now() < until) {
       try {
-        await tab.playwright.waitForLoadState({ state: 'load', timeoutMs: Math.min(10000, until - Date.now()) });
         await root.waitFor({ state: 'visible', timeoutMs: Math.max(1, Math.min(10000, until - Date.now())) });
         ready = true; break;
       } catch (error) {
