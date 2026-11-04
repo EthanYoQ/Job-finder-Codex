@@ -102,14 +102,18 @@ test('domestic scope uses country or province evidence without fixed county or j
  assert.equal(hasMainlandCountryLocation({cityName:'新城区'}),false);
 });
 
-test('Moka country-only mainland evidence stays admitted with its city pending',()=>{
+test('Moka country-only display stays pending independently of optional region IDs',()=>{
  for(const country of ['China','CN','中国','中国大陆','中华人民共和国']){
   const location={country};
   assert(hasMainlandCountryLocation(location));
   assert.deepEqual(mokaDisplayCities([location]),pending);
+  for(const field of ['cityId','provinceId'])for(const id of [0,-1,null,'310100',999999,310100])assert.deepEqual(mokaDisplayCities([{...location,[field]:id}]),pending,`${country}/${field}/${id}`);
  }
+ for(const country of ['PRC','Mainland China'])assert.deepEqual(mokaDisplayCities([{country,cityId:0}]),pending);
+ assert.deepEqual(mokaDisplayCities([{country:'China',cityName:null,provinceName:null,cityId:0}]),pending);
  const shanghai={country:'中国',cityName:'上海'};
  assert.deepEqual(mokaDisplayCities([shanghai]),['上海']);
+ assert.deepEqual(mokaDisplayCities([{...shanghai,cityId:0}]),['上海']);
  assert.deepEqual(mokaDisplayCities([shanghai,{country:'China'}]),pending);
  assert.deepEqual(mokaDisplayCities([]),[]);
 });
