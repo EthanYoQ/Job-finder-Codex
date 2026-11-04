@@ -132,11 +132,27 @@ export function auditJnjCareersDomObservations(lists: readonly string[], details
   const parsed = lists.map((body, i) => auditObservation(body, () => parseList(body, i + 1), {sourcePage: i + 1})), total = parsed[0]!.total;
   assert(parsed.every(p => p.total === total) && lists.length === Math.ceil(total / 20));
   const jobs = parsed.flatMap(p => p.jobs);
-  assert(jobs.length === total && new Set(jobs.map(j => j.officialId)).size === total && details.length === total);
+  assert(jobs.length === total && new Set(jobs.map(j => j.officialId)).size === total);
   const detailMap = new Map<string, string>();
-  for (const body of details) { const value = auditObservation(body, () => detailSchema.parse(json(body))); assert(!detailMap.has(value.url)); detailMap.set(value.url, body); }
+  for (const body of details) {
+    const raw = auditObservation(body, () => json(body));
+    const job = jobs.find(job => job.officialUrl === (raw as {expectedUrl?: unknown} | null)?.expectedUrl);
+    const value = auditObservation(body, () => {
+      const value = detailSchema.parse(raw);
+      assert(!detailMap.has(value.url));
+      return value;
+    }, job ? {sourceJobId: job.officialId} : {});
+    detailMap.set(value.url, body);
+  }
   const artifacts = parsed.map((p, i) => artifact(listKey(i), lists[i]!, p.original.observedAt, JNJ_DOM_LIST_LOCATOR));
-  for (const job of jobs) { const body = detailMap.get(job.officialUrl); assert(body); const d = auditObservation(body, () => parseDetail(body, job), {sourceJobId: job.officialId}); artifacts.push(artifact(detailKey(job.officialId), body, d.observedAt, JNJ_DOM_DETAIL_LOCATOR)); }
+  for (const job of jobs) {
+    const body = detailMap.get(job.officialUrl);
+    if (body === undefined) throw Object.assign(Error("JNJ_DOM_DETAIL_OBSERVATION_MISSING"),
+      {sourceJobId: job.officialId, privateObservation: {kind: "MISSING_DETAIL_OBSERVATION", sourceJobId: job.officialId, expectedUrl: job.officialUrl}});
+    const d = auditObservation(body, () => parseDetail(body, job), {sourceJobId: job.officialId});
+    artifacts.push(artifact(detailKey(job.officialId), body, d.observedAt, JNJ_DOM_DETAIL_LOCATOR));
+  }
+  assert(details.length === total);
   const times = artifacts.map(a => Date.parse(a.capturedAt)), startedAt = new Date(Math.min(...times)).toISOString(), finishedAt = new Date(Math.max(...times)).toISOString();
   assert(Date.parse(finishedAt) - Date.parse(startedAt) < 30 * 60_000);
   const pages: SourceFetchPageTrace[] = parsed.map((p, sequence) => ({ sequence, artifactLogicalKey: listKey(sequence),
@@ -169,7 +185,7 @@ export function createJnjCareersDomSourceFetch(input: { lists: readonly string[]
         fetchEvidence: value.evidence, paginationEvaluation: value.paginationEvaluation };
     } catch (error) {
       const cause = Object.assign(error instanceof Error ? error : Error("JNJ_DOM_OBSERVATION_INVALID"),
-        {sourceFetchStage: "JNJ_DOM_AUDIT"}) as Error & {privateObservation?: string; privateCapture?: unknown; privateCaptureUnavailable?: boolean};
+        {sourceFetchStage: "JNJ_DOM_AUDIT"}) as Error & {privateObservation?: unknown; privateCapture?: unknown; privateCaptureUnavailable?: boolean};
       try {
         cause.privateCapture = await savePrivateDomFailure({
           directory: join(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder", "diagnostics", "jnj"), filePrefix: "jnj-audit",
