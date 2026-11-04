@@ -72,7 +72,7 @@ function verifyDetail(plan:SourceCrawlPlan,row:ReturnType<typeof rows>[number],a
   const expected=sanitizeEvidenceHttpUrl(url(plan,row.Id)),started=Date.parse(capturedAt),observed=Date.parse(artifact.capturedAt);
   if(artifact.logicalKey!==key(row.Id)||artifact.kind!=='ATS_API_RESPONSE'||artifact.requestedUrl!==expected||artifact.finalUrl!==expected||artifact.httpStatus!==200||artifact.bodyRepresentation!=='EXACT'||artifact.extractorLocator!==POLICY||!Number.isFinite(started)||!Number.isFinite(observed)||observed<started||observed>started+30*60_000)throw Error('BEISEN_DETAIL_DATE_ARTIFACT_INVALID');
   const root=json(artifact.body),raw=root.Data as Record<string,unknown>|undefined;
-  if(root.Code!==200||!raw||raw.Id!==row.Id||raw.JobAdName!==row.JobAdName||raw.CategoryId!=='1'||raw.Category!=='社会招聘'||raw.Status!==1||!isDeepStrictEqual(raw.LocNames,row.LocNames)||!(typeof raw.Duty==='string'&&raw.Duty.trim()||typeof raw.Require==='string'&&raw.Require.trim()))throw Error('BEISEN_DETAIL_DATE_IDENTITY_INVALID');
+  if(root.Code!==200||!raw||raw.Id!==row.Id||raw.JobAdName!==row.JobAdName||raw.CategoryId!=='1'||raw.Category!=='社会招聘'||raw.Status!==1||typeof raw.Kind==='string'&&/(?:校园|校招|campus)/iu.test(raw.Kind)||!isDeepStrictEqual(raw.LocNames,row.LocNames)||!(typeof raw.Duty==='string'&&raw.Duty.trim()||typeof raw.Require==='string'&&raw.Require.trim()))throw Error('BEISEN_DETAIL_DATE_IDENTITY_INVALID');
   return beisenNativePublishedAt(raw);
 }
 async function fetchDetail(request:OfficialJsonHttpRequest,sourceSignal:AbortSignal,onBlocked:()=>void):Promise<OfficialJsonHttpResponse>{

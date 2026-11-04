@@ -26,14 +26,17 @@ test('validator entry propagates SIGTERM cancellation to independent HTTP reques
       assert.equal(cancelled, true);
       return {httpCancelled: true};
     }`;
-  const script = `
-    import {registerHooks} from 'node:module';
-    registerHooks({load(url, context, next) {
+  // Keep this child independent of newer synchronous preload hooks.
+  const loader = `
+    export async function load(url, context, next) {
       return url.endsWith('/src/crawler/traversalCertificate.ts')
         ? {format:'module',shortCircuit:true,source:${JSON.stringify(replacement)}} : next(url, context);
-    }});
+    }`;
+  const script = `
+    import {register} from 'node:module';
+    register('data:text/javascript,'+encodeURIComponent(${JSON.stringify(loader)}));
     await import(${JSON.stringify(entry)});`;
-  const child = spawnSync(process.execPath, [...process.execArgv, '--input-type=module', '-e', script], {
+  const child = spawnSync(process.execPath, ['--import', import.meta.resolve('tsx'), '--input-type=module', '-e', script], {
     encoding: 'utf8', timeout: 15_000,
     env: {...process.env, JOB_FINDER_B_GRADE_VALIDATOR_INPUT: JSON.stringify({sourceId:'source-sanofi-china-social'})}
   });

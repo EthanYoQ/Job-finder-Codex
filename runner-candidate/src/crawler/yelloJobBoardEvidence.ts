@@ -134,6 +134,12 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
         locationSpans.toArray().every(span => $(span).children().length === 0)) {
       // The location container and flag establish the exclusion, not age/CSS decoration.
       if (row.find('img[alt$="flag"]').length !== 1 || locationContainer.length !== 1) throw new YelloScopeReviewError(rawRows, rowIndex);
+      const extraContent = row.clone();
+      extraContent.find(".search-results__flag, .search-results__jobinfo, .search-results__post-time").remove();
+      const locationMarker = /\b(?:location|country|city)\b/iu;
+      const additionalLocation = extraContent.find("*").toArray().some(node => Object.entries(node.attribs).some(([name, value]) =>
+        locationMarker.test(name) || ["class", "role"].includes(name) && locationMarker.test(value)));
+      if (additionalLocation || /\bChina\s*-\s*\S/iu.test(extraContent.text())) throw new YelloScopeReviewError(rawRows, rowIndex);
       return { ...identity, scopeDecision: "EXCLUDED_HONG_KONG", publicAgeStatus: "NOT_EVALUATED_OUT_OF_SCOPE" };
     }
     if (flag.attr("alt") !== "China flag" || flag.attr("src") !== "/assets/images/flags/cn.png" ||

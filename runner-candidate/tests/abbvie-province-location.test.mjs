@@ -8,6 +8,7 @@ import {candidateCompanies} from '../src/data/companyRegistry.ts';
 import {buildStagedSourceCrawlPlans} from '../src/crawler/sourcePlan.ts';
 import {createHttpHtmlSourceFetch} from '../src/crawler/httpHtmlSourceFetch.ts';
 import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
+import {runWithOfficialSourceCancellation} from '../src/crawler/officialHttpRuntimeLimits.ts';
 
 const row=(location,option)=>`<div class="attrax-vacancy-tile">
 <a class="attrax-vacancy-tile__title" href="/zh-hans/job/test-jid-123">Test role</a>
@@ -33,6 +34,12 @@ test('city rows retain their city beside a province-only row',()=>{
  const html=row('Guangdong, GD','Guangdong')+row('Shanghai, Shanghai','Shanghai').replaceAll('jid-123','jid-124');
  assert.equal(validateAbbvieChinaRowScope(html),true);
  assert.deepEqual(extract(html).jobs.map(j=>j.cities),[[CITY_PENDING],['上海']]);
+});
+
+test('null optional JSON-LD country does not abort an otherwise proven mainland row',()=>{
+ const html=row('Shanghai, Shanghai','China').replace('</div>',`<script type="application/ld+json">${JSON.stringify({'@type':'JobPosting',jobLocation:{address:{addressCountry:null}}})}</script></div>`);
+ assert.equal(validateAbbvieChinaRowScope(html),true);
+ assert.equal(extract(html).jobs.length,1);
 });
 test('unproven and foreign locations remain outside the accepted scope',()=>{
  for(const [location,option] of [['Guangdong, XX','Guangdong'],['Guangdong, GD','Hong Kong'],['Hong Kong, HK','Hong Kong'],['Taipei, Taiwan','Taipei'],['Unknown, GD','Unknown'],['Taipei, Henan','China']])
@@ -67,4 +74,17 @@ test('AbbVie follows eleven declared official pages and still rejects a duplicat
  }
  const ok=await capture(false);assert.equal(ok.result.status,'SUCCESS',JSON.stringify(ok.result.diagnostics));assert.equal(ok.result.jobs.length,11);assert.equal(ok.seen.length,11);
  const duplicate=await capture(true);assert.notEqual(duplicate.result.status,'SUCCESS');
+});
+
+test('an exhausted source budget stops a huge declared traversal without dispatching more pages',async()=>{
+ const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-abbvie-china-social');
+ const controller=new AbortController(),seen=[];
+ const fetch=createHttpHtmlSourceFetch({http:async({url})=>{
+  const page=Number(new URL(url).searchParams.get('page')??1);seen.push(page);
+  if(page===2)controller.abort(Error('source attempt budget exhausted'));
+  return {status:200,body:`<span class="attrax-pagination__results-of--2" data-total-pages="1000000"></span>`+row('Shanghai, Shanghai','China'),finalUrl:url,contentType:'text/html',capturedAt:new Date().toISOString()};
+ }});
+ const result=await runWithOfficialSourceCancellation(controller.signal,()=>fetch(plan));
+ assert.equal(result.ok,false);assert.deepEqual(seen,[1,2]);
+ assert.equal(result.fetchEvidence.artifacts.length,2);
 });

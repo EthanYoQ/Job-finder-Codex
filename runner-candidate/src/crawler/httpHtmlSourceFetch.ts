@@ -9,7 +9,7 @@ import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import type { CompletenessEvidence } from "../domain/company";
 import type { HtmlTableConfig } from "./adapters/types";
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
-import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
+import { fetchWithOfficialTimeout, currentOfficialSourceAttemptSignal, currentOfficialSourceAttemptRemainingMs, sourceAttemptTimeoutMs } from "./officialHttpRuntimeLimits";
 import {
   parsePersistentSourceFetchEvidence,
   sanitizeEvidenceHttpUrl,
@@ -78,6 +78,7 @@ function createUnpartitionedHttpHtmlSourceFetch(
     if (isSanofiChinesePlan(plan)) return createSanofiChineseSourceFetch(deps)(plan);
     if (hasSanofiNativePolicy(plan)) return createSanofiNativeSourceFetch(deps)(plan);
     const capturedAt = (deps.now ?? (() => new Date()))().toISOString();
+    const traversalDeadlineAt = Date.now() + (currentOfficialSourceAttemptRemainingMs() ?? sourceAttemptTimeoutMs());
     const interactions: Array<{ request: HttpHtmlRequest; response: HttpHtmlResponse }> = [];
 
     if (plan.adapterId !== "html-table") {
@@ -88,6 +89,8 @@ function createUnpartitionedHttpHtmlSourceFetch(
       const rawHttp = deps.http ?? defaultHttpHtmlClient;
       let lastResponseAt = new Date(capturedAt).getTime();
       const http: HttpHtmlClient = async (request) => {
+        currentOfficialSourceAttemptSignal()?.throwIfAborted();
+        if (Date.now() >= traversalDeadlineAt) throw Error("HTML_TRAVERSAL_BUDGET_EXHAUSTED");
         assertSafeHtmlRequest(request, plan.source.officialEntryUrl);
         const response = await rawHttp(request);
         const retained = canRetainHtmlResponse(request, response);
@@ -132,7 +135,7 @@ function createUnpartitionedHttpHtmlSourceFetch(
       }
 
       const pagination = readPaginationEvidence(response.body, plan.table.pagination);
-      // The official finite total, not the legacy ten-page budget, bounds AbbVie traversal.
+      // Follow the official total; the existing source attempt budget bounds dispatch.
       if (plan.source.id === "source-abbvie-china-social" &&
           plan.table.abbvieRowScopePolicy === "ABBVIE_CHINA_LISTED_ROWS_V1" &&
           pagination.declaredTotalPages !== undefined && Number.isSafeInteger(pagination.declaredTotalPages)) {
@@ -1442,6 +1445,7 @@ function safeHtmlFailureCode(error: unknown): string {
 }
 
 const SAFE_HTML_FAILURE_CODES = new Set([
+  "HTML_TRAVERSAL_BUDGET_EXHAUSTED",
   NOVARTIS_PRESENCE_UNKNOWN,
   "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE",
   "HTML_FETCH_FAILED", "HTML_RESPONSE_METADATA_MISSING", "HTML_RESPONSE_REDIRECT_MISMATCH",

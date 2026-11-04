@@ -68,7 +68,7 @@ export function validateAbbvieChinaRowScope(html: string): boolean {
       visit(root);
       for (const posting of postings) for (const place of [posting.jobLocation].flat()) {
         const address=place?.address;
-        const country=typeof address?.addressCountry==="object" ? address.addressCountry.name : address?.addressCountry;
+        const country=typeof address?.addressCountry==="object" ? address.addressCountry?.name : address?.addressCountry;
         if (typeof country==="string") countries.push(country);
         if ([address?.addressLocality,address?.addressRegion].some(value=>typeof value==="string" && explicitlyForeignOrNonMainlandLocation(value))) return false;
       }
