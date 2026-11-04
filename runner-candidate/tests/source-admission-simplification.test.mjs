@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {CITY_PENDING} from '../src/domain/jobLocation.ts';
+import {matchesPortableSearchCity} from '../../web-candidate/src/domain/jobLocation.ts';
 import {bmsMainlandCities} from '../src/crawler/bmsMainlandGeography.ts';
 import {biogenListCities} from '../src/crawler/biogenListGeographyGuard.ts';
 import {projectAmgenNativeCities,parseWorkdayMainlandRow} from '../src/crawler/workdayMainlandQuality.ts';
@@ -116,6 +117,22 @@ test('Moka country-only display stays pending independently of optional region I
  assert.deepEqual(mokaDisplayCities([{...shanghai,cityId:0}]),['上海']);
  assert.deepEqual(mokaDisplayCities([shanghai,{country:'China'}]),pending);
  assert.deepEqual(mokaDisplayCities([]),[]);
+});
+
+test('Moka foreign location display does not hide a known mainland search city',()=>{
+ const shanghai={country:'中国',cityName:'上海'};
+ for(const country of ['Japan','日本','United States','Singapore','SG','Hong Kong','香港','Macao','台湾']){
+  for(const foreign of [{country},{country,cityName:'Tokyo'},{country,cityName:null,provinceName:null,cityId:0}]){
+   for(const locations of [[shanghai,foreign],[foreign,shanghai]]){
+    const cities=mokaDisplayCities(locations);
+    assert.deepEqual(cities,['上海'],country);
+    assert(matchesPortableSearchCity({city:cities[0],cities,locationRaw:`上海、${country}`},'上海'),country);
+   }
+   assert.deepEqual(mokaDisplayCities([foreign]),[],country);
+  }
+ }
+ assert.deepEqual(mokaDisplayCities([shanghai,{country:'China'},{country:'Japan'}]),pending);
+ assert.deepEqual(mokaDisplayCities([shanghai,{country:'Unknown country'}]),pending);
 });
 
 test('unrecognized display age stays unknown instead of rejecting the job',()=>{
