@@ -1,5 +1,5 @@
 import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
-import { hasBiSemanticPlan, biDisplayCities } from "./biSemanticCompleteness";
+import { hasBiSemanticPlan, hasBiMainlandGeography, biDisplayCities } from "./biSemanticCompleteness";
 import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
 import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
 import { CITY_PENDING } from "../domain/jobLocation";
@@ -2361,6 +2361,7 @@ function replay51jobArtifacts(
         rawLocator: officialJsonRawLocator(0, index), details: { code: "INVALID_REQUIRED_FIELD", recordIndex: index } });
       continue;
     }
+    if (!hasBiMainlandGeography(raw)) return failed(capturedAt, "51job record mainland geography is unproven");
     if (ui.exclusions.some((rule) => title.includes(rule.code) && locationRaw.includes(rule.jobareaname))) {
       counts.validationDiscardCount += 1;
       losses.push({ stage: "VALIDATION", reason: "51job record excluded by official recruitment UI",

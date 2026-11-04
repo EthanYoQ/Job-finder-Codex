@@ -15,6 +15,15 @@ const CHAIN = "https://www.boehringer-ingelheim.cn/careers/jobs";
 const API_LOCATOR = "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode";
 const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 
+export function hasBiMainlandGeography(raw: Record<string, unknown>): boolean {
+  if (typeof raw.jobareaname !== "string" || !raw.jobareaname.trim() ||
+    [raw.jobareaname, raw.workareaname, raw.ejobareaname, raw.eworkareaname].some(value =>
+      typeof value === "string" && explicitlyForeignOrNonMainlandLocation(value.replace(/[·・]/gu, ",")))) return false;
+  // CoAPI's per-job address can prove a province/country without naming a canonical city.
+  return hasExactFosunMainlandGeography({ LocNames: [raw.jobareaname] }) ||
+    hasExactFosunMainlandGeography({ LocNames: [raw.address] });
+}
+
 export function biDisplayCities(raw: Record<string, unknown>): string[] {
   if (raw.workareaname !== undefined && raw.workareaname !== raw.jobareaname ||
     raw.eworkareaname !== undefined && raw.eworkareaname !== raw.ejobareaname) return [CITY_PENDING];
@@ -95,9 +104,7 @@ export function replayBiSemanticCompleteness(
           row.ctmid !== "3479" || !text(row.jobname) || !id(row.jobid) || !id(row.coid) || !text(row.coname) ||
           seen.has(row.jobid as string)) return undefined;
       const location = row.jobareaname as string;
-      if (!hasExactFosunMainlandGeography({LocNames:[location]}) ||
-        [row.workareaname,row.ejobareaname,row.eworkareaname].some(value =>
-          typeof value === "string" && explicitlyForeignOrNonMainlandLocation(value))) return undefined;
+      if (!hasBiMainlandGeography(row)) return undefined;
       const jobId = row.jobid as string;
       seen.add(jobId); rawIds.push(`sha256:${hash(JSON.stringify(jobId))}`);
       if (ui.exclusions.some(rule => (row.jobname as string).includes(rule.code) && location.includes(rule.jobareaname))) {

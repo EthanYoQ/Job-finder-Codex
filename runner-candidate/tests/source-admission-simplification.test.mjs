@@ -10,7 +10,7 @@ import {merckOfficialCities} from '../src/crawler/merckChinaQuality.ts';
 import {lillyOfficialCities} from '../src/crawler/lillyChinaQuality.ts';
 import {organonOfficialCities} from '../src/crawler/organonChinaQuality.ts';
 import {phenomMainlandGeography} from '../src/crawler/phenomMainlandGeography.ts';
-import {biDisplayCities} from '../src/crawler/biSemanticCompleteness.ts';
+import {biDisplayCities,hasBiMainlandGeography} from '../src/crawler/biSemanticCompleteness.ts';
 import {mokaPublishedAtIso} from '../src/crawler/mokaSourceFetch.ts';
 import {parseAstellasLocationPages} from '../src/crawler/astellasPdfLocations.ts';
 import {hasExactFosunMainlandGeography} from '../src/crawler/fosunScopeGeography.ts';
@@ -20,6 +20,19 @@ import {beisenDomesticRecordScopeReview} from '../src/crawler/officialJsonSource
 import {hasMainlandCountryLocation,mokaDisplayCities} from '../src/crawler/hengruiMainlandGeography.ts';
 import {classifyGileadPublicAge,gileadPublicAgeEvidenceSchema} from '../src/crawler/gileadPublicAge.ts';
 const pending=[CITY_PENDING],fixture=name=>JSON.parse(readFileSync(new URL(`./fixtures/${name}-location-change.json`,import.meta.url)));
+
+test('BI requires mainland evidence while preserving unrecognized city labels',()=>{
+ const kunshan={jobareaname:'昆山',workareaname:'昆山',ejobareaname:'Kunshan',eworkareaname:'Kunshan'};
+ for(const address of ['江苏·昆山','中国·昆山']){
+  assert(hasBiMainlandGeography({...kunshan,address}));
+  assert.deepEqual(biDisplayCities({...kunshan,address}),pending);
+ }
+ for(const address of [undefined,'昆山','Unknown street','Tokyo','江苏·东京'])assert.equal(hasBiMainlandGeography({...kunshan,address}),false);
+ for(const field of ['jobareaname','workareaname','ejobareaname','eworkareaname']){
+  for(const foreign of ['Tokyo','中国·东京','江苏·香港'])assert.equal(hasBiMainlandGeography({...kunshan,address:'江苏·昆山',[field]:foreign}),false,field+': '+foreign);
+ }
+ assert(hasBiMainlandGeography({jobareaname:'青岛',address:'香港中路'}));
+});
 
 test('country-qualified new cities survive without inventing a canonical city',()=>{
  assert.deepEqual(bmsMainlandCities({locations:['Puyang - CN'],standardizedLocations:['Puyang, Henan, CN'],workLocationOption:'hybrid',displayBadge:'New'}),pending);
