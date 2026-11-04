@@ -116,6 +116,9 @@ test('Gilead Hong Kong exclusion holds additional location evidence without rest
   count_on_page:1,more_requisitions:false,query:'',filters:JSON.stringify([{label:'Locations',id:32,has_conditions:false,answers:[{id:72,label:'China'}],answer_type:'multiple_select'}]),text_filters:'[]',display_count_text:'1 Result'});
  for(const extra of ['', '<span class="badge">New</span>'])assert.equal(parseYelloJobBoardResponse(body(extra),config).excludedJobs.length,1);
  assert.equal(parseYelloJobBoardResponse(body('').replace('search-results__req_title','search-results__req_title country-manager'),config).excludedJobs.length,1);
+ assert.equal(parseYelloJobBoardResponse(body('').replace('search-results__item','search-results__item country-manager'),config).excludedJobs.length,1);
+ assert.equal(parseYelloJobBoardResponse(body('', 'role="country-manager"'),config).excludedJobs.length,1);
+ assert.equal(parseYelloJobBoardResponse(body('<span class="country-manager">New</span>'),config).excludedJobs.length,1);
  assert.equal(parseYelloJobBoardResponse(body('', 'data-id="synthetic"'),config).excludedJobs.length,1);
  assert.throws(()=>parseYelloJobBoardResponse(body('', 'data-location="China - Shanghai"'),config),YelloScopeReviewError);
  for(const extra of ['<div class="alternate-location">China - Shanghai</div>','<div>China - Shanghai</div>','<div class="alternate-location">Unknown country</div>','<span data-location="Unknown"></span>']){
