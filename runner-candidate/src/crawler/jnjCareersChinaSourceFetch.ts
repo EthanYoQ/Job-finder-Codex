@@ -580,13 +580,14 @@ const JNJ_CITY_NAMES: ReadonlyArray<readonly [string, string]> = [
 ];
 
 function citiesFromJnjLocation(locationRaw: string, countryScope?: "China"): string[] {
-  const labels = locationRaw.split(" / ").map(value => value.trim());
-  if (labels.some(label => !label || explicitlyForeignOrNonMainlandLocation(label))) return [];
-  const cities = labels.map(label => JNJ_CITY_NAMES.find(([english, chinese]) =>
+  const labels = locationRaw.split(" / ").map(value => value.trim()).filter(Boolean);
+  // The China-filtered board also lists global roles. Project each location separately.
+  const cities = labels.filter(label => !explicitlyForeignOrNonMainlandLocation(label)).map(label => JNJ_CITY_NAMES.find(([english, chinese]) =>
     label.toLowerCase() === english.toLowerCase() || label === chinese)?.[1] ??
-    (countryScope === "China" ? reviewedMainlandCityLabel(label, countryScope) : undefined));
-  if (cities.some(city => !city)) return countryScope === "China" ? [CITY_PENDING] : [];
-  return [...new Set(cities as string[])];
+    (countryScope === "China" ? reviewedMainlandCityLabel(label, countryScope) : undefined))
+    .filter((city): city is string => city !== undefined);
+  if (cities.length) return [...new Set(cities)];
+  return labels.some(label => /^(?:China|中国)$/iu.test(label)) ? [CITY_PENDING] : [];
 }
 
 function evidenceId(officialId: string): string {
