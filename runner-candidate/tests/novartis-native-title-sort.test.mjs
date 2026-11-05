@@ -5,7 +5,8 @@ import {buildStagedSourceCrawlPlans} from '../src/crawler/sourcePlan.ts';
 import {acquireNovartisNativePartitions,replayNovartisNativePartitions} from '../src/crawler/novartisNativePartitions.ts';
 import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
 import {CITY_PENDING} from '../src/domain/jobLocation.ts';
-test('native title sorting preserves partition coverage, identity and unknown-detail accounting',async()=>{
+import {sanitizeEvidenceHttpUrl} from '../src/crawler/sourceFetchEvidence.ts';
+test('native site sorting preserves coverage, version-4 replay and unknown-detail accounting',async()=>{
 const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-novartis-social');
 // The live form, including a new category, owns partition discovery.
 const fields=['QA','SA','DD','NEW'].map(x=>'FCT_'+x);
@@ -17,13 +18,27 @@ const ids=['REQ-10000001','REQ-10000002','REQ-10000003'];
 async function capture(mode='present',location='Shanghai (Shanghai)',alternative='',primaryCountry='China'){
  const at=new Date().toISOString();const requests=[];
  const fetched=await acquireNovartisNativePartitions(plan,async req=>{requests.push(req.url);const u=new URL(req.url),field=u.searchParams.get('functional_area[0]');
- if(field)assert.equal(u.searchParams.get('order'),'职位名称');
+ if(field)assert.equal(u.searchParams.get('order'),'站点');
  let html=req.url===plan.source.officialEntryUrl?root:field?page(field==='FCT_QA'?[ids[0]]:field==='FCT_SA'?[ids[1]]:[]):page(ids);
+ if(field==='FCT_SA'&&['duplicate-page','changing-total'].includes(mode)){
+  const p=Number(u.searchParams.get('page')??0),ten=Array.from({length:10},(_,i)=>`REQ-${10000010+i}`),next=new URL(u);next.searchParams.set('page','1');
+  html=page(p?(mode==='duplicate-page'?[ten[0]]:['REQ-10000020','REQ-10000021']):ten,p&&mode==='changing-total'?12:11)+
+   `<div class="pagination"><span class="active"><a class="page-link" title="page ${p+1} out of 2 pages"></a></span><a rel="next" ${p?'class="disabled"':`href="${next.href}"`}></a></div>`;
+ }
  if(u.pathname.includes('/job/details/'))html=`<h1>Job ${ids[2]}</h1><article>Job ID ${ids[2]}<p>${mode==='closed'?'This job is no longer available':'A real substantive job description for this identity.'}</p>${mode==='present'?`<a href="https://platform.moseeker.com/m/customize/page/novartis?job_number=${ids[2]}">Apply to Job</a>`:''}</article>`;
  return {status:200,body:html.replaceAll('views-field-field-job-country">China</td>',`views-field-field-job-country">${primaryCountry}${alternative?`<div class="alternative-locations">${alternative}</div>`:''}</td>`).replaceAll('Shanghai (Shanghai)',location),finalUrl:req.url,contentType:'text/html',capturedAt:at};});return {fetched,at,requests};
 }
 const c=await capture();if(!c.fetched.ok)console.log(c.fetched.failureReason,c.fetched.fetchEvidence?.artifacts.map(a=>a.logicalKey));assert(c.fetched.ok);assert.equal(c.fetched.fetchEvidence.fetchCounts.validCount,3);
 const e=c.fetched.fetchEvidence;const audit=replayNovartisNativePartitions(plan,e).audit;assert.equal(audit.indexDeclaredTotal,2);assert.equal(audit.observedUniqueCount,3);assert(!c.requests.some(u=>u.includes('moseeker')));
+assert.equal(e.captureTool.version,'5');
+const legacy=structuredClone(e);legacy.captureTool.version='4';
+assert.throws(()=>replayNovartisNativePartitions(plan,legacy),'Version 4 remains bound to title ordering');
+const titleOrder=new URL(sanitizeEvidenceHttpUrl(plan.source.officialEntryUrl)).searchParams.get('order');
+for(const a of legacy.artifacts)for(const key of ['requestedUrl','finalUrl'])if(a[key]){
+ const u=new URL(a[key]);if(u.searchParams.has('functional_area[0]')){u.searchParams.set('order',titleOrder);a[key]=u.href;}
+}
+assert.equal(replayNovartisNativePartitions(plan,legacy).audit.observedUniqueCount,3);
+for(const mode of ['duplicate-page','changing-total'])assert.equal((await capture(mode)).fetched.ok,false,mode);
 assert(c.requests.some(url=>new URL(url).searchParams.get('functional_area[0]')==='FCT_NEW'));
 for(const [name,mutate] of [
  ['missing partition',(x)=>{x.artifacts=x.artifacts.filter((a)=>a.logicalKey!=='novartis-partition-FCT_DD-0')}],

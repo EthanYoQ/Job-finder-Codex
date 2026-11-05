@@ -11,7 +11,7 @@ import { evaluatePaginationEvidence } from "./paginationEvidence";
 import { retryableHttpTransportFailure, retryableTransportFailureFromError, type SourceTransportFailure } from "./sourceFetchFailure";
 
 const ORIGIN = "https://www.novartis.com.cn", PATH = "/careers/career-search";
-export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"4" };
+export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"5" };
 export const NOVARTIS_PARTITION_PAGINATION = { allowCompleteTraversalOfEmptyFirstPage:true } as const;
 const FAIL = "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE", AUDIT = "novartis-partitions-audit";
 const clean = (s:string) => s.replace(/\s+/gu," ").trim();
@@ -42,10 +42,10 @@ function total(html:string):number {
   const $=load(html),t=$(".view-header").toArray().map(n=>clean($(n).text())).filter(t=>/^Showing\b/iu.test(t));
   requireValue(t.length===1&&/^Showing\s+\d+\s+results$/iu.test(t[0]!));return Number(t[0]!.match(/\d+/u)![0]);
 }
-function partitionUrl(field:string,page=0):string {
+function partitionUrl(field:string,page=0,order="职位名称"):string {
   const u=new URL(NOVARTIS_DEFAULT_ENTRY);u.searchParams.delete("country[]");u.searchParams.set("country[0]","LOC_CN");
   u.searchParams.set("functional_area[0]",field);u.searchParams.set("sort","asc");
-  u.searchParams.set("order","职位名称");if(page)u.searchParams.set("page",String(page));return u.href;
+  u.searchParams.set("order",order);if(page)u.searchParams.set("page",String(page));return u.href;
 }
 // Query order and [] versus [0] are equivalent native Drupal form encodings.
 function sameUrl(actual:string,expected:string):boolean {
@@ -95,7 +95,7 @@ function readRoot(plan:SourceCrawlPlan,root:SourceFetchArtifactDraft):{total:num
     $("select[name='field_job_posted_date'] option[selected]").attr("value")==="All");
   return {total:total(body(root)),fields:fields as string[]};
 }
-function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[]) {
+function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],order:string) {
   requireValue(hasNovartisOfficialPresencePlan(plan));const approved=new URL(partitionUrl("FCT_QA"));approved.searchParams.delete("functional_area[0]");requireValue(sameUrl(plan.source.officialEntryUrl,approved.href));const used=new Set<string>();let last=-Infinity;
   const take=(key:string,url:string,role:string)=>{const found=artifacts.filter(a=>a.logicalKey===key);requireValue(found.length===1);const a=found[0]!;
     requireValue(Number.isFinite(Date.parse(a.capturedAt))&&Date.parse(a.capturedAt)>=last);last=Date.parse(a.capturedAt);used.add(key);artifactOk(a,url,role);return a;};
@@ -106,7 +106,7 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[]) {
       rawJobIds:rs.map(r=>r.id),validJobIds:rs.map(r=>r.id),declaredTotal:count===0?null:count,declaredPages,
       nextPageSignalBefore:page===1?"initial":page===null?null:a.requestedUrl,nextPageSignalAfter:next?sanitizeEvidenceHttpUrl(next):null,termination:next?"CONTINUE":rs.length?"NEXT_ABSENT":"EMPTY_PAGE",
       responseFingerprintSha256:hash(body(a)),capturedAt:a.capturedAt,anomalyCodes:[]});};
-  for(const field of fields){const own:Row[]=[];let url=partitionUrl(field),declared:number|undefined,terminal=false;
+  for(const field of fields){const own:Row[]=[];let url=partitionUrl(field,0,order),declared:number|undefined,terminal=false;
     for(let p=0;p<100;p++){const a=take(`novartis-partition-${field}-${p}`,url,"novartis-native-functional-page-v1");const parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");
       requireValue(declared===undefined||declared===parsed.count);declared=parsed.count;own.push(...parsed.rows);
       addPage(a,parsed.rows,`novartis:${field}`,p+1,parsed.count,parsed.pages,parsed.next);
@@ -136,7 +136,8 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[]) {
 }
 export function hasNovartisPartitionEvidence(e:PersistentSourceFetchEvidence):boolean {return e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name;}
 export function replayNovartisNativePartitions(plan:SourceCrawlPlan,e:PersistentSourceFetchEvidence) {
-  requireValue(same(e.captureTool,NOVARTIS_PARTITION_CAPTURE));const projected=projection(plan,e.artifacts),audit=e.artifacts.filter(a=>a.logicalKey===AUDIT);
+  requireValue(e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name&&["4","5"].includes(e.captureTool.version));
+  const projected=projection(plan,e.artifacts,e.captureTool.version==="4"?"职位名称":"站点"),audit=e.artifacts.filter(a=>a.logicalKey===AUDIT);
   requireValue(audit.length===1&&audit[0]!.kind==="COMMAND_OUTPUT"&&audit[0]!.extractorLocator===AUDIT&&same(JSON.parse(body(audit[0]!)),projected.audit)&&
     same(e.pages,projected.pages)&&same(e.fetchCounts,projected.counts)&&e.fetchLosses.length===0&&same(e.declaredCompleteness,{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,
       scope:"SOURCE",artifactLogicalKey:"novartis-partitions-root",extractorLocator:"novartis-native-partition-root-v1"}));
@@ -148,11 +149,12 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
     transportFailure=retryableHttpTransportFailure(r.status)??transportFailure;const a:SourceFetchArtifactDraft={id:key,logicalKey:key,kind:"OFFICIAL_COMPANY_PAGE",requestedUrl:sanitizeEvidenceHttpUrl(url),finalUrl:sanitizeEvidenceHttpUrl(r.finalUrl??url),httpStatus:r.status,
       contentType:r.contentType??"application/octet-stream",capturedAt:r.capturedAt??"",body:r.body,bodyRepresentation:"EXACT",extractorLocator:role,...(channelId?{channelId}:{})};artifacts.push(a);artifactOk(a,url,role);if(artifacts.length===1)capturedAt=a.capturedAt;return a;};
   try{requireValue(hasNovartisOfficialPresencePlan(plan));const {fields}=readRoot(plan,await capture(plan.source.officialEntryUrl,"novartis-partitions-root","novartis-native-partition-root-v1"));const primary=new Set<string>();
-    for(const field of fields){let url=partitionUrl(field);for(let p=0;p<100;p++){const a=await capture(url,`novartis-partition-${field}-${p}`,"novartis-native-functional-page-v1",`novartis:${field}`),parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");for(const row of parsed.rows)primary.add(row.id);if(!parsed.next)break;url=parsed.next;}}
+    // Use the official Site sort instead of the title shared by the observed overlapping rows.
+    for(const field of fields){let url=partitionUrl(field,0,"站点");for(let p=0;p<100;p++){const a=await capture(url,`novartis-partition-${field}-${p}`,"novartis-native-functional-page-v1",`novartis:${field}`),parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");for(const row of parsed.rows)primary.add(row.id);if(!parsed.next)break;url=parsed.next;}}
     const defaults=new Map<string,Row>();let url=NOVARTIS_DEFAULT_ENTRY;
     for(let p=0;p<100;p++){const a=await capture(url,`novartis-partitions-default-${p}`,"novartis-partition-default-discovery-v1"),parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1");for(const row of parsed.rows)defaults.set(row.id,row);if(!parsed.next)break;url=parsed.next;}
     for(const row of [...defaults.values()].filter(r=>!primary.has(r.id)).sort((a,b)=>a.id.localeCompare(b.id)))await capture(row.url,`novartis-partitions-detail-${row.id}`,"novartis-partition-same-id-detail-v1",`novartis:presence:${row.id}`);
-    const projected=projection(plan,artifacts);artifacts.push({id:AUDIT,logicalKey:AUDIT,kind:"COMMAND_OUTPUT",capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify(projected.audit),bodyRepresentation:"EXACT",extractorLocator:AUDIT});
+    const projected=projection(plan,artifacts,"站点");artifacts.push({id:AUDIT,logicalKey:AUDIT,kind:"COMMAND_OUTPUT",capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify(projected.audit),bodyRepresentation:"EXACT",extractorLocator:AUDIT});
     const evidence=parsePersistentSourceFetchEvidence({captureTool:NOVARTIS_PARTITION_CAPTURE,artifacts,pages:projected.pages,fetchCounts:projected.counts,fetchLosses:[],declaredCompleteness:{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,scope:"SOURCE",artifactLogicalKey:"novartis-partitions-root",extractorLocator:"novartis-native-partition-root-v1"}});
     const paginationEvaluation=evaluatePaginationEvidence({evidence,expectedChannelIds:[...new Set(projected.pages.map(p=>p.channelId!))],filteredOutput:true,...NOVARTIS_PARTITION_PAGINATION});requireValue(paginationEvaluation.safeCompleteness&&paginationEvaluation.verifiedEligible);
     return {ok:true,capturedAt,html:projected.html,fetchEvidence:evidence,paginationEvaluation};
