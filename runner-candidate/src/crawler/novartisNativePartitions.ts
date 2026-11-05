@@ -120,9 +120,9 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],or
         requireValue(a.channelId===`novartis:${field}`);
         first??=a;counts.push(parsed.count);own.push(...parsed.rows);traces.push([a,parsed.rows,`novartis:${field}`,p+1,parsed.count,parsed.pages,parsed.next]);
         if(!parsed.next){terminal=true;break;}url=parsed.next;}
-      return {own,counts,traces,first:first!,closed:partitionClosed(own,counts,terminal)};};
+      return {own,counts,traces,first:first!,terminal,closed:partitionClosed(own,counts,terminal)};};
     let traversal=read(partitionUrl(field,0,order)),discarded:unknown;
-    if(!traversal.closed&&allowReverse){discarded={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=read(reversePartitionUrl(traversal.first,field),true);}
+    if(!traversal.closed&&allowReverse&&traversal.terminal){discarded={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=read(reversePartitionUrl(traversal.first,field),true);}
     requireValue(traversal.closed);
     for(const trace of traversal.traces)addPage(...trace);
     partitionAudit.push({field,declaredTotal:traversal.counts[0],uniqueCount:traversal.own.length,...(discarded?{discardedAscending:discarded,selectedSort:"desc"}:{})});rows.push(...traversal.own);
@@ -169,10 +169,10 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
       const read=async(url:string,reverse=false)=>{const own:Row[]=[],counts:number[]=[];let first:SourceFetchArtifactDraft|undefined,terminal=false;
         for(let p=0;p<100;p++){const a=await capture(url,`novartis-partition-${field}-${reverse?"reverse-":""}${p}`,"novartis-native-functional-page-v1",`novartis:${field}`),parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");
           first??=a;counts.push(parsed.count);own.push(...parsed.rows);if(!parsed.next){terminal=true;break;}url=parsed.next;}
-        return {own,first:first!,closed:partitionClosed(own,counts,terminal)};};
+        return {own,first:first!,terminal,closed:partitionClosed(own,counts,terminal)};};
       let traversal=await read(partitionUrl(field,0,"站点"));
       // Only a separately complete traversal can replace the overlapping one; never union incomplete sets.
-      if(!traversal.closed){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(reversePartitionUrl(traversal.first,field),true);}
+      if(!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(reversePartitionUrl(traversal.first,field),true);}
       requireValue(traversal.closed);for(const row of traversal.own)primary.add(row.id);
     }
     const defaults=new Map<string,Row>();let url=NOVARTIS_DEFAULT_ENTRY;
