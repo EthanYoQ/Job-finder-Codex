@@ -136,9 +136,7 @@ function createUnpartitionedHttpHtmlSourceFetch(
 
       const pagination = readPaginationEvidence(response.body, plan.table.pagination);
       // Follow the official total; the existing source attempt budget bounds dispatch.
-      if (plan.source.id === "source-abbvie-china-social" &&
-          plan.table.abbvieRowScopePolicy === "ABBVIE_CHINA_LISTED_ROWS_V1" &&
-          pagination.declaredTotalPages !== undefined && Number.isSafeInteger(pagination.declaredTotalPages)) {
+      if (pagination.declaredTotalPages !== undefined && Number.isSafeInteger(pagination.declaredTotalPages)) {
         pagination.pagesToVisit = pagination.declaredTotalPages;
       }
       if (pagination.pagesToVisit <= 1) {
