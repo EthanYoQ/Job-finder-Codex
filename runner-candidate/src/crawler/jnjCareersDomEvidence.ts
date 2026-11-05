@@ -133,7 +133,7 @@ export function auditJnjCareersDomObservations(lists: readonly string[], details
   assert(parsed.every(p => p.total === total) && lists.length === Math.ceil(total / 20));
   const jobs = parsed.flatMap(p => p.jobs);
   assert(jobs.length === total && new Set(jobs.map(j => j.officialId)).size === total);
-  const detailMap = new Map<string, string>();
+  const detailMap = new Map<string, {body: string; sourceJobId?: string}>();
   for (const body of details) {
     const raw = auditObservation(body, () => json(body));
     const job = jobs.find(job => job.officialUrl === (raw as {expectedUrl?: unknown} | null)?.expectedUrl);
@@ -142,19 +142,21 @@ export function auditJnjCareersDomObservations(lists: readonly string[], details
       assert(!detailMap.has(value.url));
       return value;
     }, job ? {sourceJobId: job.officialId} : {});
-    detailMap.set(value.url, body);
+    detailMap.set(value.url, {body, ...(job ? {sourceJobId: job.officialId} : {})});
   }
   const artifacts = parsed.map((p, i) => artifact(listKey(i), lists[i]!, p.original.observedAt, JNJ_DOM_LIST_LOCATOR));
+  const surplusObservations = [...detailMap].filter(([url]) => !jobs.some(job => job.officialUrl === url)).map(([, detail]) => detail.body);
   for (const job of jobs) {
-    const body = detailMap.get(job.officialUrl);
-    if (body === undefined) throw Object.assign(Error("JNJ_DOM_DETAIL_OBSERVATION_MISSING"),
-      {sourceJobId: job.officialId, privateObservation: {kind: "MISSING_DETAIL_OBSERVATION", sourceJobId: job.officialId, expectedUrl: job.officialUrl}});
-    const d = auditObservation(body, () => parseDetail(body, job), {sourceJobId: job.officialId});
+    const detail = detailMap.get(job.officialUrl);
+    if (detail === undefined) throw Object.assign(Error("JNJ_DOM_DETAIL_OBSERVATION_MISSING"),
+      {sourceJobId: job.officialId, privateObservation: {kind: "MISSING_DETAIL_OBSERVATION", sourceJobId: job.officialId, expectedUrl: job.officialUrl,
+        ...(surplusObservations.length ? {surplusObservations} : {})}});
+    const {body, sourceJobId} = detail;
+    const d = auditObservation(body, () => parseDetail(body, job), sourceJobId ? {sourceJobId} : {});
     artifacts.push(artifact(detailKey(job.officialId), body, d.observedAt, JNJ_DOM_DETAIL_LOCATOR));
   }
   if (details.length !== total) throw Object.assign(Error("JNJ_DOM_OBSERVATION_INVALID"),
-    {privateObservation: {kind: "SURPLUS_DETAIL_OBSERVATIONS", observations: [...detailMap]
-      .filter(([url]) => !jobs.some(job => job.officialUrl === url)).map(([, body]) => body)}});
+    {privateObservation: {kind: "SURPLUS_DETAIL_OBSERVATIONS", observations: surplusObservations}});
   const times = artifacts.map(a => Date.parse(a.capturedAt)), startedAt = new Date(Math.min(...times)).toISOString(), finishedAt = new Date(Math.max(...times)).toISOString();
   assert(Date.parse(finishedAt) - Date.parse(startedAt) < 30 * 60_000);
   const pages: SourceFetchPageTrace[] = parsed.map((p, sequence) => ({ sequence, artifactLogicalKey: listKey(sequence),
