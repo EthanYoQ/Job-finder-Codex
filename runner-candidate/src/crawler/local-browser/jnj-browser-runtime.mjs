@@ -149,11 +149,14 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     try {
     const response=await detail.goto(card.url);
     if(typeof response?.status==='function')navigationStatus=response.status();
+    const readyDeadline=Math.min(deadline,Date.now()+60000);
+    for(let attempt=0;attempt<2;attempt++) {
+    try {
     sourceFetchStage='JNJ_DETAIL_READY';
     await rejectTemporaryAccessFailure(detail,'#js-job-detail');
-    await detail.playwright.locator('#js-job-detail').waitFor({state:'visible',timeoutMs:30000});
+    await detail.playwright.locator('#js-job-detail').waitFor({state:'visible',timeoutMs:Math.max(1,Math.min(30000,readyDeadline-Date.now()))});
     sourceFetchStage='JNJ_APPLY_READY';
-    await detail.playwright.getByRole('link',{name:'Apply now',exact:true}).waitFor({state:'visible',timeoutMs:30000});
+    await detail.playwright.getByRole('link',{name:'Apply now',exact:true}).waitFor({state:'visible',timeoutMs:Math.max(1,Math.min(30000,readyDeadline-Date.now()))});
     sourceFetchStage='JNJ_DETAIL_READ';
     const value={kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',url:await detail.url(),expectedUrl:card.url,expectedTitle:card.title,
       heading:await detail.playwright.locator('h1').innerText(),
@@ -163,6 +166,11 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     if(value.url!==card.url || value.heading.replace(/\s+/g,' ').trim()!==card.title.replace(/\s+/g,' ').trim()) throw Error('JNJ_DOM_DETAIL_IDENTITY');
     checkTime();
     return {file:card.id+'.json',raw:raw(value)};
+    } catch(error) {
+      // A native page navigation can replace the DOM after readiness; reread once without another goto.
+      if(attempt!==0||Date.now()>=readyDeadline||!String(error?.message??error).includes('Execution context was destroyed, most likely because of a navigation'))throw error;
+    }
+    }
     } catch(error) {
       const cause=error instanceof Error?error:Error('JNJ_DETAIL_CAPTURE_FAILED');
       cause.sourceFetchStage=sourceFetchStage;

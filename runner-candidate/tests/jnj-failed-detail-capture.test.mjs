@@ -10,20 +10,44 @@ import {sourceFetchDiagnostic} from '../src/crawler/sourceFetchDiagnostics.ts';
 const listUrl='https://www.careers.jnj.com/en/jobs/?country=China&origin=global#results';
 const detailUrl='https://www.careers.jnj.com/en/jobs/r-123456/synthetic-role/';
 const marker='PRIVATE_DOM_SYNTHETIC_MARKER';
-function fixture(directory,{applyFailure=false,captureFailure=false}={}) {
+function fixture(directory,{applyFailure=false,captureFailure=false,readFailures,wrongIdentity=false}={}) {
   const error=Object.assign(Error('locator.waitFor: Timeout 30000ms exceeded.'),{name:'TimeoutError'});
+  const navigationError=Error('locator.evaluateAll: Execution context was destroyed, most likely because of a navigation');
+  let reads=0,navigations=0;
   const list={async goto(url){assert.equal(url,listUrl);},async close(){},async url(){return listUrl;},playwright:{
     locator:()=>({async waitFor(){},async evaluate(){return {html:'synthetic',htmlLength:9,items:[{text:'Synthetic role',links:[{title:'Synthetic role',url:detailUrl}]}]};},
       async evaluateAll(){return ['team','subteam','country','state','location','type','pattern'].map(name=>({name,selectedOptions:name==='country'?[{text:'China',value:'China'}]:[]}));}}),
     getByRole:role=>({async waitFor(){},async innerText(){return 'Displaying 1 to 1 of 1 matching jobs';},async evaluateAll(){return [];}}),
     async domSnapshot(){return 'synthetic list';}}};
-  const detail={async close(){},async goto(url){assert.equal(url,detailUrl);return {status:()=>200};},async getAXState(){throw Error('Unused ARIA snapshot must not run');},
-    playwright:{locator:()=>({async waitFor(){if(!applyFailure)throw error;}}),getByRole:()=>({async waitFor(){throw error;}}),
+  const detail={async close(){},async url(){return detailUrl;},async goto(url){navigations++;assert.equal(url,detailUrl);return {status:()=>200};},async getAXState(){throw Error('Unused ARIA snapshot must not run');},
+    playwright:{locator:()=>({async waitFor(){if(readFailures===undefined&&!applyFailure)throw error;},async innerText(){return wrongIdentity?'Different role':'Synthetic role';},async evaluate(){return {html:'synthetic',htmlLength:9,text:'Synthetic role'};}}),
+      getByRole:()=>({async waitFor(){if(readFailures===undefined)throw error;},async evaluateAll(){if(++reads<=readFailures)throw navigationError;return [{text:'Apply now',href:'https://careers.jnj.com.cn/jnj/apply?exid=R-123456&m=1'}];}}),
+      async domSnapshot(){return 'synthetic detail';},
       async evaluate(){if(captureFailure)throw Error(marker);return {url:detailUrl+'?private='+marker,title:'Synthetic failure page',readyState:'complete',detailCount:0,applyLinks:[],html:'<body>'+marker+'</body>'};}}};
   let tabIndex=0;
   const runtime=createJnjDomRuntime({async createBrowserTab(){return tabIndex++===0?list:detail;}},{failureDirectory:directory});
-  return {error,async run(){await runtime.start();await runtime.readList();await runtime.readDetail(0);}};
+  return {error,navigationError,get reads(){return reads;},get navigations(){return navigations;},async run(){await runtime.start();await runtime.readList();return runtime.readDetail(0);}};
 }
+
+test('navigation during detail read rereads once on the same tab without another navigation',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'jnj-read-navigation-')),setup=fixture(directory,{readFailures:1});
+ const captured=JSON.parse((await setup.run()).raw);
+ assert.equal(captured.expectedUrl,detailUrl);assert.equal(captured.heading,'Synthetic role');
+ assert.equal(setup.reads,2);assert.equal(setup.navigations,1);assert.deepEqual(await readdir(directory),[]);
+});
+
+test('persistent navigation still fails and retains the original diagnostic',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'jnj-read-navigation-')),setup=fixture(directory,{readFailures:2});
+ await assert.rejects(setup.run(),error=>error===setup.navigationError);
+ assert.equal(setup.reads,2);assert.equal(setup.navigations,1);
+ assert.equal(sourceFetchDiagnostic('source-johnson-innovative-medicine-social',{error:setup.navigationError}).reason,'BROWSER_NAVIGATION_DURING_DOM_READ');
+ assert.equal((await readdir(directory)).length,1);
+});
+
+test('a detail identity mismatch is not retried',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'jnj-read-identity-')),setup=fixture(directory,{readFailures:0,wrongIdentity:true});
+ await assert.rejects(setup.run(),/JNJ_DOM_DETAIL_IDENTITY/);assert.equal(setup.reads,1);assert.equal(setup.navigations,1);
+});
 for(const applyFailure of [false,true])test(`failed ${applyFailure?'apply':'detail'} readiness saves private DOM and preserves unknown source failure`,async()=>{
   const directory=await mkdtemp(join(tmpdir(),'jnj-private-capture-')),setup=fixture(directory,{applyFailure});
   await assert.rejects(setup.run(),error=>error===setup.error);
