@@ -48,14 +48,24 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
       return ['LOCAL_CHROMIUM_ARIA_SNAPSHOT', `Page: ${page.url()}`, 'networkCapture: false',
         ...frames.map(frame => `Frame: ${frame.url}\n${frame.aria}`)].join('\n');
     };
-    let navigationInfo;
+    let navigationInfo,cspcListResponse;
     page.on('response',response=>{
       if(response.request().isNavigationRequest()&&response.frame()===page.mainFrame())
         navigationInfo={httpStatus:response.status(),retryAfter:response.headers()['retry-after']};
+      const url=new URL(response.url());
+      if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname==='/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob'&&response.request().method()==='POST'){
+        const form=new URLSearchParams(response.request().postData()??''),fields=['channelQrId','root_id','recruit_way','sortName','push_request_id','keyword','ftl_list_stru_id'];
+        // Private failure diagnostics only: no headers, cookies, personal fields or response job bodies.
+        const record={httpStatus:response.status(),scope:Object.fromEntries([...form].filter(([key])=>fields.includes(key))),
+          otherNonEmptyFieldCount:[...form].filter(([key,value])=>value&&!fields.includes(key)).length};
+        cspcListResponse=record;
+        void response.json().then(data=>{record.result={state:data.state??null,total:data.total??null,jsonListCount:Array.isArray(data.jsonList)?data.jsonList.length:null};})
+          .catch(()=>{record.resultUnavailable=true;});
+      }
     });
-    const tab = {id, url: async () => page.url(), navigationInfo: async () => navigationInfo,
+    const tab = {id, url: async () => page.url(), navigationInfo: async () => cspcListResponse?{...navigationInfo,cspcListResponse}:navigationInfo,
       goto: async (url, config) => {
-        navigationInfo=undefined;
+        navigationInfo=undefined;cspcListResponse=undefined;
         const response=await page.goto(url, {waitUntil:'domcontentloaded',...options(config)});
         navigationInfo=response?{httpStatus:response.status(),retryAfter:await response.headerValue('retry-after')}:undefined;
         return response;
