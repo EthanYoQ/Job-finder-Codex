@@ -1,6 +1,6 @@
 import { createDecipheriv, createHash } from "node:crypto";
 import { load } from "cheerio";
-import { isHengruiMainlandLocation } from "./hengruiMainlandGeography";
+import { hasMainlandCountryLocation, mokaDisplayCities } from "./hengruiMainlandGeography";
 import { containsSensitiveAdapterValue } from "./adapters/safeAdapterValue";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
@@ -63,7 +63,7 @@ export function replayHengruiScopeExclusionProof(
     const lossByLocator = new Map(evidence.fetchLosses.map(loss => [loss.rawLocator, loss]));
     if (lossByLocator.size !== evidence.fetchLosses.length) return undefined;
     const seenIds = new Set<string>();
-    const expectedOutputs = new Map<string, { title: string; cities: string[]; url: string }>();
+    const expectedOutputs = new Map<string, { title: string; cities: string[]; displayCities: string[]; url: string }>();
     const exclusions: VerifiedMokaScopeExclusion[] = [];
     let rawCount = 0;
     for (let sequence = 0; sequence < evidence.pages.length; sequence++) {
@@ -134,7 +134,7 @@ export function replayHengruiScopeExclusionProof(
           cities = locationTexts(mainlandLocations);
           if (loss || !exactMainlandLocations(mainlandLocations) || !cities?.length) return undefined;
           const url = new URL(CAMPAIGN); url.hash = `/job/${encodeURIComponent(id)}`;
-          expectedOutputs.set(evidenceId, { title: clean(title), cities: cities.map(clean), url: url.toString() });
+          expectedOutputs.set(evidenceId, { title: clean(title), cities: cities.map(clean), displayCities: mokaDisplayCities(mainlandLocations), url: url.toString() });
           validIds.push(evidenceId);
         }
       }
@@ -160,7 +160,7 @@ export function replayHengruiScopeExclusionProof(
         if (!expected || job.companyId !== plan.company.id || job.sourceId !== plan.source.id || job.sourceKind !== "SOCIAL" || job.atsKind !== "MOKA" ||
             job.officialChineseCompanyName !== plan.company.officialChineseName || job.officialTitle !== expected.title ||
             job.officialUrl !== expected.url || job.locationRaw !== expected.cities.join("、") ||
-            JSON.stringify(job.cities) !== JSON.stringify(expected.cities) || job.listUrl !== sanitizeEvidenceHttpUrl(plan.source.officialEntryUrl) ||
+            JSON.stringify(job.cities) !== JSON.stringify(expected.displayCities) || job.listUrl !== sanitizeEvidenceHttpUrl(plan.source.officialEntryUrl) ||
             job.category !== "其他" || job.auxiliaryChineseTitle !== undefined || job.officialPublishedAt !== undefined ||
             job.evidence.officialEntryUrl !== sanitizeEvidenceHttpUrl(plan.source.officialEntryUrl) ||
             job.evidence.officialChainEvidenceUrl !== plan.source.officialChainEvidenceUrl) return undefined;
@@ -202,7 +202,7 @@ function exactWalthamLocations(value: unknown): boolean {
     ["沃尔瑟姆", "Waltham"].includes(v.cityName) && ["马萨诸塞州", "Massachusetts", "MA"].includes(v.provinceName));
 }
 function exactMainlandLocations(value: unknown): boolean {
-  return Array.isArray(value) && value.length > 0 && value.every(isHengruiMainlandLocation);
+  return Array.isArray(value) && value.length > 0 && value.every(hasMainlandCountryLocation);
 }
 function sameSet(left: readonly string[], right: readonly string[]): boolean { return left.length === right.length && JSON.stringify([...left].sort()) === JSON.stringify([...right].sort()); }
 
@@ -212,10 +212,9 @@ function exactHongKongLocation(value: unknown): boolean {
     location.cityId === 810000 && location.provinceId === 810000;
 }
 
-const LOCATION_FIELDS = new Set(["id", "country", "cityName", "cityId", "provinceName", "provinceId"]);
 function exactLocationShape(value: unknown): boolean {
   const location = record(value);
-  if (!location || Object.keys(location).some(key => !LOCATION_FIELDS.has(key))) return false;
+  if (!location) return false;
   if (typeof location.country !== "string" || !location.country.trim()) return false;
   for (const key of ["cityName", "provinceName"]) {
     if (location[key] !== undefined && (typeof location[key] !== "string" || !(location[key] as string).trim())) return false;

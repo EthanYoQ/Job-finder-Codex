@@ -151,7 +151,6 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     if(typeof response?.status==='function')navigationStatus=response.status();
     sourceFetchStage='JNJ_DETAIL_READY';
     await rejectTemporaryAccessFailure(detail,'#js-job-detail');
-    await detail.getAXState({emit:false});
     await detail.playwright.locator('#js-job-detail').waitFor({state:'visible',timeoutMs:30000});
     sourceFetchStage='JNJ_APPLY_READY';
     await detail.playwright.getByRole('link',{name:'Apply now',exact:true}).waitFor({state:'visible',timeoutMs:30000});
@@ -179,7 +178,6 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     const nextUrl=await list.playwright.getByRole('link',{name:'Next page',exact:true}).evaluate(e=>e.href);
     if(nextUrl!==listUrl(page+1))throw Error('JNJ_DOM_PAGINATION');
     await list.goto(nextUrl);
-    await list.getAXState({emit:false});
     page++;
     return {page};
   }

@@ -1,3 +1,4 @@
+import { phenomMainlandGeography } from "./phenomMainlandGeography";
 import { load as loadHtml } from "cheerio";
 import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import { explicitlyForeignOrNonMainlandLocation, irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from "./officialJsonEvidence";
@@ -44,11 +45,6 @@ export function exactLillyChinaBootstrap(config: {
     config.pageName === "search-results" && config.pageId === "page11-ds";
 }
 
-const RAW_FIELDS = new Set(["address", "applyUrl", "badge", "category", "city", "cityState", "cityStateCountry", "country",
-  "dateCreated", "descriptionTeaser", "externalApply", "hiringManager", "isMultiCategory", "isMultiLocation", "jobId",
-  "jobSeqNo", "jobVisibility", "latitude", "locale", "location", "longitude", "ml_job_parser", "ml_skills", "multi_category",
-  "multi_category_array", "multi_location", "multi_location_array", "postedDate", "reqId", "siteType", "state", "title", "type",
-  "visibilityType", "workerSubType"]);
 function record(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
 function exactFields(value: object, fields: readonly string[]): boolean {
   return Object.keys(value).length === fields.length && fields.every(field => Object.hasOwn(value, field));
@@ -69,12 +65,6 @@ function officialUrlLocation(raw: Record<string, unknown>): string | undefined {
 // The exact contextual HQ introduction is company background. Remove only that
 // prefix for location analysis; every appended clause is still examined.
 const CORPORATE_INTRO = "At Lilly, we unite caring with discovery to make life better for people around the world. We are a global healthcare leader headquartered in Indianapolis, Indiana. Our employees around the world ";
-const CURRENT_INTRO = "At Lilly, the work is demanding because patients are waiting. We unite caring with discovery to help make life better for people around the world, knowing that every decision, every detail, and ";
-const NESTED_INTROS: Readonly<Record<string, readonly string[]>> = {
-  descriptionTeaser_first200: [`${CORPORATE_INTRO}wo...`, `${CURRENT_INTRO}eve...`],
-  descriptionTeaser_keyword: [`${CORPORATE_INTRO}work...`, `${CURRENT_INTRO}every...`],
-  descriptionTeaser_ats: [`${CORPORATE_INTRO}work `, `${CURRENT_INTRO}every `, `${CURRENT_INTRO}every`]
-};
 const NON_LOCATION_TITLE_SUFFIXES = new Set(["Quality Assurance", "Associate", "Country Study Management", "QC Biological", "QC",
   "IDS Infrastructure", "Unified Experience", "Brand Management", "Legal Counsel", "QA Compliance", "External Innovation",
   "Neuroscience", "Site Operational Excellence Business Partner", "DIA", "PRA", "Digital HCP Engagement & Experience BP",
@@ -88,7 +78,6 @@ const MAINLAND_TITLE_CITIES: ReadonlyArray<readonly [string, string]> = [
   ["Nanjing", "南京"], ["Hangzhou", "杭州"], ["Tianjin", "天津"], ["Chongqing", "重庆"], ["Wuhan", "武汉"],
   ["Chengdu", "成都"], ["Changsha", "长沙"], ["Jinan", "济南"], ["Dalian", "大连"], ["Zhejiang", "浙江"]
 ];
-const PROFESSIONAL_SKILLS_WITH_LOCATION_WORDS = new Set(["microsoft office", "value-based pricing"]);
 const REVIEWED_ROLE_PARENTHESES = new Set(["Sr", "Sr.", "Sr./Expert/Sr. Expert", "Sr./Principal", "Analytical Focus", "Biology Focus", "NGS sequencing Focus"]);
 const FOREIGN_PLACE = /\b(?:united states|usa|u\.s\.?|boston|new york|san francisco|los angeles|seattle|indianapolis|indiana|singapore|japan|tokyo|osaka|kyoto|india|germany|france|paris|canada|australia|united kingdom|u\.k\.?|london|south korea|republic of korea|seoul|hong kong|macau|macao|taiwan|overseas|abroad)\b|美国|纽约|波士顿|旧金山|洛杉矶|西雅图|新加坡|日本|东京|大阪|京都|印度|德国|法国|巴黎|加拿大|澳大利亚|英国|伦敦|韩国|首尔|香港|澳门|台湾|海外|国外/iu;
 const WORKPLACE_CLAUSES = [
@@ -105,41 +94,11 @@ const WORKPLACE_CLAUSES = [
 const LOCATION_SIGNAL = /\blocation\b|\bworkplace\b|\boffice\b|\bremote\b|\bbased\b|\blocated\b|\bstationed\b|\bheadquartered\b|工作地|工作城市|办公|驻地|本职位在|本岗位在/iu;
 
 function textCityScope(raw: Record<string, unknown>): "AGREES" | "PENDING" | undefined {
-  if (typeof raw.title !== "string" || !raw.title.trim() ||
-    typeof raw.descriptionTeaser !== "string") return undefined;
+  if (typeof raw.title !== "string" || !raw.title.trim()) return undefined;
   const title = raw.title.replace(/\s+/gu, " ").trim();
-  const texts: string[] = [title, raw.descriptionTeaser];
+  const texts = [title, raw.descriptionTeaser, ...(record(raw.ml_job_parser) ? Object.values(raw.ml_job_parser) : [])]
+    .filter((value): value is string => typeof value === "string");
   let pending = false;
-  if (Object.hasOwn(raw, "ml_job_parser")) {
-    if (!record(raw.ml_job_parser) || !exactFields(raw.ml_job_parser, ["descriptionTeaser", ...Object.keys(NESTED_INTROS)]) ||
-      raw.ml_job_parser.descriptionTeaser !== raw.descriptionTeaser) return undefined;
-    for (const [key, reviewed] of Object.entries(NESTED_INTROS)) {
-      const value = raw.ml_job_parser[key];
-      if (typeof value !== "string") return undefined;
-      texts.push(value);
-      // Novel prose survives, but does not silently inherit the old city confidence.
-      if (!reviewed.includes(value)) pending = true;
-    }
-  }
-  for (const key of ["category", "type", "workerSubType", "badge"]) {
-    if (Object.hasOwn(raw, key)) {
-      if (typeof raw[key] !== "string") return undefined;
-      texts.push(raw[key] as string);
-    }
-  }
-  for (const key of ["ml_skills", "multi_category"]) {
-    if (Object.hasOwn(raw, key)) {
-      if (!Array.isArray(raw[key]) || !(raw[key] as unknown[]).every(value => typeof value === "string")) return undefined;
-      texts.push(...(raw[key] as string[]).filter(value => key !== "ml_skills" || !PROFESSIONAL_SKILLS_WITH_LOCATION_WORDS.has(value)));
-    }
-  }
-  if (Object.hasOwn(raw, "multi_category_array")) {
-    if (!Array.isArray(raw.multi_category_array)) return undefined;
-    for (const value of raw.multi_category_array) {
-      if (!record(value) || !exactFields(value, ["category"]) || typeof value.category !== "string") return undefined;
-      texts.push(value.category);
-    }
-  }
   const aliases = raw.city === "Shanghai" ? ["Shanghai", "上海"] : raw.city === "Suzhou" ? ["Suzhou", "苏州"] : ["Zhejiang", "浙江"];
   const sameLocality = (value: string) => aliases.some(alias => [alias, `${alias}, China`, `${alias}, ${raw.state}, China`].includes(value.trim()));
   for (const original of texts) {
@@ -193,41 +152,12 @@ export function lillyPageEnvelopeValid(value: unknown): boolean {
  * Duplicated identical alternatives are redundant labels, never extra jobs or
  * workplaces. Known contradictory primary/URL/coordinate shapes stay pending. */
 export function lillyOfficialCities(raw: Record<string, unknown>): string[] | undefined {
-  if (Object.keys(raw).some(key => !RAW_FIELDS.has(key)) || raw.country !== "China" || raw.isMultiLocation !== true ||
-    raw.siteType !== "external" || raw.visibilityType !== "External" || raw.externalApply !== false || raw.locale !== "en_US" ||
-    JSON.stringify(raw.jobVisibility) !== JSON.stringify(["external"])) return undefined;
-  const textScope = textCityScope(raw);
-  if (!textScope) return undefined;
-  const urlLocation = officialUrlLocation(raw);
-  if (!urlLocation) return undefined;
-  const shanghai = raw.city === "Shanghai" && raw.state === "Shanghai";
-  const suzhou = raw.city === "Suzhou" && raw.state === "Shanghai";
-  const zhejiang = raw.city === "Zhejiang" && raw.state === "Zhejiang";
-  if (!shanghai && !suzhou && !zhejiang) return undefined;
-  const location = `${raw.city}, ${raw.state}, China`;
-  const address = shanghai ? ["16F No.288 Shimen 1RD, Shanghai, 200041 Shanghai, China", "17F-19F No.288 Shimen 1RD, Shanghai, 200041 Shanghai, China"] :
-    suzhou ? ["No.109, Fangzhong Jie SIP, Suzhou, 215126 Shanghai, China"] : ["Remote, Zhejiang, 999999 Zhejiang, China"];
-  const top = shanghai ? ["31.22222", "121.45806"] : suzhou ? ["31.31092", "120.77415"] : ["0.0", "0.0"];
-  const nested = shanghai ? [31.22222, 121.45806] : suzhou ? [31.311389, 120.618056] : [Number.MIN_VALUE, Number.MIN_VALUE];
-  if (raw.location !== location || raw.cityStateCountry !== location || raw.cityState !== `${raw.city}, ${raw.state}` ||
-    !address.includes(raw.address as string) || raw.latitude !== top[0] || raw.longitude !== top[1] ||
-    !Array.isArray(raw.multi_location) || raw.multi_location.length < 1 || !raw.multi_location.every(value => value === location) ||
-    !Array.isArray(raw.multi_location_array) || raw.multi_location_array.length !== raw.multi_location.length ||
-    !raw.multi_location_array.every(value => record(value) && exactFields(value, ["location", "latlong"]) && value.location === location &&
-      record(value.latlong) && exactFields(value.latlong, ["lat", "lon"]) && value.latlong.lat === nested[0] && value.latlong.lon === nested[1])) return undefined;
-  // Optional non-location fields cannot smuggle nested geography under a known
-  // key. Hiring-manager text is never interpreted or copied to public output.
-  for (const key of ["hiringManager", "category", "type", "workerSubType", "badge", "dateCreated"]) {
-    if (Object.hasOwn(raw, key) && typeof raw[key] !== "string") return undefined;
-  }
-  if (Object.hasOwn(raw, "dateCreated") && !lillyOfficialPostedDate(raw.dateCreated)) return undefined;
-  for (const key of ["ml_skills", "multi_category"]) {
-    if (Object.hasOwn(raw, key) && (!Array.isArray(raw[key]) || !(raw[key] as unknown[]).every(value => typeof value === "string"))) return undefined;
-  }
-  if ((Object.hasOwn(raw, "isMultiCategory") && raw.isMultiCategory !== false) ||
-    (Object.hasOwn(raw, "multi_category_array") && (!Array.isArray(raw.multi_category_array) ||
-      !raw.multi_category_array.every(value => record(value) && exactFields(value, ["category"]) && typeof value.category === "string")))) return undefined;
-  return textScope === "AGREES" && shanghai && (urlLocation === "China-Shang-Hai-" || urlLocation === "CN-Shanghai-LAL") ? ["上海"] : [CITY_PENDING];
+  if (!phenomMainlandGeography(raw) || raw.siteType !== "external" || raw.visibilityType !== "External" ||
+    raw.externalApply !== false || !Array.isArray(raw.jobVisibility) || !raw.jobVisibility.includes("external")) return undefined;
+  const textScope = textCityScope(raw), urlLocation = officialUrlLocation(raw);
+  if (!textScope || !urlLocation) return undefined;
+  return textScope === "AGREES" && raw.city === "Shanghai" && raw.state === "Shanghai" &&
+    (urlLocation === "China-Shang-Hai-" || urlLocation === "CN-Shanghai-LAL") ? ["上海"] : [CITY_PENDING];
 }
 
 // Native Workday JobPosting is the primary workplace; Phenom's list repeats its
@@ -268,7 +198,6 @@ export function lillyNativeDetail(raw: Record<string, unknown>, artifact: Source
       typeof job.title !== "string" || typeof raw.title !== "string" ||
       loadHtml(job.title).text().replace(/\s+/gu, " ").trim() !== raw.title.replace(/\s+/gu, " ").trim() ||
       typeof job.description !== "string" || !job.description.trim() ||
-      typeof job.datePosted !== "string" || !lillyOfficialPostedDate(`${job.datePosted}T00:00:00.000+0000`) ||
       !record(job.jobLocation) || !record(job.jobLocation.address)) return undefined;
     const address = job.jobLocation.address;
     if (address.addressCountry !== "China" || typeof address.addressLocality !== "string" || !address.addressLocality.trim() ||

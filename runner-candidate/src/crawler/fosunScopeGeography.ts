@@ -1,3 +1,5 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { CITY_PENDING, NATIONWIDE } from "../domain/jobLocation";
 /** Source-local independent Fosun geography replay. Province/prefecture names
  * reuse the repository CNSTAFF vocabulary; this does not call the fetch classifier.
  * Unknown locality labels and unreviewed administrative tails remain unproven. */
@@ -68,26 +70,25 @@ const CITY_PROVINCES = new Map<string, string>([
   ...PREFECTURES.flatMap(([code, names]) => names.split(" ").map(name => [name, code] as [string, string]))
 ]);
 
-type Place = { province?: string; city?: string };
+type Place = { province?: string; city?: string; nationwide?: boolean };
 const COUNTRIES = new Set(["中国", "中国大陆", "中华人民共和国", "中国境内", "china", "mainland china", "china mainland", "prc", "cn"]);
 function country(value:string):boolean { return COUNTRIES.has(value.normalize("NFKC").trim().toLowerCase()); }
 function provinceCore(value:string):string { return value.trim().replace(/(?:维吾尔自治区|壮族自治区|回族自治区|自治区|省|市)$/u, ""); }
 function segment(value:string):Place|undefined {
   const clean=value.normalize("NFKC").trim();
-  if (clean === "上海市·浦东新区") return {province:"31",city:"上海"};
-  if (country(clean) || clean === "全国" || clean === "全国各地") return {};
+  if (!clean || explicitlyForeignOrNonMainlandLocation(clean.replaceAll("·", ","))) return undefined;
+  if (country(clean)) return {};
+  if (clean === NATIONWIDE || clean === "全国各地") return {nationwide:true};
   const hierarchy=clean.split(/[·・]/u).map(part=>part.trim());
-  if(hierarchy.length>2 || hierarchy.some(part=>!part))return undefined;
-  if(hierarchy.length===2){
-    if(country(hierarchy[0]!))return segment(hierarchy[1]!);
-    const province=PROVINCES.get(provinceCore(hierarchy[0]!));
+  if(hierarchy.some(part=>!part))return undefined;
+  if(country(hierarchy[0]!)) return segment(hierarchy.slice(1).join("·")) ?? {};
+  const province=PROVINCES.get(provinceCore(hierarchy[0]!));
+  if(hierarchy.length>1 && province) {
     const city=hierarchy[1]!.replace(/市$/u, "");
-    return province && CITY_PROVINCES.get(city)===province ? {province,city} : undefined;
+    return CITY_PROVINCES.get(city)===province ? {province,city} : {province};
   }
   const city=clean.replace(/市$/u, "");
-  if(CITY_PROVINCES.has(city))return {province:CITY_PROVINCES.get(city)!,city};
-  const province=PROVINCES.get(provinceCore(clean));
-  return province ? {province} : undefined;
+  return CITY_PROVINCES.has(city) ? {province:CITY_PROVINCES.get(city)!,city} : province ? {province} : undefined;
 }
 function places(value:string):Place[]|undefined {
   const parts=value.split(/[,，;；/／|｜、()（）\r\n]+/u).map(x=>x.trim()).filter(Boolean);
@@ -97,17 +98,26 @@ function places(value:string):Place[]|undefined {
 }
 function absent(value:unknown):boolean { return value===undefined || value===null || value===""; }
 
+/** Called after country admission; unknown children keep their raw label on the job. */
+export function mainlandDisplayCities(locations: readonly string[]): string[] {
+  const cities = locations.flatMap(value => (places(value) ?? [{}]).map(place => place.city ?? (place.nationwide ? NATIONWIDE : CITY_PENDING)));
+  if (cities.includes(NATIONWIDE)) return [...new Set(cities.filter(city => city !== CITY_PENDING))];
+  return !cities.length || cities.includes(CITY_PENDING) ? [CITY_PENDING] : [...new Set(cities)];
+}
+
 export function hasExactFosunMainlandGeography(raw:Record<string,unknown>):boolean {
   if(!Array.isArray(raw.LocNames) || raw.LocNames.length===0 ||
       !raw.LocNames.every(value=>typeof value==="string" && value.trim()))return false;
-  const primary=raw.LocNames.map(value=>places(value as string));
+  const countryProven=[raw.Country,raw.CountryName].some(value=>typeof value==="string" && country(value));
+  const parse=(value:string)=>places(value) ?? (countryProven && !explicitlyForeignOrNonMainlandLocation(value.replaceAll("·", ",")) ? [{}] : undefined);
+  const primary=raw.LocNames.map(value=>parse(value as string));
   if(primary.some(value=>value===undefined))return false;
   const coordinates=(primary as Place[][]).flat();
   if(![raw.Country,raw.CountryName].every(value=>absent(value) || typeof value==="string" && country(value)))return false;
   for(const value of [raw.LocName,raw.LocationName,raw.City]){
     if(absent(value))continue;
     if(typeof value!=="string")return false;
-    const alternate=places(value);if(!alternate)return false;
+    const alternate=parse(value);if(!alternate)return false;
     if(!alternate.every(shadow=>coordinates.some(original=>
         (shadow.province===undefined || original.province===undefined || shadow.province===original.province) &&
         (shadow.city===undefined || original.city===undefined || shadow.city===original.city))))return false;

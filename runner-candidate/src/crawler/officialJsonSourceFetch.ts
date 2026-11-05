@@ -1,4 +1,5 @@
-import { hasBiSemanticPlan } from "./biSemanticCompleteness";
+import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
+import { hasBiSemanticPlan, hasBiMainlandGeography, biDisplayCities } from "./biSemanticCompleteness";
 import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
 import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
 import { CITY_PENDING } from "../domain/jobLocation";
@@ -2360,6 +2361,7 @@ function replay51jobArtifacts(
         rawLocator: officialJsonRawLocator(0, index), details: { code: "INVALID_REQUIRED_FIELD", recordIndex: index } });
       continue;
     }
+    if (!hasBiMainlandGeography(raw)) return failed(capturedAt, "51job record mainland geography is unproven");
     if (ui.exclusions.some((rule) => title.includes(rule.code) && locationRaw.includes(rule.jobareaname))) {
       counts.validationDiscardCount += 1;
       losses.push({ stage: "VALIDATION", reason: "51job record excluded by official recruitment UI",
@@ -2370,7 +2372,7 @@ function replay51jobArtifacts(
     officialUrl.searchParams.set("jobId", rawId);
     const sourceJobId = persistentOfficialJsonJobId(rawId);
     jobs.push({ sourceJobId, title, officialUrl: officialUrl.toString(), locationRaw,
-      cities: citiesWithFallback(locationRaw, locationRaw) });
+      cities: biDisplayCities(raw) });
     seen.add(rawId);
     counts.validCount += 1;
     validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
@@ -2604,13 +2606,6 @@ async function fetchEightfoldPcsx({
       const { rawId: id, ...job } = projection;
       seen.add(id);
       const officialPublishedAt = preservePostedDate ? bmsOfficialPostedDate(raw.postedTs) : undefined;
-      if (preservePostedDate && officialPublishedAt === undefined) {
-        counts.validationDiscardCount += 1;
-        losses.push({ stage: "VALIDATION", reason: "BMS official posted-date validation failed",
-          rawLocator: `${artifact.logicalKey}#record:${recordIndex}`,
-          details: { code: "BMS_POSTED_DATE_INVALID", field: "postedTs", pageSequence: pageIndex, recordIndex } });
-        continue;
-      }
       const sourceJobId = job.sourceJobId;
       jobs.push({ ...job, ...(officialPublishedAt === undefined ? {} : { officialPublishedAt }) });
       counts.validCount += 1;
@@ -4445,22 +4440,6 @@ async function fetchPhenomWidgets({
       const officialPublishedAt = preserveOrganonQuality ? phenomOfficialPostedDate(raw.postedDate) :
         preserveLillyQuality ? lillyOfficialPostedDate(raw.postedDate) : preserveMerckQuality ? merckOfficialPostedDate(raw.postedDate) :
         preserveUcbPostedDate ? ucbOfficialPostedDate(raw.postedDate) : undefined;
-      if (preserveOrganonQuality && officialPublishedAt === undefined) {
-        recordPhenomLoss(losses, counts, "VALIDATION", "ORGANON_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
-        continue;
-      }
-      if (preserveLillyQuality && officialPublishedAt === undefined) {
-        recordPhenomLoss(losses, counts, "VALIDATION", "LILLY_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
-        continue;
-      }
-      if (preserveMerckQuality && officialPublishedAt === undefined) {
-        recordPhenomLoss(losses, counts, "VALIDATION", "MERCK_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
-        continue;
-      }
-      if (preserveUcbPostedDate && officialPublishedAt === undefined) {
-        recordPhenomLoss(losses, counts, "VALIDATION", "UCB_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
-        continue;
-      }
       seenOfficialIds.add(id!);
       if (!firstRaw) firstRawByOfficialId.set(id!, { pageIndex, serialized: JSON.stringify(raw) });
       const sourceJobId = persistentOfficialJsonJobId(id!);
@@ -8287,6 +8266,9 @@ export function beisenDomesticRecordScopeReview(
       };
     }
     if (segments.length === 0) return { scope: "AMBIGUOUS", mainlandLocationParts };
+    if (hasExactFosunMainlandGeography({Country: country, LocNames: locationParts.length ? locationParts : [locationRaw]})) {
+      return {scope: "CHINA", mainlandLocationParts: locationParts.length ? [...locationParts] : [locationRaw]};
+    }
 
     const japanSegments = segments.filter(beisenIsExplicitJapanLocationSegment);
     const invalidSegments = segments.filter((segment) =>
@@ -8481,26 +8463,7 @@ export function beisenZhiyeDetailUrl(
 }
 
 export function citiesFromBeisenLocation(locationParts: readonly string[]): string[] {
-  const cities = locationParts.flatMap((location) => {
-    const segments = location
-      .split(/[/,，;；、]/u)
-      .map((segment) => segment.trim())
-      .filter(Boolean);
-
-    return segments.flatMap((segment) => {
-      const hierarchy = segment
-        .split("·")
-        .map((part) => part.trim())
-        .filter(Boolean);
-      return hierarchy.at(-1) ?? segment;
-    });
-  });
-
-  if (cities.length > 0) {
-    return [...new Set(cities)];
-  }
-
-  return [...new Set(locationParts.flatMap(citiesFromLocation))];
+  return mainlandDisplayCities(locationParts);
 }
 
 function normalizePhenomWidgetJob(

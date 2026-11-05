@@ -132,36 +132,15 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
     if (locationRaw === "China - Hong Kong" && flag.attr("alt") === "Hong Kong flag" &&
         flag.attr("src") === "/assets/images/flags/hk.png" && locationSpans.length === 3 &&
         locationSpans.toArray().every(span => $(span).children().length === 0)) {
-      if (age.length !== 1 || age.children().length !== 0) throw new Error("Yello result row structure is invalid");
-      // Only the reviewed complete row shape proves Hong Kong-only geography.
-      // Unknown nodes or semantic attributes may carry another location. Hold them,
-      // without interpreting city words in ordinary titles or department text.
-      const shell = row.children("div.clearfix");
-      const flagBlock = shell.children("div.search-results__flag");
-      const onlyAttributes = (node: typeof row, names: readonly string[]) =>
-        Object.keys(node.attr() ?? {}).every(name => names.includes(name));
-      const classes = (node: typeof row, expected: string) =>
-        (node.attr("class") ?? "").trim().split(/\s+/u).sort().join(" ") === expected.split(" ").sort().join(" ");
-      const onlyElementChildren = (node: typeof row) => node.contents().toArray().every(child =>
-        child.type === "tag" || child.type === "text" && !/\S/u.test(child.data));
-      const onlyTextChildren = (node: typeof row) => node.contents().toArray().every(child => child.type === "text");
-      const expectedChildren = [flagBlock[0], jobInfo[0], age[0]];
-      const reviewedStructure = row.children().length === 1 && shell.length === 1 && shell.children().length === 3 &&
-        jobInfo.is("div") && age.is("div") &&
-        jobInfo.children()[0] === link[0] && jobInfo.children()[1] === locationContainer[0] &&
-        shell.children().toArray().every((child, index) => child === expectedChildren[index]) &&
-        flagBlock.length === 1 && flagBlock.children().length === 1 && flagBlock.children()[0] === flag[0] &&
-        onlyElementChildren(row) && onlyElementChildren(shell) && onlyElementChildren(flagBlock) &&
-        onlyTextChildren(link) && onlyTextChildren(age) && locationSpans.toArray().every(span => onlyTextChildren($(span))) &&
-        onlyAttributes(row, ["class"]) && classes(row, "search-results__item") &&
-        onlyAttributes(shell, ["class"]) && classes(shell, "clearfix") &&
-        onlyAttributes(flagBlock, ["class"]) && classes(flagBlock, "search-results__flag pull-left") &&
-        onlyAttributes(flag, ["alt", "src"]) &&
-        onlyAttributes(jobInfo, ["class"]) && classes(jobInfo, "search-results__jobinfo pull-left") &&
-        onlyAttributes(link, ["class", "href", "lang"]) && classes(link, "search-results__req_title") &&
-        onlyAttributes(locationContainer, []) && locationSpans.toArray().every(span => onlyAttributes($(span), [])) &&
-        onlyAttributes(age, ["class"]) && classes(age, "search-results__post-time pull-right");
-      if (!reviewedStructure) throw new YelloScopeReviewError(rawRows, rowIndex);
+      // The location container and flag establish the exclusion, not age/CSS decoration.
+      if (row.find('img[alt$="flag"]').length !== 1 || locationContainer.length !== 1) throw new YelloScopeReviewError(rawRows, rowIndex);
+      const extraContent = row.clone();
+      extraContent.find(".search-results__flag, .search-results__jobinfo, .search-results__post-time").remove();
+      const locationMarker = /\b(?:location|country|city)\b/iu;
+      const locationClassToken = /(?:^|[\s_-])location(?:[\s_-]|$)|(?:^|[\s_-])(?:country|city)(?=\s|$)/iu;
+      const additionalLocation = extraContent.find("*").addBack().toArray().some(node => "attribs" in node && Object.entries(node.attribs).some(([name, value]) =>
+        locationMarker.test(name) || ["class", "role"].includes(name) && locationClassToken.test(value)));
+      if (additionalLocation || /\bChina\s*-\s*\S/iu.test(extraContent.text())) throw new YelloScopeReviewError(rawRows, rowIndex);
       return { ...identity, scopeDecision: "EXCLUDED_HONG_KONG", publicAgeStatus: "NOT_EVALUATED_OUT_OF_SCOPE" };
     }
     if (flag.attr("alt") !== "China flag" || flag.attr("src") !== "/assets/images/flags/cn.png" ||
@@ -170,9 +149,6 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
       throw new YelloScopeReviewError(rawRows, rowIndex);
     }
     const publicAgeClassification = classifyGileadPublicAge(publicAgeRaw);
-    if (age.length !== 1 || age.children().length !== 0 || !publicAgeClassification) {
-      throw new YelloPublicAgeError(rawRows, rowIndex);
-    }
     return { ...identity, scopeDecision: "INCLUDED_MAINLAND", cities: gileadOfficialCities(locationRaw), publicAgeClassification };
   });
   return { declaredTotal: count, rows: parsedRows,

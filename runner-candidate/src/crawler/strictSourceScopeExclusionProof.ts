@@ -5,7 +5,7 @@ import type { NormalizedJobRecord } from "./normalizedJob";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
 import { isStrictQiluOfficialJobUrl } from "./qiluRenderedTraversalValidator";
-import { hasExactFosunMainlandGeography } from "./fosunScopeGeography";
+import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
 import { containsSensitiveAdapterValue } from "./adapters/safeAdapterValue";
 
 type OfficialPlan = Extract<SourceCrawlPlan, { adapterId: "official-json" }>;
@@ -412,8 +412,7 @@ function exactFosunOutput(
         !raw.LocNames.every(value => typeof value === "string" && value.trim())) return false;
     if (!hasExactFosunMainlandGeography(raw)) return false;
     const parts = (raw.LocNames as string[]).map(value => value.trim());
-    const cities = [...new Set(parts.flatMap(value => value.split(/[/,，;；、]/u).map(segment => segment.trim())
-      .filter(Boolean).map(segment => segment.split("·").map(part => part.trim()).filter(Boolean).at(-1)!)))].map(cleaned);
+    const cities = mainlandDisplayCities(parts);
     const job = byId.get(persistentId(raw.Id));
     const url = new URL("/social/detail", plan.source.officialEntryUrl);
     url.searchParams.set("jobAdId", raw.Id);

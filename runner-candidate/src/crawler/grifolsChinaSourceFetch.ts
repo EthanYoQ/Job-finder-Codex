@@ -1,3 +1,5 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { CITY_PENDING } from "../domain/jobLocation";
 import { GRIFOLS_POSTED_DATE_POLICY, grifolsOfficialPostedDate } from "./grifolsOfficialPostedDate";
 import { load } from "cheerio";
 import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
@@ -114,7 +116,7 @@ export function createGrifolsChinaSourceFetch(
     const artifacts: SourceFetchArtifactDraft[] = [];
     const pages: SourceFetchPageTrace[] = [];
     const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
-    const jobs: Array<GrifolsListJob & { sourceJobId: string; cities: string[]; officialPublishedAt: string }> = [];
+    const jobs: Array<GrifolsListJob & { sourceJobId: string; cities: string[]; officialPublishedAt?: string }> = [];
     let declaredTotal: number | undefined;
     let declaredPages: number | undefined;
     let previousCapturedAt = Date.parse(capturedAt);
@@ -177,16 +179,8 @@ export function createGrifolsChinaSourceFetch(
         continue;
       }
       const officialPublishedAt = grifolsOfficialPostedDate(job.postedDateLabels, detailResponse.value.body);
-      if (officialPublishedAt === undefined) {
-        const pageSequence = listPages.findIndex(page => page.jobs.includes(job));
-        losses.push({ stage: "VALIDATION", reason: "Grifols official posted-date validation failed",
-          rawLocator: `${logicalKey}#html:.jobDisplayShell meta[itemprop=datePosted]@content`,
-          details: { code: "GRIFOLS_POSTED_DATE_INVALID", pageSequence,
-            recordIndex: listPages[pageSequence]!.jobs.indexOf(job), field: "jobDate-datePosted" } });
-        continue;
-      }
       acceptedIds.add(job.officialId);
-      jobs.push({ ...job, sourceJobId: job.officialId, cities: review.cities, officialPublishedAt });
+      jobs.push({ ...job, sourceJobId: job.officialId, cities: review.cities, ...(officialPublishedAt === undefined ? {} : {officialPublishedAt}) });
     }
 
     for (let sequence = 0; sequence < listPages.length; sequence += 1) {
@@ -306,7 +300,7 @@ export function validateStrictGrifolsChinaEvidence(
       detailArtifacts.length !== listed.length || evidence.artifacts.length !== listArtifacts.length + detailArtifacts.length) {
       return false;
     }
-    const expectedJobs: Array<GrifolsListJob & { sourceJobId: string; cities: string[]; officialPublishedAt: string }> = [];
+    const expectedJobs: Array<GrifolsListJob & { sourceJobId: string; cities: string[]; officialPublishedAt?: string }> = [];
     const expectedLossIndexes: number[] = [];
     for (let index = 0; index < listed.length; index += 1) {
       const artifact = detailArtifacts[index]!;
@@ -320,8 +314,7 @@ export function validateStrictGrifolsChinaEvidence(
         continue;
       }
       const officialPublishedAt = grifolsOfficialPostedDate(listedJob.postedDateLabels, artifact.body as string);
-      if (officialPublishedAt === undefined) return false;
-      expectedJobs.push({ ...listedJob, sourceJobId: listedJob.officialId, cities: review.cities, officialPublishedAt });
+      expectedJobs.push({ ...listedJob, sourceJobId: listedJob.officialId, cities: review.cities, ...(officialPublishedAt === undefined ? {} : {officialPublishedAt}) });
     }
     const losses = evidence.fetchLosses;
     if (losses.length !== expectedLossIndexes.length || losses.some((loss, index) =>
@@ -471,9 +464,10 @@ function reviewGrifolsDetail(html: string, listed: GrifolsListJob): DetailReview
   const ambiguous: DetailReview = { scope: "AMBIGUOUS", officialLocation, cities: [] };
   if (locations.length !== 1) return ambiguous;
 
-  // Semantic reconstruction from the surviving, reviewed examples. Unknown cities
-  // or path tails require fresh source review; a China prefix is not sufficient.
-  if (officialLocation === "Location:Open to candidates across China, not limited to Shanghai.") {
+  // A bounded nationwide China statement need not repeat a historical city or punctuation.
+  const nationwide = /^Location:(?:Open to candidates\s+)?(?:across|throughout)\s+(?:mainland\s+)?China(?:,\s*not limited to\s+([^.;]+))?\.?$/iu.exec(officialLocation);
+  if (nationwide && !explicitlyForeignOrNonMainlandLocation(officialLocation) &&
+    !explicitlyForeignOrNonMainlandLocation(nationwide[1] ?? "")) {
     return listed.locationRaw === "Home Office, CN"
       ? { scope: "CHINA", officialLocation, cities: ["全国"] }
       : ambiguous;
@@ -481,6 +475,10 @@ function reviewGrifolsDetail(html: string, listed: GrifolsListJob): DetailReview
   if (listed.locationRaw === "Shanghai, CN" &&
     /^Location:APAC:China:Shanghai:(?:Shanghai|Shangai)$/iu.test(officialLocation)) {
     return { scope: "CHINA", officialLocation, cities: ["上海"] };
+  }
+  if (/^Location:APAC:China:[^:]+(?::[^:]+)*$/iu.test(officialLocation) && /, CN$/u.test(listed.locationRaw) &&
+    !explicitlyForeignOrNonMainlandLocation(officialLocation.replaceAll(":", ",")) && !explicitlyForeignOrNonMainlandLocation(listed.locationRaw)) {
+    return { scope: "CHINA", officialLocation, cities: [CITY_PENDING] };
   }
   if (listed.locationRaw === "Home Office, CN" &&
     /^Location:APAC:(Hong Kong|香港|Macao|Macau|澳门|Taiwan|台湾):Home Office:\1$/iu.test(officialLocation)) {

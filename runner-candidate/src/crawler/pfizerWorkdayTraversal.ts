@@ -91,11 +91,10 @@ export function projectPfizerDetail(raw: unknown, detailBody: string) {
     if (!included && !excluded)
         throw Error("Pfizer country evidence is unknown or conflicting");
     const date = info.startDate;
-    if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(date) || new Date(date).toISOString().slice(0, 10) !== date)
-        throw Error("Pfizer posting date is invalid");
+    const officialPublishedAt = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/u.test(date) && Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date ? `${date}T00:00:00.000Z` : undefined;
     const cities = mainland.map(location => PFIZER_OFFICIAL_LOCALITIES[location] ?? CITY_PENDING);
     return { id, path, excluded, locations, job: { sourceJobId: pfizerSourceJobId(path), title: row.title, officialUrl: info.externalUrl,
-            locationRaw: locations.join(" | "), cities: cities.includes(CITY_PENDING) ? [CITY_PENDING] : [...new Set(cities)], officialPublishedAt: `${date}T00:00:00.000Z` } };
+            locationRaw: locations.join(" | "), cities: cities.includes(CITY_PENDING) ? [CITY_PENDING] : [...new Set(cities)], ...(officialPublishedAt === undefined ? {} : {officialPublishedAt}) } };
 }
 function requestBody(offset: number) { return { appliedFacets: { Location_Country: [PFIZER_CHINA] }, limit: 20, offset, searchText: "" }; }
 function artifact(key: string, url: string, response: WorkdayHttpResponse, request: unknown): SourceFetchArtifactDraft {

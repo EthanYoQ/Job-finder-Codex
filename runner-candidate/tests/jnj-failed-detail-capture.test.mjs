@@ -17,7 +17,7 @@ function fixture(directory,{applyFailure=false,captureFailure=false}={}) {
       async evaluateAll(){return ['team','subteam','country','state','location','type','pattern'].map(name=>({name,selectedOptions:name==='country'?[{text:'China',value:'China'}]:[]}));}}),
     getByRole:role=>({async waitFor(){},async innerText(){return 'Displaying 1 to 1 of 1 matching jobs';},async evaluateAll(){return [];}}),
     async domSnapshot(){return 'synthetic list';}}};
-  const detail={async close(){},async goto(url){assert.equal(url,detailUrl);return {status:()=>200};},async getAXState(){},
+  const detail={async close(){},async goto(url){assert.equal(url,detailUrl);return {status:()=>200};},async getAXState(){throw Error('Unused ARIA snapshot must not run');},
     playwright:{locator:()=>({async waitFor(){if(!applyFailure)throw error;}}),getByRole:()=>({async waitFor(){throw error;}}),
       async evaluate(){if(captureFailure)throw Error(marker);return {url:detailUrl+'?private='+marker,title:'Synthetic failure page',readyState:'complete',detailCount:0,applyLinks:[],html:'<body>'+marker+'</body>'};}}};
   let tabIndex=0;

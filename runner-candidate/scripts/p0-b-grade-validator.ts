@@ -1,5 +1,6 @@
 import { sourceFetchDiagnostic } from "../src/crawler/sourceFetchDiagnostics";
 import { runBGradeIndependentTraversalValidator } from "../src/crawler/traversalCertificate";
+import { runWithOfficialSourceCancellation } from "../src/crawler/officialHttpRuntimeLimits";
 import {
   classifyBGradeIndependentTraversalFailure,
   safeBGradeIndependentTraversalFailureReason
@@ -16,7 +17,8 @@ try {
   if (!rawInput) throw new Error("B-grade validator input is required");
   const input = JSON.parse(rawInput) as Parameters<typeof runBGradeIndependentTraversalValidator>[0];
   sourceId = input.sourceId;
-  const validation = await runBGradeIndependentTraversalValidator({ ...input, signal: controller.signal });
+  const validation = await runWithOfficialSourceCancellation(controller.signal,
+    () => runBGradeIndependentTraversalValidator({ ...input, signal: controller.signal }));
   process.stdout.write(JSON.stringify({ decision: "SUCCEEDED", validation }));
 } catch (error) {
   process.stdout.write(JSON.stringify({

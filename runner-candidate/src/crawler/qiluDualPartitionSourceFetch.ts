@@ -1,3 +1,4 @@
+import { mainlandDisplayCities } from "./fosunScopeGeography";
 import { load } from "cheerio";
 import { collectQiluMainPartitions, qiluPartitionPlans, type QiluMainPartitionCapture } from "./qiluDualPartitionMainCapture";
 import { QILU_DUAL_PARTITION_PROFILE } from "./qiluDualPartitionConfig";
@@ -192,7 +193,7 @@ export function validateStrictQiluDualPartitionEvidence(plan: SourceCrawlPlan, i
             for (const r of valid)
                 expected.push({ sourceJobId: persistentOfficialJsonJobId(r.Id.toLowerCase()), title: r.JobAdName.trim(),
                     url: `https://qilu-pharma.zhiye.com/social/detail?jobAdId=${r.Id.toLowerCase()}`, location: r.LocNames.map((s: string) => s.trim()).join(" / "),
-                    cities: [...new Set<string>(r.LocNames.flatMap((s: string) => s.split(/[/,，;；、]/u).map(s => s.trim()).filter(Boolean).map(s => s.split("·").map(s => s.trim()).filter(Boolean).at(-1)!)))] });
+                    cities: mainlandDisplayCities(r.LocNames) });
             return { started_at: a.capturedAt, url: API, method: "POST", http_status: 200, request_json_text: JSON.stringify(request), response_json_text: a.body,
                 request_text_sha256: sha(JSON.stringify(request)), response_text_sha256: sha(a.body) };
         });

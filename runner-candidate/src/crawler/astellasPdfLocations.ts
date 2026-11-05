@@ -1,3 +1,6 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { reviewedMainlandCityLabel } from "./reviewedMainlandCity";
+import { CITY_PENDING } from "../domain/jobLocation";
 /** Source-specific helper. It does not certify list completeness,
  * register a source policy, mutate jobs, or grant owned-acquisition provenance. */
 import { execFile } from "node:child_process";
@@ -50,12 +53,15 @@ export function parseAstellasLocationPages(pages: readonly string[]): AstellasLo
   const unresolved = (reason: NonNullable<AstellasLocationResult["reason"]>): AstellasLocationResult => ({ status: fields.length === 0 ? "UNRESOLVED" : "UNREVIEWED_LOCATION", cities: [], nationwide: false, fields, reason });
   if (fields.length === 0) return unresolved("LOCATION_MISSING");
   if (fields.length !== 1) return unresolved("MULTIPLE_LOCATION_FIELDS");
-  if (fields[0]!.page !== 1) return unresolved("LOCATION_NOT_ON_FIRST_PAGE");
   const value = fields[0]!.rawValue.replace(/^[ \t]+|[ \t]+$/gu, "");
   if (/^(?:China|中国)$/iu.test(value)) return { status: "COUNTRY_ONLY", cities: [], nationwide: false, fields };
-  const tokens = value.split("/").map(token => token.replace(/^[ \t]+|[ \t]+$/gu, "").toLowerCase());
-  if (tokens.length > 2 || new Set(tokens).size !== tokens.length || tokens.some(token => !Object.hasOwn(CITIES, token))) return unresolved("LOCATION_VALUE_UNREVIEWED");
-  return { status: "CITY_SPECIFIC", cities: tokens.map(token => CITIES[token]!), nationwide: false, fields };
+  if (explicitlyForeignOrNonMainlandLocation(value)) return unresolved("LOCATION_VALUE_UNREVIEWED");
+  const countryExplicit = /(?:^|[,，/])\s*(?:China|中国)\s*$/iu.test(value);
+  const local = countryExplicit ? value.replace(/(?:^|[,，/])\s*(?:China|中国)\s*$/iu, "") : value;
+  const tokens = local.split("/").map(token => token.trim());
+  const cities = tokens.map(token => CITIES[token.toLowerCase()] ?? reviewedMainlandCityLabel(token, "China"));
+  if (!tokens.length || tokens.some(token => !token) || cities.some(city => !city) && !countryExplicit) return unresolved("LOCATION_VALUE_UNREVIEWED");
+  return { status: "CITY_SPECIFIC", cities: cities.some(city => !city) ? [CITY_PENDING] : [...new Set(cities as string[])], nationwide: false, fields };
 }
 
 export type AstellasPdfRuntimeCapability = {available:true;parserVersion:string}|{available:false;code:"PDF_RUNTIME_UNAVAILABLE"};

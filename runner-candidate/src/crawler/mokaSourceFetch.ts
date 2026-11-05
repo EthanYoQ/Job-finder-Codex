@@ -1,3 +1,5 @@
+import { CITY_PENDING } from "../domain/jobLocation";
+import { mokaDisplayCities } from "./hengruiMainlandGeography";
 import { isServierTraversalPlan, replayServierTraversal, servierDetailScope, SERVIER_SCOPE_POLICY, SERVIER_UNKNOWN_CODE } from "./servierMokaScope";
 import { isBayerMedicalTraversalPlan, bayerNativeDivisionScope, bayerDetailScope, replayBayerMedicalTraversal } from "./bayerMokaScope";
 import { createDecipheriv } from "node:crypto";
@@ -1394,7 +1396,7 @@ function enrichMokaJob(job: unknown, officialEntryUrl: string): unknown {
     title: requiredText(job.title),
     officialUrl: buildMokaJobUrl(officialEntryUrl, sourceJobId!),
     locationRaw: cities.join("、"),
-    cities,
+    cities: mokaDisplayCities(job.locations),
     ...(officialPublishedAt ? { officialPublishedAt } : {})
   };
 }
@@ -1413,13 +1415,13 @@ function mokaPublishedDateKey(value: unknown): string | undefined {
   return `${match[1]}-${match[2]}-${match[3]}`;
 }
 
-function mokaPublishedAtIso(value: unknown): string | undefined {
+export function mokaPublishedAtIso(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const text = value.trim();
-  if (!text) return undefined;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return `${text}T00:00:00+08:00`;
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)) return `${text}+08:00`;
-  const zoned = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text) ? `${text}:00+08:00` : text;
+  if (!text || !mokaPublishedDateKey(text)) return undefined;
+  const zoned = /^\d{4}-\d{2}-\d{2}$/.test(text) ? `${text}T00:00:00+08:00` :
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text) ? `${text}+08:00` :
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text) ? `${text}:00+08:00` : text;
   return Number.isNaN(Date.parse(zoned)) ? undefined : zoned;
 }
 

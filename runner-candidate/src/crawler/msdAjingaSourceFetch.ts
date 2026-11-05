@@ -1,3 +1,5 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { mainlandDisplayCities } from "./fosunScopeGeography";
 import {retryableHttpTransportFailure,retryableTransportFailureFromError,type SourceTransportFailure} from "./sourceFetchFailure";
 import {isDeepStrictEqual as same} from "node:util";
 import {load} from "cheerio";
@@ -70,7 +72,7 @@ export function projectMsdAjingaJob(row:Record<string,unknown>,detailInput:unkno
  // Ajinga localizes list cities. Bind each label only to the bilingual city object
  // on this exact job's native detail; an external translation table cannot prove it.
  const locations=job.job_locations.map(v=>rec(rec(v)?.city));
- if(locations.some(city=>!text(city?.cn_name)||!/^[\u4e00-\u9fff]{2,12}市$/u.test(city.cn_name)||
+ if(locations.some(city=>!text(city?.cn_name)||explicitlyForeignOrNonMainlandLocation(city.cn_name)||
   /(?:香港|澳门|台湾|臺灣|台北|臺北|新北|高雄|台中|臺中|台南|臺南|桃园|桃園)/u.test(city.cn_name)))return undefined;
  const rawCities=unique(row.cities as string[]),cities:string[]=[];
  for(const label of rawCities){
@@ -78,7 +80,7 @@ export function projectMsdAjingaJob(row:Record<string,unknown>,detailInput:unkno
   if(matches.length!==1)return undefined;cities.push(matches[0]!);
  }
  if(!setEqual(cities,locations.map(city=>city!.cn_name as string)))return undefined;
- return {sourceJobId:`ajinga:${row.pk}`,title:norm(row.title),officialUrl:ORIGIN+row.url,locationRaw:rawCities.join("、"),cities:unique(cities).map(v=>v.replace(/市$/u,""))};
+ return {sourceJobId:`ajinga:${row.pk}`,title:norm(row.title),officialUrl:ORIGIN+row.url,locationRaw:rawCities.join("、"),cities:mainlandDisplayCities(unique(cities))};
 }
 function locator(role:string,url:string,coordinate:unknown){return requestContractV2Locator(`msd-ajinga-${role}-v1`,{family:"msd-ajinga",role,method:"GET",url,body:null,coordinate});}
 function trace(artifact:SourceFetchArtifactDraft,page:number,total:number,rows:Record<string,unknown>[]):SourceFetchPageTrace{

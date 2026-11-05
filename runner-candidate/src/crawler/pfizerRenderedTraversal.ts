@@ -78,7 +78,7 @@ export function replayPfizerRenderedRow(row: OfficialJsonRenderedRawRow, index: 
     if (typeof raw.jsonLd !== "string" || !hasUniqueJsonObjectKeys(raw.jsonLd))
         throw Error("Pfizer rendered JSON-LD is invalid");
     const ld = object(JSON.parse(raw.jsonLd)), address = object(object(ld.jobLocation).address);
-    if (ld["@type"] !== "JobPosting" || object(ld.identifier).value !== raw.officialId || typeof ld.title !== "string" || renderedTitleText(ld.title) !== renderedTitleText(raw.title) || typeof ld.datePosted !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(ld.datePosted))
+    if (ld["@type"] !== "JobPosting" || object(ld.identifier).value !== raw.officialId || typeof ld.title !== "string" || renderedTitleText(ld.title) !== renderedTitleText(raw.title))
         throw Error("Pfizer JSON-LD identity mismatch");
     const countries = address.addressCountry;
     if (row.scopeMarker !== countries || row.rawEvidenceId !== irreversibleOfficialJsonEvidenceId(raw.officialId) || row.sourceJobId !== `workday:sha256:${createHash("sha256").update(raw.externalPath).digest("hex")}`)

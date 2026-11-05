@@ -1,13 +1,7 @@
+import { hasExactFosunMainlandGeography } from "./fosunScopeGeography";
 import { z } from "zod";
 import { manualCaptureError, manualCaptureSha256, parseManualCaptureJson } from "./manualChromeCaptureEvidence";
 
-// Positively reviewed values observed in the retained October 1 Qilu capture.
-// This diagnostic dictionary is intentionally narrow: new/compound values remain
-// unresolved and are never dropped or promoted by a province-prefix heuristic.
-const reviewedMainlandLocations = new Set([
-  "上海市", "北京市", "山东省", "山东省·德州市", "山东省·德州市·临邑县", "山东省·德州市·乐陵市",
-  "山东省·济南市", "山东省·济南市·历城区", "山东省·济南市·济南高新区", "海南省·海口市"
-]);
 const reviewedNationwideLocations = new Set(["全国", "中国", "中国大陆"]);
 const reviewedForeignLocations = new Set(["美国", "香港", "香港特别行政区", "united states", "usa", "hong kong"]);
 
@@ -18,7 +12,7 @@ export function qiluReviewedRowGeography(raw: unknown): "EXPLICIT_MAINLAND" | "N
   if (!Array.isArray(row.LocNames) || row.LocNames.length === 0 || row.LocNames.some(value => typeof value !== "string")) return undefined;
   const locations = (row.LocNames as string[]).map(value => value.normalize("NFKC").trim());
   const foreignGroup = (value:string):string|undefined => /^(?:美国|united states|usa)$/iu.test(value) ? "US" : /^(?:香港|香港特别行政区|hong kong)$/iu.test(value) ? "HK" : undefined;
-  const mainland = locations.every(value => reviewedMainlandLocations.has(value) || reviewedNationwideLocations.has(value));
+  const mainland = hasExactFosunMainlandGeography(row);
   const foreign = locations.every(value => reviewedForeignLocations.has(value.toLowerCase()));
   if (locations.some(value => !value) || (!mainland && !foreign)) return undefined;
   for (const field of ["Country", "CountryName", "LocName", "LocationName", "City"] as const) {

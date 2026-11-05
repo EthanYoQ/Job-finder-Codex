@@ -69,7 +69,7 @@ function lookupPage(body: string, index: number, declared?: number): { total: nu
     assert(china.length === 1 && china[0]!.id === CHINA && china[0]!.descriptor === "China" && china[0]!.count === total);
   }
   const rows = root.jobPostings.map(value => {
-    const r = object(value); assert(nonempty(r.title) && nonempty(r.externalPath) && nonempty(r.locationsText) && nonempty(r.postedOn) && Array.isArray(r.bulletFields) && r.bulletFields.length === 1);
+    const r = object(value); assert(nonempty(r.title) && nonempty(r.externalPath) && nonempty(r.locationsText) && Array.isArray(r.bulletFields) && r.bulletFields.length === 1);
     const req = r.bulletFields[0], match = /^\/job\/[A-Za-z0-9-]+\/[A-Za-z0-9-]+_(R-[1-9]\d*)(?:-[1-9]\d*)?$/u.exec(r.externalPath);
     assert(nonempty(req) && match?.[1] === req && (/^China\s+- /u.test(r.locationsText) || /^[2-9]\d* Locations$/u.test(r.locationsText)));
     return { req, title: clean(r.title), path: r.externalPath, location: r.locationsText };
@@ -93,8 +93,8 @@ function identity(html: string, row: Row) {
 function project(row: Row, html: string, lookup: LookupRow, body: string) {
   const id = identity(html, row), root = json(body), info = object(root.jobPostingInfo), country = object(info.country), requisition = object(info.jobRequisitionLocation), reqCountry = object(requisition.country);
   const officialUrl = `${WD}/Careers${lookup.path}`;
-  assert(id.req === lookup.req && lookup.title === row.title && root.userAuthenticated === false && info.jobReqId === id.req && info.jobPostingId === lookup.path.split("/").at(-1) &&
-    info.jobPostingSiteId === "Careers" && info.externalUrl === officialUrl && info.title === row.title && info.posted === true && info.canApply === true &&
+  assert(id.req === lookup.req && root.userAuthenticated === false && info.jobReqId === id.req && info.jobPostingId === lookup.path.split("/").at(-1) &&
+    info.jobPostingSiteId === "Careers" && info.externalUrl === officialUrl && nonempty(info.title) && info.posted === true && info.canApply === true &&
     country.id === CHINA && country.descriptor === "China" && reqCountry.id === CHINA && reqCountry.descriptor === "China" && reqCountry.alpha2Code === "CN" && nonempty(requisition.descriptor) &&
     nonempty(info.jobDescription) && nonempty(info.location) && (info.additionalLocations === undefined || Array.isArray(info.additionalLocations)));
   // Workday wraps the same complete JD with its category heading and a trailing dot.
@@ -107,12 +107,13 @@ function project(row: Row, html: string, lookup: LookupRow, body: string) {
   assert(lookup.location === info.location && locations.length === 1 || lookup.location === `${locations.length} Locations` && locations.length > 1);
   for (let i = 0; i < locations.length; i++) { const name = (locations[i] as string).replace(/^China\s+- /u, ""), address = id.locations[i]!;
     assert(name === address.addressLocality || name === "Yulin (Shaanxi)" && address.addressLocality === "Yulin" && address.addressRegion === "Shaanxi"); }
-  const cities = projectAmgenNativeCities(row.title, locations as string[], requisition.descriptor); assert(cities);
+  const cities = projectAmgenNativeCities(info.title as string, locations as string[], requisition.descriptor); assert(cities);
   const $ = load(html), heading = clean($("h1").text()), mainJobIds = $("main#content section.job-description[data-selector-name='jobdetails']").map((_, node) => $(node).attr("data-job-id") ?? "").get();
   const applyLinks = $("a.job-apply").toArray().map(node => ({ numericId: $(node).attr("data-job-id") ?? "", orgId: $(node).attr("data-job-organization-id") ?? "", href: $(node).attr("href") ?? "", dataApplyUrl: $(node).attr("data-apply-url") ?? "" }));
   const expectedNativeApplyRoute = `${officialUrl}/apply`; // Comparison only; never fetched or published as observed evidence.
   const hasConflict = heading !== row.title || mainJobIds.some(v => v !== row.id) || applyLinks.some(v => v.numericId !== row.id || v.orgId !== "87" || v.href !== expectedNativeApplyRoute || v.dataApplyUrl !== expectedNativeApplyRoute);
-  return { job: { sourceJobId: `workday:sha256:${hash(lookup.path)}`, title: row.title, officialUrl, locationRaw: locations.join(" | "), cities },
+  // The same requisition can have a newer title at the official application endpoint.
+  return { job: { sourceJobId: `workday:sha256:${hash(lookup.path)}`, title: clean(info.title as string), officialUrl, locationRaw: locations.join(" | "), cities },
     binding: { numericId: row.id, reqId: id.req, externalPath: lookup.path, officialUrl, application: { landingUrl: info.externalUrl, canApply: info.canApply, posted: info.posted }, displayConflict: { heading, mainJobIds, applyLinks, hasConflict } } };
 }
 function reportArtifact(manualTotal: number, catalog: LookupRow[], bindings: ReturnType<typeof project>["binding"][], capturedAt: string): SourceFetchArtifactDraft {

@@ -1,3 +1,4 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { ajingaRoute, captureSanofiChineseAjinga, replaySanofiChineseAjinga, sanofiAjingaKeys } from "./sanofiChineseAjinga";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual as same } from "node:util";
@@ -142,8 +143,8 @@ export function sanofiChineseLocation(raw:string):{locationRaw:string;cities:str
     const city=tokens.at(-1)!,province=tokens.length===2?tokens[0]:undefined;
     const location={country:"中国",cityName:city,...(province?{provinceName:province}:{})};
     // Native labels may append 州 to an existing shared prefecture name; keep province validation and the original label.
-    requireValue(isHengruiMainlandLocation(location)||city.endsWith("州")&&isHengruiMainlandLocation({...location,cityName:city.slice(0,-1)}),"SANOFI_CN_GEOGRAPHY_UNKNOWN");
-    return city.replace(/市$/u,"");
+    requireValue(!explicitlyForeignOrNonMainlandLocation(part),"SANOFI_CN_GEOGRAPHY_UNKNOWN");
+    return isHengruiMainlandLocation(location)||city.endsWith("州")&&isHengruiMainlandLocation({...location,cityName:city.slice(0,-1)}) ? city.replace(/市$/u,"") : CITY_PENDING;
   });return {locationRaw,cities:[...new Set(cities)]};
 }
 export interface SanofiTitleConflict {chineseTitle:string;nativeTitle:string}

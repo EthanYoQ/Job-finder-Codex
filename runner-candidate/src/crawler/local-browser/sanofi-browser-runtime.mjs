@@ -25,8 +25,7 @@ export function createSanofiDomRuntime(cua, {failureDirectory=join(process.env.J
     deadline = Math.min(Date.now() + 20 * 60 * 1000, overallDeadline ?? Infinity);
     checkTime();
     tab = await cua.createBrowserTab('cdp', entry);
-    try { await tab.getAXState({ emit: false }); return { deadline }; }
-    catch (error) { await tab.close(); throw error; }
+    return { deadline };
   }
   async function readPage() {
     checkTime();
@@ -36,7 +35,6 @@ export function createSanofiDomRuntime(cua, {failureDirectory=join(process.env.J
     let ready = false;
     while (Date.now() < until) {
       try {
-        await tab.playwright.waitForLoadState({ state: 'load', timeoutMs: Math.min(10000, until - Date.now()) });
         await root.waitFor({ state: 'visible', timeoutMs: Math.max(1, Math.min(10000, until - Date.now())) });
         ready = true; break;
       } catch (error) {
@@ -60,7 +58,6 @@ export function createSanofiDomRuntime(cua, {failureDirectory=join(process.env.J
     const rejectOptionalCookies=tab.playwright.locator('#onetrust-reject-all-handler');
     if(await rejectOptionalCookies.isVisible())await rejectOptionalCookies.click();
     await tab.playwright.locator('#search-results a.next').click();
-    await tab.getAXState({ emit: false });
     return { pageNumber: ++pageNumber };
     } catch(error) {return failed(error,'SANOFI_PAGE_NEXT');}
   }
