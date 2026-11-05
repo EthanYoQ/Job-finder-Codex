@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {CITY_PENDING} from '../src/domain/jobLocation.ts';
-import {matchesPortableSearchCity} from '../../web-candidate/src/domain/jobLocation.ts';
+import {CITY_PENDING,matchesPortableSearchCity as matchesRunnerCity,isCityPendingJob as runnerCityPending} from '../src/domain/jobLocation.ts';
+import {matchesPortableSearchCity,isCityPendingJob,NATIONWIDE} from '../../web-candidate/src/domain/jobLocation.ts';
 import {bmsMainlandCities} from '../src/crawler/bmsMainlandGeography.ts';
 import {biogenListCities} from '../src/crawler/biogenListGeographyGuard.ts';
 import {projectAmgenNativeCities,parseWorkdayMainlandRow} from '../src/crawler/workdayMainlandQuality.ts';
@@ -14,7 +14,7 @@ import {phenomMainlandGeography} from '../src/crawler/phenomMainlandGeography.ts
 import {biDisplayCities,hasBiMainlandGeography} from '../src/crawler/biSemanticCompleteness.ts';
 import {mokaPublishedAtIso} from '../src/crawler/mokaSourceFetch.ts';
 import {parseAstellasLocationPages} from '../src/crawler/astellasPdfLocations.ts';
-import {hasExactFosunMainlandGeography} from '../src/crawler/fosunScopeGeography.ts';
+import {hasExactFosunMainlandGeography,mainlandDisplayCities} from '../src/crawler/fosunScopeGeography.ts';
 import {qiluReviewedRowGeography} from '../src/crawler/manualChromeQiluReplay.ts';
 import {classifyKelunLocation} from '../src/crawler/kelunMainlandScope.ts';
 import {beisenDomesticRecordScopeReview} from '../src/crawler/officialJsonSourceFetch.ts';
@@ -101,6 +101,21 @@ test('domestic scope uses country or province evidence without fixed county or j
  assert.deepEqual(mokaDisplayCities([{country:'中国',cityName:'新城区',provinceName:'青海'}]),pending);
  assert.equal(hasMainlandCountryLocation({country:'中国',cityName:'东京'}),false);
  assert.equal(hasMainlandCountryLocation({cityName:'新城区'}),false);
+});
+
+test('explicit nationwide locations remain searchable instead of becoming pending',()=>{
+ for(const [locations,expected] of [
+  [['全国'],[NATIONWIDE]],[[' 全国各地 '],[NATIONWIDE]],[['中国·全国'],[NATIONWIDE]],
+  [['全国 / 上海'],[NATIONWIDE,'上海']],[['上海','全国'],['上海',NATIONWIDE]],
+  [['全国','新城区'],[NATIONWIDE]],[['全国','中国'],[NATIONWIDE]],[['新城区'],pending]
+ ]){
+  const cities=mainlandDisplayCities(locations);assert.deepEqual(cities,expected);
+  const job={city:cities[0],cities,locationRaw:locations.join(' / ')},nationwide=expected.includes(NATIONWIDE);
+  for(const matches of [matchesRunnerCity,matchesPortableSearchCity])assert.equal(matches(job,NATIONWIDE),nationwide);
+  for(const isPending of [runnerCityPending,isCityPendingJob])assert.equal(isPending(job),!nationwide);
+ }
+ assert(hasExactFosunMainlandGeography({LocNames:['全国'],City:'上海'}));
+ assert.equal(hasExactFosunMainlandGeography({LocNames:['全国 / Tokyo']}),false);
 });
 
 test('Moka country-only display stays pending independently of optional region IDs',()=>{

@@ -1,5 +1,5 @@
 import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
-import { CITY_PENDING } from "../domain/jobLocation";
+import { CITY_PENDING, NATIONWIDE } from "../domain/jobLocation";
 /** Source-local independent Fosun geography replay. Province/prefecture names
  * reuse the repository CNSTAFF vocabulary; this does not call the fetch classifier.
  * Unknown locality labels and unreviewed administrative tails remain unproven. */
@@ -70,14 +70,15 @@ const CITY_PROVINCES = new Map<string, string>([
   ...PREFECTURES.flatMap(([code, names]) => names.split(" ").map(name => [name, code] as [string, string]))
 ]);
 
-type Place = { province?: string; city?: string };
+type Place = { province?: string; city?: string; nationwide?: boolean };
 const COUNTRIES = new Set(["中国", "中国大陆", "中华人民共和国", "中国境内", "china", "mainland china", "china mainland", "prc", "cn"]);
 function country(value:string):boolean { return COUNTRIES.has(value.normalize("NFKC").trim().toLowerCase()); }
 function provinceCore(value:string):string { return value.trim().replace(/(?:维吾尔自治区|壮族自治区|回族自治区|自治区|省|市)$/u, ""); }
 function segment(value:string):Place|undefined {
   const clean=value.normalize("NFKC").trim();
   if (!clean || explicitlyForeignOrNonMainlandLocation(clean.replaceAll("·", ","))) return undefined;
-  if (country(clean) || clean === "全国" || clean === "全国各地") return {};
+  if (country(clean)) return {};
+  if (clean === NATIONWIDE || clean === "全国各地") return {nationwide:true};
   const hierarchy=clean.split(/[·・]/u).map(part=>part.trim());
   if(hierarchy.some(part=>!part))return undefined;
   if(country(hierarchy[0]!)) return segment(hierarchy.slice(1).join("·")) ?? {};
@@ -99,7 +100,8 @@ function absent(value:unknown):boolean { return value===undefined || value===nul
 
 /** Called after country admission; unknown children keep their raw label on the job. */
 export function mainlandDisplayCities(locations: readonly string[]): string[] {
-  const cities = locations.flatMap(value => (places(value) ?? [{}]).map(place => place.city ?? CITY_PENDING));
+  const cities = locations.flatMap(value => (places(value) ?? [{}]).map(place => place.city ?? (place.nationwide ? NATIONWIDE : CITY_PENDING)));
+  if (cities.includes(NATIONWIDE)) return [...new Set(cities.filter(city => city !== CITY_PENDING))];
   return !cities.length || cities.includes(CITY_PENDING) ? [CITY_PENDING] : [...new Set(cities)];
 }
 

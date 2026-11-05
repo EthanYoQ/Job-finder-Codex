@@ -4,6 +4,10 @@ Reviewed all 36 active plans from capture through normalization and evidence rep
 
 ## Confirmed scope
 
+Explicit nationwide labels retain `NATIONWIDE`, including when a separate locality is unresolved; raw labels remain on the job. Country-only evidence still means city pending, not nationwide. The scope predicate is unchanged.
+
+Novartis eligibility continues to require the existing China primary-country and mainland primary-work-location checks. Additional alternative placements do not negate an already confirmed China placement. Read the primary country from a clone so the retained row and original artifacts keep those alternatives; only the existing mainland primary location supplies city-search tags. This preserves the existing accepted scope rather than adding an overseas-alternative rejection gate. Foreign primary locations still fail. The alternative-placement regression is synthetic; no new real capture is claimed.
+
 The following are code-path findings and synthetic reproductions, not claims that every source encountered these failures in production.
 
 | Sources | Confirmed rule and resolution |

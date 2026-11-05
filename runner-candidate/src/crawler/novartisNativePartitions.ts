@@ -27,7 +27,8 @@ function listRows(html:string):Row[] {
   const $=load(html),out:Row[]=[];
   for(const n of $("table.views-table tbody tr").toArray()) {
     if($(n).find("td.empty.message").length===1&&clean($(n).text())==="No content has been found."){requireValue(total(html)===0&&$("table.views-table tbody tr").length===1);continue;}
-    const a=$(n).find("td.views-field-field-job-title a"),country=$(n).find("td.views-field-field-job-country");
+    // Read the China primary placement without deleting alternative placements from the retained row.
+    const a=$(n).find("td.views-field-field-job-title a"),country=$(n).find("td.views-field-field-job-country").clone();
     requireValue(a.length===1&&clean(a.text())&&a.attr("href")&&country.length===1);
     country.find(".alternative-locations").remove();requireValue(clean(country.text())==="China");
     const location=$(n).find("td.views-field-field-job-work-location");
