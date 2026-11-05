@@ -194,7 +194,18 @@ async function captureCspcApplicationEntry(tab, deadline=Infinity) {
     if(!list) return {readError:'CSPC_LIST_HANDLE_UNAVAILABLE_AFTER_START_FAILURE'};
     const value={};
     try { value.navigation=await list.navigationInfo?.(); } catch {}
-    try { value.page=await list.playwright.evaluate(()=>({url:location.href,title:document.title,readyState:document.readyState,html:document.documentElement.outerHTML})); } catch {}
+    try { value.page=await list.playwright.evaluate(()=>{
+      const page={url:location.href,title:document.title,readyState:document.readyState,html:document.documentElement.outerHTML};
+      try {
+        const frame=document.querySelector('#recruit-content-iframe')?.contentDocument,view=frame?.defaultView;
+        page.frame=view?{url:view.location.href,readyState:frame.readyState,html:frame.documentElement.outerHTML,
+          requests:view.performance.getEntriesByType('resource')
+            .filter(entry=>['fetch','xmlhttprequest'].includes(entry.initiatorType)&&new URL(entry.name,view.location.href).origin===view.location.origin)
+            .map(entry=>({path:new URL(entry.name,view.location.href).pathname,status:entry.responseStatus??null,duration:entry.duration}))
+        }:{captureUnavailable:true};
+      } catch {page.frame={captureUnavailable:true};}
+      return page;
+    }); } catch {}
     try { value.url=await list.url(); } catch(error) { value.urlReadError=String(error?.message??error); }
     try { value.domSnapshot=await list.playwright.domSnapshot(); } catch(error) { value.domReadError=String(error?.message??error); }
     return value;
