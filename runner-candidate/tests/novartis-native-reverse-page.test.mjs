@@ -22,7 +22,7 @@ async function capture(mode='complete'){
   if(req.url===plan.source.officialEntryUrl)html=`<div class="view-header">Showing 11 results</div><select name="functional_area[]"><option value="FCT_RD">Research</option></select><select name="country[]"><option value="LOC_CN" selected>China</option></select><select name="field_job_posted_date"><option value="All" selected>All</option></select>`;
   else if(u.pathname.includes('/job/details/'))html=`<h1>Job ${ids[0]}</h1><article>Job ID ${ids[0]}<p>A current description for this official job.</p>${mode==='ascending-only-unknown'?'':`<a href="https://platform.moseeker.com/m/customize/page/novartis?job_number=${ids[0]}">Apply to Job</a>`}</article>`;
   else if(field&&!reverse){const rows=p?[ids[0]]:ids.slice(0,10);html=page(req.url,rows,11,p,mode!=='no-native-reverse');}
-  else {const rows=p?(mode==='reverse-changing-total'?ids.slice(10,12):[ordered[10]]):ordered.slice(0,10);html=page(req.url,mode==='reverse-overlap'&&p?[ordered[0]]:rows,reverse&&p&&mode==='reverse-changing-total'?12:11,p);}
+  else {const changedSlug=!field&&mode==='ascending-only-new-slug',values=changedSlug?ids:ordered;const rows=p?(mode==='reverse-changing-total'||changedSlug?ids.slice(10,12):[values[10]]):values.slice(0,10);html=page(req.url,mode==='reverse-overlap'&&p?[ordered[0]]:rows,changedSlug||reverse&&p&&mode==='reverse-changing-total'?12:11,p);if(changedSlug)html=html.replaceAll(`${ids[0].toLowerCase()}-test`,`${ids[0].toLowerCase()}-updated`);}
   if(field&&reverse&&mode==='foreign')html=html.replaceAll('>China</td>','>Japan</td>');
   return {status:field&&reverse&&mode==='blocked'?403:200,body:html,finalUrl:req.url,contentType:'text/html',capturedAt:at};
  });return {fetched,requests};
@@ -48,13 +48,13 @@ test('only an advertised, independently complete reverse traversal can replace o
 });
 
 test('ascending-only sightings keep the existing same-ID detail and UNKNOWN paths',async()=>{
- for(const mode of ['ascending-only-present','ascending-only-unknown']){
+ for(const mode of ['ascending-only-present','ascending-only-unknown','ascending-only-new-slug']){
   const {fetched,requests}=await capture(mode);assert(fetched.ok,fetched.failureReason);
-  assert(requests.includes(detail(ids[0])));
+  assert(requests.includes(mode==='ascending-only-new-slug'?detail(ids[0]).replace('-test','-updated'):detail(ids[0])));
   const projected=replayNovartisNativePartitions(plan,fetched.fetchEvidence);
-  assert.equal(projected.audit.additionalAscendingDiscoveryCount,1);
-  assert.equal(projected.audit.defaultObservedUniqueCount,11);
-  assert.equal(fetched.fetchEvidence.fetchCounts.validCount,mode==='ascending-only-present'?12:11);
+  assert.equal(projected.audit.additionalAscendingDiscoveryCount,mode==='ascending-only-new-slug'?undefined:1);
+  assert.equal(projected.audit.defaultObservedUniqueCount,mode==='ascending-only-new-slug'?12:11);
+  assert.equal(fetched.fetchEvidence.fetchCounts.validCount,mode==='ascending-only-unknown'?11:12);
   assert.equal(projected.unknownUrls.has(detail(ids[0])),mode==='ascending-only-unknown');
  }
 });

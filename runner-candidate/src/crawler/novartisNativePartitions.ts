@@ -135,7 +135,7 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],or
     for(const row of parsed.rows){const prev=defaults.get(row.id);requireValue(!prev||prev.url===row.url);defaults.set(row.id,row);}
     if(!parsed.next){terminal=true;break;}url=parsed.next;}
   requireValue(terminal);const defaultObservedUniqueCount=defaults.size;
-  for(const row of ascendingDiscoveries.values())if(!primaryIds.has(row.id)){const prev=defaults.get(row.id);requireValue(!prev||prev.url===row.url);if(!prev)defaults.set(row.id,row);}
+  for(const row of ascendingDiscoveries.values())if(!primaryIds.has(row.id)&&!defaults.has(row.id))defaults.set(row.id,row);
   const differences:Array<{officialId:string;officialUrl:string;status:"OBSERVED_PRESENT"|"EXPLICITLY_CLOSED"|"UNKNOWN"}>=[];
   for(const row of [...defaults.values()].filter(r=>!primaryIds.has(r.id)).sort((a,b)=>a.id.localeCompare(b.id))){
     const a=take(`novartis-partitions-detail-${row.id}`,row.url,"novartis-partition-same-id-detail-v1"),status=detailStatus(a,row);
