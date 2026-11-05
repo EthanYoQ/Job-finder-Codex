@@ -11,7 +11,7 @@ import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEq
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
-import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss } from "./novoChinaQuality";
+import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoIncompleteDetailIsBound, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss } from "./novoChinaQuality";
 import { BMS_GEOGRAPHY_POLICY, bmsMainlandCities } from "./bmsMainlandGeography";
 import { bmsOfficialPostedDate, exactBmsPostedDatePlan, requiresBmsPostedDate } from "./bmsOfficialPostedDate";
 import { ucbOfficialCities, exactUcbPostedDatePlan, exactUcbPostedDateBootstrap, requiresUcbPostedDate, ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
@@ -1009,11 +1009,12 @@ async function fetchSingleResponseOfficialJson({
         const detailUrl = `${base}.${raw.jobId}.html`;
         const detail = await html(detailUrl, `novo-detail-${raw.jobId}`);
         const applyUrl = novoNativeApplicationUrl(detail.body, detailUrl, String(raw.jobId));
-        if (!applyUrl) throw new Error("Novo native detail/application identity is UNKNOWN");
         if (!novoNativeDetailHasSubstantiveDescription(detail.body)) {
+          if (!applyUrl&&!novoIncompleteDetailIsBound(detail.body,detailUrl)) throw new Error("Novo native detail/application identity is UNKNOWN");
           losses.push(novoInsufficientDetailLoss(raw, i, detail.capturedAt!));
           continue;
         }
+        if (!applyUrl) throw new Error("Novo native detail/application identity is UNKNOWN");
         const application = await html(applyUrl, `novo-application-${raw.jobId}`, true);
         const status = novoApplicationStatus(application.body, application.finalUrl!, String((raw.jobCity as { value: string }).value), String((raw.jobState as { value: string }).value));
         if (!status) throw new Error("Novo official application status is UNKNOWN");

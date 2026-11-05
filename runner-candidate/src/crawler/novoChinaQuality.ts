@@ -165,6 +165,15 @@ export function novoNativeDetailHasSubstantiveDescription(body: string): boolean
   });
 }
 
+/** Bind an incomplete native page to its already validated list-detail URL; never publish it as a new job. */
+export function novoIncompleteDetailIsBound(body: string, detailUrl: string): boolean {
+  const $=loadHtml(body),canonical=$("link[rel~=canonical]"),href=canonical.attr("href"),base=$("base[href]").first().attr("href");
+  let documentBase=detailUrl;
+  try {documentBase=new URL(base??"",detailUrl).href;} catch { /* Invalid HTML bases fall back to the document URL. */ }
+  try {return $("#careerjobdisplay").length===1&&canonical.length===1&&Boolean(href?.trim())&&new URL(href!,documentBase).href===detailUrl;}
+  catch{return false;}
+}
+
 /** Bind the native apply href independently of JD sufficiency. A valid link alone is not publishable. */
 export function novoNativeApplicationUrl(body: string, detailUrl: string, jobId: string): string | undefined {
   const $ = loadHtml(body);
@@ -296,11 +305,12 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
     const detail = readNative(projection.officialUrl, `novo-detail-${raw.jobId}`, false);
     if (!detail || detail.finalUrl !== projection.officialUrl) return false;
     const href = novoNativeApplicationUrl(body(detail), projection.officialUrl, String(raw.jobId));
-    if (!href) return false;
     if (!novoNativeDetailHasSubstantiveDescription(body(detail))) {
+      if (!href&&!novoIncompleteDetailIsBound(body(detail),projection.officialUrl)) return false;
       losses.push(novoInsufficientDetailLoss(raw, i, detail.capturedAt));
       continue;
     }
+    if (!href) return false;
     const application = readNative(href, `novo-application-${raw.jobId}`, true);
     if (!application) return false;
     const state = novoApplicationStatus(body(application), application.finalUrl!, String(record(raw.jobCity)!.value), String(record(raw.jobState)!.value));
