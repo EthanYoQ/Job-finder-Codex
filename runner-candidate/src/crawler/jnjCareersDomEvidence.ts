@@ -152,7 +152,9 @@ export function auditJnjCareersDomObservations(lists: readonly string[], details
     const d = auditObservation(body, () => parseDetail(body, job), {sourceJobId: job.officialId});
     artifacts.push(artifact(detailKey(job.officialId), body, d.observedAt, JNJ_DOM_DETAIL_LOCATOR));
   }
-  assert(details.length === total);
+  if (details.length !== total) throw Object.assign(Error("JNJ_DOM_OBSERVATION_INVALID"),
+    {privateObservation: {kind: "SURPLUS_DETAIL_OBSERVATIONS", observations: [...detailMap]
+      .filter(([url]) => !jobs.some(job => job.officialUrl === url)).map(([, body]) => body)}});
   const times = artifacts.map(a => Date.parse(a.capturedAt)), startedAt = new Date(Math.min(...times)).toISOString(), finishedAt = new Date(Math.max(...times)).toISOString();
   assert(Date.parse(finishedAt) - Date.parse(startedAt) < 30 * 60_000);
   const pages: SourceFetchPageTrace[] = parsed.map((p, sequence) => ({ sequence, artifactLogicalKey: listKey(sequence),

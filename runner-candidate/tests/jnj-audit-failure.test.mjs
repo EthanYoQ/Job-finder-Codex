@@ -23,8 +23,9 @@ function fixture(count=1) {
   filters:['team','subteam','country','state','location','type','pattern'].map(name=>({id:name,name,selectedOptions:name==='country'?[{text:'China',value:'China'}]:[]})),pagination:[{label:'Page 1',url:listUrl}],
   dom:`- option "China" [selected]\n${heading}\n${rows.map(row=>row.url).join('\n')}`},detail:details[0],details};
 }
-for(const failure of ['list','detail','disk','duplicate','schema','unlisted','missing','extra'])test(`JNJ audit ${failure} failure retains context without publishing or logging private DOM`,async()=>{
+for(const failure of ['list','detail','disk','duplicate','schema','unlisted','missing','extra','extra-first','extra-multiple'])test(`JNJ audit ${failure} failure retains context without publishing or logging private DOM`,async()=>{
  const root=await mkdtemp(join(tmpdir(),'jnj-audit-')),input=fixture(['duplicate','missing'].includes(failure)?2:1),oldRoot=process.env.JOBFINDER_STATE_ROOT,originalLog=console.error,logs=[];
+ const surplus=failure.startsWith('extra');
  if(failure==='list')input.list.url=listUrl.replace('country=China','country=Japan');
  else if(failure==='detail'||failure==='disk')input.detail.heading='Different title';
  else if(failure==='schema'||failure==='unlisted'){
@@ -35,7 +36,10 @@ for(const failure of ['list','detail','disk','duplicate','schema','unlisted','mi
   input.details[1]=structuredClone(input.details[0]);input.details[1].dom+=' REJECTED_DUPLICATE_ONLY';
  }
  else if(failure==='missing')input.details.shift();
- else if(failure==='extra')input.details.push(fixture(2).details[1]);
+ else if(surplus){
+  const extra=fixture(failure==='extra-multiple'?3:2).details.slice(1);
+  if(failure==='extra-first')input.details.unshift(...extra);else input.details.push(...extra);
+ }
  input.list.dom+=marker;for(const detail of input.details)detail.dom+=marker;
  const lists=[JSON.stringify(input.list)],details=input.details.map(detail=>JSON.stringify(detail));
  if(failure==='disk')await writeFile(join(root,'ordinary-file'),'synthetic');
@@ -50,14 +54,15 @@ for(const failure of ['list','detail','disk','duplicate','schema','unlisted','mi
   assert(!JSON.stringify(diagnostic).includes(marker));assert(!JSON.stringify(diagnostic).includes(root));
   if(failure==='disk'){assert.equal(diagnostic.privateCaptureUnavailable,true);return;}
   if(failure==='unlisted')assert.equal(diagnostic.sourceJobId,undefined);
-  else if(failure!=='extra')assert.equal(failure==='list'?diagnostic.page:diagnostic.sourceJobId,failure==='list'?1:id);
+  else if(!surplus)assert.equal(failure==='list'?diagnostic.page:diagnostic.sourceJobId,failure==='list'?1:id);
   const directory=join(root,'diagnostics','jnj'),files=await readdir(directory);assert.equal(files.length,1);
   assert.equal(diagnostic.privateCapture.file,files[0]);
   const saved=JSON.parse(await readFile(join(directory,files[0]),'utf8'));
   assert.equal(saved.kind,'JNJ_FAILED_AUDIT_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE');
   assert.deepEqual(saved.observation.lists,lists);
   if(failure==='missing')assert.deepEqual(saved.observation.failedObservation,{kind:'MISSING_DETAIL_OBSERVATION',sourceJobId:id,expectedUrl:url});
-  else assert.equal(saved.observation.failedObservation,failure==='list'?lists[0]:failure==='duplicate'?details[1]:failure==='extra'?null:details[0]);
+  else if(surplus)assert.deepEqual(saved.observation.failedObservation,{kind:'SURPLUS_DETAIL_OBSERVATIONS',observations:failure==='extra-first'?details.slice(0,-1):details.slice(1)});
+  else assert.equal(saved.observation.failedObservation,failure==='list'?lists[0]:failure==='duplicate'?details[1]:details[0]);
  } finally {console.error=originalLog;if(oldRoot===undefined)delete process.env.JOBFINDER_STATE_ROOT;else process.env.JOBFINDER_STATE_ROOT=oldRoot;}
 });
 for(const count of [1,2])test(`valid ${count}-job synthetic JNJ observations retain successful audit behavior`,async()=>{
