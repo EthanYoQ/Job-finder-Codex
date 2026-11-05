@@ -167,8 +167,10 @@ export function novoNativeDetailHasSubstantiveDescription(body: string): boolean
 
 /** Bind an incomplete native page to its already validated list-detail URL; never publish it as a new job. */
 export function novoIncompleteDetailIsBound(body: string, detailUrl: string): boolean {
-  const $=loadHtml(body),canonical=$("link[rel=canonical]"),href=canonical.attr("href");
-  try {return $("#careerjobdisplay").length===1&&canonical.length===1&&Boolean(href?.trim())&&new URL(href!,detailUrl).href===detailUrl;}
+  const $=loadHtml(body),canonical=$("link[rel~=canonical]"),href=canonical.attr("href"),base=$("base[href]").first().attr("href");
+  let documentBase=detailUrl;
+  try {documentBase=new URL(base??"",detailUrl).href;} catch { /* Invalid HTML bases fall back to the document URL. */ }
+  try {return $("#careerjobdisplay").length===1&&canonical.length===1&&Boolean(href?.trim())&&new URL(href!,documentBase).href===detailUrl;}
   catch{return false;}
 }
 
