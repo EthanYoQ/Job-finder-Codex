@@ -156,6 +156,10 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
       if(remaining<=0){readinessDeadlineExceeded=true;throw Error('JNJ_DETAIL_READY_DEADLINE');}
       return remaining;
     };
+    const waitForReadiness=async locator=>{
+      try {await locator.waitFor({state:'visible',timeoutMs:Math.min(30000,remainingReadiness())});}
+      finally {remainingReadiness();}
+    };
     for(let attempt=0;attempt<2;attempt++) {
     try {
     sourceFetchStage='JNJ_DETAIL_READY';
@@ -166,11 +170,9 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
         readinessTimer=setTimeout(()=>{readinessDeadlineExceeded=true;reject(Error('JNJ_DETAIL_READY_DEADLINE'));},remaining);
       })]);
     } finally {clearTimeout(readinessTimer);}
-    await detail.playwright.locator('#js-job-detail').waitFor({state:'visible',timeoutMs:Math.min(30000,remainingReadiness())});
-    const applyTimeout=Math.min(30000,remainingReadiness());
+    await waitForReadiness(detail.playwright.locator('#js-job-detail'));
     sourceFetchStage='JNJ_APPLY_READY';
-    await detail.playwright.getByRole('link',{name:'Apply now',exact:true}).waitFor({state:'visible',timeoutMs:applyTimeout});
-    remainingReadiness();
+    await waitForReadiness(detail.playwright.getByRole('link',{name:'Apply now',exact:true}));
     sourceFetchStage='JNJ_DETAIL_READ';
     const value={kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',url:await detail.url(),expectedUrl:card.url,expectedTitle:card.title,
       heading:await detail.playwright.locator('h1').innerText(),

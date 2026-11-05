@@ -85,24 +85,28 @@ test('a navigation failure preserves its original error before the readiness pro
   assert.equal(probes,0);assert.equal(setup.diagnosticReads,1);assert.equal(setup.navigations,1);
 });
 
-for(const stage of ['detail','apply'])for(const elapsed of [59999,60000,60001])
-test(`${stage} readiness returning at ${elapsed}ms respects the existing deadline`,async t=>{
+for(const stage of ['detail','apply'])for(const elapsed of [59999,60000,60001])for(const outcome of ['return','reject'])
+test(`${stage} readiness ${outcome} at ${elapsed}ms respects the existing deadline`,async t=>{
   t.mock.timers.enable({apis:['Date','setTimeout'],now:Date.UTC(2026,10,5)});
   const directory=await mkdtemp(join(tmpdir(),'jnj-ready-boundary-'));t.after(()=>rm(directory,{recursive:true,force:true}));
-  const setup=fixture(directory,{readFailures:0,onReadyWait:current=>{if(current===stage)t.mock.timers.tick(elapsed);}});
+  const waitError=Object.assign(Error('locator.waitFor: Timeout 30000ms exceeded.'),{name:'TimeoutError'});
+  const setup=fixture(directory,{readFailures:0,onReadyWait:current=>{
+    if(current===stage){t.mock.timers.tick(elapsed);if(outcome==='reject')throw waitError;}
+  }});
   t.after(()=>setup.close());
-  if(elapsed<60000){
+  if(elapsed<60000&&outcome==='return'){
     assert.equal(JSON.parse((await setup.run()).raw).expectedUrl,detailUrl);
     assert.deepEqual(setup.readyWaits,['detail','apply']);assert.equal(setup.reads,1);
     assert.deepEqual(await readdir(directory),[]);
   }else{
     let failure;
-    await assert.rejects(setup.run(),error=>{failure=error;return error.message==='JNJ_DETAIL_READY_DEADLINE';});
+    await assert.rejects(setup.run(),error=>{failure=error;return elapsed<60000?error===waitError:error.message==='JNJ_DETAIL_READY_DEADLINE';});
     assert.equal(failure.sourceFetchStage,stage==='detail'?'JNJ_DETAIL_READY':'JNJ_APPLY_READY');
     assert.deepEqual(setup.readyWaits,stage==='detail'?['detail']:['detail','apply']);
-    assert.equal(setup.reads,0);assert.equal(setup.diagnosticReads,0);assert.equal(setup.navigations,1);
+    assert.equal(setup.reads,0);assert.equal(setup.diagnosticReads,elapsed<60000?1:0);assert.equal(setup.navigations,1);
     const saved=JSON.parse(await readFile(join(directory,failure.privateCapture.file),'utf8'));
-    assert.equal(saved.readinessDeadlineExceeded,true);assert.deepEqual(saved.observation,{captureUnavailable:true});
+    if(elapsed<60000){assert.equal(saved.readinessDeadlineExceeded,undefined);assert(saved.observation.html.includes(marker));}
+    else {assert.equal(saved.readinessDeadlineExceeded,true);assert.deepEqual(saved.observation,{captureUnavailable:true});}
   }
 });
 
