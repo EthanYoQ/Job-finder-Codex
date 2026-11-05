@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { installSavedSnapshot, validateSavedSnapshot } from "../web-candidate/src/server/savedPublicSnapshot";
 import { searchPortableSnapshot, coverageFromPortableSnapshot } from "../web-candidate/src/server/portablePublicationApi";
-import { slotAt, isNoonSlot, stableThreeDays } from "./frequency.mjs";
+import { slotAt, timerBelongsToSlot, isNoonSlot, stableThreeDays } from "./frequency.mjs";
 import { startActivityLease } from "./activity-lease.mjs";
 
 const exec = promisify(execFile);
@@ -48,7 +48,7 @@ async function refresh() {
   if(process.env.INVOCATION_ID)try {
     const trigger=await exec("systemctl",["show","jobfinder-refresh.timer","--property=LastTriggerUSec","--value"],{timeout:5000,env:{...process.env,LC_ALL:"C",TZ:"UTC"}});
     const triggeredAt=Date.parse(trigger.stdout.trim());
-    if(Number.isFinite(triggeredAt)&&Math.abs(Date.now()-triggeredAt)<90_000&&!state.timerSlots.includes(slot)){
+    if(timerBelongsToSlot(triggeredAt,slot)&&!state.timerSlots.includes(slot)){
       state.timerSlots.push(slot);await saveState();
     }
   }catch{/* A manual/unverified trigger cannot count toward stable days. */}

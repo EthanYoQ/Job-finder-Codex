@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {slotAt,isNoonSlot,stableThreeDays} from './frequency.mjs';
+import {slotAt,timerBelongsToSlot,isNoonSlot,stableThreeDays} from './frequency.mjs';
 const sources=Array.from({length:36},(_,i)=>`source-${i}`);
 const recovery={kind:'live',verifiedAt:'2026-10-27T10:00:00Z',checks:{wake:true,interruptedCommit:true,failedSourceKeepsLastGood:true,failedInstallKeepsLastGood:true,webRestart:true}};
 const records=['2026-10-28','2026-10-29','2026-10-30'].flatMap(day=>['00:01','12:01'].map(clock=>({
@@ -18,6 +18,14 @@ test('slot boundaries follow Beijing midnight/noon at minute 01',()=>{
 test('three completed consecutive calendar days qualify, partial current day does not',()=>{
   assert.deepEqual(stableThreeDays(records,Date.parse('2026-10-31T00:00:00+08:00'),sources,recovery),['2026-10-28','2026-10-29','2026-10-30']);
   assert.equal(stableThreeDays(records,Date.parse('2026-10-30T23:59:59+08:00'),sources,recovery),null);
+});
+test('real timer attribution survives recovery delay within its original slot',()=>{
+  const triggered=Date.parse('2026-11-06T00:01:01+08:00'),slot=String(slotAt(triggered));
+  for(const delay of [0,90_000,4*60_000,10*60_000])assert(timerBelongsToSlot(triggered,slot,triggered+delay));
+  assert.equal(timerBelongsToSlot(triggered-12*3600_000,slot,triggered),false);
+  assert.equal(timerBelongsToSlot(triggered,slotAt(triggered+12*3600_000),triggered+12*3600_000),false);
+  assert.equal(timerBelongsToSlot(triggered,slot,triggered-1),false);
+  assert.equal(timerBelongsToSlot(NaN,slot,triggered),false);
 });
 test('missing scope, manual/synthetic runs, failed readback and unverified recovery never lower frequency',()=>{
   const now=Date.parse('2026-10-31T00:01:00+08:00');
