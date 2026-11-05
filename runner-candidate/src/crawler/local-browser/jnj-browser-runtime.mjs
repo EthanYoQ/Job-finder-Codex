@@ -45,11 +45,12 @@ async function rejectTemporaryAccessFailure(tab,selector) {
 async function saveDetailFailure(tab, context, directory) {
   return savePrivateDomFailure({directory,filePrefix:`jnj-detail-${context.sourceJobId}`,
     context:{kind:'JNJ_FAILED_DETAIL_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE',...context},
-    observe:()=>tab.playwright.evaluate(() => ({url:location.href, title:document.title, readyState:document.readyState,
+    observe:()=>{if(context.readinessDeadlineExceeded)throw Error('JNJ_DETAIL_READY_DEADLINE');
+      return tab.playwright.evaluate(() => ({url:location.href, title:document.title, readyState:document.readyState,
         detailCount:document.querySelectorAll('#js-job-detail').length,
         applyLinks:Array.from(document.querySelectorAll('a')).filter(a=>a.textContent.trim()==='Apply now')
           .map(a=>({text:a.textContent.trim(),href:a.href})),
-        html:document.documentElement.outerHTML}))});
+        html:document.documentElement.outerHTML}));}});
 }
 // Original JNJ DOM collector using the local Chromium tab transport.
 export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBFINDER_STATE_ROOT ?? '/data/job-finder','diagnostics','jnj')} = {}) {
@@ -145,15 +146,33 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     // Sequential requests still caused HTTP 429; leave space between detail pages.
     if(index>0)await new Promise(resolve=>setTimeout(resolve,2000));
     checkTime();
-    let sourceFetchStage='JNJ_DETAIL_NAVIGATION', navigationStatus;
+    let sourceFetchStage='JNJ_DETAIL_NAVIGATION', navigationStatus, readinessDeadlineExceeded=false;
     try {
     const response=await detail.goto(card.url);
     if(typeof response?.status==='function')navigationStatus=response.status();
+    const readyDeadline=Math.min(deadline,Date.now()+60000);
+    const remainingReadiness=()=>{
+      const remaining=readyDeadline-Date.now();
+      if(remaining<=0){readinessDeadlineExceeded=true;throw Error('JNJ_DETAIL_READY_DEADLINE');}
+      return remaining;
+    };
+    const waitForReadiness=async locator=>{
+      try {await locator.waitFor({state:'visible',timeoutMs:Math.min(30000,remainingReadiness())});}
+      finally {remainingReadiness();}
+    };
+    for(let attempt=0;attempt<2;attempt++) {
+    try {
     sourceFetchStage='JNJ_DETAIL_READY';
-    await rejectTemporaryAccessFailure(detail,'#js-job-detail');
-    await detail.playwright.locator('#js-job-detail').waitFor({state:'visible',timeoutMs:30000});
+    const remaining=remainingReadiness();
+    let readinessTimer;
+    try {
+      await Promise.race([rejectTemporaryAccessFailure(detail,'#js-job-detail'),new Promise((_,reject)=>{
+        readinessTimer=setTimeout(()=>{readinessDeadlineExceeded=true;reject(Error('JNJ_DETAIL_READY_DEADLINE'));},remaining);
+      })]);
+    } finally {clearTimeout(readinessTimer);}
+    await waitForReadiness(detail.playwright.locator('#js-job-detail'));
     sourceFetchStage='JNJ_APPLY_READY';
-    await detail.playwright.getByRole('link',{name:'Apply now',exact:true}).waitFor({state:'visible',timeoutMs:30000});
+    await waitForReadiness(detail.playwright.getByRole('link',{name:'Apply now',exact:true}));
     sourceFetchStage='JNJ_DETAIL_READ';
     const value={kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',url:await detail.url(),expectedUrl:card.url,expectedTitle:card.title,
       heading:await detail.playwright.locator('h1').innerText(),
@@ -164,11 +183,20 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     checkTime();
     return {file:card.id+'.json',raw:raw(value)};
     } catch(error) {
+      // A native page navigation can replace the DOM after readiness; reread once without another goto.
+      if(attempt!==0||Date.now()>=readyDeadline||!String(error?.message??error).includes('Execution context was destroyed, most likely because of a navigation'))throw error;
+    }
+    }
+    } catch(error) {
       const cause=error instanceof Error?error:Error('JNJ_DETAIL_CAPTURE_FAILED');
       cause.sourceFetchStage=sourceFetchStage;
       cause.sourceJobId=card.id;
+      // A timed-out evaluate is still pending. Do not queue browser diagnostics; the caller's finally closes the tab.
       try { cause.privateCapture=await saveDetailFailure(detail,{sourceJobId:card.id,sourceFetchStage,
-        detailIndex:index,completedDetails:index,total,navigationStatus,navigation:await detail.navigationInfo?.(),expectedUrl:card.url,expectedTitle:card.title},failureDirectory); }
+        detailIndex:index,completedDetails:index,total,navigationStatus,
+        navigation:readinessDeadlineExceeded?undefined:await detail.navigationInfo?.(),
+        readinessDeadlineExceeded:readinessDeadlineExceeded||undefined,
+        expectedUrl:card.url,expectedTitle:card.title},failureDirectory); }
       catch { cause.privateCaptureUnavailable=true; }
       throw cause;
     }

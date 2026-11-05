@@ -22,7 +22,6 @@ function positiveInt(value:string|undefined):number{
  * claimed to be selected. Generic count/request/pagination proof stays mandatory. */
 export function replayAstraZenecaList(plan:SourceCrawlPlan,evidence:PersistentSourceFetchEvidence,capturedAt:string,isBaseline:boolean):NormalizedJobRecord[]{
   if(!hasAstraZenecaDetailPlan(plan)||plan.adapterId!=='html-table'||evidence.astraZenecaDetails||evidence.astellasPdfLocations||!validateStrictHtmlCompletenessProof(plan,evidence))throw Error('ASTRAZENECA_LIST_PROOF_INVALID');
-  if(evidence.fetchCounts.rawCount>CONFIG.maxDetails)throw Error('ASTRAZENECA_LIST_BUDGET_INVALID');
   const jobs:NormalizedJobRecord[]=[];const seen=new Set<string>(),urls=new Set<string>();let retained=0;
   for(const [pageIndex,page] of evidence.pages.entries()){
     const artifact=evidence.artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
