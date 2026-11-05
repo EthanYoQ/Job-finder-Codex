@@ -45,11 +45,12 @@ async function rejectTemporaryAccessFailure(tab,selector) {
 async function saveDetailFailure(tab, context, directory) {
   return savePrivateDomFailure({directory,filePrefix:`jnj-detail-${context.sourceJobId}`,
     context:{kind:'JNJ_FAILED_DETAIL_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE',...context},
-    observe:()=>tab.playwright.evaluate(() => ({url:location.href, title:document.title, readyState:document.readyState,
+    observe:()=>{if(context.readinessDeadlineExceeded)throw Error('JNJ_DETAIL_READY_DEADLINE');
+      return tab.playwright.evaluate(() => ({url:location.href, title:document.title, readyState:document.readyState,
         detailCount:document.querySelectorAll('#js-job-detail').length,
         applyLinks:Array.from(document.querySelectorAll('a')).filter(a=>a.textContent.trim()==='Apply now')
           .map(a=>({text:a.textContent.trim(),href:a.href})),
-        html:document.documentElement.outerHTML}))});
+        html:document.documentElement.outerHTML}));}});
 }
 // Original JNJ DOM collector using the local Chromium tab transport.
 export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBFINDER_STATE_ROOT ?? '/data/job-finder','diagnostics','jnj')} = {}) {
@@ -145,7 +146,7 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     // Sequential requests still caused HTTP 429; leave space between detail pages.
     if(index>0)await new Promise(resolve=>setTimeout(resolve,2000));
     checkTime();
-    let sourceFetchStage='JNJ_DETAIL_NAVIGATION', navigationStatus;
+    let sourceFetchStage='JNJ_DETAIL_NAVIGATION', navigationStatus, readinessDeadlineExceeded=false;
     try {
     const response=await detail.goto(card.url);
     if(typeof response?.status==='function')navigationStatus=response.status();
@@ -153,7 +154,14 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     for(let attempt=0;attempt<2;attempt++) {
     try {
     sourceFetchStage='JNJ_DETAIL_READY';
-    await rejectTemporaryAccessFailure(detail,'#js-job-detail');
+    const remaining=readyDeadline-Date.now();
+    if(remaining<=0){readinessDeadlineExceeded=true;throw Error('JNJ_DETAIL_READY_DEADLINE');}
+    let readinessTimer;
+    try {
+      await Promise.race([rejectTemporaryAccessFailure(detail,'#js-job-detail'),new Promise((_,reject)=>{
+        readinessTimer=setTimeout(()=>{readinessDeadlineExceeded=true;reject(Error('JNJ_DETAIL_READY_DEADLINE'));},remaining);
+      })]);
+    } finally {clearTimeout(readinessTimer);}
     await detail.playwright.locator('#js-job-detail').waitFor({state:'visible',timeoutMs:Math.max(1,Math.min(30000,readyDeadline-Date.now()))});
     sourceFetchStage='JNJ_APPLY_READY';
     await detail.playwright.getByRole('link',{name:'Apply now',exact:true}).waitFor({state:'visible',timeoutMs:Math.max(1,Math.min(30000,readyDeadline-Date.now()))});
@@ -175,8 +183,12 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
       const cause=error instanceof Error?error:Error('JNJ_DETAIL_CAPTURE_FAILED');
       cause.sourceFetchStage=sourceFetchStage;
       cause.sourceJobId=card.id;
+      // A timed-out evaluate is still pending. Do not queue browser diagnostics; the caller's finally closes the tab.
       try { cause.privateCapture=await saveDetailFailure(detail,{sourceJobId:card.id,sourceFetchStage,
-        detailIndex:index,completedDetails:index,total,navigationStatus,navigation:await detail.navigationInfo?.(),expectedUrl:card.url,expectedTitle:card.title},failureDirectory); }
+        detailIndex:index,completedDetails:index,total,navigationStatus,
+        navigation:readinessDeadlineExceeded?undefined:await detail.navigationInfo?.(),
+        readinessDeadlineExceeded:readinessDeadlineExceeded||undefined,
+        expectedUrl:card.url,expectedTitle:card.title},failureDirectory); }
       catch { cause.privateCaptureUnavailable=true; }
       throw cause;
     }
