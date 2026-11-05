@@ -195,7 +195,7 @@ export function createJnjCareersDomSourceFetch(input: { lists: readonly string[]
           directory: join(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder", "diagnostics", "jnj"), filePrefix: "jnj-audit",
           context: {kind: "JNJ_FAILED_AUDIT_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE", errorMessage: cause.message,
             listCount: input.lists.length, detailCount: input.details.length},
-          observe: async () => ({lists: input.lists, failedObservation: cause.privateObservation ?? null})});
+          observe: async () => ({lists: input.lists, details: input.details, failedObservation: cause.privateObservation ?? null})});
       } catch { cause.privateCaptureUnavailable = true; }
       reportSourceFetchFailure(plan.source.id, {error: cause});
       return { ok: false, capturedAt: new Date().toISOString(), failureReason: "JNJ_DOM_OBSERVATION_INVALID" };
