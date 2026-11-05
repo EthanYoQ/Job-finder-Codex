@@ -1,5 +1,6 @@
 const halfDay=12*3600_000, chinaOffset=8*3600_000, anchor=(4*60+1)*60_000;
 export const slotAt = (now=Date.now()) => Math.floor((now-anchor)/halfDay)*halfDay+anchor;
+export const timerBelongsToSlot = (triggeredAt, slot, now=Date.now()) => Number.isFinite(triggeredAt) && triggeredAt<=now && String(slotAt(triggeredAt))===String(slot);
 export const chinaDay = time => new Date(time+chinaOffset).toISOString().slice(0,10);
 export const isNoonSlot = slot => new Date(Number(slot)+chinaOffset).getUTCHours()===12;
 
