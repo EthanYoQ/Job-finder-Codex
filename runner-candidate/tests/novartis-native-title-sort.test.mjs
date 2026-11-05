@@ -38,6 +38,8 @@ for(const a of legacy.artifacts)for(const key of ['requestedUrl','finalUrl'])if(
  const u=new URL(a[key]);if(u.searchParams.has('functional_area[0]')){u.searchParams.set('order',titleOrder);a[key]=u.href;}
 }
 assert.equal(replayNovartisNativePartitions(plan,legacy).audit.observedUniqueCount,3);
+legacy.captureTool.version='5';
+assert.throws(()=>replayNovartisNativePartitions(plan,legacy),'Version 5 remains bound to site ordering');
 for(const mode of ['duplicate-page','changing-total'])assert.equal((await capture(mode)).fetched.ok,false,mode);
 assert(c.requests.some(url=>new URL(url).searchParams.get('functional_area[0]')==='FCT_NEW'));
 for(const [name,mutate] of [
