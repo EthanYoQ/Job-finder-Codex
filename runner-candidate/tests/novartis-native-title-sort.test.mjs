@@ -30,7 +30,9 @@ async function capture(mode='present',location='Shanghai (Shanghai)',alternative
 }
 const c=await capture();if(!c.fetched.ok)console.log(c.fetched.failureReason,c.fetched.fetchEvidence?.artifacts.map(a=>a.logicalKey));assert(c.fetched.ok);assert.equal(c.fetched.fetchEvidence.fetchCounts.validCount,3);
 const e=c.fetched.fetchEvidence;const audit=replayNovartisNativePartitions(plan,e).audit;assert.equal(audit.indexDeclaredTotal,2);assert.equal(audit.observedUniqueCount,3);assert(!c.requests.some(u=>u.includes('moseeker')));
-assert.equal(e.captureTool.version,'5');
+assert.equal(e.captureTool.version,'6');
+const siteLegacy=structuredClone(e);siteLegacy.captureTool.version='5';
+assert.equal(replayNovartisNativePartitions(plan,siteLegacy).audit.observedUniqueCount,3);
 const legacy=structuredClone(e);legacy.captureTool.version='4';
 assert.throws(()=>replayNovartisNativePartitions(plan,legacy),'Version 4 remains bound to title ordering');
 const titleOrder=new URL(sanitizeEvidenceHttpUrl(plan.source.officialEntryUrl)).searchParams.get('order');
