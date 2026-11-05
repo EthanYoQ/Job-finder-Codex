@@ -151,20 +151,26 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     const response=await detail.goto(card.url);
     if(typeof response?.status==='function')navigationStatus=response.status();
     const readyDeadline=Math.min(deadline,Date.now()+60000);
+    const remainingReadiness=()=>{
+      const remaining=readyDeadline-Date.now();
+      if(remaining<=0){readinessDeadlineExceeded=true;throw Error('JNJ_DETAIL_READY_DEADLINE');}
+      return remaining;
+    };
     for(let attempt=0;attempt<2;attempt++) {
     try {
     sourceFetchStage='JNJ_DETAIL_READY';
-    const remaining=readyDeadline-Date.now();
-    if(remaining<=0){readinessDeadlineExceeded=true;throw Error('JNJ_DETAIL_READY_DEADLINE');}
+    const remaining=remainingReadiness();
     let readinessTimer;
     try {
       await Promise.race([rejectTemporaryAccessFailure(detail,'#js-job-detail'),new Promise((_,reject)=>{
         readinessTimer=setTimeout(()=>{readinessDeadlineExceeded=true;reject(Error('JNJ_DETAIL_READY_DEADLINE'));},remaining);
       })]);
     } finally {clearTimeout(readinessTimer);}
-    await detail.playwright.locator('#js-job-detail').waitFor({state:'visible',timeoutMs:Math.max(1,Math.min(30000,readyDeadline-Date.now()))});
+    await detail.playwright.locator('#js-job-detail').waitFor({state:'visible',timeoutMs:Math.min(30000,remainingReadiness())});
+    const applyTimeout=Math.min(30000,remainingReadiness());
     sourceFetchStage='JNJ_APPLY_READY';
-    await detail.playwright.getByRole('link',{name:'Apply now',exact:true}).waitFor({state:'visible',timeoutMs:Math.max(1,Math.min(30000,readyDeadline-Date.now()))});
+    await detail.playwright.getByRole('link',{name:'Apply now',exact:true}).waitFor({state:'visible',timeoutMs:applyTimeout});
+    remainingReadiness();
     sourceFetchStage='JNJ_DETAIL_READ';
     const value={kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',url:await detail.url(),expectedUrl:card.url,expectedTitle:card.title,
       heading:await detail.playwright.locator('h1').innerText(),
