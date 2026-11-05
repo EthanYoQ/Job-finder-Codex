@@ -580,7 +580,7 @@ const JNJ_CITY_NAMES: ReadonlyArray<readonly [string, string]> = [
 ];
 
 function citiesFromJnjLocation(locationRaw: string, countryScope?: "China"): string[] {
-  const labels = locationRaw.split(" / ").map(value => value.trim()).filter(Boolean);
+  const labels = locationRaw.split("/").map(value => value.trim()).filter(Boolean);
   // The China-filtered board also lists global roles. Project each location separately.
   const cities = labels.filter(label => !explicitlyForeignOrNonMainlandLocation(label)).map(label => JNJ_CITY_NAMES.find(([english, chinese]) =>
     label.toLowerCase() === english.toLowerCase() || label === chinese)?.[1] ??

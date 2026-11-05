@@ -14,6 +14,7 @@ test('JNJ mixed official locations retain only evidenced mainland city tags',()=
   ['Singapore / Beijing / Chiyoda',['北京']],
   ['Chiyoda / Beijing / Singapore',['北京']],
   ['Beijing /  / Singapore',['北京']],
+  ['Beijing /  / Shanghai',['北京','上海']],['Beijing//Shanghai',['北京','上海']],
   ['Beijing',['北京']],['北京 / Shanghai / Beijing',['北京','上海']],
   ['Singapore / Chizhou',['池州']],
   ['China / Unmapped location',['城市待核']],['Singapore / China',['城市待核']]
