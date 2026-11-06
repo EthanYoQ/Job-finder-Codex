@@ -1,3 +1,4 @@
+import {fixture} from './jnj-observation-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,readdir,readFile,writeFile} from 'node:fs/promises';
@@ -7,23 +8,10 @@ import {createJnjCareersDomSourceFetch} from '../src/crawler/jnjCareersDomEviden
 import {loadDirectPlans} from '../scripts/direct-round.ts';
 
 const plan=(await loadDirectPlans()).find(row=>row.sourceId==='source-johnson-innovative-medicine-social').plan;
-const id='r-000001',title='Synthetic role',url=`https://www.careers.jnj.com/en/jobs/${id}/synthetic-role/`;
+const id='r-000001',url=`https://www.careers.jnj.com/en/jobs/${id}/synthetic-role/`;
 const listUrl='https://www.careers.jnj.com/en/jobs/?country=China&origin=global#results';
 const marker='PRIVATE_AUDIT_OBSERVATION_MARKER';
-function fixture(count=1) {
- const rows=Array.from({length:count},(_,i)=>{const id=`r-${String(i+1).padStart(6,'0')}`;return {id,url:`https://www.careers.jnj.com/en/jobs/${id}/synthetic-role/`,apply:`https://careers.jnj.com.cn/jnj/apply?exid=${id.toUpperCase()}&m=1`};});
- const heading=`Displaying 1 to ${count} of ${count} matching jobs`;
- const html=`<ul id="js-job-search-results" data-results="${count}">${rows.map(({id,url})=>`<li class="PageList-items-item card-job" data-id="${id}"><a href="${url}">${title}</a><div class="PagePromo-category">Pharmaceutical Sales</div><address class="PagePromo-location">Guiyang</address></li>`).join('')}</ul>`;
- const base={kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',observedAt:'2026-11-04T23:00:00.000Z'};
- const details=rows.map(({id,url,apply})=>{
-  const body=`<div id="js-job-detail" data-id="${id}" data-jobtitle="${title}"><article class="RichTextBody"><ul class="job-meta"><li>Job title<span>${title}</span></li><li>Function<span>Pharmaceutical Sales</span></li><li>Location<span>Guiyang / China</span></li><li>Requisition number<span>${id.toUpperCase()}</span></li></ul><h2>Description</h2><p>Job Description: ${'Scientific responsibilities and collaboration. '.repeat(8)}</p></article></div>`;
-  return {...base,url,expectedUrl:url,expectedTitle:title,heading:title,body:{html:body,htmlLength:body.length,text:id+' Description'},applyLinks:[{text:'Apply now',href:apply}],dom:`${id}\n- link "Apply now"\n${apply}`};
- });
- return {list:{...base,url:listUrl,heading,fragment:{html,htmlLength:html.length,items:rows.map(({url})=>({text:title,links:[{title,url}]}))},
-  filters:['team','subteam','country','state','location','type','pattern'].map(name=>({id:name,name,selectedOptions:name==='country'?[{text:'China',value:'China'}]:[]})),pagination:[{label:'Page 1',url:listUrl}],
-  dom:`- option "China" [selected]\n${heading}\n${rows.map(row=>row.url).join('\n')}`},detail:details[0],details};
-}
-for(const failure of ['list','detail','detail-later','decode','disk','duplicate','schema','unlisted','expected-unlisted','expected-other','missing','missing-extra','missing-extra-multiple','extra','extra-first','extra-multiple'])test(`JNJ audit ${failure} failure retains context without publishing or logging private DOM`,async()=>{
+for(const failure of ['list','detail','detail-later','decode','disk','duplicate','schema','unlisted','expected-unlisted','expected-other','missing','missing-extra','missing-extra-multiple','extra','extra-first','extra-multiple'])test(`JNJ audit ${failure} ${['detail','detail-later','disk','schema','missing'].includes(failure)?'isolates one job':'retains failed-source context'} without logging private DOM`,async()=>{
  const root=await mkdtemp(join(tmpdir(),'jnj-audit-')),input=fixture(['duplicate','expected-other','decode','detail-later'].includes(failure)||failure.startsWith('missing')?2:1),oldRoot=process.env.JOBFINDER_STATE_ROOT,originalLog=console.error,logs=[];
  const surplus=failure.startsWith('extra');
  if(failure==='list')input.list.url=listUrl.replace('country=China','country=Japan');
@@ -54,13 +42,16 @@ for(const failure of ['list','detail','detail-later','decode','disk','duplicate'
  console.error=value=>logs.push(JSON.parse(value));
  try {
   const result=await createJnjCareersDomSourceFetch({lists,details})(plan);
+  if(['detail','detail-later','disk','schema','missing'].includes(failure)){
+   assert.equal(result.ok,true);assert.equal(result.fetchEvidence.jobQuarantines.length,1);assert.equal(logs.length,0);return;
+  }
   assert.equal(result.ok,false);assert.equal(result.failureReason,'JNJ_DOM_OBSERVATION_INVALID');
   assert.equal(result.fetchEvidence,undefined);assert.equal(result.payload,undefined);
   assert.equal(logs.length,1);const diagnostic=logs[0];assert.equal(diagnostic.stage,'JNJ_DOM_AUDIT');
   assert(diagnostic.locations.some(value=>value.includes('jnjCareersDomEvidence.ts:')));
   assert(!JSON.stringify(diagnostic).includes(marker));assert(!JSON.stringify(diagnostic).includes(root));
   if(failure==='disk'){assert.equal(diagnostic.privateCaptureUnavailable,true);return;}
-  if(failure==='unlisted'||failure==='expected-unlisted'||failure==='decode')assert.equal(diagnostic.sourceJobId,undefined);
+  if(failure==='decode')assert.equal(diagnostic.sourceJobId,undefined);
   else if(failure==='expected-other'||failure==='detail-later')assert.equal(diagnostic.sourceJobId,'r-000002');
   else if(!surplus)assert.equal(failure==='list'?diagnostic.page:diagnostic.sourceJobId,failure==='list'?1:id);
   const directory=join(root,'diagnostics','jnj'),files=await readdir(directory);assert.equal(files.length,1);
@@ -69,9 +60,10 @@ for(const failure of ['list','detail','detail-later','decode','disk','duplicate'
   assert.equal(saved.kind,'JNJ_FAILED_AUDIT_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE');
   assert.deepEqual(saved.observation.lists,lists);
   assert.deepEqual(saved.observation.details,details);
-  if(failure.startsWith('missing'))assert.deepEqual(saved.observation.failedObservation,{kind:'MISSING_DETAIL_OBSERVATION',sourceJobId:id,expectedUrl:url,...(failure==='missing'?{}:{surplusObservations:details.slice(1)})});
+  if(['unlisted','expected-unlisted'].includes(failure))assert.deepEqual(saved.observation.failedObservation,{kind:'MISSING_DETAIL_OBSERVATION',sourceJobId:id,expectedUrl:url,surplusObservations:details});
+  else if(failure.startsWith('missing'))assert.deepEqual(saved.observation.failedObservation,{kind:'MISSING_DETAIL_OBSERVATION',sourceJobId:id,expectedUrl:url,...(failure==='missing'?{}:{surplusObservations:details.slice(1)})});
   else if(surplus)assert.deepEqual(saved.observation.failedObservation,{kind:'SURPLUS_DETAIL_OBSERVATIONS',observations:failure==='extra-first'?details.slice(0,-1):details.slice(1)});
-  else assert.equal(saved.observation.failedObservation,failure==='list'?lists[0]:['duplicate','decode','detail-later'].includes(failure)?details[1]:details[0]);
+  else assert.equal(saved.observation.failedObservation,failure==='list'?lists[0]:['duplicate','decode','detail-later','expected-other'].includes(failure)?details[1]:details[0]);
  } finally {console.error=originalLog;if(oldRoot===undefined)delete process.env.JOBFINDER_STATE_ROOT;else process.env.JOBFINDER_STATE_ROOT=oldRoot;}
 });
 for(const count of [1,2])test(`valid ${count}-job synthetic JNJ observations retain successful audit behavior`,async()=>{

@@ -7,17 +7,29 @@ import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { PFIZER_LIST_ROW_UNKNOWN, pfizerQuarantinedEvidenceKey } from "./pfizerWorkdayTraversal";
 const ENTRY = "https://pfizer.wd1.myworkdayjobs.com/en-US/PfizerCareers";
 const COUNTRY = "6cb77610a8a543aea2d6bc10457e35d4";
+export const PFIZER_DETAIL_UNVERIFIED="PFIZER_DETAIL_UNVERIFIED";
 const CHANNEL = "source:source-pfizer-china-social:default";
 const object = (v: unknown): Record<string, any> => { if (!v || typeof v !== "object" || Array.isArray(v))
     throw Error("Pfizer UI object is invalid"); return v as Record<string, any>; };
 const renderedTitleText = (value:string) => value.replace(/&amp;/gu,"&").replace(/&quot;/gu,'"').replace(/&apos;|&#0*39;/gu,"'").replace(/&lt;/gu,"<").replace(/&gt;/gu,">").replace(/\s+/gu," ").trim();
 /** The incomplete slot must be visible in the independent list itself. Never reconstruct a URL or title. */
-export function pfizerDomListSlots(listPage: Record<string, any>): Array<{officialId: string; card?: {href: string; title: string}; domRow?: string}> {
+export function pfizerDomListSlots(listPage: Record<string, any>): Array<{officialId: string; card?: {href: string; title: string}; domRow?: string;unidentified?:true}> {
     const cards = listPage.cards as Array<{href:string;title:string}>;
     const label = /^Page (\d+) of (\d+)$/.exec(String(listPage.pageLabel));
     const total = /^(\d+) JOBS FOUND$/.exec(String(listPage.totalText));
     if (!label || !total || !Array.isArray(cards)) throw Error("Pfizer DOM slot declaration is invalid");
     const expected = Math.min(20, Number(total[1]) - (Number(label[1]) - 1) * 20);
+    if(Array.isArray(listPage.physicalRows)){
+        if(listPage.physicalRows.length!==expected||JSON.stringify(listPage.physicalRows.flatMap((r:any)=>r.cards))!==JSON.stringify(cards))throw Error('Pfizer physical list slots do not reconcile');
+        const slots=listPage.physicalRows.map((row:any,index:number)=>{
+            if(typeof row.html!=='string'||!Array.isArray(row.cards))throw Error('Pfizer physical list row is invalid');
+            const card=row.cards.length===1?row.cards[0]:undefined;let id;
+            try{id=card&&/_(\d{7})(?:-\d+)?$/.exec(new URL(card.href).pathname)?.[1];}catch{/* Retain the original unresolved row. */}
+            return id?{officialId:id,card}:{officialId:`unidentified:${createHash('sha256').update(JSON.stringify([listPage.pageLabel,index,row])).digest('hex')}`,domRow:JSON.stringify(row),unidentified:true as const};
+        });
+        if(new Set(slots.map((s:any)=>s.officialId)).size!==slots.length)throw Error('Pfizer DOM duplicate ID');
+        return slots;
+    }
     const complete = cards.map(card => ({officialId: /_(\d{7})(?:-\d+)?$/.exec(new URL(card.href).pathname)?.[1] ?? "", card}));
     if (complete.some(row => !row.officialId) || new Set(complete.map(row => row.officialId)).size !== complete.length)
         throw Error("Pfizer DOM duplicate or invalid ID");
@@ -58,6 +70,20 @@ export function pfizerComparisonTraversal(replay: OfficialJsonRenderedReplay, pa
 export function replayPfizerRenderedRow(row: OfficialJsonRenderedRawRow, index: number): OfficialJsonRenderedRawRow["scopeDecision"] {
     const raw = object(row.rawPayload);
     if (typeof raw.capturedAt !== "string" || !Number.isFinite(Date.parse(raw.capturedAt)) || new Date(raw.capturedAt).toISOString() !== raw.capturedAt) throw Error("Pfizer UI capturedAt is invalid");
+    if(raw.quarantineCode==='PFIZER_LIST_IDENTITY_UNRESOLVED'){
+      const slot=pfizerDomListSlots(object(raw.domPage))[index];
+      if(!slot?.unidentified||raw.officialId!==slot.officialId||raw.domRow!==slot.domRow||row.recordIndex!==index||raw.noOmissionVerified!==false||
+        row.sourceJobId!==pfizerQuarantinedEvidenceKey(slot.officialId)||row.rawEvidenceId!==irreversibleOfficialJsonEvidenceId(slot.officialId)||row.scopeMarker!=='UNKNOWN_IDENTITY'||row.scopeDecision!=='EXCLUDED_AUDITED')throw Error('Pfizer unresolved physical row binding invalid');
+      return 'EXCLUDED_AUDITED';
+    }
+    if(raw.quarantineCode===PFIZER_DETAIL_UNVERIFIED){
+      if(typeof raw.officialId!=="string"||!/^\d{7}$/u.test(raw.officialId)||row.recordIndex!==index||
+        row.sourceJobId!==pfizerQuarantinedEvidenceKey(raw.officialId)||row.rawEvidenceId!==irreversibleOfficialJsonEvidenceId(raw.officialId)||
+        row.scopeMarker!=="UNKNOWN"||row.scopeDecision!=="EXCLUDED_AUDITED"||raw.noOmissionVerified!==false||
+        !raw.detailFailure||!["NATIVE_DETAIL_UNVERIFIED","ACCESS_RESTRICTED"].includes(raw.detailFailure.code)||
+        typeof raw.detailUrl!=="string"||typeof raw.title!=="string")throw Error("Pfizer unverified native detail binding invalid");
+      return "EXCLUDED_AUDITED";
+    }
     if (raw.quarantineCode !== undefined) {
         if (raw.quarantineCode !== PFIZER_LIST_ROW_UNKNOWN || raw.noOmissionVerified !== false || typeof raw.officialId !== "string" || !/^\d{7}$/u.test(raw.officialId) ||
             row.recordIndex !== index || row.sourceJobId !== pfizerQuarantinedEvidenceKey(raw.officialId) ||
@@ -69,7 +95,7 @@ export function replayPfizerRenderedRow(row: OfficialJsonRenderedRawRow, index: 
         return "EXCLUDED_AUDITED";
     }
     if (row.recordIndex !== index || typeof raw.officialId !== "string" || !/^\d{7}$/u.test(raw.officialId) || typeof raw.externalPath !== "string" || !/^\/job\/[^?#]+$/u.test(raw.externalPath) ||
-        !new RegExp(`_${raw.officialId}(?:-\\d+)?$`, "u").test(raw.externalPath) || typeof raw.title !== "string" || !raw.title.trim() || typeof raw.renderedTitle !== "string" || renderedTitleText(raw.renderedTitle) !== renderedTitleText(raw.title) || raw.renderedId !== raw.officialId || raw.applyEnabled !== true ||
+        !new RegExp(`_${raw.officialId}(?:-\\d+)?$`, "u").test(raw.externalPath) || typeof raw.title !== "string" || typeof raw.renderedTitle !== "string" || !renderedTitleText(raw.renderedTitle) || raw.renderedId !== raw.officialId || raw.applyEnabled !== true ||
         !Array.isArray(raw.renderedLocations) || raw.renderedLocations.length === 0 || raw.renderedLocations.some((x: unknown) => typeof x !== "string" || !x.trim()) || new Set(raw.renderedLocations).size !== raw.renderedLocations.length)
         throw Error("Pfizer rendered identity or activity mismatch");
     const detailUrl = new URL(raw.detailUrl);
@@ -78,7 +104,7 @@ export function replayPfizerRenderedRow(row: OfficialJsonRenderedRawRow, index: 
     if (typeof raw.jsonLd !== "string" || !hasUniqueJsonObjectKeys(raw.jsonLd))
         throw Error("Pfizer rendered JSON-LD is invalid");
     const ld = object(JSON.parse(raw.jsonLd)), address = object(object(ld.jobLocation).address);
-    if (ld["@type"] !== "JobPosting" || object(ld.identifier).value !== raw.officialId || typeof ld.title !== "string" || renderedTitleText(ld.title) !== renderedTitleText(raw.title))
+    if (ld["@type"] !== "JobPosting" || object(ld.identifier).value !== raw.officialId || typeof ld.title !== "string" || renderedTitleText(ld.title) !== renderedTitleText(raw.renderedTitle))
         throw Error("Pfizer JSON-LD identity mismatch");
     const countries = address.addressCountry;
     if (row.scopeMarker !== countries || row.rawEvidenceId !== irreversibleOfficialJsonEvidenceId(raw.officialId) || row.sourceJobId !== `workday:sha256:${createHash("sha256").update(raw.externalPath).digest("hex")}`)
@@ -106,6 +132,11 @@ export function assertPfizerRenderedPage(page: OfficialJsonRenderedPageCapture):
         scope.filterCount !== 1 || scope.searchText !== "" || scope.pageLabel !== `Page ${page.pageNumber} of ${page.declaredTotalPages}` ||
         typeof scope.range !== "string" || scope.range.trim() !== expectedRange || scope.totalText !== `${page.declaredTotalJobs} JOBS FOUND` || scope.nextControlPresent !== page.nextControlPresent ||
         typeof scope.capturedAt !== "string" || !Number.isFinite(Date.parse(scope.capturedAt))) throw Error("Pfizer archived rendered page scope mismatch");
+    if(scope.physicalRows!==undefined){
+      const slots=pfizerDomListSlots(scope);
+      if(slots.length!==page.rawRows.length||slots.some((slot,index)=>page.rawRows[index]!.rawEvidenceId!==irreversibleOfficialJsonEvidenceId(slot.officialId)||
+        slot.unidentified&&JSON.stringify(page.rawRows[index]!.rawPayload.domPage)!==JSON.stringify(scope)))throw Error('Pfizer physical page binding mismatch');
+    }
 }
 
 export async function capturePfizerRenderedTraversal(page: import("playwright-core").Page, signal?: AbortSignal, options: {failureDirectory?: string} = {}): Promise<OfficialJsonRenderedPageCapture[]> {
@@ -116,17 +147,25 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
     let total: number | undefined, totalPages: number | undefined, currentPage: number | undefined, currentRecord: number | undefined;
     let currentCard: {href:string;title:string} | undefined, detailNavigationStatus: number | undefined;
     const seen = new Set<string>();
+    let accessStopped=false,listAccessDenied=false,accessHttpStatus:number|undefined,retryAfter:string|undefined;
+    const observeAccess=(response:import("playwright-core").Response)=>{
+      const status=response.status();if(status!==403&&status!==429)return;
+      const url=new URL(response.url()),type=response.request().resourceType();
+      if(url.origin===new URL(ENTRY).origin&&['document','xhr','fetch'].includes(type)&&
+        (url.pathname.startsWith('/en-US/PfizerCareers')||url.pathname.startsWith('/wday/cxs/pfizer/PfizerCareers/'))){
+        accessStopped=true;accessHttpStatus=status;retryAfter=response.headers()['retry-after'];
+        if(!url.pathname.includes('/job/'))listAccessDenied=true;
+      }
+    };
+    page.context().on('response',observeAccess);
     try {
     const cards = page.locator('[data-automation-id="jobTitle"]');
     navigation = await page.goto(entry, { waitUntil: "domcontentloaded", timeout: 60000 });
     if (!navigation || navigation.status() !== 200 || page.url() !== entry)
         throw Error("Pfizer UI entry navigation failed");
-    sourceFetchStage="PFIZER_CARDS_READY";
-    await cards.first().waitFor({ state: "visible", timeout: 60000 });
     sourceFetchStage="PFIZER_COUNTRY_READY";
     await page.getByRole("button", { name: "China clear filter", exact: true }).waitFor({ state: "visible", timeout: 30000 });
-    sourceFetchStage="PFIZER_DETAIL_CREATE";
-    detail = await page.context().newPage();
+    const lists:Array<{slots:ReturnType<typeof pfizerDomListSlots>;listPage:Record<string,unknown>;pageNumber:number;total:number;totalPages:number;nextPresent:boolean}>=[];
         for (let index = 1; index <= 20; index++) {
             currentPage=index;currentRecord=undefined;currentCard=undefined;sourceFetchStage="PFIZER_LIST_READ";
             signal?.throwIfAborted();
@@ -144,66 +183,88 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
             if (range !== `${(index - 1) * 20 + 1} - ${Math.min(index * 20, total)} of ${total} jobs`)
                 throw Error("Pfizer UI range is not settled");
             const links = await cards.evaluateAll(es => es.map(e => ({ href: (e as HTMLAnchorElement).href, title: e.textContent?.trim() ?? "" })));
-            const slots = pfizerDomListSlots({cards:links,pageLabel:label,totalText:`${total} JOBS FOUND`,
+            const needsPhysical=links.length!==Math.min(20,total-(index-1)*20)||links.some(card=>{try{return !/_\d{7}(?:-\d+)?$/.test(new URL(card.href).pathname);}catch{return true;}});
+            const physicalRows=needsPhysical?await page.locator('ul[aria-label^="Page "]').evaluateAll(lists=>Array.from(lists[0]?.querySelectorAll(':scope > li')??[]).map(row=>({html:row.outerHTML,cards:Array.from(row.querySelectorAll('[data-automation-id="jobTitle"]')).map(e=>({href:(e as HTMLAnchorElement).href,title:e.textContent?.trim()??''}))}))):undefined;
+            const physical=physicalRows?.length===Math.min(20,total-(index-1)*20)?{physicalRows,cards:links}:{};
+            const slots = pfizerDomListSlots({cards:links,pageLabel:label,totalText:`${total} JOBS FOUND`,...physical,
                 ...(links.length === Math.min(20,total-(index-1)*20) ? {} : {domSnapshot:await page.locator("body").ariaSnapshot()})});
-            const rawRows: OfficialJsonRenderedRawRow[] = [];
-            for (const [recordIndex, slot] of slots.entries()) {
-                currentRecord=recordIndex;currentCard=slot.card;sourceFetchStage="PFIZER_DETAIL_READ";
-                signal?.throwIfAborted();
-                if (!slot.card) {
-                    if (seen.has(slot.officialId)) throw Error("Pfizer UI duplicate official ID");
-                    const row: OfficialJsonRenderedRawRow = {sourceJobId:pfizerQuarantinedEvidenceKey(slot.officialId),
-                        rawEvidenceId:irreversibleOfficialJsonEvidenceId(slot.officialId),scopeMarker:"UNKNOWN",scopeDecision:"EXCLUDED_AUDITED",recordIndex,
-                        rawPayload:{officialId:slot.officialId,quarantineCode:PFIZER_LIST_ROW_UNKNOWN,noOmissionVerified:false,domRow:slot.domRow,capturedAt:new Date().toISOString()}};
-                    replayPfizerRenderedRow(row,recordIndex); rawRows.push(row); seen.add(slot.officialId); continue;
-                }
-                const link = slot.card;
-                const path = new URL(link.href).pathname.slice("/en-US/PfizerCareers".length), id = /_(\d{7})(?:-\d+)?$/u.exec(path)?.[1];
-                if (!id || seen.has(id))
-                    throw Error("Pfizer UI duplicate or missing official ID");
-                seen.add(id);
-                detailNavigationStatus=undefined;
-                const response = await detail.goto(link.href, { waitUntil: "domcontentloaded", timeout: 60000 });
-                detailNavigationStatus=response?.status();
-                if (!response || response.status() !== 200 || detail.url() !== link.href)
-                    throw Error("Pfizer UI native detail navigation failed");
-                await detail.locator('[data-automation-id="jobPostingHeader"]').waitFor({ state: "visible", timeout: 60000 });
-                await detail.getByRole("button", { name: "Apply", exact: true }).waitFor({ state: "visible", timeout: 30000 });
-                const jsons = await detail.locator('script[type="application/ld+json"]').allTextContents();
-                if (jsons.length !== 1)
-                    throw Error("Pfizer native detail has ambiguous JSON-LD");
-                const ld = object(JSON.parse(jsons[0]!));
-                const rawPayload = { capturedAt: new Date().toISOString(), officialId: id, externalPath: path, title: link.title, detailUrl: link.href,
-                    renderedTitle: (await detail.locator('[data-automation-id="jobPostingHeader"]').innerText()).trim(),
-                    renderedId: (await detail.locator('[data-automation-id="job-posting-details"] [data-automation-id="requisitionId"] dd').innerText()).trim(),
-                    renderedLocations: (await detail.locator('[data-automation-id="job-posting-details"] [data-automation-id="locations"] dd').allTextContents()).map(v => v.trim()),
-                    applyEnabled: await detail.getByRole("button", { name: "Apply", exact: true }).isEnabled(), jsonLd: JSON.stringify({"@type":ld["@type"],identifier:ld.identifier,title:ld.title,jobLocation:ld.jobLocation,datePosted:ld.datePosted}), jsonLdRepresentation: "SCOPE_FIELDS", documentTitle: await detail.title() };
-                const marker = object(object(ld.jobLocation).address).addressCountry;
-                const row: OfficialJsonRenderedRawRow = { sourceJobId: `workday:sha256:${createHash("sha256").update(path).digest("hex")}`, rawEvidenceId: irreversibleOfficialJsonEvidenceId(id), scopeMarker: String(marker), scopeDecision: marker === "China" ? "INCLUDED_MAINLAND" : "EXCLUDED_AUDITED", recordIndex, rawPayload };
-                replayPfizerRenderedRow(row, recordIndex);
-                rawRows.push(row);
-            }
+            for(const slot of slots){if(seen.has(slot.officialId))throw Error("Pfizer UI duplicate official ID");seen.add(slot.officialId);}
             sourceFetchStage="PFIZER_LIST_READ";
             const next = page.getByRole("button", { name: "next", exact: true });
             const nextPresent = await next.count() === 1 && await next.isVisible() && await next.isEnabled();
             if (nextPresent !== (index < totalPages))
                 throw Error("Pfizer UI terminal control contradicts page declaration");
-            rawRows[0]!.rawPayload.listPage = { url: page.url(), title: await page.title(), countryFilter: "China clear filter", filterCount: 1,
+            const listPage = { url: page.url(), title: await page.title(), countryFilter: "China clear filter", filterCount: 1,
                 searchText: await page.getByRole("textbox").inputValue(), pageLabel: label, range, totalText: `${total} JOBS FOUND`,
-                nextControlPresent: nextPresent, capturedAt: new Date().toISOString() };
+                nextControlPresent: nextPresent, capturedAt: new Date().toISOString(),...physical };
             await page.getByRole("button", {name:"China clear filter",exact:true}).waitFor({state:"visible"});
             await page.getByRole("button", {name:"Clear All (1)",exact:true}).waitFor({state:"visible"});
-            pages.push({ channelId: CHANNEL, pageNumber: index, declaredTotalPages: totalPages, declaredTotalJobs: total, uiRequestCandidateIds: [], rawRows, nextControlPresent: nextPresent });
+            lists.push({slots,listPage,pageNumber:index,total,totalPages,nextPresent});
             if (!nextPresent) {
                 if (seen.size !== total)
                     throw Error("Pfizer UI final raw set mismatch");
-                return pages;
+                break;
             }
             sourceFetchStage="PFIZER_PAGE_ADVANCE";
+            if(accessStopped)throw Error("Pfizer list access restricted before complete pagination");
             await next.click();
             await page.locator(`ul[aria-label="Page ${index + 1} of ${totalPages}"]`).waitFor({ state: "attached", timeout: 60000 });
         }
-        throw Error("Pfizer UI safety limit reached without terminal evidence");
+        if(!total||lists.length!==totalPages||seen.size!==total||lists.at(-1)?.nextPresent)throw Error("Pfizer UI safety limit reached without complete list evidence");
+        if(accessStopped)throw Error("Pfizer official list access restricted before detail processing");
+    for(const list of lists){
+      currentPage=list.pageNumber;const rawRows:OfficialJsonRenderedRawRow[]=[];
+      for(const [recordIndex,slot] of list.slots.entries()){
+        currentRecord=recordIndex;currentCard=slot.card;sourceFetchStage="PFIZER_DETAIL_READ";signal?.throwIfAborted();
+        if(!slot.card){rawRows.push({sourceJobId:pfizerQuarantinedEvidenceKey(slot.officialId),rawEvidenceId:irreversibleOfficialJsonEvidenceId(slot.officialId),scopeMarker:slot.unidentified?'UNKNOWN_IDENTITY':"UNKNOWN",scopeDecision:"EXCLUDED_AUDITED",recordIndex,
+          rawPayload:{officialId:slot.officialId,quarantineCode:slot.unidentified?'PFIZER_LIST_IDENTITY_UNRESOLVED':PFIZER_LIST_ROW_UNKNOWN,noOmissionVerified:false,domRow:slot.domRow,...(slot.unidentified?{domPage:list.listPage}:{}),capturedAt:new Date().toISOString()}});continue;}
+        const link=slot.card,path=new URL(link.href).pathname.slice("/en-US/PfizerCareers".length),id=slot.officialId;
+        detailNavigationStatus=undefined;
+        try{
+          if(accessStopped)throw Error("Pfizer detail requests stopped after access restriction");
+          const target=new URL(link.href);if(target.origin!==new URL(ENTRY).origin||target.pathname!=="/en-US/PfizerCareers"+path||!/^\/job\/[^?#]+$/u.test(path)||!new RegExp(`_${id}(?:-\\d+)?$`,"u").test(path)||target.search!==`?Location_Country=${COUNTRY}`||target.hash||target.username||target.password)throw Error("Pfizer detail link is outside the official native chain");
+          detail??=await page.context().newPage();
+                const response = await detail!.goto(link.href, { waitUntil: "domcontentloaded", timeout: 60000 });
+                detailNavigationStatus=response?.status();
+                if (!response || response.status() !== 200 || detail!.url() !== link.href)
+                    throw Error("Pfizer UI native detail navigation failed");
+                await detail!.locator('[data-automation-id="jobPostingHeader"]').waitFor({ state: "visible", timeout: 60000 });
+                await detail!.getByRole("button", { name: "Apply", exact: true }).waitFor({ state: "visible", timeout: 30000 });
+                const jsons = await detail!.locator('script[type="application/ld+json"]').allTextContents();
+                if (jsons.length !== 1)
+                    throw Error("Pfizer native detail has ambiguous JSON-LD");
+                const ld = object(JSON.parse(jsons[0]!));
+                const rawPayload = { capturedAt: new Date().toISOString(), officialId: id, externalPath: path, title: link.title, detailUrl: link.href,
+                    renderedTitle: (await detail!.locator('[data-automation-id="jobPostingHeader"]').innerText()).trim(),
+                    renderedId: (await detail!.locator('[data-automation-id="job-posting-details"] [data-automation-id="requisitionId"] dd').innerText()).trim(),
+                    renderedLocations: (await detail!.locator('[data-automation-id="job-posting-details"] [data-automation-id="locations"] dd').allTextContents()).map(v => v.trim()),
+                    applyEnabled: await detail!.getByRole("button", { name: "Apply", exact: true }).isEnabled(), jsonLd: JSON.stringify({"@type":ld["@type"],identifier:ld.identifier,title:ld.title,jobLocation:ld.jobLocation,datePosted:ld.datePosted}), jsonLdRepresentation: "SCOPE_FIELDS", documentTitle: await detail!.title() };
+                const marker = object(object(ld.jobLocation).address).addressCountry;
+                const row: OfficialJsonRenderedRawRow = { sourceJobId: `workday:sha256:${createHash("sha256").update(path).digest("hex")}`, rawEvidenceId: irreversibleOfficialJsonEvidenceId(id), scopeMarker: String(marker), scopeDecision: marker === "China" ? "INCLUDED_MAINLAND" : "EXCLUDED_AUDITED", recordIndex, rawPayload };
+                replayPfizerRenderedRow(row, recordIndex);
+                if(accessStopped)throw Error("Pfizer native data request was access restricted");
+                rawRows.push(row);
+
+        }catch(error){
+          signal?.throwIfAborted();
+          if(listAccessDenied)throw Error("Pfizer official list access restricted");
+          if(detailNavigationStatus===403||detailNavigationStatus===429)accessStopped=true;
+          let privateCapture:{file:string;sha256:string}|undefined;
+          if(detail){try{privateCapture=await savePrivateDomFailure({directory:options.failureDirectory??join(process.env.JOBFINDER_STATE_ROOT??"/data/job-finder","diagnostics","pfizer"),filePrefix:"pfizer-detail",
+            context:{kind:"PFIZER_UNVERIFIED_DETAIL_NOT_HTTP_SUCCESS",officialId:id,expectedUrl:link.href,navigationStatus:detailNavigationStatus},
+            observe:()=>detail!.evaluate(()=>({url:location.href,title:document.title,readyState:document.readyState,html:document.documentElement.outerHTML}))});}catch{/* Missing diagnostics never turn an unknown job into a closed job. */}
+            await detail.close();detail=undefined;
+          }
+          rawRows.push({sourceJobId:pfizerQuarantinedEvidenceKey(id),rawEvidenceId:irreversibleOfficialJsonEvidenceId(id),scopeMarker:"UNKNOWN",scopeDecision:"EXCLUDED_AUDITED",recordIndex,
+            rawPayload:{officialId:id,title:link.title,detailUrl:link.href,quarantineCode:PFIZER_DETAIL_UNVERIFIED,noOmissionVerified:false,capturedAt:new Date().toISOString(),
+              detailFailure:{code:accessStopped?"ACCESS_RESTRICTED":"NATIVE_DETAIL_UNVERIFIED",...(detailNavigationStatus===undefined?{}:{httpStatus:detailNavigationStatus}),...(accessHttpStatus===undefined?{}:{accessHttpStatus}),...(retryAfter===undefined?{}:{retryAfter}),...(privateCapture?{privateCapture}:{})}}});
+        }
+      }
+      rawRows[0]!.rawPayload.listPage=list.listPage;
+      pages.push({channelId:CHANNEL,pageNumber:list.pageNumber,declaredTotalPages:list.totalPages,declaredTotalJobs:list.total,uiRequestCandidateIds:[],rawRows,nextControlPresent:list.nextPresent});
+    }
+    if(listAccessDenied)throw Error("Pfizer official list access restricted");
+    return pages;
     }
     catch(error) {
       const cause=(error instanceof Error?error:Error("Pfizer traversal failed")) as Error & {
@@ -213,7 +274,7 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
         directory:options.failureDirectory ?? join(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder","diagnostics","pfizer"),filePrefix:"pfizer-traversal",
         context:{kind:"PFIZER_FAILED_TRAVERSAL_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE",sourceFetchStage,expectedUrl:entry,
           currentPage,currentRecord,currentCard,completedPages:pages.length,seenIds:seen.size,total,totalPages,
-          navigationStatus:navigation?.status(),navigationUrl:navigation?.url(),detailNavigationStatus,
+          navigationStatus:navigation?.status(),navigationUrl:navigation?.url(),detailNavigationStatus,accessHttpStatus,retryAfter,
           error:{name:cause.name,message:cause.message,stack:cause.stack}},
         observe:async()=>{
           const snapshot=(target:import("playwright-core").Page)=>target.evaluate(()=>({url:location.href,title:document.title,
@@ -226,6 +287,7 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
       throw cause;
     }
     finally {
+        page.context().off('response',observeAccess);
         await detail?.close().catch(() => undefined);
     }
 }
@@ -244,18 +306,18 @@ export function pfizerDomPacketsToPages(packets: unknown, originalCaptureSha256:
             if (slots.length !== packet.rows.length || slots.some((slot, index) => {
                 const row = object(packet.rows[index]);
                 return row.officialId !== slot.officialId || (slot.card
-                    ? row.quarantineCode !== undefined || row.title !== slot.card.title || row.detailUrl !== slot.card.href
-                    : row.quarantineCode !== PFIZER_LIST_ROW_UNKNOWN || row.domRow !== slot.domRow);
+                    ? (row.quarantineCode !== undefined && row.quarantineCode !== PFIZER_DETAIL_UNVERIFIED) || row.title !== slot.card.title || row.detailUrl !== slot.card.href
+                    : row.quarantineCode !== (slot.unidentified ? 'PFIZER_LIST_IDENTITY_UNRESOLVED' : PFIZER_LIST_ROW_UNKNOWN) || row.domRow !== slot.domRow);
             })) throw Error("Pfizer quarantined DOM packet disagrees with the original list");
         }
         const rawRows = packet.rows.map((value: unknown, recordIndex: number): OfficialJsonRenderedRawRow => {
             const raw = object(value), quarantined = raw.quarantineCode !== undefined;
-            const country = quarantined ? "UNKNOWN" : object(object(object(JSON.parse(String(raw.jsonLd))).jobLocation).address).addressCountry;
+            const country = raw.quarantineCode==='PFIZER_LIST_IDENTITY_UNRESOLVED' ? 'UNKNOWN_IDENTITY' : quarantined ? "UNKNOWN" : object(object(object(JSON.parse(String(raw.jsonLd))).jobLocation).address).addressCountry;
             const row: OfficialJsonRenderedRawRow = {
                 sourceJobId: quarantined ? pfizerQuarantinedEvidenceKey(raw.officialId) : `workday:sha256:${createHash("sha256").update(String(raw.externalPath)).digest("hex")}`,
                 rawEvidenceId: irreversibleOfficialJsonEvidenceId(raw.officialId), scopeMarker: String(country),
                 scopeDecision: country === "China" ? "INCLUDED_MAINLAND" : "EXCLUDED_AUDITED", recordIndex,
-                rawPayload: {...raw, ...(recordIndex === 0 ? {listPage} : {})}
+                rawPayload: {...raw, ...(raw.quarantineCode==='PFIZER_LIST_IDENTITY_UNRESOLVED'?{domPage:listPage}:{}), ...(recordIndex === 0 ? {listPage} : {})}
             };
             replayPfizerRenderedRow(row, recordIndex);
             return row;
@@ -273,7 +335,7 @@ export function pfizerDomPacketsToPages(packets: unknown, originalCaptureSha256:
             const raw = object(packet.rows[recordIndex]), quarantined = raw.quarantineCode !== undefined;
             const ld = quarantined ? undefined : object(JSON.parse(raw.jsonLd));
             const rawPayload = {
-                ...(quarantined ? {officialId:raw.officialId,quarantineCode:raw.quarantineCode,noOmissionVerified:false,domRow:raw.domRow,capturedAt:raw.capturedAt} : {
+                ...(quarantined ? {officialId:raw.officialId,quarantineCode:raw.quarantineCode,noOmissionVerified:false,...(raw.quarantineCode===PFIZER_DETAIL_UNVERIFIED?{title:raw.title,detailUrl:raw.detailUrl,detailFailure:raw.detailFailure}:{domRow:raw.domRow,...(raw.quarantineCode==='PFIZER_LIST_IDENTITY_UNRESOLVED'?{domPage:listPage}:{})}),capturedAt:raw.capturedAt} : {
                     ...Object.fromEntries(scopeFields.filter(key => raw[key] !== undefined).map(key => [key, raw[key]])),
                     jsonLd: JSON.stringify({"@type": ld!["@type"], identifier: ld!.identifier, title: ld!.title, jobLocation: ld!.jobLocation, datePosted: ld!.datePosted}),
                     jsonLdRepresentation: "SCOPE_FIELDS"}), originalCaptureSha256,

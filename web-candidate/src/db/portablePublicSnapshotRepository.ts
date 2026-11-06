@@ -57,7 +57,8 @@ export function portableCommittedResultsSql(plans: readonly SourceCrawlPlan[]): 
   const object = (alias: string, fields: object) => `jsonb_build_object(${Object.keys(fields).map(key => `${quote(key)},${alias}."${key}"`).join(",")})`;
   const legacy = `jsonb_build_object('schemaVersion',c.value->'schemaVersion','policyId',c.value->'policyId','observedAt',c.value->'observedAt',
     'observation',CASE WHEN c.value->'observation' IS NOT NULL THEN jsonb_build_object('crawledAt',c.value#>'{observation,crawledAt}') END,
-    'counts',jsonb_build_object('finalUniqueJobCount',c.value#>'{counts,finalUniqueJobCount}','validationDiscardCount',c.value#>'{counts,validationDiscardCount}'),
+    'counts',jsonb_build_object('finalUniqueJobCount',c.value#>'{counts,finalUniqueJobCount}','validationDiscardCount',c.value#>'{counts,validationDiscardCount}',
+      'quarantinedJobCount',jsonb_array_length(COALESCE(c.value->'jobQuarantineLedger',c.value#>'{mainTraversal,jobQuarantine,ledger}','[]'::jsonb))),
     'mainTraversal',CASE WHEN c.value->'mainTraversal' IS NOT NULL THEN jsonb_build_object('matchKeyKind',c.value#>'{mainTraversal,matchKeyKind}','canonicalMatchKeySetSha256',c.value#>'{mainTraversal,canonicalMatchKeySetSha256}') END)`;
   const relations = {transportAttempts:"TransportAttemptEvidence",evidenceArtifacts:"EvidenceArtifact",observations:"CrawlObservation",paginationEvidence:"PaginationEvidence",lossLedgerEntries:"LossLedgerEntry",lifecycleSetMembers:"LifecycleSetEvidenceMember"};
   return `WITH latest AS (SELECT DISTINCT ON (r."sourceId") r.id FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"

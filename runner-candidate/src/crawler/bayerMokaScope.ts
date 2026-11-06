@@ -1,3 +1,5 @@
+import {mokaRawJobId,mokaRawObservationId,mokaQuarantineAt,mokaQuarantinedDetailKey} from './mokaJobQuarantine';
+import {jobQuarantineLossesMatch} from './jobQuarantine';
 import { mokaPublishedAtIso } from "./mokaSourceFetch";
 import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { createDecipheriv, createHash } from "node:crypto";
@@ -97,6 +99,7 @@ export function replayBayerMedicalTraversal(
   try {
     if (!isBayerMedicalTraversalPlan(plan) || plan.executionAuthority !== "STAGED" || evidence.supportingArtifactOnlyFailure ||
         !evidence.pages.length) return undefined;
+    if(evidence.jobQuarantines?.length&&!jobQuarantineLossesMatch(evidence))return;
     const artifacts = new Map(evidence.artifacts.map(a => [a.logicalKey, a]));
     const entry = artifacts.get("moka-entry-0000");
     if (artifacts.size !== evidence.artifacts.length || !entry || !exactArtifact(entry, BAYER_MOKA_CAMPAIGN, "OFFICIAL_COMPANY_PAGE")) return undefined;
@@ -134,10 +137,13 @@ export function replayBayerMedicalTraversal(
           page.responseFingerprintSha256 !== hash(textBody(artifact))) return undefined;
       const rawIds: string[] = [], validIds: string[] = [];
       for (let i = 0; i < data.jobs.length; i++) {
-        const raw = record(data.jobs[i]);
-        if (!raw || typeof raw.id !== "string" || seen.has(raw.id)) return undefined;
-        seen.add(raw.id);
-        const evidenceId = `sha256:${hash(JSON.stringify(raw.id))}`; rawIds.push(evidenceId);
+        const original=data.jobs[i],raw=record(original),id=mokaRawJobId(original);
+        if(id){if(seen.has(id))return;seen.add(id);}
+        rawIds.push(mokaRawObservationId(original,sequence,i));
+        const q=mokaQuarantineAt(evidence,original,sequence,i);
+        if(q){const key=mokaQuarantinedDetailKey(evidence,q,id,(plan as Extract<SourceCrawlPlan,{adapterId:'official-json'}>).moka!);if(key)used.add(key);continue;}
+        if(!raw||typeof raw.id!=='string')return;
+        const evidenceId = `sha256:${hash(JSON.stringify(raw.id))}`;
         const key = `moka-detail-${String(sequence).padStart(4, "0")}-${String(i).padStart(4, "0")}`, detailArtifact = artifacts.get(key);
         const detailLocator = requestContractV2Locator(`moka-detail-v2|request:jobId64=${Buffer.from(raw.id).toString("base64url")}`, {
           family: "moka", role: "detail", method: "POST", url: BAYER_MOKA_DETAIL,
@@ -165,8 +171,8 @@ export function replayBayerMedicalTraversal(
           (page.nextPageSignalBefore ?? null) !== (sequence ? String(offset) : null) ||
           (page.nextPageSignalAfter ?? null) !== (last ? null : String(offset + 50))) return undefined;
     }
-    if (used.size !== artifacts.size || rawCount !== officialTotal || rawCount !== seen.size || excludedCount !== losses.size ||
-        !isDeepStrictEqual(evidence.fetchCounts, { rawCount, parsedCount: rawCount, validCount: expected.size, parseDiscardCount: 0, validationDiscardCount: excludedCount })) return undefined;
+    if (used.size !== artifacts.size || rawCount !== officialTotal || rawCount !== seen.size+(evidence.jobQuarantines?.filter(q=>!q.sourceJobId).length??0) || excludedCount+(evidence.jobQuarantines?.length??0) !== losses.size ||
+        !isDeepStrictEqual(evidence.fetchCounts, { rawCount, parsedCount: rawCount, validCount: expected.size, parseDiscardCount: 0, validationDiscardCount: excludedCount+(evidence.jobQuarantines?.length??0) })) return undefined;
     if (outputJobs) {
       if (outputJobs.length !== expected.size || new Set(outputJobs.map(j => j.sourceJobId)).size !== outputJobs.length) return undefined;
       for (const job of outputJobs) {

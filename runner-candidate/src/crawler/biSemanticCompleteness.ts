@@ -8,12 +8,44 @@ import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./so
 import { parsePersistentSourceFetchEvidence, sanitizeEvidenceHttpUrl, type PersistentSourceFetchEvidence, type SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { BI_API_URL, BI_DETAIL_URL, BI_ENTRY_URL, BI_SCRIPT_URL, BI_UI_RECONSTRUCTION_POLICY, replayBiUiSemanticContract } from "./biUiSemanticContract";
+import {jobQuarantineLoss,quarantineIndependentRows,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
+import {evaluatePaginationEvidence} from './paginationEvidence';
+import type {SourceFetchResult} from './runSourceCrawl';
+import {irreversibleOfficialJsonEvidenceId,officialJsonRawLocator,persistentOfficialJsonJobId} from './officialJsonEvidence';
 
 const SOURCE = "source-boehringer-ingelheim-china-social";
 const COMPANY = "company-boehringer-ingelheim-china";
 const CHAIN = "https://www.boehringer-ingelheim.cn/careers/jobs";
 const API_LOCATOR = "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode";
 const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
+
+export function biJobId(raw:unknown):string|undefined{
+  return record(raw)&&id(raw.jobid)?raw.jobid as string:undefined;
+}
+export function biRawObservationId(raw:unknown,index:number):string{
+  return irreversibleOfficialJsonEvidenceId(biJobId(raw)??[index,raw]);
+}
+export function biJobQuarantine(raw:unknown,index:number,domCode?:'BI_DOM_ROW_UNVERIFIED'|'BI_DOM_IDENTITY_UNRESOLVED'):JobQuarantine|undefined{
+  if(!domCode&&record(raw)&&raw.ctmid==='3479'&&text(raw.jobname)&&biJobId(raw)&&id(raw.coid)&&text(raw.coname)&&hasBiMainlandGeography(raw))return;
+  const jobId=biJobId(raw),bound=domCode!=='BI_DOM_IDENTITY_UNRESOLVED',sourceJobId=jobId?persistentOfficialJsonJobId(jobId):undefined;
+  const url=jobId?new URL(BI_DETAIL_URL):undefined;if(url)url.searchParams.set('jobId',jobId!);
+  return {pageSequence:0,recordIndex:index,rawLocator:officialJsonRawLocator(raw,index),code:domCode??'BI_JOB_ROW_UNVERIFIED',
+    validJobId:sourceJobId?irreversibleOfficialJsonEvidenceId(sourceJobId):`unidentified:0:${index}`,
+    ...(sourceJobId&&bound?{sourceJobId}:{}),...(url&&bound?{officialUrl:sanitizeEvidenceHttpUrl(url.href)}:{})};
+}
+
+/** Supplemental DOM defects keep the same native API positions and original bodies. */
+export function isolateBiDomJobs(fetched:SourceFetchResult,failedIndices:readonly number[],unboundIndices:readonly number[]):SourceFetchResult{
+ if(!fetched.ok||!fetched.fetchEvidence||!failedIndices.length)return fetched;
+ const evidence=fetched.fetchEvidence,api=evidence.artifacts.find(a=>a.logicalKey==='51job-page-0001')!;
+ const raw=JSON.parse(/^\s*jsoncallback\((.*)\)\s*;?\s*$/s.exec(String(api.body))![1]!).resultbody.joblist;
+ const added=[...new Set(failedIndices)].map(index=>biJobQuarantine(raw[index],index,unboundIndices.includes(index)?'BI_DOM_IDENTITY_UNRESOLVED':undefined)??biJobQuarantine(raw[index],index,'BI_DOM_ROW_UNVERIFIED')!);
+ const reviewed=quarantineIndependentRows(evidence,added),held=new Set(added.flatMap(q=>{const id=biJobId(raw[q.recordIndex]);return id?[persistentOfficialJsonJobId(id)]:[];}));
+ reviewed.fetchLosses.sort((a,b)=>(a.details.recordIndex??0)-(b.details.recordIndex??0));
+ const payload='payload'in fetched?fetched.payload as {jobs:Array<{sourceJobId:string}>}:undefined;
+ return {...fetched,...(payload?{payload:{...payload,jobs:payload.jobs.filter(job=>!held.has(job.sourceJobId))}}:{}),fetchEvidence:reviewed,
+  paginationEvaluation:evaluatePaginationEvidence({evidence:reviewed,expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION})};
+}
 
 export function hasBiMainlandGeography(raw: Record<string, unknown>): boolean {
   if (typeof raw.jobareaname !== "string" || !raw.jobareaname.trim() ||
@@ -98,15 +130,21 @@ export function replayBiSemanticCompleteness(
     const expected = new Map<string, { title: string; location: string; cities: string[]; url: string }>();
     const seen = new Set<string>();
     const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+    const quarantines:JobQuarantine[]=[];
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index];
+      const rawId=biJobId(row);if(rawId){if(seen.has(rawId))return;seen.add(rawId);}
+      rawIds.push(biRawObservationId(row,index));
+      const held=evidence.jobQuarantines?.find(q=>q.pageSequence===0&&q.recordIndex===index);
+      const domCode=held?.code==='BI_DOM_ROW_UNVERIFIED'||held?.code==='BI_DOM_IDENTITY_UNRESOLVED'?held.code:undefined;
+      const quarantine=biJobQuarantine(row,index,domCode);
+      if(quarantine){quarantines.push(quarantine);losses.push(jobQuarantineLoss(quarantine,api.capturedAt));continue;}
       if (!record(row) ||
           row.ctmid !== "3479" || !text(row.jobname) || !id(row.jobid) || !id(row.coid) || !text(row.coname) ||
-          seen.has(row.jobid as string)) return undefined;
+          !rawId) return undefined;
       const location = row.jobareaname as string;
       if (!hasBiMainlandGeography(row)) return undefined;
       const jobId = row.jobid as string;
-      seen.add(jobId); rawIds.push(`sha256:${hash(JSON.stringify(jobId))}`);
       if (ui.exclusions.some(rule => (row.jobname as string).includes(rule.code) && location.includes(rule.jobareaname))) {
         excludedRecordIndexes.push(index);
         losses.push({ stage: "VALIDATION", reason: "51job record excluded by official recruitment UI",
@@ -121,7 +159,8 @@ export function replayBiSemanticCompleteness(
     }
     if (!sameSet(rawIds, page.rawJobIds) || !sameSet(validIds, page.validJobIds) ||
         !same(evidence.fetchCounts, { rawCount: total, parsedCount: total, validCount: expected.size,
-          parseDiscardCount: 0, validationDiscardCount: excludedRecordIndexes.length }) ||
+          parseDiscardCount: 0, validationDiscardCount: excludedRecordIndexes.length+quarantines.length }) ||
+        !same(evidence.jobQuarantines??[],quarantines) ||
         !same(losses, evidence.fetchLosses) || outputJobs.length !== expected.size ||
         new Set(outputJobs.map(j => j.sourceJobId)).size !== expected.size) return undefined;
     for (const job of outputJobs) {

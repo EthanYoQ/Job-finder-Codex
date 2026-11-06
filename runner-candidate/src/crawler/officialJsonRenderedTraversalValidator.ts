@@ -186,14 +186,14 @@ export async function captureOfficialJsonRenderedTraversal(
     const dom = await captureLocalHybridDom(input.sourceId, input.signal);
     if (dom.schemaVersion === "sanofi-cn-cua-dom-list-v1") {
       const { captureSanofiChineseIndependent } = await import("./sanofiChineseRenderedTraversal");
-      return captureSanofiChineseIndependent({ dom });
+      return captureSanofiChineseIndependent({ dom,...(input.signal?{signal:input.signal}:{}) });
     }
     if (dom.schemaVersion === "bayer-cua-dom-list-v1") {
       const { captureBayerIndependentDetails } = await import("./bayerMokaRenderedTraversal");
-      return captureBayerIndependentDetails({ dom });
+      return captureBayerIndependentDetails({ dom,...(input.signal?{signal:input.signal}:{}) });
     }
     const { captureServierIndependentDetails } = await import("./servierMokaRenderedTraversal");
-    return captureServierIndependentDetails({ dom });
+    return captureServierIndependentDetails({ dom,...(input.signal?{signal:input.signal}:{}) });
   }
   const release = await acquireBrowserSourcePermit(input.signal);
   try {

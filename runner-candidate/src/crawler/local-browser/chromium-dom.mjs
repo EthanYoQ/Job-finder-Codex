@@ -37,6 +37,14 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
   let context;
   try { context = await browser.newContext(); }
   catch (error) { await browser.close(); throw error; }
+  // Context observation includes a popup's first response, before its page event.
+  let cspcAccessBlock;
+  context.on('response',response=>{
+    const url=new URL(response.url()),request=response.request();
+    if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname.startsWith('/RedseaPlatform/')&&[403,429].includes(response.status())&&
+      (request.isNavigationRequest()||['fetch','xhr'].includes(request.resourceType?.())))
+      cspcAccessBlock={httpStatus:response.status(),retryAfter:response.headers()['retry-after']??null};
+  });
   const tabs = new Map(), pages = new WeakMap();
   let sequence = 0;
   function tabFor(page) {
@@ -63,7 +71,14 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
           .catch(()=>{record.resultUnavailable=true;});
       }
     });
-    const tab = {id, url: async () => page.url(), navigationInfo: async () => cspcListResponse?{...navigationInfo,cspcListResponse}:navigationInfo,
+    const tab = {id, url: async () => page.url(),
+      clickAndWaitForPopup:async(click,timeoutMs)=>{
+        const deadline=Date.now()+timeoutMs;
+        const settled=await Promise.allSettled([page.waitForEvent('popup',{timeout:timeoutMs}),click()]);
+        const failure=settled.find(value=>value.status==='rejected');if(failure)throw failure.reason;
+        const popup=settled[0].value,remaining=deadline-Date.now();if(remaining<=0)throw Error('CSPC_DETAIL_POPUP_TIMEOUT');
+        await popup.waitForLoadState('domcontentloaded',{timeout:remaining});return tabFor(popup);
+      }, navigationInfo: async () => cspcAccessBlock?{...navigationInfo,...(cspcListResponse?{cspcListResponse}:{}),cspcAccessBlock}:cspcListResponse?{...navigationInfo,cspcListResponse}:navigationInfo,
       goto: async (url, config) => {
         navigationInfo=undefined;cspcListResponse=undefined;
         const response=await page.goto(url, {waitUntil:'domcontentloaded',...options(config)});

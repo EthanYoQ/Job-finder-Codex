@@ -22,7 +22,7 @@ test('empty, duplicate and unknown selections fail before migration state or DB 
   }
 });
 
-function database(acceptedIds) {
+function database(acceptedIds,held=0) {
   return {crawlBatchSourceResult:{findMany:async query=>{
     assert.deepEqual(query.where.sourceId.in,sourceIds);
     assert.equal(query.where.releaseCandidateId,'instabox-test');
@@ -30,7 +30,7 @@ function database(acceptedIds) {
     assert.equal(query.where.completenessState,'VERIFIED');
     assert.equal(query.where.finishedAt.gte.toISOString(),'2026-10-31T04:01:00.000Z');
     assert.equal(query.where.finishedAt.lt.toISOString(),'2026-10-31T16:01:00.000Z');
-    return acceptedIds.map(sourceId=>({sourceId,batchId:`batch-${sourceId}`}));
+    return acceptedIds.map((sourceId,index)=>({sourceId,batchId:`batch-${sourceId}`,_count:{lossLedgerEntries:index===0?held:0}}));
   }}};
 }
 
@@ -42,6 +42,9 @@ test('three successful retries never reduce the 36-source completion denominator
   assert.equal(accumulated.complete,false);assert.equal(accumulated.capturedSources.length,35);
   const full=await readRoundCoverage(database(sourceIds),'instabox-test',slot,sourceIds,results);
   assert.equal(full.complete,true);assert.equal(full.capturedSources.length,36);
+  assert.equal(full.quarantinedJobCount,0);
+  const isolated=await readRoundCoverage(database(sourceIds,2),'instabox-test',slot,sourceIds,results);
+  assert.equal(isolated.complete,true);assert.equal(isolated.quarantinedJobCount,2);
   assert.equal((await readRoundCoverage(database(sourceIds),'instabox-test',slot,sourceIds,[{status:'FAILED'}])).complete,false);
   assert.equal((await readRoundCoverage(database(sourceIds),'instabox-test',null,sourceIds,results)).complete,false);
 });

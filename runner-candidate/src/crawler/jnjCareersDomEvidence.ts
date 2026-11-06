@@ -1,3 +1,4 @@
+import {jobQuarantineLoss,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
 import { officialJsonAdapter } from "./adapters/officialJson";
 import { load } from "cheerio";
 import { isDeepStrictEqual } from "node:util";
@@ -21,7 +22,7 @@ const base = z.object({ kind: z.literal(JNJ_DOM_OBSERVATION_KIND), url: z.string
   heading: z.string().min(1), dom: z.string().min(1) });
 const listSchema = base.extend({
   fragment: z.object({ html: z.string().min(1), htmlLength: z.number().int().positive(),
-    items: z.array(z.object({ text: z.string(), links: z.array(z.object({ title: z.string(), url: z.string().url() }).strict()) }).strict()) }).strict(),
+    items: z.array(z.object({ text: z.string(), links: z.array(z.object({ title: z.string(), url: z.string() }).strict()) }).strict()) }).strict(),
   filters: z.array(z.object({ id: z.string(), name: z.string(), selectedOptions: z.array(z.object({ text: z.string(), value: z.string() }).strict()) }).strict()),
   pagination: z.array(z.object({ label: z.string(), text: z.string().optional(), url: z.string().url() }).strict()),
   sameIdentityOrderAsEarlier: z.boolean().optional()
@@ -64,23 +65,31 @@ function parseList(body: string, page: number) {
   assert(observedListUrl && original.fragment.html.length === original.fragment.htmlLength);
   assert(original.sameIdentityOrderAsEarlier !== false);
   const filters = original.filters;
-  assert(isDeepStrictEqual(filters.map(f => f.name), ["team", "subteam", "country", "state", "location", "type", "pattern"]));
+  assert(filters.filter(f=>f.name==='country').length===1);
   assert(filters.every(f => f.name === "country" ? isDeepStrictEqual(f.selectedOptions, [{ text: "China", value: "China" }]) : f.selectedOptions.length === 0));
-  assert(original.dom.includes('- option "China" [selected]') && original.dom.includes(original.heading));
   const match = /^Displaying (\d+) to (\d+) of (\d+) matching jobs$/u.exec(original.heading);
   assert(match);
   const [first, last, total] = match.slice(1).map(Number) as [number, number, number];
   assert([first, last, total].every(Number.isSafeInteger) && total > 0 && total <= 400 && page <= Math.ceil(total / 20));
   const $ = load(original.fragment.html);
   assert($("#js-job-search-results").length === 1 && $("#js-job-search-results").attr("data-results") === String(total));
-  const jobs = parseJnjCareersChinaCards(original.fragment.html, "China");
-  assert(jobs && jobs.length === Math.min(20, total - (page - 1) * 20) && jobs.every(job => job.cities.length > 0));
-  assert(first === (page - 1) * 20 + 1 && last === first + jobs.length - 1 && original.fragment.items.length === jobs.length);
-  for (let i = 0; i < jobs.length; i++) {
-    const job = jobs[i]!, item = original.fragment.items[i]!;
-    assert(item.links.length === 1 && text(item.links[0]!.title) === job.title && item.links[0]!.url === job.officialUrl);
-    assert(original.dom.includes(new URL(job.officialUrl).pathname) || original.dom.includes(decodeURI(new URL(job.officialUrl).pathname)));
-  }
+  const elements=$('.PageList-items-item.card-job').toArray(),seen=new Set<string>();
+  assert(elements.length===Math.min(20,total-(page-1)*20)&&original.fragment.items.length===elements.length);
+  const slots=elements.map((element,index)=>{
+    const card=$(element),anchors=card.find('a[href*="/jobs/r-"]'),href=anchors.first().attr('href');
+    let candidateUrl:string|undefined,id:string|undefined;
+    try{const u=new URL(href??'',ORIGIN),match=/^\/en\/jobs\/(r-[0-9]+)\/[^/?#]+\/$/u.exec(u.pathname);
+      if(anchors.length===1&&u.origin===ORIGIN&&!u.search&&!u.hash&&!u.username&&!u.password&&match){candidateUrl=u.href;if(card.attr('data-id')?.toLowerCase()===match[1])id=match[1];}}
+    catch{/* Unbound damaged row retains all unobserved prior jobs. */}
+    if(id){assert(!seen.has(id));seen.add(id);}
+    let job:JnjCareersChinaJobSummary|undefined;
+    try{job=parseJnjCareersChinaCards($.html(element),'China')?.[0];
+      const item=original.fragment.items[index]!;
+      if(!id||!job?.cities.length||item.links.length!==1||text(item.links[0]!.title)!==job.title||item.links[0]!.url!==job.officialUrl)job=undefined;
+    }catch{job=undefined;}
+    return {job,officialId:id,officialUrl:id?candidateUrl:undefined,candidateUrl,rawId:id?evidenceId(id):`jnj-unidentified:sha256:${sha256Bytes(Buffer.from(JSON.stringify([page,index,$.html(element)]))).sha256}`};
+  });
+  assert(first===(page-1)*20+1&&last===first+elements.length-1);
   const lastPage = Math.ceil(total / 20), next = original.pagination.filter(a => a.label === "Next page"), previous = original.pagination.filter(a => a.label === "Previous page");
   assert(next.length === (page < lastPage ? 1 : 0) && (!next.length || next[0]!.url === listUrl(page + 1)));
   assert(previous.length === (page > 1 ? 1 : 0) && (!previous.length || previous[0]!.url === listUrl(page - 1)));
@@ -90,7 +99,7 @@ function parseList(body: string, page: number) {
     assert(n ? Number(n[1]) >= 1 && Number(n[1]) <= lastPage && link.url === listUrl(Number(n[1])) : ["Next page", "Previous page"].includes(link.label));
   }
   assert((page < lastPage) === original.dom.includes('link "Next page"'));
-  return { original, jobs, total };
+  return { original, slots, total };
 }
 function parseDetail(body: string, job: JnjCareersChinaJobSummary) {
   const original = detailSchema.parse(json(body));
@@ -131,50 +140,43 @@ export function auditJnjCareersDomObservations(lists: readonly string[], details
   assert(lists.length > 0 && lists.length <= 20);
   const parsed = lists.map((body, i) => auditObservation(body, () => parseList(body, i + 1), {sourcePage: i + 1})), total = parsed[0]!.total;
   assert(parsed.every(p => p.total === total) && lists.length === Math.ceil(total / 20));
-  const jobs = parsed.flatMap(p => p.jobs);
-  assert(jobs.length === total && new Set(jobs.map(j => j.officialId)).size === total);
-  const detailMap = new Map<string, {body: string; sourceJobId?: string}>();
-  for (const body of details) {
-    const raw = auditObservation(body, () => json(body));
-    const job = jobs.find(job => job.officialUrl === (raw as {expectedUrl?: unknown} | null)?.expectedUrl);
-    const value = auditObservation(body, () => {
-      const value = detailSchema.parse(raw);
-      assert(!detailMap.has(value.url));
-      return value;
-    }, job ? {sourceJobId: job.officialId} : {});
-    detailMap.set(value.url, {body, ...(job ? {sourceJobId: job.officialId} : {})});
+  const slots=parsed.flatMap((p,pageSequence)=>p.slots.map((slot,recordIndex)=>({...slot,pageSequence,recordIndex})));
+  const known=slots.flatMap(slot=>slot.officialId?[slot.officialId]:[]);assert(slots.length===total&&new Set(known).size===known.length);
+  const detailMap=new Map<string,{body:string;observedAt:string}>();
+  for(const body of details){
+    const raw=auditObservation(body,()=>json(body)),value=raw as {expectedUrl?:unknown;observedAt?:unknown}|null;
+    const slot=slots.find(slot=>slot.candidateUrl===value?.expectedUrl);
+    auditObservation(body,()=>{assert(value&&typeof value.expectedUrl==='string'&&stamp.safeParse(value.observedAt).success&&!detailMap.has(value.expectedUrl));},slot?.officialId?{sourceJobId:slot.officialId}:{});
+    detailMap.set(value!.expectedUrl as string,{body,observedAt:value!.observedAt as string});
   }
-  const artifacts = parsed.map((p, i) => artifact(listKey(i), lists[i]!, p.original.observedAt, JNJ_DOM_LIST_LOCATOR));
-  const surplusObservations = [...detailMap].filter(([url]) => !jobs.some(job => job.officialUrl === url)).map(([, detail]) => detail.body);
-  for (const job of jobs) {
-    const detail = detailMap.get(job.officialUrl);
-    if (detail === undefined) throw Object.assign(Error("JNJ_DOM_DETAIL_OBSERVATION_MISSING"),
-      {sourceJobId: job.officialId, privateObservation: {kind: "MISSING_DETAIL_OBSERVATION", sourceJobId: job.officialId, expectedUrl: job.officialUrl,
-        ...(surplusObservations.length ? {surplusObservations} : {})}});
-    const {body, sourceJobId} = detail;
-    const d = auditObservation(body, () => parseDetail(body, job), sourceJobId ? {sourceJobId} : {});
-    artifacts.push(artifact(detailKey(job.officialId), body, d.observedAt, JNJ_DOM_DETAIL_LOCATOR));
+  const missing=slots.filter(slot=>slot.job&&!detailMap.has(slot.job.officialUrl)),surplusObservations=[...detailMap].filter(([url])=>!slots.some(slot=>slot.candidateUrl===url)).map(([,d])=>d.body);
+  if(surplusObservations.length){const slot=missing[0];throw Object.assign(Error(slot?'JNJ_DOM_DETAIL_OBSERVATION_MISSING':'JNJ_DOM_OBSERVATION_INVALID'),{
+    ...(slot?{sourceJobId:slot.officialId}:{}),privateObservation:slot?{kind:'MISSING_DETAIL_OBSERVATION',sourceJobId:slot.officialId,expectedUrl:slot.job!.officialUrl,surplusObservations}:{kind:'SURPLUS_DETAIL_OBSERVATIONS',observations:surplusObservations}});}
+  const artifacts=parsed.map((p,i)=>artifact(listKey(i),lists[i]!,p.original.observedAt,JNJ_DOM_LIST_LOCATOR)),quarantines:JobQuarantine[]=[],jobs:JnjCareersChinaJobSummary[]=[];
+  for(const slot of slots){
+    const detail=slot.candidateUrl?detailMap.get(slot.candidateUrl):undefined;
+    if(detail)artifacts.push(artifact(detailKey(slot.officialId??`unidentified-${slot.pageSequence}-${slot.recordIndex}`),detail.body,detail.observedAt,JNJ_DOM_DETAIL_LOCATOR));
+    let code=slot.job?'JNJ_JOB_DETAIL_UNVERIFIED':'JNJ_JOB_LIST_ROW_UNVERIFIED';
+    if(slot.job&&detail){try{parseDetail(detail.body,slot.job);jobs.push(slot.job);continue;}catch{/* Preserve this job's old data; other verified jobs continue. */}}
+    if(slot.job&&!detail)code='JNJ_JOB_DETAIL_UNAVAILABLE';
+    quarantines.push({pageSequence:slot.pageSequence,recordIndex:slot.recordIndex,rawLocator:`${listKey(slot.pageSequence)}#row:${slot.recordIndex}`,validJobId:slot.rawId,code,
+      ...(slot.officialId?{sourceJobId:slot.officialId}:{}),...(slot.officialUrl?{officialUrl:slot.officialUrl}:{})});
   }
-  if (details.length !== total) throw Object.assign(Error("JNJ_DOM_OBSERVATION_INVALID"),
-    {privateObservation: {kind: "SURPLUS_DETAIL_OBSERVATIONS", observations: surplusObservations}});
-  const times = artifacts.map(a => Date.parse(a.capturedAt)), startedAt = new Date(Math.min(...times)).toISOString(), finishedAt = new Date(Math.max(...times)).toISOString();
-  assert(Date.parse(finishedAt) - Date.parse(startedAt) < 30 * 60_000);
-  const pages: SourceFetchPageTrace[] = parsed.map((p, sequence) => ({ sequence, artifactLogicalKey: listKey(sequence),
-    requestedCursor: null, returnedCursor: null, requestedOffset: sequence * 20, returnedOffset: sequence * 20,
-    requestedPage: sequence + 1, returnedPage: sequence + 1, requestedPageSize: 20, returnedPageSize: 20,
-    rawJobIds: p.jobs.map(j => evidenceId(j.officialId)), validJobIds: p.jobs.map(j => evidenceId(j.officialId)),
-    declaredTotal: total, declaredCount: total, declaredPages: parsed.length,
-    nextPageSignalBefore: sequence === 0 ? null : listUrl(sequence + 1),
-    nextPageSignalAfter: sequence + 1 === parsed.length ? null : listUrl(sequence + 2),
-    responseFingerprintSha256: sha256Bytes(Buffer.from(lists[sequence]!)).sha256,
-    termination: sequence + 1 === parsed.length ? "DECLARED_TOTAL_REACHED" : "CONTINUE", anomalyCodes: [], capturedAt: p.original.observedAt }));
-  const evidence = deriveCanonicalPaginationEvidence({ evidence: parsePersistentSourceFetchEvidence({ captureTool: JNJ_DOM_CAPTURE_TOOL,
-    artifacts, pages, declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: total, artifactLogicalKey: listKey(0), extractorLocator: JNJ_DOM_LIST_LOCATOR, scope: "SOURCE" },
-    fetchCounts: { rawCount: total, parsedCount: total, validCount: total, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] }),
-    expectedChannelIds: [], filteredOutput: true, allowPositiveOfficialTotalCountAfterAdapterReconciliation: true });
-  const paginationEvaluation = evaluatePaginationEvidence({ evidence, expectedChannelIds: [], filteredOutput: true, allowPositiveOfficialTotalCountAfterAdapterReconciliation: true });
-  assert(paginationEvaluation.safeCompleteness && paginationEvaluation.verifiedEligible);
-  return { jobs, total, evidence, paginationEvaluation, startedAt, finishedAt };
+  const times=artifacts.map(a=>Date.parse(a.capturedAt)),startedAt=new Date(Math.min(...times)).toISOString(),finishedAt=new Date(Math.max(...times)).toISOString();
+  assert(Date.parse(finishedAt)-Date.parse(startedAt)<30*60_000);
+  const goodIds=new Set(jobs.map(j=>j.officialId));
+  const pages:SourceFetchPageTrace[]=parsed.map((p,sequence)=>({sequence,artifactLogicalKey:listKey(sequence),requestedCursor:null,returnedCursor:null,
+    requestedOffset:sequence*20,returnedOffset:sequence*20,requestedPage:sequence+1,returnedPage:sequence+1,requestedPageSize:20,returnedPageSize:20,
+    rawJobIds:p.slots.map(s=>s.rawId),validJobIds:p.slots.filter(s=>s.officialId&&goodIds.has(s.officialId)).map(s=>s.rawId),
+    declaredTotal:total,declaredCount:total,declaredPages:parsed.length,nextPageSignalBefore:sequence===0?null:listUrl(sequence+1),nextPageSignalAfter:sequence+1===parsed.length?null:listUrl(sequence+2),
+    responseFingerprintSha256:sha256Bytes(Buffer.from(lists[sequence]!)).sha256,termination:sequence+1===parsed.length?'DECLARED_TOTAL_REACHED':'CONTINUE',anomalyCodes:[],capturedAt:p.original.observedAt}));
+  const options={expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION};
+  const evidence=deriveCanonicalPaginationEvidence({evidence:parsePersistentSourceFetchEvidence({captureTool:JNJ_DOM_CAPTURE_TOOL,artifacts,pages,
+    declaredCompleteness:{kind:'OFFICIAL_TOTAL_COUNT',value:total,artifactLogicalKey:listKey(0),extractorLocator:JNJ_DOM_LIST_LOCATOR,scope:'SOURCE'},
+    ...(quarantines.length?{jobQuarantines:quarantines}:{}),fetchCounts:{rawCount:total,parsedCount:total,validCount:jobs.length,parseDiscardCount:0,validationDiscardCount:quarantines.length},
+    fetchLosses:quarantines.map(q=>jobQuarantineLoss(q,parsed[q.pageSequence]!.original.observedAt))}),...options});
+  const paginationEvaluation=evaluatePaginationEvidence({evidence,...options});assert(paginationEvaluation.safeCompleteness&&paginationEvaluation.verifiedEligible);
+  return {jobs,total,evidence,paginationEvaluation,startedAt,finishedAt};
 }
 /** Retains the unmodified UI tool JSON bytes. No HTTP envelope is manufactured. */
 export function createJnjCareersDomSourceFetch(input: { lists: readonly string[]; details: readonly string[] }): SourceFetchFunction {

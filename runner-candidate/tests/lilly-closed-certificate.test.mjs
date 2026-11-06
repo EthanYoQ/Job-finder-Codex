@@ -37,6 +37,7 @@ test('closed Lilly applications reconcile across pages and altered closure evide
  const decision=issueAGradeOfficialTotalCertificate(input);assert.equal(decision.status,'CERTIFIED',JSON.stringify(decision));
  assert.deepEqual(decision.certificate.legalScopeExclusionLedger.map(x=>x.recordIndex),[0,50]);
  assert.equal(verifyAGradeCompletenessCertificateReceipt({certificate:decision.certificate,certificateSha256:decision.certificateSha256,expected:{...binding,sourceId:plan.source.id}}).status,'PASS');
+ assert.equal(verifyAGradeCompletenessCertificateReceipt({certificate:JSON.parse(JSON.stringify(decision.certificate)),certificateSha256:decision.certificateSha256,expected:{...binding,sourceId:plan.source.id}}).status,'PASS','Persisted no-quarantine certificates must retain their hash');
  const changed=structuredClone(evidence);changed.fetchLosses[0].details.code='UNVERIFIED_FAILURE';
  assert.equal(issueAGradeOfficialTotalCertificate({...input,evidence:changed}).status,'REJECTED');
  const workspaceRoot=await mkdtemp(join(tmpdir(),'lilly-atomic-')),memory=memoryDb();

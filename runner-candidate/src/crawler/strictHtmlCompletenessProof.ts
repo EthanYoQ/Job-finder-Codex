@@ -1,4 +1,6 @@
+import {htmlRowObservationId} from "./htmlJobQuarantine";
 import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { jobQuarantineLossesMatch, restoreQuarantinedList, type JobQuarantine } from './jobQuarantine';
 import { replayKelunMainlandScope } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,validateSanofiNativeQuality} from "./sanofiNativeQuality";
 import type {NormalizedJobRecord} from "./normalizedJob";
@@ -44,11 +46,16 @@ export function validateStrictHtmlCompletenessProof(
     const replay = replayKelunMainlandScope(plan, evidence, jobs);
     return !!replay && validateBaseStrictHtmlCompletenessProof(plan, replay.rawEvidence, jobs);
   }
-  return validateBaseStrictHtmlCompletenessProof(plan, evidence, jobs);
+  const quarantines=evidence.jobQuarantines??[];
+  if(quarantines.length){
+    if(!jobQuarantineLossesMatch(evidence))return false;
+    evidence=restoreQuarantinedList(evidence);
+  }
+  return validateBaseStrictHtmlCompletenessProof(plan, evidence, jobs,quarantines);
 }
 
 function validateBaseStrictHtmlCompletenessProof(
-  plan: HtmlPlan, evidence: PersistentSourceFetchEvidence, jobs?: readonly NormalizedJobRecord[]
+  plan: HtmlPlan, evidence: PersistentSourceFetchEvidence, jobs?: readonly NormalizedJobRecord[],quarantines:readonly JobQuarantine[]=[]
 ): boolean {
   try {
     if (hasSanofiNativePolicy(plan)) return validateSanofiNativeQuality(plan,evidence,jobs);
@@ -72,7 +79,11 @@ function validateBaseStrictHtmlCompletenessProof(
     const exact = artifacts as ExactArtifact[];
     if (plan.source.id === "source-abbvie-china-social" && (
       sourcePlanConfigSha256(plan) !== "4bc13113d0ea829b7df6935081d009ac389f24c97340390f09bbb7ad5234e5a9" ||
-      !exact.every(artifact => validateAbbvieChinaRowScope(artifact.body))
+      !exact.every(artifact => {
+        const pageSequence=evidence.pages.findIndex(page=>page.artifactLogicalKey===artifact.logicalKey),$=load(artifact.body);
+        return $('.attrax-vacancy-tile').toArray().every((row,recordIndex)=>validateAbbvieChinaRowScope($.html(row))||
+          quarantines.some(q=>q.pageSequence===pageSequence&&q.recordIndex===recordIndex));
+      })
     )) return htmlProofTrace(plan, "ABBVIE_ROW_SCOPE_UNREVIEWED");
     if (new Set(exact.map((artifact) => artifact.logicalKey)).size !== exact.length) return htmlProofTrace(plan, "ARTIFACT_KEYS");
 
@@ -90,7 +101,7 @@ function validateBaseStrictHtmlCompletenessProof(
           : false;
     }
     if (policy.kind === "STATIC_PUBLIC_LIST") {
-      return validateStaticPublicList(plan, evidence, exact);
+      return validateStaticPublicList(plan, evidence, exact,quarantines);
     }
     return htmlProofTrace(plan, "UNSUPPORTED_POLICY");
   } catch {
@@ -599,9 +610,7 @@ function replayPageRowsAllowingOverlap(
   page: SourceFetchPageTrace
 ): boolean {
   const $ = load(html);
-  const ids = selectHtmlTableRows($, table).map((row) =>
-    `html-row:sha256:${sha256Bytes(Buffer.from($.html(row), "utf8")).sha256}`
-  );
+  const ids = selectHtmlTableRows($, table).map((row,index) => htmlRowObservationId($,row,table,page.sequence,index));
   return new Set(ids).size === ids.length &&
     JSON.stringify(ids) === JSON.stringify(page.rawJobIds) &&
     JSON.stringify(ids) === JSON.stringify(page.validJobIds);
@@ -919,7 +928,7 @@ function validateTupuTraversal(
 function validateStaticPublicList(
   plan: HtmlPlan,
   evidence: PersistentSourceFetchEvidence,
-  artifacts: readonly ExactArtifact[]
+  artifacts: readonly ExactArtifact[],quarantines:readonly JobQuarantine[]=[]
 ): boolean {
   const config = plan.table.staticPublicList;
   const declaration = evidence.declaredCompleteness!;
@@ -960,7 +969,7 @@ function validateStaticPublicList(
     return validateApeloaStaticPlan(plan, $, rows);
   }
   if (policy.sourcePolicy === "ASTELLAS_CHINA_PDF_ACCORDION_V1") {
-    return validateAstellasStaticPlan(plan, $, rows);
+    return validateAstellasStaticPlan(plan, $, rows,quarantines);
   }
   // Retired zero-only policy names intentionally fall through to rejection.
   // Do not downgrade them to the generic static-list policy.
@@ -1005,7 +1014,7 @@ function validateApeloaStaticPlan(
 function validateAstellasStaticPlan(
   plan: HtmlPlan,
   $: ReturnType<typeof load>,
-  rows: readonly AnyNode[]
+  rows: readonly AnyNode[],quarantines:readonly JobQuarantine[]=[]
 ): boolean {
   const config = plan.table.staticPublicList;
   if (plan.source.id !== "source-astellas-china-social" ||
@@ -1021,7 +1030,8 @@ function validateAstellasStaticPlan(
   if (accordions.length !== 1 || allPdfs.length !== rows.length ||
     rows.some((row) => !allPdfs.includes(row))) return false;
   const seenUrls = new Set<string>();
-  for (const row of rows) {
+  for (const [index,row] of rows.entries()) {
+    if(quarantines.some(q=>q.pageSequence===0&&q.recordIndex===index))continue;
     const element = $(row);
     const rawUrl = element.attr("href");
     const url = rawUrl ? strictSameOriginUrl(rawUrl, plan.source.officialEntryUrl) : undefined;
@@ -1164,10 +1174,7 @@ function replayRows(
   globalSeen: Set<string>
 ): boolean {
   const $ = load(html);
-  const ids = selectHtmlTableRows($, table).map((row) => {
-    const raw = $.html(row);
-    return `html-row:sha256:${sha256Bytes(Buffer.from(raw, "utf8")).sha256}`;
-  });
+  const ids = selectHtmlTableRows($, table).map((row,index) => htmlRowObservationId($,row,table,page.sequence,index));
   if (new Set(ids).size !== ids.length || ids.some((id) => globalSeen.has(id)) ||
     JSON.stringify(ids) !== JSON.stringify(page.rawJobIds) ||
     JSON.stringify(ids) !== JSON.stringify(page.validJobIds)) return false;

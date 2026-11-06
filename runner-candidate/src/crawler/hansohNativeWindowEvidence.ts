@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import {verifyBeisenListQuarantines,beisenRawObservationId} from './beisenJobQuarantine';
 import type { SourceCrawlPlan } from "./sourcePlan";
 import type { PersistentSourceFetchEvidence } from "./sourceFetchEvidence";
 import type { NormalizedJobRecord } from "./normalizedJob";
@@ -43,9 +44,10 @@ export function validateStrictHansohNativeWindowEvidence(
   plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence, jobs: readonly NormalizedJobRecord[]
 ): boolean {
   try {
+    if(evidence.jobQuarantines?.length&&!verifyBeisenListQuarantines(plan,evidence))return false;
     if (!hasStrictHansohNativeWindowPlan(plan) || evidence.supportingArtifactOnlyFailure ||
         evidence.pages.length === 0 || evidence.pages.length > 10 ||
-        evidence.artifacts.length !== evidence.pages.length || evidence.fetchLosses.length !== 0) return false;
+        evidence.artifacts.length !== evidence.pages.length || evidence.fetchLosses.some(loss=>loss.details.code!=='JOB_QUARANTINED')) return false;
     const declaration = evidence.declaredCompleteness;
     if (declaration?.kind !== "OFFICIAL_TOTAL_COUNT" || declaration.scope !== "SOURCE" ||
         declaration.channelId !== undefined || declaration.artifactLogicalKey !== evidence.pages[0]!.artifactLogicalKey) return false;
@@ -85,21 +87,24 @@ export function validateStrictHansohNativeWindowEvidence(
         coordinate: {sequence, requestedPage: sequence, requestedPageSize: 100}});
       if (artifact.extractorLocator !== locator || sequence === 0 && declaration.extractorLocator !== locator) return false;
       const rawIds: string[] = []; const validIds: string[] = [];
-      for (const raw of root.Data) {
+      for (const [recordIndex,raw] of root.Data.entries()) {
+        rawIds.push(beisenRawObservationId(raw,sequence,recordIndex));
+        if(evidence.jobQuarantines?.some(q=>q.pageSequence===sequence&&q.recordIndex===recordIndex))continue;
         if (!record(raw) || typeof raw.Id !== "string" ||
             !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(raw.Id) ||
             seen.has(raw.Id) || typeof raw.JobAdName !== "string" || !raw.JobAdName.trim() ||
             containsSensitiveAdapterValue(raw.JobAdName) || raw.Category !== "社会招聘" ||
             raw.CategoryId !== "1" || raw.Status !== 1 || !socialKind(raw.Kind) ||
             !mainlandGeography(raw)) return false;
-        seen.add(raw.Id); rows.push(raw); rawIds.push(irreversible(raw.Id)); validIds.push(irreversible(persistentId(raw.Id)));
+        seen.add(raw.Id); rows.push(raw); validIds.push(irreversible(persistentId(raw.Id)));
       }
       if (!equal(page.rawJobIds, rawIds) || !equal(page.validJobIds, validIds)) return false;
     }
     const counts = evidence.fetchCounts;
-    if (total !== rows.length || evidence.pages.length !== Math.max(1, Math.ceil(total / 100)) ||
-        counts.rawCount !== total || counts.parsedCount !== total || counts.validCount !== total ||
-        counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== 0 || jobs.length !== total ||
+    const quarantined=evidence.jobQuarantines?.length??0;
+    if (total !== rows.length+quarantined || evidence.pages.length !== Math.max(1, Math.ceil(total / 100)) ||
+        counts.rawCount !== total || counts.parsedCount !== total || counts.validCount+quarantined !== total ||
+        counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== quarantined || jobs.length+quarantined !== total ||
         new Set(jobs.map(job => job.sourceJobId)).size !== jobs.length) return false;
     const byId = new Map(jobs.map(job => [job.sourceJobId, job]));
     return rows.every(raw => {

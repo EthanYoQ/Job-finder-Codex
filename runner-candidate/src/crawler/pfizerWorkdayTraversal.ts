@@ -1,3 +1,4 @@
+import {jobQuarantineLoss,INDEPENDENT_IDENTITY_UNRESOLVED,type JobQuarantine} from './jobQuarantine';
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { SourceCrawlPlan } from "./sourcePlan";
@@ -63,7 +64,7 @@ function parse(body: unknown): Record<string, any> {
 }
 function identity(raw: unknown) {
     const row = record(raw);
-    if (typeof row.title !== "string" || !row.title.trim() || !Array.isArray(row.bulletFields) || row.bulletFields.length !== 1 ||
+    if (typeof row.title !== "string" || !row.title.trim() || !Array.isArray(row.bulletFields) || row.bulletFields.length < 1 ||
         typeof row.bulletFields[0] !== "string" || !/^\d{7}$/u.test(row.bulletFields[0]) ||
         typeof row.externalPath !== "string" || !/^\/job\/[^?#]+$/u.test(row.externalPath) ||
         !new RegExp(`_${row.bulletFields[0]}(?:-\\d+)?$`, "u").test(row.externalPath) ||
@@ -73,11 +74,11 @@ function identity(raw: unknown) {
 }
 // Main path uses the native Workday country objects, not the browser's JSON-LD classifier.
 export function projectPfizerDetail(raw: unknown, detailBody: string) {
-    const { row, id, path } = identity(raw), root = parse(detailBody), info = record(root.jobPostingInfo);
+    const { id, path } = identity(raw), root = parse(detailBody), info = record(root.jobPostingInfo);
     const country = record(info.country), requisition = record(record(info.jobRequisitionLocation).country);
-    if (info.jobReqId !== id || info.title !== row.title || info.jobPostingSiteId !== "PfizerCareers" ||
+    if (info.jobReqId !== id || typeof info.title !== "string" || !info.title.trim() || info.jobPostingSiteId !== "PfizerCareers" ||
         info.externalUrl !== PFIZER_ENTRY + path || info.posted !== true || info.canApply !== true ||
-        typeof info.jobDescription !== "string" || info.jobDescription.replace(/<[^>]*>/gu, "").trim().length < 100 ||
+        typeof info.jobDescription !== "string" || !info.jobDescription.replace(/<[^>]*>/gu, "").trim() ||
         typeof info.location !== "string" || !info.location.trim() ||
         (info.additionalLocations !== undefined && (!Array.isArray(info.additionalLocations) || info.additionalLocations.some((v: unknown) => typeof v !== "string" || !v.trim()))))
         throw Error("Pfizer detail identity, activity or locations are unresolved");
@@ -93,7 +94,7 @@ export function projectPfizerDetail(raw: unknown, detailBody: string) {
     const date = info.startDate;
     const officialPublishedAt = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/u.test(date) && Number.isFinite(Date.parse(date)) && new Date(date).toISOString().slice(0, 10) === date ? `${date}T00:00:00.000Z` : undefined;
     const cities = mainland.map(location => PFIZER_OFFICIAL_LOCALITIES[location] ?? CITY_PENDING);
-    return { id, path, excluded, locations, job: { sourceJobId: pfizerSourceJobId(path), title: row.title, officialUrl: info.externalUrl,
+    return { id, path, excluded, locations, job: { sourceJobId: pfizerSourceJobId(path), title: info.title.replace(/\s+/gu," ").trim(), officialUrl: info.externalUrl,
             locationRaw: locations.join(" | "), cities: cities.includes(CITY_PENDING) ? [CITY_PENDING] : [...new Set(cities)], ...(officialPublishedAt === undefined ? {} : {officialPublishedAt}) } };
 }
 function requestBody(offset: number) { return { appliedFacets: { Location_Country: [PFIZER_CHINA] }, limit: 20, offset, searchText: "" }; }
@@ -123,151 +124,130 @@ function terminalBoundaryMatches(first: Record<string, any>, end: Record<string,
         isDeepStrictEqual(end.jobPostings, first.jobPostings);
 }
 
-export async function fetchPfizerWorkdayTraversal(plan: SourceCrawlPlan, deps: WorkdaySourceFetchDeps): Promise<SourceFetchResult> {
-    const started = (deps.now?.() ?? new Date()).toISOString(), artifacts: SourceFetchArtifactDraft[] = [], pages: SourceFetchPageTrace[] = [];
-    let evidence: PersistentSourceFetchEvidence | undefined;
-    try {
-        if (!isPfizerWorkdayTraversalPlan(plan))
-            throw Error("Pfizer traversal policy does not match the exact source plan");
-        const listHttp = deps.http ?? http, detailHttp = deps.detailHttp ?? (deps.http ? undefined : http);
-        if (!detailHttp)
-            throw Error("Pfizer traversal needs explicit detail transport");
-        const jobs: ReturnType<typeof projectPfizerDetail>["job"][] = [], losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
-        const seen = new Set<string>();
-        let total: number | undefined, bytes = 0;
-        for (let index = 0; index < 20; index++) {
-            currentOfficialSourceAttemptSignal()?.throwIfAborted();
-            const offset = index * 20, body = requestBody(offset), key = `pfizer-page-${index}`, url = PFIZER_API + "/jobs";
-            const response = await listHttp({ url, method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", Referer: PFIZER_ENTRY }, body: JSON.stringify(body) });
-            const pageArtifact = artifact(key, url, response, { method: "POST", url, body });
-            artifacts.push(pageArtifact);
-            bytes += Buffer.byteLength(response.body);
-            const root = parse(response.body);
-            if (!Number.isSafeInteger(root.total) || root.total < 0 || !Array.isArray(root.jobPostings))
-                throw Error("Pfizer list response is invalid");
-            total ??= root.total;
-            if (!total || root.jobPostings.length < 1 || root.jobPostings.length > 20 || (root.total !== total && !(index > 0 && root.total === 0)))
-                throw Error("Pfizer list total or continuation changed");
-            const valid: string[] = [], raw: string[] = [];
-            for (let recordIndex = 0; recordIndex < root.jobPostings.length; recordIndex++) {
-                const row = root.jobPostings[recordIndex], quarantinedId = pfizerQuarantinedRowId(row);
-                if (quarantinedId) {
-                    if (seen.has(quarantinedId)) throw Error("Pfizer duplicate official ID");
-                    seen.add(quarantinedId); raw.push(irreversibleOfficialJsonEvidenceId(quarantinedId));
-                    losses.push(quarantineLoss(quarantinedId, index, recordIndex, pageArtifact.capturedAt));
-                    continue;
-                }
-                const { id, path } = identity(row);
-                if (seen.has(id))
-                    throw Error("Pfizer duplicate official ID");
-                seen.add(id);
-                raw.push(irreversibleOfficialJsonEvidenceId(id));
-                const detailUrl = PFIZER_API + path, detailKey = `pfizer-detail-${id}`;
-                const response = await detailHttp({ url: detailUrl, method: "GET", headers: { Accept: "application/json", Referer: PFIZER_ENTRY } });
-                artifacts.push(artifact(detailKey, detailUrl, response, { method: "GET", url: detailUrl, officialId: id }));
-                bytes += Buffer.byteLength(response.body);
-                if (bytes > 35000000)
-                    throw Error("Pfizer source body budget exceeded");
-                const projected = projectPfizerDetail(row, response.body);
-                if (projected.excluded)
-                    losses.push({ stage: "VALIDATION", reason: "Official detail establishes India and no explicit mainland posting location", rawLocator: `${key}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId(id)}`, details: { code: "PFIZER_VERIFIED_INDIA_SCOPE", pageSequence: index, recordIndex }, recordedAt: response.capturedAt });
-                else {
-                    jobs.push(projected.job);
-                    valid.push(irreversibleOfficialJsonEvidenceId(projected.job.sourceJobId));
-                }
-            }
-            if (seen.size > total || (seen.size < total && root.jobPostings.length !== 20))
-                throw Error("Pfizer incomplete page before declared end");
-            const done = seen.size === total;
-            pages.push({ sequence: index, artifactLogicalKey: key, requestedOffset: offset, returnedOffset: offset, requestedPage: index, returnedPage: index, requestedPageSize: 20, rawJobIds: raw, validJobIds: valid, declaredTotal: root.total, declaredPages: root.total === 0 ? 0 : Math.ceil(total / 20), nextPageSignalBefore: index === 0 ? null : String(offset), nextPageSignalAfter: done ? null : String(offset + 20), termination: done ? "NEXT_ABSENT" : "CONTINUE", anomalyCodes: [], capturedAt: response.capturedAt!, responseFingerprintSha256: sha256Bytes(Buffer.from(response.body)).sha256 });
-            if (!done)
-                continue;
-            const terminalBody = requestBody(offset + 20), terminal = await listHttp({ url, method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", Referer: PFIZER_ENTRY }, body: JSON.stringify(terminalBody) });
-            artifacts.push(artifact("pfizer-terminal", url, terminal, { method: "POST", url, body: terminalBody }));
-            const end = parse(terminal.body);
-            if (!terminalBoundaryMatches(parse(artifacts[0]!.body), end, total, raw.length))
-                throw Error("Pfizer beyond-end response is neither empty nor an exact first-page reset after a short final page");
-            evidence = parsePersistentSourceFetchEvidence({ captureTool: { name: "pfizer-workday-full-traversal", version: "1" }, artifacts, pages, declaredCompleteness: { kind: "COMPLETE_PAGE_TRAVERSAL", scope: "SOURCE", value: pages.length, artifactLogicalKey: "pfizer-terminal", extractorLocator: artifacts.at(-1)!.extractorLocator }, fetchCounts: { rawCount: seen.size, parsedCount: seen.size, validCount: jobs.length, parseDiscardCount: 0, validationDiscardCount: losses.length }, fetchLosses: losses });
-            evidence = deriveCanonicalPaginationEvidence({ evidence, expectedChannelIds: [], filteredOutput: true, ...PFIZER_PAGINATION_POLICY });
-            const paginationEvaluation = evaluatePaginationEvidence({ evidence, expectedChannelIds: [], filteredOutput: true, ...PFIZER_PAGINATION_POLICY });
-            if (!paginationEvaluation.verifiedEligible)
-                throw Error("Pfizer full traversal has pagination anomalies");
-            return { ok: true, capturedAt: artifacts[0]!.capturedAt, payload: { jobPostings: jobs }, fetchEvidence: evidence, paginationEvaluation, completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL", completenessEvidenceUrl: PFIZER_ENTRY, pagesVisited: pages.length, totalPages: pages.length, pageSize: 20, completenessBlockerReason: "Full main traversal requires independent current-run UI comparison" } };
-        }
-        throw Error("Pfizer reached the page safety limit without a terminal proof");
-    }
-    catch (error) {
-        // Failure-only support retains the exact API bytes; it makes no page/count/completeness claim.
-        // The existing support-only schema excludes PAGINATION_PAGE classifications.
-        if (!evidence && artifacts.length) evidence = finalizeOfficialJsonSupportingFailureEvidence({
-            artifacts: artifacts.map(a => ({...a, kind: a.kind === "PAGINATION_PAGE" ? "ATS_API_RESPONSE" : a.kind})),
-            code:"PFIZER_TRAVERSAL_UNVERIFIED"
-        });
-        return { ok: false, capturedAt: started, failureReason: error instanceof Error ? error.message : String(error), ...(evidence ? { fetchEvidence: evidence } : {}) };
-    }
+function slot(raw:unknown,pageSequence:number,recordIndex:number){
+  const row=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw as Record<string,any>:undefined;
+  const nativeId=typeof row?.bulletFields?.[0]==='string'&&/^\d{7}$/u.test(row.bulletFields[0])?row.bulletFields[0] as string:undefined;
+  let bound:ReturnType<typeof identity>|undefined;try{bound=identity(raw);}catch{/* Slot stays unknown, never an absent job. */}
+  const rawId=irreversibleOfficialJsonEvidenceId(nativeId??[pageSequence,recordIndex,raw]);
+  const quarantine:JobQuarantine={pageSequence,recordIndex,rawLocator:`pfizer-page-${pageSequence}#record:${recordIndex}#${rawId}`,validJobId:bound?irreversibleOfficialJsonEvidenceId(pfizerSourceJobId(bound.path)):rawId,code:'PFIZER_JOB_UNVERIFIED',
+    ...(bound?{sourceJobId:pfizerSourceJobId(bound.path),officialUrl:PFIZER_ENTRY+bound.path}:{})};
+  return {bound,rawId,quarantine};
 }
-/** Replays archived requests, raw pages, details, exclusions, end proof and the full normalized output. */
-export function replayPfizerWorkdayTraversal(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence, output: readonly NormalizedJobRecord[], now?: Date): boolean {
-    try {
-        if (!isPfizerWorkdayTraversalPlan(plan) || plan.adapterId !== "official-json" || evidence.supportingArtifactOnlyFailure || evidence.declaredCompleteness?.kind !== "COMPLETE_PAGE_TRAVERSAL" || evidence.declaredCompleteness.scope !== "SOURCE" || evidence.declaredCompleteness.value !== evidence.pages.length || evidence.declaredCompleteness.artifactLogicalKey !== "pfizer-terminal" || evidence.pages.length < 1 || evidence.pages.length > 20)
-            return false;
-        const map = new Map(evidence.artifacts.map(a => [a.logicalKey, a]));
-        if (map.size !== evidence.artifacts.length)
-            return false;
-        const firstAt = Date.parse(evidence.artifacts.find(a => a.logicalKey === "pfizer-page-0")?.capturedAt ?? "");
-        const terminalAt = Date.parse(evidence.artifacts.find(a => a.logicalKey === "pfizer-terminal")?.capturedAt ?? "");
-        if (!Number.isFinite(firstAt) || !Number.isFinite(terminalAt) || terminalAt < firstAt || terminalAt - firstAt > 3_600_000 ||
-            evidence.artifacts.some(a => !Number.isFinite(Date.parse(a.capturedAt)) || Date.parse(a.capturedAt) < firstAt || Date.parse(a.capturedAt) > terminalAt) ||
-            now && (!Number.isFinite(now.getTime()) || terminalAt > now.getTime() || now.getTime() - firstAt > 3_600_000)) return false;
-        const used = new Set<string>(), seen = new Set<string>(), jobs: ReturnType<typeof projectPfizerDetail>["job"][] = [], losses: unknown[] = [];
-        let total = 0;
-        const get = (key: string, url: string, request: unknown) => { const a = map.get(key); if (!a || a.kind !== (key.startsWith("pfizer-page-") ? "PAGINATION_PAGE" : "ATS_API_RESPONSE") || a.requestedUrl !== url || a.finalUrl !== url || a.httpStatus !== 200 || !/^application\/json(?:;|$)/iu.test(a.contentType ?? "") || !isDeepStrictEqual(JSON.parse(a.extractorLocator), request) || a.bodyRepresentation !== "EXACT")
-            throw Error("Pfizer artifact binding mismatch"); used.add(key); return a; };
-        for (let index = 0; index < evidence.pages.length; index++) {
-            const p = evidence.pages[index]!, key = `pfizer-page-${index}`, url = PFIZER_API + "/jobs", a = get(key, url, { method: "POST", url, body: requestBody(index * 20) }), root = parse(a.body);
-            if (index === 0)
-                total = root.total;
-            if (!Number.isSafeInteger(total) || total < 1 || !Array.isArray(root.jobPostings) || root.jobPostings.length < 1 || root.jobPostings.length > 20 || root.total !== total && !(index > 0 && root.total === 0))
-                return false;
-            const raw: string[] = [], valid: string[] = [];
-            for (let n = 0; n < root.jobPostings.length; n++) {
-                const row = root.jobPostings[n], quarantinedId = pfizerQuarantinedRowId(row);
-                if (quarantinedId) {
-                    if (seen.has(quarantinedId)) return false;
-                    seen.add(quarantinedId); raw.push(irreversibleOfficialJsonEvidenceId(quarantinedId));
-                    losses.push(quarantineLoss(quarantinedId, index, n, a.capturedAt));
-                    continue;
-                }
-                const { id, path } = identity(row);
-                if (seen.has(id))
-                    return false;
-                seen.add(id);
-                raw.push(irreversibleOfficialJsonEvidenceId(id));
-                const d = get(`pfizer-detail-${id}`, PFIZER_API + path, { method: "GET", url: PFIZER_API + path, officialId: id }), r = projectPfizerDetail(row, String(d.body));
-                if (r.excluded)
-                    losses.push({ stage: "VALIDATION", reason: "Official detail establishes India and no explicit mainland posting location", rawLocator: `${key}#record:${n}#${irreversibleOfficialJsonEvidenceId(id)}`, details: { code: "PFIZER_VERIFIED_INDIA_SCOPE", pageSequence: index, recordIndex: n }, recordedAt: d.capturedAt });
-                else {
-                    jobs.push(r.job);
-                    valid.push(irreversibleOfficialJsonEvidenceId(r.job.sourceJobId));
-                }
-            }
-            const done = index === evidence.pages.length - 1;
-            if (p.sequence !== index || p.artifactLogicalKey !== key || p.channelId !== undefined || p.requestedOffset !== index * 20 || p.returnedOffset !== index * 20 || p.requestedPage !== index || p.returnedPage !== index || p.requestedPageSize !== 20 || p.declaredTotal !== root.total || p.declaredPages !== (root.total === 0 ? 0 : Math.ceil(total / 20)) || p.termination !== (done ? "NEXT_ABSENT" : "CONTINUE") || p.nextPageSignalBefore !== (index === 0 ? null : String(index * 20)) || p.nextPageSignalAfter !== (done ? null : String((index + 1) * 20)) || !isDeepStrictEqual(p.rawJobIds, raw) || !isDeepStrictEqual(p.validJobIds, valid) || p.capturedAt !== a.capturedAt || p.responseFingerprintSha256 !== sha256Bytes(Buffer.from(String(a.body))).sha256 || (!done && raw.length !== 20))
-                return false;
-        }
-        const url = PFIZER_API + "/jobs", terminal = get("pfizer-terminal", url, { method: "POST", url, body: requestBody(evidence.pages.length * 20) }), end = parse(terminal.body);
-        if (!terminalBoundaryMatches(parse(map.get("pfizer-page-0")!.body), end, total, evidence.pages.at(-1)!.rawJobIds.length) || seen.size !== total || used.size !== map.size || evidence.declaredCompleteness.extractorLocator !== terminal.extractorLocator || !isDeepStrictEqual(evidence.fetchLosses, losses) || !isDeepStrictEqual(evidence.fetchCounts, { rawCount: total, parsedCount: total, validCount: jobs.length, parseDiscardCount: 0, validationDiscardCount: losses.length }))
-            return false;
-        const projected = officialJsonAdapter.extract({ company: plan.company, source: plan.source, json: plan.json, capturedAt: evidence.artifacts[0]!.capturedAt, isBaseline: output[0]?.isBaseline ?? true, payload: { jobPostings: jobs } });
-        return projected.status === "SUCCESS" && isDeepStrictEqual(projected.jobs, output);
-    }
-    catch {
-        return false;
-    }
+function projectSlots(pages:readonly SourceFetchPageTrace[],artifacts:readonly SourceFetchArtifactDraft[],legacy=false,independentRawIds:ReadonlySet<string>=new Set(),unboundRawIds:ReadonlySet<string>=new Set()){
+  const jobs:ReturnType<typeof projectPfizerDetail>['job'][]=[],losses:PersistentSourceFetchEvidence['fetchLosses']=[],quarantines:JobQuarantine[]=[],used=new Set<string>();
+  const projectedPages=pages.map((page,pageSequence)=>{
+    const original=artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
+    const rawRows=parse(original.body).jobPostings as unknown[],validJobIds:string[]=[];
+    rawRows.forEach((raw,recordIndex)=>{
+      const current=slot(raw,pageSequence,recordIndex);if(independentRawIds.has(current.rawId))current.quarantine.code=unboundRawIds.has(current.rawId)?INDEPENDENT_IDENTITY_UNRESOLVED:'INDEPENDENT_JOB_UNVERIFIED';
+      if(legacy&&pfizerQuarantinedRowId(raw)){losses.push(quarantineLoss(pfizerQuarantinedRowId(raw)!,pageSequence,recordIndex,original.capturedAt));return;}
+      try{
+        if(!current.bound)throw Error('Pfizer list job unresolved');
+        const {id,path}=current.bound,key=`pfizer-detail-${id}`,url=PFIZER_API+path,a=artifacts.find(a=>a.logicalKey===key);
+        if(a)used.add(key);
+        if(!a)throw Error('Pfizer detail unavailable');
+        const checked=artifact(key,url,{status:a.httpStatus!,body:String(a.body),finalUrl:a.finalUrl!,contentType:a.contentType??"",capturedAt:a.capturedAt},{method:'GET',url,officialId:id});
+        if(!isDeepStrictEqual({...a,id:checked.id},checked))throw Error('Pfizer detail binding mismatch');
+        if(independentRawIds.has(current.rawId))throw Error('Pfizer independent detail was not verified');
+        const r=projectPfizerDetail(raw,String(a.body));
+        if(r.excluded)losses.push({stage:'VALIDATION',reason:'Official detail establishes India and no explicit mainland posting location',rawLocator:`${page.artifactLogicalKey}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId(id)}`,details:{code:'PFIZER_VERIFIED_INDIA_SCOPE',pageSequence,recordIndex},recordedAt:a.capturedAt});
+        else{jobs.push(r.job);validJobIds.push(irreversibleOfficialJsonEvidenceId(r.job.sourceJobId));}
+      }catch{
+        quarantines.push(current.quarantine);losses.push(jobQuarantineLoss(current.quarantine,pages[0]!.capturedAt));
+      }
+    });
+    return {...page,validJobIds};
+  });
+  return {jobs,losses,quarantines,pages:projectedPages,used};
+}
+export async function fetchPfizerWorkdayTraversal(plan:SourceCrawlPlan,deps:WorkdaySourceFetchDeps):Promise<SourceFetchResult>{
+ const started=(deps.now?.()??new Date()).toISOString(),artifacts:SourceFetchArtifactDraft[]=[],pages:SourceFetchPageTrace[]=[];
+ try{
+  if(!isPfizerWorkdayTraversalPlan(plan))throw Error('Pfizer traversal source plan mismatch');
+  const listHttp=deps.http??http,detailHttp=deps.detailHttp??(deps.http?undefined:http);if(!detailHttp)throw Error('Pfizer detail transport required');
+  const seen=new Set<string>();let total:number|undefined,bytes=0,closed=false;
+  for(let index=0;index<20;index++){
+    currentOfficialSourceAttemptSignal()?.throwIfAborted();
+    const url=PFIZER_API+'/jobs',offset=index*20,body=requestBody(offset),key=`pfizer-page-${index}`;
+    const response=await listHttp({url,method:'POST',headers:{Accept:'application/json','Content-Type':'application/json',Referer:PFIZER_ENTRY},body:JSON.stringify(body)});
+    const a=artifact(key,url,response,{method:'POST',url,body});artifacts.push(a);bytes+=Buffer.byteLength(response.body);
+    const root=parse(response.body);total??=root.total;
+    if(!Number.isSafeInteger(total)||!total||!Array.isArray(root.jobPostings)||root.jobPostings.length<1||root.jobPostings.length>20||root.total!==total&&!(index>0&&root.total===0))throw Error('Pfizer list total or continuation changed');
+    const slots=(root.jobPostings as unknown[]).map((raw,n)=>slot(raw,index,n));
+    for(const row of slots){if(seen.has(row.rawId))throw Error('Pfizer duplicate official ID');seen.add(row.rawId);}
+    if(seen.size>total||seen.size<total&&slots.length!==20)throw Error('Pfizer incomplete page before declared end');
+    const done=seen.size===total;
+    pages.push({sequence:index,artifactLogicalKey:key,requestedOffset:offset,returnedOffset:offset,requestedPage:index,returnedPage:index,requestedPageSize:20,rawJobIds:slots.map(row=>row.rawId),validJobIds:[],declaredTotal:root.total,declaredPages:root.total===0?0:Math.ceil(total!/20),nextPageSignalBefore:index===0?null:String(offset),nextPageSignalAfter:done?null:String(offset+20),termination:done?'NEXT_ABSENT':'CONTINUE',anomalyCodes:[],capturedAt:a.capturedAt,responseFingerprintSha256:sha256Bytes(Buffer.from(response.body)).sha256});
+    if(!done)continue;
+    const terminalBody=requestBody(offset+20),end=await listHttp({url,method:'POST',headers:{Accept:'application/json','Content-Type':'application/json',Referer:PFIZER_ENTRY},body:JSON.stringify(terminalBody)});
+    artifacts.push(artifact('pfizer-terminal',url,end,{method:'POST',url,body:terminalBody}));
+    if(!terminalBoundaryMatches(parse(artifacts[0]!.body),parse(end.body),total!,slots.length))throw Error('Pfizer terminal boundary invalid');
+    closed=true;break;
+  }
+  if(!closed)throw Error('Pfizer reached resource page budget without terminal proof');
+  let accessStopped=false;
+  for(const [pageSequence,page] of pages.entries())for(const [recordIndex,raw] of (parse(artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!.body).jobPostings as unknown[]).entries()){
+    const row=slot(raw,pageSequence,recordIndex);if(!row.bound||accessStopped)continue;
+    currentOfficialSourceAttemptSignal()?.throwIfAborted();
+    try{const {id,path}=row.bound,url=PFIZER_API+path,key=`pfizer-detail-${id}`;
+      const response=await detailHttp({url,method:'GET',headers:{Accept:'application/json',Referer:PFIZER_ENTRY}});
+      if(response.status===403||response.status===429)accessStopped=true;
+      bytes+=Buffer.byteLength(response.body);if(bytes>35000000){accessStopped=true;continue;}
+      artifacts.push(officialJsonNetworkArtifact({id:key,logicalKey:key,kind:'ATS_API_RESPONSE',requestedUrl:url,response,extractorLocator:JSON.stringify({method:'GET',url,officialId:id}),bodyRepresentation:'EXACT'}));
+    }catch{currentOfficialSourceAttemptSignal()?.throwIfAborted();}
+  }
+  const projected=projectSlots(pages,artifacts),terminal=artifacts.find(a=>a.logicalKey==='pfizer-terminal')!;
+  let evidence=parsePersistentSourceFetchEvidence({captureTool:{name:'pfizer-workday-full-traversal',version:'1'},artifacts,pages:projected.pages,...(projected.quarantines.length?{jobQuarantines:projected.quarantines}:{}),declaredCompleteness:{kind:'COMPLETE_PAGE_TRAVERSAL',scope:'SOURCE',value:pages.length,artifactLogicalKey:'pfizer-terminal',extractorLocator:terminal.extractorLocator},fetchCounts:{rawCount:seen.size,parsedCount:seen.size,validCount:projected.jobs.length,parseDiscardCount:0,validationDiscardCount:projected.losses.length},fetchLosses:projected.losses});
+  evidence=deriveCanonicalPaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,...PFIZER_PAGINATION_POLICY});
+  const paginationEvaluation=evaluatePaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,...PFIZER_PAGINATION_POLICY});
+  if(!paginationEvaluation.verifiedEligible)throw Error('Pfizer traversal has pagination anomalies');
+  return {ok:true,capturedAt:artifacts[0]!.capturedAt,payload:{jobPostings:projected.jobs},fetchEvidence:evidence,paginationEvaluation,completeness:{completenessStatus:'NEEDS_MANUAL_COMPLETENESS_REVIEW',completenessEvidenceKind:'COMPLETE_PAGE_TRAVERSAL',completenessEvidenceUrl:PFIZER_ENTRY,pagesVisited:pages.length,totalPages:pages.length,pageSize:20,completenessBlockerReason:'Independent current-run UI comparison required'}};
+ }catch(error){return {ok:false,capturedAt:started,failureReason:error instanceof Error?error.message:String(error),...(artifacts.length?{fetchEvidence:finalizeOfficialJsonSupportingFailureEvidence({artifacts:artifacts.map(a=>({...a,kind:a.kind==='PAGINATION_PAGE'?'ATS_API_RESPONSE':a.kind})),code:'PFIZER_TRAVERSAL_UNVERIFIED'})}:{})};}
+}
+/** Rebuild every raw list slot, detail, quarantine and proven exclusion before comparing output. */
+export function replayPfizerWorkdayTraversal(plan:SourceCrawlPlan,evidence:PersistentSourceFetchEvidence,output:readonly NormalizedJobRecord[],now?:Date):boolean{
+ try{
+  if(!isPfizerWorkdayTraversalPlan(plan)||plan.adapterId!=='official-json'||evidence.supportingArtifactOnlyFailure||evidence.pages.length<1||evidence.pages.length>20)return false;
+  const map=new Map(evidence.artifacts.map(a=>[a.logicalKey,a]));if(map.size!==evidence.artifacts.length)return false;
+  const first=Date.parse(map.get('pfizer-page-0')?.capturedAt??''),last=Math.max(...evidence.artifacts.map(a=>Date.parse(a.capturedAt)));
+  if(!Number.isFinite(first)||!Number.isFinite(last)||last-first>3600000||evidence.artifacts.some(a=>Date.parse(a.capturedAt)<first)||now&&(last>now.getTime()||now.getTime()-first>3600000))return false;
+  const used=new Set<string>(),seen=new Set<string>();let total=0;
+  const get=(key:string,url:string,request:unknown)=>{const a=map.get(key);if(!a)throw Error('Pfizer original missing');const regenerated=artifact(key,url,{status:a.httpStatus!,body:String(a.body),finalUrl:a.finalUrl!,contentType:a.contentType??"",capturedAt:a.capturedAt},request);if(!isDeepStrictEqual({...a,id:regenerated.id},regenerated))throw Error('Pfizer original binding invalid');used.add(key);return a;};
+  for(const [index,p] of evidence.pages.entries()){
+    const key=`pfizer-page-${index}`,url=PFIZER_API+'/jobs',a=get(key,url,{method:'POST',url,body:requestBody(index*20)}),root=parse(a.body);
+    if(index===0)total=root.total;
+    if(!Number.isSafeInteger(total)||total<1||!Array.isArray(root.jobPostings)||root.jobPostings.length<1||root.jobPostings.length>20||root.total!==total&&!(index>0&&root.total===0))return false;
+    const rows=(root.jobPostings as unknown[]).map((raw,n)=>slot(raw,index,n));for(const row of rows){if(seen.has(row.rawId))return false;seen.add(row.rawId);}
+    const done=index===evidence.pages.length-1;
+    if(p.sequence!==index||p.artifactLogicalKey!==key||p.channelId!==undefined||p.requestedOffset!==index*20||p.returnedOffset!==index*20||p.requestedPage!==index||p.returnedPage!==index||p.requestedPageSize!==20||p.declaredTotal!==root.total||p.declaredPages!==(root.total===0?0:Math.ceil(total/20))||p.termination!==(done?'NEXT_ABSENT':'CONTINUE')||p.nextPageSignalBefore!==(index===0?null:String(index*20))||p.nextPageSignalAfter!==(done?null:String((index+1)*20))||!isDeepStrictEqual(p.rawJobIds,rows.map(r=>r.rawId))||p.capturedAt!==a.capturedAt||p.responseFingerprintSha256!==sha256Bytes(Buffer.from(String(a.body))).sha256||!done&&rows.length!==20)return false;
+  }
+  const url=PFIZER_API+'/jobs',terminal=get('pfizer-terminal',url,{method:'POST',url,body:requestBody(evidence.pages.length*20)});
+  if(!terminalBoundaryMatches(parse(map.get('pfizer-page-0')!.body),parse(terminal.body),total,evidence.pages.at(-1)!.rawJobIds.length)||seen.size!==total)return false;
+  const projected=projectSlots(evidence.pages,evidence.artifacts,evidence.jobQuarantines===undefined,new Set((evidence.jobQuarantines??[]).filter(q=>['INDEPENDENT_JOB_UNVERIFIED',INDEPENDENT_IDENTITY_UNRESOLVED].includes(q.code)).map(q=>evidence.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!)),new Set((evidence.jobQuarantines??[]).filter(q=>q.code===INDEPENDENT_IDENTITY_UNRESOLVED).map(q=>evidence.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!)));
+  for(const key of projected.used)used.add(key);
+  if(used.size!==map.size||!isDeepStrictEqual(projected.pages,evidence.pages)||!isDeepStrictEqual(projected.quarantines,evidence.jobQuarantines??[])||!isDeepStrictEqual(projected.losses,evidence.fetchLosses)||!isDeepStrictEqual(evidence.fetchCounts,{rawCount:total,parsedCount:total,validCount:projected.jobs.length,parseDiscardCount:0,validationDiscardCount:projected.losses.length}))return false;
+  const declared=evidence.declaredCompleteness;if(!declared||declared.kind!=='COMPLETE_PAGE_TRAVERSAL'||declared.scope!=='SOURCE'||declared.value!==evidence.pages.length||declared.artifactLogicalKey!=='pfizer-terminal'||declared.extractorLocator!==terminal.extractorLocator)return false;
+  const result=officialJsonAdapter.extract({company:plan.company,source:plan.source,json:plan.json,capturedAt:evidence.artifacts[0]!.capturedAt,isBaseline:output[0]?.isBaseline??true,payload:{jobPostings:projected.jobs}});
+  return result.status==='SUCCESS'&&isDeepStrictEqual(result.jobs,output);
+ }catch{return false;}
 }
 
 /** Call only after strict main replay; preserve native paths for excluded identities as well. */
 export function pfizerMainSourceJobIds(evidence: PersistentSourceFetchEvidence): string[] {
   return evidence.pages.flatMap(page => parse(evidence.artifacts.find(a => a.logicalKey === page.artifactLogicalKey)!.body).jobPostings
     .map((raw: unknown) => { const id = pfizerQuarantinedRowId(raw); return id ? pfizerQuarantinedEvidenceKey(id) : pfizerSourceJobId(identity(raw).path); }));
+}
+
+/** An unverified independent detail also withholds an earlier main-side exclusion. */
+export function quarantinePfizerIndependentJobs(evidence:PersistentSourceFetchEvidence,rawIds:ReadonlySet<string>,unboundRawIds:ReadonlySet<string>=new Set()):PersistentSourceFetchEvidence {
+ const added=evidence.pages.flatMap((page,pageSequence)=>{
+  const original=evidence.artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
+  return (parse(original.body).jobPostings as unknown[]).flatMap((raw,recordIndex)=>{const current=slot(raw,pageSequence,recordIndex);
+   return rawIds.has(current.rawId)?[{...current.quarantine,code:unboundRawIds.has(current.rawId)?INDEPENDENT_IDENTITY_UNRESOLVED:'INDEPENDENT_JOB_UNVERIFIED'}]:[];});
+ });
+ if(!added.length)return evidence;
+ const held=new Map([...(evidence.jobQuarantines??[]),...added].map(q=>[evidence.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!,q.code]));
+ const projected=projectSlots(evidence.pages,evidence.artifacts,false,new Set([...held].filter(([,code])=>['INDEPENDENT_JOB_UNVERIFIED',INDEPENDENT_IDENTITY_UNRESOLVED].includes(code)).map(([id])=>id)),new Set([...held].filter(([,code])=>code===INDEPENDENT_IDENTITY_UNRESOLVED).map(([id])=>id)));
+ return parsePersistentSourceFetchEvidence({...evidence,pages:projected.pages,jobQuarantines:projected.quarantines,fetchLosses:projected.losses,
+   fetchCounts:{...evidence.fetchCounts,validCount:projected.jobs.length,validationDiscardCount:projected.losses.length}});
 }

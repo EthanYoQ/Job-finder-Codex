@@ -7,6 +7,7 @@ import { hasNovartisOfficialPresencePlan, replayNovartisOfficialPresence } from 
 import { buildIngestionCommands, type IngestionCommand } from "./ingestion";
 import { applyCrawlObservation, type JobSnapshot } from "./lifecycle";
 import { buildJobDedupeKey } from "./normalizedJob";
+import { quarantinedPriorJobKeys,sameNovartisRequisition } from "./jobQuarantine";
 import type { SourceCrawlResult } from "./runSourceCrawl";
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from "./sourcePlan";
 import { assertIssuedSourceQualityAdmission, getSourceQualityPolicy, type SourceQualityAdmission, verifySourceQualityReceipt, type SourceQualityReceipt } from "./sourceQualityAdmission";
@@ -61,13 +62,15 @@ export function buildSourceQualityJobCommands(input:SourceQualityPublicationInpu
     ?replayNovartisOfficialPresence(input.plan,input.result.fetchEvidence!).closedUrls:new Set<string>();
   const previous=input.previousJobs.filter(job=>!closedUrls.has(job.record.officialUrl)&&!novoExclusions.closed.has(job.record.sourceJobId??"")&&!lillyClosed.has(job.record.sourceJobId??"")&&!organonClosed.has(job.record.sourceJobId??"")&&(currentKeys.has(job.dedupeKey)||
     priorReceipt!==null&&Date.parse(job.lastSeenAt)>=floor));
-  const unknownUrls=input.result.fetchEvidence&&hasNovartisPartitionEvidence(input.result.fetchEvidence)
-    ?replayNovartisNativePartitions(input.plan,input.result.fetchEvidence).unknownUrls:new Set<string>();
+  const pending=input.result.fetchEvidence&&hasNovartisPartitionEvidence(input.result.fetchEvidence)
+    ?replayNovartisNativePartitions(input.plan,input.result.fetchEvidence):undefined;
+  const unknownUrls=pending?.unknownUrls??new Set<string>();
+  const quarantinedKeys=input.result.fetchEvidence?quarantinedPriorJobKeys(input.result.fetchEvidence,previous,currentKeys):new Set<string>();
   const lifecycle=applyCrawlObservation(previous,input.result.jobs,{
     observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:receipt.issuedAt,
     baselineCompletedBeforeCrawl:input.baselineCompletedBeforeCrawl
   }).map(decision=>{
-    if(!unknownUrls.has(decision.record.officialUrl)&&!novoExclusions.insufficient.has(decision.record.sourceJobId??""))return decision;
+    if(!quarantinedKeys.has(decision.dedupeKey)&&!(pending?.unboundUnknown&&!currentKeys.has(decision.dedupeKey))&&![...unknownUrls].some(url=>url===decision.record.officialUrl||sameNovartisRequisition(url,decision.record.officialUrl))&&!novoExclusions.insufficient.has(decision.record.sourceJobId??""))return decision;
     const old=previous.find(job=>job.dedupeKey===decision.dedupeKey);
     if(!old||currentKeys.has(decision.dedupeKey))throw Error("NOVARTIS_UNKNOWN_CURRENT_CONTRADICTION");
     return {...old,missingSuccessfulCrawlCount:old.lifecycleStatus==="ACTIVE"?1:old.missingSuccessfulCrawlCount,isNew:false};

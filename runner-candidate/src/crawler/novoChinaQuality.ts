@@ -1,3 +1,4 @@
+import {jobQuarantineLoss,type JobQuarantine} from './jobQuarantine';
 import { parseNovoTimeoutReceipt, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact, type NovoTimeoutRetryStart } from "./novoNativeTimeout";
 import { NOVO_NATIVE_RETRY, novoNativeGatewayFailureArtifact, novoNativeGatewayReplayFinalUrl, novoNativeGatewayRetryArtifact, type NovoNativeGatewayRetryStart } from "./novoNativeGatewayRetry";
 import { load as loadHtml } from "cheerio";
@@ -43,12 +44,6 @@ function pair(value: unknown): { label: string; value: string } | undefined {
   return raw && text(raw.label) && text(raw.value)
     ? { label: raw.label, value: raw.value } : undefined;
 }
-function pairs(value: unknown): Array<{ label: string; value: string }> | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const values = value.map(pair);
-  return values.every((item): item is { label: string; value: string } => item !== undefined) &&
-    new Set(values.map(item => item.value)).size === values.length ? values : undefined;
-}
 
 export function exactNovoChinaBootstrap(input: {
   config: OfficialJsonFetchConfig; entryUrl: string; sourceIdentity: { id: string; companyId: string }; endpoint: string
@@ -74,35 +69,31 @@ export function exactNovoChinaQualityPlan(plan: SourceCrawlPlan): boolean {
 type Projection = { sourceJobId: string; title: string; locationRaw: string; cities: string[]; officialUrl: string };
 /** No source date exists in this nine-field response. Native category and
  * subcategory pairs remain intact in the retained artifact, with no new mapping. */
-export function parseNovoChinaResponse(body: string): { rawJobs: Record<string, unknown>[]; jobs: Projection[]; total: number } | undefined {
+export function parseNovoChinaResponse(body: string): { rawJobs: unknown[]; jobs: Array<Projection|undefined>; total: number } | undefined {
   if (!hasUniqueJsonObjectKeys(body)) return undefined;
   let parsed: unknown;
   try { parsed = JSON.parse(body); } catch { return undefined; }
   const root = record(parsed), data = record(root?.data);
-  if (!root || root.status !== 200 || root.message !== "success" ||
-    !data || !count(data.executionTimeMs) || !count(data.totalMatches) || data.keywordParam !== "" || data.localeParam !== "zh-cn" ||
-    !same(data.countriesParam, ["China"]) || !same(data.categoriesParam, []) || !Array.isArray(data.jobs) || data.jobs.length !== data.totalMatches) return undefined;
-  const states = pairs(data.states), cities = pairs(data.cities), subcategories = pairs(data.subCategories);
-  if (!states || !cities || !subcategories ||
-    states.some(item => item.label !== item.value || !cities.some(city => novoChinaCity(city.value, item.value))) ||
-    cities.some(item => item.label !== item.value || !states.some(state => novoChinaCity(item.value, state.value)))) return undefined;
-  const rawJobs: Record<string, unknown>[] = [], jobs: Projection[] = [], ids = new Set<string>();
-  for (const value of data.jobs) {
-    const raw = record(value);
-    if (!raw || typeof raw.jobId !== "string" || !/^[1-9][0-9]{5}\.en_GB$/u.test(raw.jobId) ||
-      raw.jobLocale !== "en_GB" || !text(raw.jobTitle) || ids.has(raw.jobId) || !same(pair(raw.jobCountry), { label: "China", value: "China" })) return undefined;
-    const state = pair(raw.jobState), city = pair(raw.jobCity), category = pair(raw.jobCategory), subcategory = pair(raw.jobSubCategory);
-    const normalizedCity = state && city ? novoChinaCity(city.value, state.value) : undefined;
-    if (!state || !city || !normalizedCity || state.label !== state.value || city.label !== city.value ||
-      raw.jobLocationLabel !== `China, ${city.value}` || !category || !subcategory ||
-      !states.some(item => same(item, state)) || !cities.some(item => same(item, city)) ||
-      !subcategories.some(item => same(item, subcategory))) return undefined;
-    ids.add(raw.jobId); rawJobs.push(raw);
-    jobs.push({ sourceJobId: persistentOfficialJsonJobId(raw.jobId), title: raw.jobTitle.replace(/\s+/gu, " ").trim(),
-      locationRaw: raw.jobLocationLabel, cities: [normalizedCity],
-      officialUrl: new URL(`/content/nncorp/cn/zh_cn/careers/find-a-job/job-ad.${raw.jobId}.html`, ENTRY).href });
-  }
-  return { rawJobs, jobs, total: data.totalMatches };
+  if (!root || root.status !== 200 || root.message !== "success" || !data || !count(data.totalMatches) ||
+    data.keywordParam !== "" || data.localeParam !== "zh-cn" || !same(data.countriesParam, ["China"]) ||
+    !same(data.categoriesParam, []) || !Array.isArray(data.jobs) || data.jobs.length !== data.totalMatches) return undefined;
+  const ids=new Set<string>();
+  for(const value of data.jobs){const id=novoRawJobId(value);if(id){if(ids.has(id))return undefined;ids.add(id);}}
+  const jobs=data.jobs.map(value=>{
+    const raw=record(value),id=novoRawJobId(value);
+    if(!raw||!id||raw.jobLocale!=="en_GB"||!text(raw.jobTitle)||!same(pair(raw.jobCountry),{label:"China",value:"China"}))return undefined;
+    const state=pair(raw.jobState),city=pair(raw.jobCity),normalizedCity=state&&city?novoChinaCity(city.value,state.value):undefined;
+    if(!normalizedCity||!text(raw.jobLocationLabel))return undefined;
+    return {sourceJobId:persistentOfficialJsonJobId(id),title:raw.jobTitle.replace(/\s+/gu," ").trim(),locationRaw:raw.jobLocationLabel,cities:[normalizedCity],officialUrl:novoDetailUrl(id)};
+  });
+  return {rawJobs:data.jobs,jobs,total:data.totalMatches};
+}
+function novoRawJobId(raw:unknown):string|undefined {const id=record(raw)?.jobId;return typeof id==='string'&&/^[1-9][0-9]{5}\.en_GB$/u.test(id)?id:undefined;}
+function novoDetailUrl(id:string):string{return new URL(`/content/nncorp/cn/zh_cn/careers/find-a-job/job-ad.${id}.html`,ENTRY).href;}
+export function novoJobQuarantine(raw:unknown,index:number):JobQuarantine {
+  const id=novoRawJobId(raw),sourceJobId=id?persistentOfficialJsonJobId(id):undefined;
+  return {pageSequence:0,recordIndex:index,rawLocator:officialJsonRawLocator(raw,index),validJobId:irreversibleOfficialJsonEvidenceId(sourceJobId??[index,raw]),
+    code:'NOVO_JOB_UNVERIFIED',...(id?{sourceJobId,officialUrl:novoDetailUrl(id)}:{})};
 }
 
 const clean = (value: string) => value.replace(/\s+/gu, " ").trim();
@@ -229,8 +220,8 @@ export function novoInsufficientDetailLoss(raw: Record<string, unknown>, recordI
     details: { code: "NOVO_DETAIL_INSUFFICIENT", pageSequence: 0, recordIndex }, recordedAt };
 }
 
-/** Replay every list member. Insufficient JD is unpublished, never explicit closure;
- * unavailable or unbound pages still fail the source. */
+/** Replay the complete list and each good native chain. Unverifiable jobs retain prior data;
+ * only explicit application closure removes a previously known job. */
 export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence, output: readonly NormalizedJobRecord[], capturedAt: string): boolean {
   if (!exactNovoChinaQualityPlan(plan) || evidence.pages.length !== 1) return false;
   const artifact = evidence.artifacts[0], page = evidence.pages[0]!;
@@ -301,7 +292,19 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
   };
   const expected: Projection[] = [], losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   for (let i = 0; i < parsed.total; i++) {
-    const raw = parsed.rawJobs[i]!, projection = parsed.jobs[i]!;
+    const raw = record(parsed.rawJobs[i]), projection = parsed.jobs[i];
+    const held=(evidence.jobQuarantines??[]).find(q=>q.recordIndex===i);
+    if(held){
+      if(!same(held,novoJobQuarantine(parsed.rawJobs[i],i)))return false;
+      const id=novoRawJobId(raw);
+      while(id&&cursor<evidence.artifacts.length){const a=evidence.artifacts[cursor]!;
+        if(!a.logicalKey.startsWith(`novo-detail-${id}`)&&!a.logicalKey.startsWith(`novo-application-${id}`))break;
+        if(!Number.isFinite(Date.parse(a.capturedAt))||Date.parse(a.capturedAt)<previousTime)return false;
+        previousTime=Date.parse(a.capturedAt);cursor++;
+      }
+      losses.push(jobQuarantineLoss(held,capturedAt));continue;
+    }
+    if(!raw||!projection)return false;
     const detail = readNative(projection.officialUrl, `novo-detail-${raw.jobId}`, false);
     if (!detail || detail.finalUrl !== projection.officialUrl) return false;
     const href = novoNativeApplicationUrl(body(detail), projection.officialUrl, String(raw.jobId));
@@ -318,7 +321,7 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
     if (state.status === "CLOSED") losses.push(novoClosedLoss(raw, i, application.capturedAt));
     else expected.push({ ...projection, ...(state.cityUncertain ? {cities: [CITY_PENDING]} : {}), title: state.title! });
   }
-  if (cursor !== evidence.artifacts.length) return false;
+  if (cursor !== evidence.artifacts.length || (evidence.jobQuarantines??[]).some(q=>q.pageSequence!==0||q.recordIndex>=parsed.total)||new Set((evidence.jobQuarantines??[]).map(q=>q.recordIndex)).size!==(evidence.jobQuarantines??[]).length) return false;
   const counts = evidence.fetchCounts;
   if (counts.rawCount !== parsed.total || counts.parsedCount !== parsed.total || counts.validCount !== expected.length ||
     counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== losses.length || !same(evidence.fetchLosses, losses) ||
@@ -347,7 +350,7 @@ export function novoSourceJobExclusions(evidence: PersistentSourceFetchEvidence)
   const closed = new Set<string>(), insufficient = new Set<string>();
   for (const loss of evidence.fetchLosses) {
     const { code, recordIndex } = loss.details as { code: string; recordIndex: number };
-    const row = parsed?.rawJobs[recordIndex];
+    const row = record(parsed?.rawJobs[recordIndex]);
     if (!row) continue;
     const id = persistentOfficialJsonJobId(String(row.jobId));
     if (code === "OFFICIAL_APPLICATION_CLOSED") closed.add(id);

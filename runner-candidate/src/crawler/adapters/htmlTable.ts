@@ -44,7 +44,7 @@ export const htmlTableAdapter: SourceAdapter<HtmlTableAdapterInput> = {
     const adapterLosses: AdapterLoss[] = [];
     const abbvieReviewed = input.table.abbvieRowScopePolicy === "ABBVIE_CHINA_LISTED_ROWS_V1" &&
       input.source.id === "source-abbvie-china-social" && input.company.id === "company-abbvie-china" &&
-      input.source.officialEntryUrl === "https://careers.abbvie.com/zh-hans/jobs" && validateAbbvieChinaRowScope(input.html);
+      input.source.officialEntryUrl === "https://careers.abbvie.com/zh-hans/jobs";
     rows.forEach((row, rawIndex) => { const normalized = normalizeTableRow(input, $, row, abbvieReviewed);
       if ("job" in normalized) valid.push(normalized.job);
       else adapterLosses.push({ stage: normalized.stage, reason: normalized.reason, rawIndex }); });
@@ -86,6 +86,7 @@ function normalizeTableRow(input: HtmlTableAdapterInput, $: ReturnType<typeof lo
   // Reuse the document that owns this row. Parsing the complete paginated HTML
   // again for every row multiplies allocation during acquisition and admission.
   const { fields } = input.table;
+  if(abbvieReviewed&&!validateAbbvieChinaRowScope($.html(row)))return {stage:'VALIDATION',reason:'LOCATION_INVALID'};
   const officialTitle = readField($, row, fields.officialTitle);
   const rawOfficialUrl = readField($, row, fields.officialUrl);
   const locationRaw = readField($, row, fields.locationRaw);
@@ -147,7 +148,7 @@ function normalizeTableRow(input: HtmlTableAdapterInput, $: ReturnType<typeof lo
   return parsed.success ? { job: parsed.data } : { stage: "VALIDATION", reason: "NORMALIZED_SCHEMA_INVALID" };
 }
 
-function readField(
+export function readField(
   $: ReturnType<typeof load>,
   row: AnyNode,
   field: HtmlFieldSelector

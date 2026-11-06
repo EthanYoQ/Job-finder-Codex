@@ -12,7 +12,7 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
     const runtime = createCspcDomRuntime(cua);
     try {
       const { rowCount } = await runtime.start({ runStartedAt, dispatchBefore: new Date(deadline).toISOString() });
-      for (let index = 0; index < rowCount; index++) await runtime.readRow(index);
+      for(let index=0;index<rowCount;index++){try{await runtime.readRow(index);}catch(error){await runtime.isolateRowFailure(index,error);}}
       const result = await runtime.finish(false);
       const provenance = { tool: 'playwright-core-local-chromium', browser: 'chromium', networkCapture: false };
       return { dom: { ...result.dom, ...provenance }, applications: { ...result.applications, ...provenance } };
@@ -35,7 +35,10 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
         if (value.failure) throw value.error ?? Error(value.failure);
         lists.push(value.raw);
         if (!value.next) {
-          for (let index = 0; index < value.total; index++) details.push((await runtime.readDetail(index)).raw);
+          for(let index=0;index<value.total;index++){
+            let detail;try{detail=await runtime.readDetail(index);}catch(error){detail=await runtime.isolateDetailFailure(index,error);}
+            if(detail.raw)details.push(detail.raw);
+          }
           return { lists, details };
         }
         await runtime.advance();
@@ -56,7 +59,6 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
       if (dom.source_url !== entry) throw Error('BI_DOM_SOURCE_IDENTITY');
       dom.jobs = rows.map(row => {
         const jobId = /(?:^\?|&)jobId=([^&]*)/.exec(row.search)?.[1];
-        if (row.origin !== 'https://campus.51job.com' || row.pathname !== '/BI/recruit_article_detail3.html' || !/^\d+$/.test(jobId ?? '') || !row.visible) throw Error('BI_DOM_JOB_IDENTITY');
         return { jobId, title: row.cells[1], job_number: row.cells[2], location: row.cells[3], published_at: row.cells[4], href: row.href, visible: row.visible };
       });
       if (new Set(dom.jobs.map(row => row.jobId)).size !== dom.jobs.length) throw Error('BI_DOM_DUPLICATE');

@@ -59,7 +59,7 @@ for(const [location,city] of [['Shanghai (Shanghai)','上海'],['Newtown (Qingha
  assert.equal(result.observation.completenessStatus,'VERIFIED');
  assert(result.jobs.every(j=>j.locationRaw===location&&j.cities.length===1&&j.cities[0]===city));
 }
-for(const location of ['Taipei','臺灣','Amsterdam, Netherlands'])assert.equal((await capture('present',location)).fetched.ok,false);
+for(const location of ['Taipei','臺灣','Amsterdam, Netherlands']){const held=await capture('present',location);assert(held.fetched.ok);assert.equal(held.fetched.fetchEvidence.fetchCounts.validCount,0);assert.equal(held.fetched.fetchEvidence.jobQuarantines.length,2);}
 for(const alternative of ['China','Japan','Hong Kong','China / Japan']){
  const next=await capture('present','Shanghai (Shanghai)',alternative);assert(next.fetched.ok);
  assert(next.fetched.html.includes(`<div class="alternative-locations">${alternative}</div>`),'Retain the official alternative placements');
@@ -68,6 +68,6 @@ for(const alternative of ['China','Japan','Hong Kong','China / Japan']){
  assert.equal(result.status,'SUCCESS',JSON.stringify(result.diagnostics));
  assert(result.jobs.every(job=>job.locationRaw==='Shanghai (Shanghai)'&&job.cities.join(',')==='上海'));
 }
-assert.equal((await capture('present','Shanghai (Shanghai)','China','Japan')).fetched.ok,false);
+const foreign=await capture('present','Shanghai (Shanghai)','China','Japan');assert(foreign.fetched.ok);assert.equal(foreign.fetched.fetchEvidence.fetchCounts.validCount,0);
 
 });

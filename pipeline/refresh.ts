@@ -17,7 +17,7 @@ const cli = process.env.INSTABOX_CLI ?? "instabox";
 const target = process.env.JOBFINDER_PUBLIC_SNAPSHOT_FILE;
 let phase = "INITIALIZE";
 let releaseActivityLease: (() => Promise<void>) | undefined;
-type Receipt = {slot:string;complete:boolean;snapshotFile:string;sha256:string;generatedAt:string;lastUpdatedAt:string|null;totalJobs:number;capturedSources:{sourceId:string;batchId:string}[]};
+type Receipt = {slot:string;complete:boolean;quarantinedJobCount?:number;snapshotFile:string;sha256:string;generatedAt:string;lastUpdatedAt:string|null;totalJobs:number;capturedSources:{sourceId:string;batchId:string}[]};
 async function command(args:string[], timeout=120_000) {
   try {return await exec(cli,args,{timeout,maxBuffer:2*1024*1024,env:process.env});}
   catch(error) {
@@ -93,13 +93,14 @@ async function refresh() {
     ["/api/search?city="+encodeURIComponent("全部城市")+"&sort=COMPANY_PINYIN_ASC&limit=50&offset=0&province="+encodeURIComponent("全部地区"),{...search,snapshotStorage:"SAVED"}],
     ["/api/coverage?keyword=&offset=0&limit=60",{...coverage,snapshotStorage:"SAVED"}]
   ] as const){
-    const response=await fetch(new URL(path,process.env.JOBFINDER_VERIFY_BASE_URL),{headers:{"x-job-search-consent":"accepted"},signal:AbortSignal.timeout(30_000)});
+    const response:Response=await fetch(new URL(path,process.env.JOBFINDER_VERIFY_BASE_URL),{headers:{"x-job-search-consent":"accepted"},signal:AbortSignal.timeout(30_000)});
     if(!response.ok)throw Error("WEBSITE_READBACK_HTTP_FAILED");
     try{deepStrictEqual(await response.json(),expected);}catch{throw Error("WEBSITE_READBACK_MISMATCH");}
   }
   state.records=state.records.filter((row)=>Number((row as {slot:string}).slot)>Number(slot)-8*24*3600_000&&(row as {slot:string}).slot!==slot);
   phase = "SAVE_STATE";
   state.records.push({slot,kind:"live",trigger:state.timerSlots.includes(slot)?"timer":"manual",complete:receipt.complete,
+    quarantinedJobCount:receipt.quarantinedJobCount,
     webReadback:true,capturedSourceIds:receipt.capturedSources.map(row=>row.sourceId),sha256:receipt.sha256,verifiedAt:new Date().toISOString()});
   state.timerSlots=state.timerSlots.filter(value=>Number(value)>Number(slot)-8*24*3600_000);
   await saveState();

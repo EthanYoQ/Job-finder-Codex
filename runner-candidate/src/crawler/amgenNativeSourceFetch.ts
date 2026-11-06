@@ -22,7 +22,7 @@ export type AmgenNativeConfig = typeof AMGEN_NATIVE_CONFIG;
 type Request = { url: string; method: "GET" | "POST"; body?: string; headers: Record<string, string> };
 type Response = { body: string; status: number; finalUrl?: string; contentType?: string; capturedAt?: string };
 type Http = (request: Request) => Promise<Response>;
-type Row = { id: string; title: string; url: string };
+type Row = { id: string; title: string; url: string; listRowInvalid?:true };
 type Page = { page: number; total: number; totalPages: number; rows: Row[]; hasNext: boolean };
 type Projection = { sourceJobId: string; title: string; officialUrl: string; locationRaw: string; cities: string[] };
 const hash = (body: string | Uint8Array) => createHash("sha256").update(body).digest("hex");
@@ -61,14 +61,14 @@ function parsePage(body: string, page: number): Page {
   const integer = (name: string, min: number) => { const value = section.attr(name); assert(value && /^\d+$/u.test(value)); const n = Number(value); assert(Number.isSafeInteger(n) && n >= min); return n; };
   const total = integer("data-total-job-results", 0), totalPages = integer("data-total-pages", 1);
   assert(integer("data-current-page", 1) === page && integer("data-records-per-page", 1) === 12 && totalPages === Math.max(1, Math.ceil(total / 12)) && totalPages <= AMGEN_NATIVE_CONFIG.maxPages && page <= totalPages);
-  const rows = $("#search-results-jobs > li").toArray().map(li => {
+  const rows = $("#search-results-jobs > li").toArray().map((li,index) => {
     const a = $(li).find("a[data-job-id]"), button = $(li).find("button.js-save-job-btn");
-    assert(a.length === 1 && button.length === 1);
     const id = a.attr("data-job-id"), href = a.attr("href"), title = clean(a.find("h3").text());
-    assert(id && /^[1-9]\d*$/u.test(id) && href && title && button.attr("data-job-id") === id && button.attr("data-org-id") === "87");
-    const url = new URL(href, AMGEN_NATIVE_ENTRY);
-    assert(url.origin === ORIGIN && !url.search && !url.hash && !url.username && !url.password && new RegExp(`^/en/job/[^/]+/[^/]+/87/${id}$`, "u").test(url.pathname));
-    return { id, title, url: url.href };
+    let url:URL|undefined;try{if(href)url=new URL(href,AMGEN_NATIVE_ENTRY);}catch{/* Invalid row remains in the complete list inventory. */}
+    const knownId=id&&/^[1-9]\d*$/u.test(id)?id:undefined;
+    const valid=a.length===1&&button.length===1&&knownId&&title&&button.attr('data-job-id')===knownId&&button.attr('data-org-id')==='87'&&
+      url?.origin===ORIGIN&&!url.search&&!url.hash&&!url.username&&!url.password&&new RegExp(`^/en/job/[^/]+/[^/]+/87/${knownId}$`,'u').test(url.pathname);
+    return {id:knownId??`unidentified:${page}:${index}`,title,url:url?.href??'',...(!valid?{listRowInvalid:true as const}:{})};
   });
   const next = section.find(".pagination .next[data-display-type='Jobs']");
   assert(next.length > 0 && rows.length === Math.min(12, total - (page - 1) * 12) && new Set(rows.map(r => r.id)).size === rows.length);
