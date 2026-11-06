@@ -810,7 +810,7 @@ async function fetchSingleResponseOfficialJson({
     const transportFailure = config.kind === "novo-nordisk"
       ? (novoHttpRetryAllowed(response, endpoint, false)
         ? retryableHttpTransportFailure(response.status, response.retryAfter) : undefined)
-      : retryableHttpTransportFailure(response.status);
+      : retryableHttpTransportFailure(response.status, response.retryAfter);
     return failedWithEvidence(
       capturedAt,
       transportFailure
@@ -2498,8 +2498,8 @@ async function fetchEightfoldPcsx({
   let declaredArtifactKey: string | undefined;
   let declaredLocator: string | undefined;
 
-  const fail = (reason: string): SourceFetchResult => {
-    if (!preservePostedDate || artifacts.length === 0) return failed(capturedAt, reason);
+  const fail = (reason: string, transportFailure?: SourceTransportFailure): SourceFetchResult => {
+    if (!preservePostedDate || artifacts.length === 0) return failed(capturedAt, reason, transportFailure);
     // A later transport/schema failure must not erase already captured date evidence.
     // Retain counted complete pages when possible; unparsed envelopes are supporting bytes only.
     const counted = pages.length > 0 &&
@@ -2515,7 +2515,7 @@ async function fetchEightfoldPcsx({
       : finalizeOfficialJsonSupportingFailureEvidence({
         artifacts: artifacts.map(artifact => ({ ...artifact, kind: "ATS_API_RESPONSE" })),
         code: "BMS_POSTED_DATE_SOURCE_FAILURE"
-      }));
+      }), transportFailure);
   };
 
   for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
@@ -2543,7 +2543,8 @@ async function fetchEightfoldPcsx({
         observedNowMs: now().getTime()
       });
     } catch (error) {
-      return fail(safeOfficialJsonFailure(error, "Eightfold PCSx transport or metadata failed"));
+      return fail(safeOfficialJsonFailure(error, "Eightfold PCSx transport or metadata failed"),
+        retryableTransportFailureFromError(error));
     }
     const artifact = officialJsonNetworkArtifact({
       id: `eightfold-page-${String(pageIndex).padStart(4, "0")}`,
@@ -2555,7 +2556,8 @@ async function fetchEightfoldPcsx({
     });
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
-      return fail(`Eightfold PCSx returned HTTP ${response.status}`);
+      return fail(`Eightfold PCSx returned HTTP ${response.status}`, response.status >= 500
+        ? retryableHttpTransportFailure(response.status, response.retryAfter) : undefined);
     }
     try { assertOfficialJsonMime(response); } catch {
       return fail("Eightfold PCSx response has an invalid Content-Type");
@@ -2766,7 +2768,7 @@ async function fetchJobsynSolr({
     }
     previousCapturedAtMs = artifactCapturedAtMs;
     if (response.status < 200 || response.status >= 300) {
-      const transportFailure = retryableHttpTransportFailure(response.status);
+      const transportFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
       pages.push(jobsynPageTrace({ artifact, sequence: page - 1, requestedPage: page, termination: "FAILED" }));
       return jobsynFailure(capturedAt, transportFailure
         ? safeSourceTransportFailureReason(transportFailure)
@@ -3386,7 +3388,7 @@ async function fetchBeisenZhiye2022({
     });
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
-      const transportFailure = retryableHttpTransportFailure(response.status);
+      const transportFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
       pages.push(beisenPageTrace({ artifact, sequence: pageIndex, requestedPage: pageIndex, termination: "FAILED" }));
       return beisenFailure(capturedAt, transportFailure
         ? safeSourceTransportFailureReason(transportFailure)
@@ -3776,7 +3778,7 @@ async function fetchPhenomWidgets({
   });
   if (entry.status < 200 || entry.status >= 300) {
     const transportFailure = withPhenomTransportStage(
-      retryableHttpTransportFailure(entry.status),
+      retryableHttpTransportFailure(entry.status, entry.retryAfter),
       "ENTRY"
     );
     return failedWithEvidence(
@@ -4173,7 +4175,7 @@ async function fetchPhenomWidgets({
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
       const transportFailure = withPhenomTransportStage(
-        retryableHttpTransportFailure(response.status),
+        retryableHttpTransportFailure(response.status, response.retryAfter),
         "PAGE"
       );
       pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
@@ -4887,7 +4889,7 @@ async function fetchPhenomFacetPreflight(input: {
   });
   if (response.status < 200 || response.status >= 300) {
     const transportFailure = withPhenomTransportStage(
-      retryableHttpTransportFailure(response.status),
+      retryableHttpTransportFailure(response.status, response.retryAfter),
       failureStage
     );
     return {
@@ -5506,7 +5508,7 @@ async function fetchHcmCloudWithPost({
   }
   artifacts.push(countArtifact!);
   if (countResponse.status < 200 || countResponse.status >= 300) {
-    const transportFailure = retryableHttpTransportFailure(countResponse.status);
+    const transportFailure = retryableHttpTransportFailure(countResponse.status, countResponse.retryAfter);
     return hcmCloudFailure(capturedAt, transportFailure
       ? safeSourceTransportFailureReason(transportFailure)
       : `HCMCloud count API returned HTTP ${countResponse.status}`,
@@ -5586,7 +5588,7 @@ async function fetchHcmCloudWithPost({
     if (response.status < 200 || response.status >= 300) {
       pages.push(hcmCloudPageTrace({ artifact, sequence: pages.length, requestedPage: page,
         ...(expectedJobCount !== undefined ? { declaredTotal: expectedJobCount } : {}), termination: "FAILED" }));
-      const transportFailure = retryableHttpTransportFailure(response.status);
+      const transportFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
       return hcmCloudFailure(capturedAt, transportFailure
         ? safeSourceTransportFailureReason(transportFailure)
         : `HCMCloud list API returned HTTP ${response.status}`,
