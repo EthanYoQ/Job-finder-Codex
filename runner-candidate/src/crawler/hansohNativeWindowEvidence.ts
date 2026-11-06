@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import {verifyBeisenListQuarantines} from './beisenJobQuarantine';
+import {verifyBeisenListQuarantines,beisenRawObservationId} from './beisenJobQuarantine';
 import type { SourceCrawlPlan } from "./sourcePlan";
 import type { PersistentSourceFetchEvidence } from "./sourceFetchEvidence";
 import type { NormalizedJobRecord } from "./normalizedJob";
@@ -88,7 +88,7 @@ export function validateStrictHansohNativeWindowEvidence(
       if (artifact.extractorLocator !== locator || sequence === 0 && declaration.extractorLocator !== locator) return false;
       const rawIds: string[] = []; const validIds: string[] = [];
       for (const [recordIndex,raw] of root.Data.entries()) {
-        rawIds.push(irreversible(record(raw)&&typeof raw.Id==='string'?raw.Id:[sequence,recordIndex,raw]));
+        rawIds.push(beisenRawObservationId(raw,sequence,recordIndex));
         if(evidence.jobQuarantines?.some(q=>q.pageSequence===sequence&&q.recordIndex===recordIndex))continue;
         if (!record(raw) || typeof raw.Id !== "string" ||
             !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(raw.Id) ||

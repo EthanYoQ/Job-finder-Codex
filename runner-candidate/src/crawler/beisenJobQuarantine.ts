@@ -11,8 +11,14 @@ export function hasBeisenJobQuarantine(plan:SourceCrawlPlan):boolean{
   ['source-cttq-social','source-shanghai-pharma-social','source-fosun-pharma-social','source-hansoh-social'].includes(plan.source.id);
 }
 export const isBeisenListQuarantine=(row:JobQuarantine)=>row.rawLocator.includes('#record:');
+function originalUuid(raw:unknown):string|undefined{
+ return raw&&typeof raw==='object'&&'Id'in raw&&typeof raw.Id==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(raw.Id)?raw.Id:undefined;
+}
+export function beisenRawObservationId(raw:unknown,pageSequence:number,recordIndex:number):string{
+ return irreversibleOfficialJsonEvidenceId(originalUuid(raw)??[pageSequence,recordIndex,raw]);
+}
 export function beisenQuarantineRow(plan:SourceCrawlPlan,raw:unknown,pageSequence:number,recordIndex:number,rawLocator:string,code:string):JobQuarantine{
- const id=raw&&typeof raw==='object'&&'Id'in raw&&typeof raw.Id==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(raw.Id)?raw.Id.toLowerCase():undefined;
+ const id=originalUuid(raw)?.toLowerCase();
  const sourceJobId=id?persistentOfficialJsonJobId(id):undefined;
  const officialUrl=id?new URL('/social/detail',plan.source.officialEntryUrl):undefined;if(officialUrl)officialUrl.searchParams.set('jobAdId',id!);
  return {pageSequence,recordIndex,rawLocator,code,validJobId:sourceJobId?irreversibleOfficialJsonEvidenceId(sourceJobId):`unidentified:${pageSequence}:${recordIndex}`,

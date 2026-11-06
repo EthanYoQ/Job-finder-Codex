@@ -3,7 +3,7 @@ import {hasHtmlRowQuarantine,reviewHtmlJobRows,replayHtmlJobRows} from './htmlJo
 import {hasBeisenJobQuarantine,verifyBeisenListQuarantines} from './beisenJobQuarantine';
 import {hasWorkdayJobQuarantine,verifyWorkdayJobQuarantines} from './workdayJobQuarantine';
 import {hasPhenomJobQuarantine,phenomRawId,verifyPhenomJobQuarantines} from './phenomJobQuarantine';
-import { jobQuarantineLossesMatch, JOB_QUARANTINE_PAGINATION } from './jobQuarantine';
+import { jobQuarantineLoss, jobQuarantineLossesMatch, JOB_QUARANTINE_PAGINATION } from './jobQuarantine';
 import { mainlandDisplayCities } from "./fosunScopeGeography";
 import { reviewedMainlandCity } from "./reviewedMainlandCity";
 import { hasNovartisPartitionEvidence, replayNovartisNativePartitions, NOVARTIS_PARTITION_PAGINATION } from "./novartisNativePartitions";
@@ -80,7 +80,7 @@ import {
 import type { SourceTransportFailure } from "./sourceFetchFailure";
 import type { RetryableSourceTransportFailureCode } from "./sourceFetchFailure";
 import { validateStrictHotjobLegacyEvidence } from "./hotjobLegacySourceFetch";
-import { attachYelloPublicAgeEvidence, parseYelloJobBoardResponse, yelloJobBoardBinding, yelloPublicAgeEvidence, yelloScopeExclusionLoss } from "./yelloJobBoardEvidence";
+import { attachYelloPublicAgeEvidence, parseYelloJobBoardResponse, yelloJobBoardBinding, yelloPublicAgeEvidence, yelloScopeExclusionLoss, yelloJobQuarantine } from "./yelloJobBoardEvidence";
 import { exactGileadPublicAgePlan } from "./gileadPublicAge";
 import { hasBiSemanticPlan, replayBiSemanticCompleteness } from "./biSemanticCompleteness";
 import { BI_API_URL, BI_SCRIPT_URL } from "./biUiSemanticContract";
@@ -661,7 +661,7 @@ function strictCompletenessGate(
     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
     const quarantinedJobs = jobQuarantineLossesMatch(evidence)&&
-      (hasAstraZenecaDetailPlan(plan)||hasBeisenJobQuarantine(plan)||hasWorkdayJobQuarantine(plan)||hasHtmlRowQuarantine(plan)||hasPhenomJobQuarantine(plan)||profileBoundEvidenceValidated||plan.adapterId==='official-json'&&(!!plan.hotjobLegacy||['eightfold-pcsx','cnstaff'].includes(plan.officialJsonFetch?.kind??'')));
+      (!!biProof||yelloScopeProof||hasAstraZenecaDetailPlan(plan)||hasBeisenJobQuarantine(plan)||hasWorkdayJobQuarantine(plan)||hasHtmlRowQuarantine(plan)||hasPhenomJobQuarantine(plan)||profileBoundEvidenceValidated||plan.adapterId==='official-json'&&(!!plan.hotjobLegacy||['eightfold-pcsx','cnstaff'].includes(plan.officialJsonFetch?.kind??'')));
     const onlyQuarantinedLosses = quarantinedJobs && evidence.fetchLosses.every(loss=>loss.details.code==='JOB_QUARANTINED');
     if (evidence.fetchLosses.length > 0 && !onlyQuarantinedLosses && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !rocheScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
@@ -974,9 +974,12 @@ function strictYelloRequestContracts(
   const rawIds = parsed.rows.map(row => irreversibleOfficialJsonEvidenceId([row.rowIndex, row.rawHtml])).sort(compare);
   const validIds = expectedSourceIds.map(id => irreversibleOfficialJsonEvidenceId(id)).sort(compare);
   if (!isDeepStrictEqual(rawIds, [...page.rawJobIds].sort(compare)) || !isDeepStrictEqual(validIds, [...page.validJobIds].sort(compare))) return false;
-  if (!isDeepStrictEqual(evidence.fetchLosses, parsed.excludedJobs.map(row => yelloScopeExclusionLoss(row, artifact))) ||
+  const quarantines=parsed.quarantinedJobs.map(yelloJobQuarantine);
+  if(!isDeepStrictEqual(evidence.jobQuarantines??[],quarantines))return false;
+  const expectedLosses=parsed.rows.flatMap(row=>row.scopeDecision==='EXCLUDED_HONG_KONG'?[yelloScopeExclusionLoss(row,artifact)]:row.scopeDecision==='QUARANTINED'?[jobQuarantineLoss(yelloJobQuarantine(row),artifact.capturedAt)]:[]);
+  if (!isDeepStrictEqual(evidence.fetchLosses, expectedLosses) ||
       !isDeepStrictEqual(evidence.fetchCounts, { rawCount: parsed.rows.length, parsedCount: parsed.rows.length,
-        validCount: parsed.jobs.length, parseDiscardCount: 0, validationDiscardCount: parsed.excludedJobs.length })) return false;
+        validCount: parsed.jobs.length, parseDiscardCount: 0, validationDiscardCount: parsed.excludedJobs.length+quarantines.length })) return false;
   const byId = new Map(outputJobs.map(job => [job.sourceJobId, job]));
   // Match the adapter's text cleanup; exact source spelling/whitespace remains bound by the row hash.
   const normalizedText = (value: string) => value.replace(/\s+/gu, " ").trim();
@@ -991,7 +994,7 @@ function strictYelloRequestContracts(
         job.evidence.capturedAt !== capturedAt || !isDeepStrictEqual(job.evidence.gileadPublicAge, yelloPublicAgeEvidence(row, row.rowIndex, artifact))) return false;
   }
   const declaration = evidence.declaredCompleteness;
-  return parsed.declaredTotal === parsed.rows.length && parsed.rows.length === parsed.jobs.length + parsed.excludedJobs.length &&
+  return parsed.declaredTotal === parsed.rows.length && parsed.rows.length === parsed.jobs.length + parsed.excludedJobs.length+quarantines.length &&
     page.rawJobIds.length === parsed.rows.length &&
     page.validJobIds.length === parsed.jobs.length && page.declaredTotal === parsed.declaredTotal &&
     page.declaredCount === parsed.declaredTotal && page.termination === "NEXT_ABSENT" &&

@@ -1,13 +1,13 @@
 import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
-import { hasBiSemanticPlan, hasBiMainlandGeography, biDisplayCities } from "./biSemanticCompleteness";
+import { hasBiSemanticPlan, biJobQuarantine, biRawObservationId, hasBiMainlandGeography, biDisplayCities } from "./biSemanticCompleteness";
 import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
 import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFailureArtifact, novoNativeGatewayRetryStart, novoNativeGatewayRetryArtifact, delayNovoNativeRetry } from "./novoNativeGatewayRetry";
 import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
 import { acquireBeisenDetailDates } from "./beisenDetailDates";
-import {isolateBeisenJobRows} from './beisenJobQuarantine';
-import {quarantineFetchLosses,quarantineCompleteList,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
+import {isolateBeisenJobRows,beisenRawObservationId} from './beisenJobQuarantine';
+import {quarantineFetchLosses,quarantineCompleteList,jobQuarantineLoss,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
 import {sanitizeEvidenceHttpUrl} from './sourceFetchEvidence';
 import {phenomJobQuarantine} from './phenomJobQuarantine';
 import {exactFosunHongKongOnlyScope} from './strictSourceScopeExclusionProof';
@@ -86,8 +86,7 @@ import {
   parseYelloJobBoardResponse,
   yelloJobBoardBinding,
   yelloScopeExclusionLoss,
-  YelloPublicAgeError,
-  YelloScopeReviewError,
+  yelloJobQuarantine,
   type YelloJobBoardConfig
 } from "./yelloJobBoardEvidence";
 
@@ -590,26 +589,6 @@ async function fetchYelloJobBoard({
   try {
     parsed = parseYelloJobBoardResponse(response.body, config);
   } catch (error) {
-    if (error instanceof YelloPublicAgeError || error instanceof YelloScopeReviewError) {
-      // Hold the whole partition atomically. Unresolved rows are diagnostic losses,
-      // never proven scope/age exclusions or authority to advance missing jobs.
-      failureState.rawCount = error.rawRows.length;
-      failureState.parsedCount = error.rawRows.length;
-      failureState.validationDiscardCount = error.rawRows.length;
-      failureState.page.declaredTotal = error.rawRows.length;
-      failureState.page.declaredCount = error.rawRows.length;
-      for (const [index, row] of error.rawRows.entries()) {
-        failureState.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([index, row]));
-        const scopeReview = error instanceof YelloScopeReviewError;
-        const code = scopeReview
-          ? index === error.rowIndex ? "GILEAD_SCOPE_REVIEW_REQUIRED" : "GILEAD_SCOPE_SOURCE_HELD"
-          : index === error.rowIndex ? "GILEAD_PUBLIC_AGE_INVALID" : "GILEAD_PUBLIC_AGE_SOURCE_HELD";
-        failureState.fetchLosses.push({stage: "VALIDATION", reason: code,
-          rawLocator: officialJsonRawLocator(row, index), details: {code, field: scopeReview ? "location" : "publicAge", pageSequence: 0, recordIndex: index},
-          recordedAt: artifact.capturedAt});
-      }
-      return failedWithEvidence(capturedAt, error.message, finalizeOfficialJsonFailureEvidence(failureState));
-    }
     return failedWithEvidence(capturedAt, "Yello response failed strict China partition replay",
       finalizeOfficialJsonFailureEvidence(failureState));
   }
@@ -617,10 +596,16 @@ async function fetchYelloJobBoard({
   const state = initialOfficialJsonEvidenceState({ artifact, declaredTotal: count, termination: "ABORTED" });
   state.page.declaredCount = count;
   const jobs: NormalizedOfficialJsonJob[] = [];
+  const quarantines:JobQuarantine[]=[];
   for (const row of parsed.rows) {
     state.rawCount += 1;
     state.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([row.rowIndex, row.rawHtml]));
     state.parsedCount += 1;
+    if(row.scopeDecision==='QUARANTINED'){
+      const quarantine=yelloJobQuarantine(row);quarantines.push(quarantine);
+      state.validationDiscardCount++;state.fetchLosses.push(jobQuarantineLoss(quarantine,artifact.capturedAt));
+      continue;
+    }
     if (row.scopeDecision === "EXCLUDED_HONG_KONG") {
       state.validationDiscardCount += 1;
       state.fetchLosses.push(yelloScopeExclusionLoss(row, artifact));
@@ -638,6 +623,7 @@ async function fetchYelloJobBoard({
     declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: count,
       artifactLogicalKey: artifact.logicalKey, extractorLocator, scope: "SOURCE" }
   });
+  const enriched=quarantines.length?{...evidence,jobQuarantines:quarantines}:evidence;
   return {
     ok: true,
     capturedAt,
@@ -650,7 +636,7 @@ async function fetchYelloJobBoard({
       completenessBlockerReason: "Yello official China total remains manual until downstream adapter accounting is complete",
       pagesVisited: 1
     },
-    fetchEvidence: evidence,
+    fetchEvidence: enriched,
     paginationEvaluation: evaluation
   };
 }
@@ -2355,13 +2341,18 @@ function replay51jobArtifacts(
     validationDiscardCount: 0
   };
   const seen = new Set<string>();
+  const quarantines:JobQuarantine[]=[];
   for (let index = 0; index < envelope.jobs.length; index += 1) {
     const raw = envelope.jobs[index]!;
-    const rawId = stringValue(raw.jobid);
-    rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? raw));
+    const rawId=isStrictRecord(raw)?stringValue(raw.jobid):undefined;
+    if(rawId){if(seen.has(rawId))return failed(capturedAt,'51job duplicate official ID');seen.add(rawId);}
+    rawIds.push(biRawObservationId(raw,index));
+    const quarantine=biJobQuarantine(raw,index);
+    if(quarantine){quarantines.push(quarantine);counts.validationDiscardCount++;losses.push(jobQuarantineLoss(quarantine,apiArtifact.capturedAt));continue;}
+    if(!isStrictRecord(raw))return failed(capturedAt,'51job invalid row');
     const title = stringValue(raw.jobname);
     const locationRaw = stringValue(raw.jobareaname);
-    if (!rawId || !title || !locationRaw || seen.has(rawId)) {
+    if (!rawId || !title || !locationRaw) {
       counts.validationDiscardCount += 1;
       losses.push({ stage: "VALIDATION", reason: "51job record rejected: INVALID_REQUIRED_FIELD",
         rawLocator: officialJsonRawLocator(0, index), details: { code: "INVALID_REQUIRED_FIELD", recordIndex: index } });
@@ -2379,7 +2370,6 @@ function replay51jobArtifacts(
     const sourceJobId = persistentOfficialJsonJobId(rawId);
     jobs.push({ sourceJobId, title, officialUrl: officialUrl.toString(), locationRaw,
       cities: biDisplayCities(raw) });
-    seen.add(rawId);
     counts.validCount += 1;
     validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
   }
@@ -2433,7 +2423,7 @@ function replay51jobArtifacts(
     payload: { jobs },
     completeness: {
       completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-      expectedJobCount: counts.validCount,
+      expectedJobCount: envelope.total,
       completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
       completenessEvidenceUrl: safeEntryUrl,
       completenessBlockerReason: "51job UI exclusions await independent strict replay",
@@ -2441,12 +2431,12 @@ function replay51jobArtifacts(
       pageSize: Number(params.pagesize),
       pagesVisited: 1
     },
-    fetchEvidence: finalized.evidence,
+    fetchEvidence: quarantines.length?{...finalized.evidence,jobQuarantines:quarantines}:finalized.evidence,
     paginationEvaluation: finalized.evaluation
   };
 }
 
-function parse51jobJsonp(body: string): { total: number; jobs: Record<string, unknown>[] } | undefined {
+function parse51jobJsonp(body: string): { total: number; jobs: unknown[] } | undefined {
   const match = /^\s*jsoncallback\((\{[\s\S]*\})\)\s*;?\s*$/u.exec(body);
   if (!match || !hasUniqueJsonObjectKeys(match[1]!)) return undefined;
   try {
@@ -2455,8 +2445,8 @@ function parse51jobJsonp(body: string): { total: number; jobs: Record<string, un
       !Array.isArray(root.resultbody.joblist)) return undefined;
     const totalRaw = root.resultbody.totalnum;
     const total = typeof totalRaw === "string" && /^\d+$/u.test(totalRaw) ? Number(totalRaw) : totalRaw;
-    if (!isNonnegativeInteger(total) || root.resultbody.joblist.some((row) => !isStrictRecord(row))) return undefined;
-    return { total, jobs: root.resultbody.joblist as Record<string, unknown>[] };
+    if (!isNonnegativeInteger(total)) return undefined;
+    return { total, jobs: root.resultbody.joblist };
   } catch {
     return undefined;
   }
@@ -3484,12 +3474,7 @@ async function fetchBeisenZhiye2022({
     }
 
     const rawJobs = root.Data as unknown[];
-    const rawIds: string[] = rawJobs.map((raw,recordIndex) => {
-      const rawOfficialId = isStrictRecord(raw) && typeof raw.Id === "string"
-        ? raw.Id
-        : undefined;
-      return irreversibleOfficialJsonEvidenceId(rawOfficialId ?? [pageIndex,recordIndex,raw]);
-    }).filter((id, index, ids) => ids.indexOf(id) === index);
+    const rawIds: string[] = rawJobs.map((raw,recordIndex)=>beisenRawObservationId(raw,pageIndex,recordIndex)).filter((id,index,ids)=>ids.indexOf(id)===index);
     const validIds: string[] = [];
     for (let recordIndex = 0; recordIndex < rawJobs.length; recordIndex += 1) {
       const raw = rawJobs[recordIndex];

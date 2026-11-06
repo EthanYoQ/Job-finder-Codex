@@ -20,7 +20,7 @@ import {classifyKelunLocation} from '../src/crawler/kelunMainlandScope.ts';
 import {beisenDomesticRecordScopeReview} from '../src/crawler/officialJsonSourceFetch.ts';
 import {hasMainlandCountryLocation,mokaDisplayCities} from '../src/crawler/hengruiMainlandGeography.ts';
 import {classifyGileadPublicAge,gileadPublicAgeEvidenceSchema,GILEAD_YELLO_BOARD,GILEAD_PUBLIC_AGE_POLICY} from '../src/crawler/gileadPublicAge.ts';
-import {parseYelloJobBoardResponse,YelloScopeReviewError} from '../src/crawler/yelloJobBoardEvidence.ts';
+import {parseYelloJobBoardResponse} from '../src/crawler/yelloJobBoardEvidence.ts';
 const pending=[CITY_PENDING],fixture=name=>JSON.parse(readFileSync(new URL(`./fixtures/${name}-location-change.json`,import.meta.url)));
 
 test('BI requires mainland evidence while preserving unrecognized city labels',()=>{
@@ -168,9 +168,9 @@ test('Gilead Hong Kong exclusion holds additional location evidence without rest
  assert.equal(parseYelloJobBoardResponse(body('', 'role="country-manager"'),config).excludedJobs.length,1);
  assert.equal(parseYelloJobBoardResponse(body('<span class="country-manager">New</span>'),config).excludedJobs.length,1);
  assert.equal(parseYelloJobBoardResponse(body('', 'data-id="synthetic"'),config).excludedJobs.length,1);
- assert.throws(()=>parseYelloJobBoardResponse(body('', 'data-location="China - Shanghai"'),config),YelloScopeReviewError);
+ assert.equal(parseYelloJobBoardResponse(body('', 'data-location="China - Shanghai"'),config).quarantinedJobs.length,1);
  for(const extra of ['<div class="alternate-location">China - Shanghai</div>','<div>China - Shanghai</div>','<div class="alternate-location">Unknown country</div>','<span data-location="Unknown"></span>',
   ...['alternate-location-details','location-details','details-location','alternate_location_details','ALTERNATE-LOCATION-DETAILS'].map(name=>`<div class="${name}">Shanghai</div>`)]){
-  assert.throws(()=>parseYelloJobBoardResponse(body(extra),config),YelloScopeReviewError,extra);
+  assert.equal(parseYelloJobBoardResponse(body(extra),config).quarantinedJobs.length,1,extra);
  }
 });
