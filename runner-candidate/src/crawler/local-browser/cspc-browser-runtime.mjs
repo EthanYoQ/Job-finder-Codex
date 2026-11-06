@@ -135,19 +135,25 @@ async function readCspcListObservation(listTab) {
     before=await readCspcListObservation(list);checkList(before);
     return {observationStartedAt,rowCount:before.rows.length,before};
   }
+  async function observeAccess(tab){
+    const nav=await tab.navigationInfo?.();
+    if([403,429].includes(nav?.httpStatus)||nav?.cspcAccessBlock)accessStopped=true;
+    return accessStopped;
+  }
   async function readRow(index) {
     checkTime();
     if(index!==rows.length||index>=before.rows.length)throw Error('CSPC_SEQUENTIAL_ROW_INDEX');
-    pending=undefined;if(accessStopped)return isolateRowFailure(index,Error('CSPC_ACCESS_STOPPED'));
+    pending=undefined;if(await observeAccess(list))return isolateRowFailure(index,Error('CSPC_ACCESS_STOPPED'));
     const captures=await captureCspcDomBatch(list,[index],deadline);pending=captures[0];
     owned.push(captures[0].tabId);
     const [row]=await readCspcCompletedDetails(captures,deadline);
+    const tab=await cua.getTab(row.tabId,{browser:'cdp'});if(await observeAccess(tab))throw Error('CSPC_ACCESS_STOPPED');
     if(row.row.title!==before.rows[index].title||row.row.text!==before.rows[index].text)throw Error('CSPC_LIST_ROW_DRIFT');
     row.officialId=identity(row.url);row.sourceJobId=channelId+':'+row.officialId;row.clickOrdinal=index+1;
     if(rows.some(r=>r.officialId===row.officialId))throw Error('CSPC_DUPLICATE_OFFICIAL_ID');
     if(row.detailSections.length<2||row.detailSections.slice(0,2).some(s=>!s.trim()))throw Error('CSPC_DETAIL_SECTIONS_MISSING');
     const application=null;
-    const tab=await cua.getTab(row.tabId,{browser:'cdp'});await tab.close();owned.splice(owned.indexOf(row.tabId),1);
+    await tab.close();owned.splice(owned.indexOf(row.tabId),1);
     rows.push(row);pending=undefined;
     checkTime();return {row,application};
   }
@@ -159,7 +165,7 @@ async function readCspcListObservation(listTab) {
     const tabs=await cua.listTabs({browser:'cdp',emit:false});
     for(const item of tabs.filter(tab=>tab.id!==list.id)){
       const tab=await cua.getTab(item.id,{browser:'cdp'});
-      try{const nav=await tab.navigationInfo?.();if([403,429].includes(nav?.httpStatus)||nav?.cspcAccessBlock)accessStopped=true;}catch{}
+      await observeAccess(tab);
       await tab.close();
     }
     owned.length=0;
