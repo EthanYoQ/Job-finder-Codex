@@ -12,7 +12,7 @@ import { evaluatePaginationEvidence } from "./paginationEvidence";
 import { retryableHttpTransportFailure, retryableTransportFailureFromError, type SourceTransportFailure } from "./sourceFetchFailure";
 
 const ORIGIN = "https://www.novartis.com.cn", PATH = "/careers/career-search";
-export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"7" };
+export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"8" };
 export const NOVARTIS_PARTITION_PAGINATION = { allowCompleteTraversalOfEmptyFirstPage:true,...JOB_QUARANTINE_PAGINATION } as const;
 const FAIL = "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE", AUDIT = "novartis-partitions-audit";
 const clean = (s:string) => s.replace(/\s+/gu," ").trim();
@@ -53,7 +53,7 @@ function sameUrl(actual:string,expected:string):boolean {
     query:[...u.searchParams].map(([k,v])=>[k.replace(/\[\]/gu,"[0]"),v]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))};};
   return same(key(sanitizeEvidenceHttpUrl(actual)),key(sanitizeEvidenceHttpUrl(expected)));
 }
-function nativePartitionSortUrl(first:SourceFetchArtifactDraft,field:string,order="站点",sort="desc"):string {
+function nativePartitionSortUrl(first:SourceFetchArtifactDraft,field:string,order:string,sort="desc"):string {
   const $=load(body(first)),expected=partitionUrl(field,0,order,sort);
   const links=$("th a[href]").toArray().map(n=>new URL($(n).attr("href")!,first.requestedUrl!).href).filter(url=>sameUrl(url,expected));
   requireValue(links.length===1);return links[0]!;
@@ -128,17 +128,17 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],or
         first??=a;counts.push(parsed.count);own.push(...parsed.rows);traces.push([a,parsed.rows,`novartis:${field}`,p+1,parsed.count,parsed.pages,parsed.next]);
         if(!parsed.next){terminal=true;break;}url=parsed.next;}
       return {own,counts,traces,first:first!,terminal,closed:partitionClosed(own,counts,terminal)};};
-    let traversal=read(partitionUrl(field,0,order)),discarded:unknown,discardedLocationReverse:unknown;
+    let traversal=read(partitionUrl(field,0,order)),discarded:unknown,discardedReverse:unknown;
     const first=traversal.first;
-    if(!traversal.closed&&allowReverse&&traversal.terminal){discarded={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=read(nativePartitionSortUrl(first,field),"reverse-");}
+    if(!traversal.closed&&allowReverse&&traversal.terminal){discarded={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=read(nativePartitionSortUrl(first,field,order),"reverse-");}
     if(!traversal.closed&&allowTitleFallback&&traversal.terminal){
-      discardedLocationReverse={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};
+      discardedReverse={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};
       for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);
       traversal=read(nativePartitionSortUrl(first,field,"职位名称","asc"),"title-");
     }
     requireValue(traversal.closed);
     for(const trace of traversal.traces)addPage(...trace);
-    partitionAudit.push({field,declaredTotal:traversal.counts[0],uniqueCount:traversal.own.length,...(discarded?{discardedAscending:discarded,selectedSort:"desc"}:{}),...(discardedLocationReverse?{discardedLocationReverse,selectedOrder:"职位名称",selectedSort:"asc"}:{})});rows.push(...traversal.own);
+    partitionAudit.push({field,declaredTotal:traversal.counts[0],uniqueCount:traversal.own.length,...(discarded?{discardedAscending:discarded,selectedSort:"desc"}:{}),...(discardedReverse?{[order==="发布日期"?"discardedDateReverse":"discardedLocationReverse"]:discardedReverse,selectedOrder:"职位名称",selectedSort:"asc"}:{})});rows.push(...traversal.own);
   }
   requireValue(new Set(rows.map(r=>r.id)).size===rows.length);
   const primaryIds=new Set(rows.map(r=>r.id)),defaults=new Map<string,Row>(),defaultTotals:number[]=[];let url=NOVARTIS_DEFAULT_ENTRY,terminal=false;
@@ -167,8 +167,8 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],or
 }
 export function hasNovartisPartitionEvidence(e:PersistentSourceFetchEvidence):boolean {return e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name;}
 export function replayNovartisNativePartitions(plan:SourceCrawlPlan,e:PersistentSourceFetchEvidence) {
-  requireValue(e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name&&["4","5","6","7"].includes(e.captureTool.version));
-  const projected=projection(plan,e.artifacts,e.captureTool.version==="4"?"职位名称":"站点",["6","7"].includes(e.captureTool.version),e.captureTool.version==="7"),audit=e.artifacts.filter(a=>a.logicalKey===AUDIT);
+  requireValue(e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name&&["4","5","6","7","8"].includes(e.captureTool.version));
+  const projected=projection(plan,e.artifacts,e.captureTool.version==="8"?"发布日期":e.captureTool.version==="4"?"职位名称":"站点",["6","7","8"].includes(e.captureTool.version),["7","8"].includes(e.captureTool.version)),audit=e.artifacts.filter(a=>a.logicalKey===AUDIT);
   requireValue(audit.length===1&&audit[0]!.kind==="COMMAND_OUTPUT"&&audit[0]!.extractorLocator===AUDIT&&same(JSON.parse(body(audit[0]!)),projected.audit)&&
     same(e.pages,projected.pages)&&same(e.fetchCounts,projected.counts)&&same(e.fetchLosses,projected.losses)&&same(e.jobQuarantines??[],projected.quarantines)&&same(e.declaredCompleteness,{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,
       scope:"SOURCE",artifactLogicalKey:"novartis-partitions-root",extractorLocator:"novartis-native-partition-root-v1"}));
@@ -185,9 +185,10 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
         for(let p=0;p<100;p++){const a=await capture(url,`novartis-partition-${field}-${prefix}${p}`,"novartis-native-functional-page-v1",`novartis:${field}`),parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");
           first??=a;counts.push(parsed.count);own.push(...parsed.rows);if(!parsed.next){terminal=true;break;}url=parsed.next;}
         return {own,first:first!,terminal,closed:partitionClosed(own,counts,terminal)};};
-      let traversal=await read(partitionUrl(field,0,"站点"));const first=traversal.first;
+      // The official date order closed the real sales list; location/title orders repeated IDs across pages.
+      let traversal=await read(partitionUrl(field,0,"发布日期"));const first=traversal.first;
       // Only a separately complete traversal can replace the overlapping one; never union incomplete sets.
-      if(!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(nativePartitionSortUrl(first,field),"reverse-");}
+      if(!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(nativePartitionSortUrl(first,field,"发布日期"),"reverse-");}
       if(!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(nativePartitionSortUrl(first,field,"职位名称","asc"),"title-");}
       requireValue(traversal.closed);for(const row of traversal.own)primary.add(row.id);
     }
@@ -201,7 +202,7 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
       catch{const prior=artifacts.find(a=>a.logicalKey===key);if(prior?.httpStatus===403||prior?.httpStatus===429)detailsBlocked=true;
         if(!prior)artifacts.push({id:key,logicalKey:key,kind:'COMMAND_OUTPUT',requestedUrl:sanitizeEvidenceHttpUrl(row.url),capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify({kind:'NOVARTIS_DETAIL_UNAVAILABLE',expectedUrl:row.url}),bodyRepresentation:'EXACT',extractorLocator:'novartis-partition-same-id-detail-v1'});}
     }
-    const projected=projection(plan,artifacts,"站点",true,true);artifacts.push({id:AUDIT,logicalKey:AUDIT,kind:"COMMAND_OUTPUT",capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify(projected.audit),bodyRepresentation:"EXACT",extractorLocator:AUDIT});
+    const projected=projection(plan,artifacts,"发布日期",true,true);artifacts.push({id:AUDIT,logicalKey:AUDIT,kind:"COMMAND_OUTPUT",capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify(projected.audit),bodyRepresentation:"EXACT",extractorLocator:AUDIT});
     const evidence=parsePersistentSourceFetchEvidence({captureTool:NOVARTIS_PARTITION_CAPTURE,artifacts,pages:projected.pages,fetchCounts:projected.counts,fetchLosses:projected.losses,...(projected.quarantines.length?{jobQuarantines:projected.quarantines}:{}),declaredCompleteness:{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,scope:"SOURCE",artifactLogicalKey:"novartis-partitions-root",extractorLocator:"novartis-native-partition-root-v1"}});
     const paginationEvaluation=evaluatePaginationEvidence({evidence,expectedChannelIds:[...new Set(projected.pages.map(p=>p.channelId!))],filteredOutput:true,...NOVARTIS_PARTITION_PAGINATION});requireValue(paginationEvaluation.safeCompleteness&&paginationEvaluation.verifiedEligible);
     return {ok:true,capturedAt,html:projected.html,fetchEvidence:evidence,paginationEvaluation};

@@ -5,8 +5,8 @@ import {buildStagedSourceCrawlPlans} from '../src/crawler/sourcePlan.ts';
 import {acquireNovartisNativePartitions,replayNovartisNativePartitions} from '../src/crawler/novartisNativePartitions.ts';
 import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
 import {CITY_PENDING} from '../src/domain/jobLocation.ts';
-import {sanitizeEvidenceHttpUrl} from '../src/crawler/sourceFetchEvidence.ts';
-test('native site sorting preserves coverage, version-4 replay and unknown-detail accounting',async()=>{
+import {legacySortEvidence} from './novartis-legacy-fixture.mjs';
+test('native date sorting preserves coverage, historical replay and unknown-detail accounting',async()=>{
 const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-novartis-social');
 // The live form, including a new category, owns partition discovery.
 const fields=['QA','SA','DD','NEW'].map(x=>'FCT_'+x);
@@ -18,7 +18,7 @@ const ids=['REQ-10000001','REQ-10000002','REQ-10000003'];
 async function capture(mode='present',location='Shanghai (Shanghai)',alternative='',primaryCountry='China'){
  const at=new Date().toISOString();const requests=[];
  const fetched=await acquireNovartisNativePartitions(plan,async req=>{requests.push(req.url);const u=new URL(req.url),field=u.searchParams.get('functional_area[0]');
- if(field)assert.equal(u.searchParams.get('order'),'站点');
+ if(field)assert.equal(u.searchParams.get('order'),'发布日期');
  let html=req.url===plan.source.officialEntryUrl?root:field?page(field==='FCT_QA'?[ids[0]]:field==='FCT_SA'?[ids[1]]:[]):page(ids);
  if(field==='FCT_SA'&&['duplicate-page','changing-total'].includes(mode)){
   const p=Number(u.searchParams.get('page')??0),ten=Array.from({length:10},(_,i)=>`REQ-${10000010+i}`),next=new URL(u);next.searchParams.set('page','1');
@@ -30,18 +30,16 @@ async function capture(mode='present',location='Shanghai (Shanghai)',alternative
 }
 const c=await capture();if(!c.fetched.ok)console.log(c.fetched.failureReason,c.fetched.fetchEvidence?.artifacts.map(a=>a.logicalKey));assert(c.fetched.ok);assert.equal(c.fetched.fetchEvidence.fetchCounts.validCount,3);
 const e=c.fetched.fetchEvidence;const audit=replayNovartisNativePartitions(plan,e).audit;assert.equal(audit.indexDeclaredTotal,2);assert.equal(audit.observedUniqueCount,3);assert(!c.requests.some(u=>u.includes('moseeker')));
-assert.equal(e.captureTool.version,'7');
-const siteLegacy=structuredClone(e);siteLegacy.captureTool.version='5';
+assert.equal(e.captureTool.version,'8');
+const siteLegacy=legacySortEvidence(e,'5','站点');
 assert.equal(replayNovartisNativePartitions(plan,siteLegacy).audit.observedUniqueCount,3);
+assert.equal(replayNovartisNativePartitions(plan,legacySortEvidence(e,'7','站点')).audit.observedUniqueCount,3);
 const legacy=structuredClone(e);legacy.captureTool.version='4';
 assert.throws(()=>replayNovartisNativePartitions(plan,legacy),'Version 4 remains bound to title ordering');
-const titleOrder=new URL(sanitizeEvidenceHttpUrl(plan.source.officialEntryUrl)).searchParams.get('order');
-for(const a of legacy.artifacts)for(const key of ['requestedUrl','finalUrl'])if(a[key]){
- const u=new URL(a[key]);if(u.searchParams.has('functional_area[0]')){u.searchParams.set('order',titleOrder);a[key]=u.href;}
-}
-assert.equal(replayNovartisNativePartitions(plan,legacy).audit.observedUniqueCount,3);
-legacy.captureTool.version='5';
-assert.throws(()=>replayNovartisNativePartitions(plan,legacy),'Version 5 remains bound to site ordering');
+const titleLegacy=legacySortEvidence(e,'4','职位名称');
+assert.equal(replayNovartisNativePartitions(plan,titleLegacy).audit.observedUniqueCount,3);
+titleLegacy.captureTool.version='5';
+assert.throws(()=>replayNovartisNativePartitions(plan,titleLegacy),'Version 5 remains bound to site ordering');
 for(const mode of ['duplicate-page','changing-total'])assert.equal((await capture(mode)).fetched.ok,false,mode);
 assert(c.requests.some(url=>new URL(url).searchParams.get('functional_area[0]')==='FCT_NEW'));
 for(const [name,mutate] of [
