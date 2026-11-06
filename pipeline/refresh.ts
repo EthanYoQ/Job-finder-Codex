@@ -93,7 +93,7 @@ async function refresh() {
     ["/api/search?city="+encodeURIComponent("全部城市")+"&sort=COMPANY_PINYIN_ASC&limit=50&offset=0&province="+encodeURIComponent("全部地区"),{...search,snapshotStorage:"SAVED"}],
     ["/api/coverage?keyword=&offset=0&limit=60",{...coverage,snapshotStorage:"SAVED"}]
   ] as const){
-    const response=await fetch(new URL(path,process.env.JOBFINDER_VERIFY_BASE_URL),{headers:{"x-job-search-consent":"accepted"},signal:AbortSignal.timeout(30_000)});
+    const response:Response=await fetch(new URL(path,process.env.JOBFINDER_VERIFY_BASE_URL),{headers:{"x-job-search-consent":"accepted"},signal:AbortSignal.timeout(30_000)});
     if(!response.ok)throw Error("WEBSITE_READBACK_HTTP_FAILED");
     try{deepStrictEqual(await response.json(),expected);}catch{throw Error("WEBSITE_READBACK_MISMATCH");}
   }
