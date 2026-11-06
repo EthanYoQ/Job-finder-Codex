@@ -14,7 +14,7 @@ import type {NormalizedJobRecord} from './normalizedJob';
 /** These list-only producers use the same HTML adapter in capture and replay.
  * Detail/PDF/partition producers keep their owning source-specific projections. */
 export function hasHtmlRowQuarantine(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapterId:'html-table'}>{
- return plan.adapterId==='html-table'&&['source-abbvie-china-social','source-takeda-china-social','source-viatris-social'].includes(plan.source.id);
+ return plan.adapterId==='html-table'&&['source-abbvie-china-social','source-takeda-china-social','source-viatris-social','source-astellas-china-social'].includes(plan.source.id);
 }
 export function reviewHtmlJobRows(plan:Extract<SourceCrawlPlan,{adapterId:'html-table'}>,evidence:PersistentSourceFetchEvidence,capturedAt:string,isBaseline:boolean):{jobs:NormalizedJobRecord[];quarantines:JobQuarantine[]}{
  const raw=restoreQuarantinedList(evidence),jobs:NormalizedJobRecord[]=[],quarantines:JobQuarantine[]=[];

@@ -93,7 +93,7 @@ const legalDedupeEntrySchema = z.object({
 const legalScopeExclusionEntrySchema = z.object({
   rawLocatorSha256: SHA256,
   recordIndex: z.number().int().nonnegative(),
-  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE", "ROCHE_DETAIL_DENIED", "LILLY_OFFICIAL_APPLICATION_CLOSED"])
+  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE", "ROCHE_DETAIL_DENIED", "LILLY_OFFICIAL_APPLICATION_CLOSED",'ORGANON_OFFICIAL_APPLICATION_CLOSED'])
 }).strict();
 const certificateSchema = z.object({
   schemaVersion: z.literal(A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION),
@@ -294,11 +294,11 @@ export function issueAGradeOfficialTotalCertificate(
     : plan.source.id === "source-roche-china-social"
       // Strict source replay above already verified the exact approved denial and complete list.
       ? evidence.fetchLosses.filter(loss=>loss.details.code!=='JOB_QUARANTINED').map(loss=>({rawLocatorSha256:sha256(loss.rawLocator),recordIndex:loss.details.recordIndex as number,code:"ROCHE_DETAIL_DENIED" as const}))
-      : plan.source.id === "source-lilly-china-social"
+      : plan.source.id === "source-lilly-china-social"||plan.source.id==='source-organon-china-social'
         // Strict source replay above bound every closed shell to its original listed requisition.
         ? evidence.fetchLosses.filter(loss=>loss.details.code!=='JOB_QUARANTINED').map(loss=>({rawLocatorSha256:sha256(loss.rawLocator),
           recordIndex:evidence.pages.slice(0,loss.details.pageSequence as number).reduce((n,page)=>n+page.rawJobIds.length,0)+(loss.details.recordIndex as number),
-          code:"LILLY_OFFICIAL_APPLICATION_CLOSED" as const}))
+          code:plan.source.id==='source-organon-china-social'?'ORGANON_OFFICIAL_APPLICATION_CLOSED' as const:"LILLY_OFFICIAL_APPLICATION_CLOSED" as const}))
         : exactGrifolsScopeExclusionLedger(plan, evidence);
   const jobQuarantineLedger=jobQuarantineLossesMatch(evidence)?evidence.jobQuarantines!.map(row=>({
     rawLocatorSha256:sha256(row.rawLocator),pageSequence:row.pageSequence,recordIndex:row.recordIndex

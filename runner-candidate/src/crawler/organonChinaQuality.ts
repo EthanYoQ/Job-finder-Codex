@@ -156,7 +156,7 @@ function organonTextLocationScope(original: string): { pending: boolean; cities:
 /** The original keyword entry carries a server-rendered search snapshot. Only a
  * complete, identity-unique snapshot may prove equivalence to all country pages.
  * A partial/missing snapshot remains HOLD; equal totals alone never suffice. */
-export function organonKeywordCountryEquivalent(html: string | Uint8Array, rows: readonly Record<string,unknown>[]): boolean {
+export function organonKeywordCountryEquivalent(html: string | Uint8Array, rows: readonly unknown[]): boolean {
   try {
     const $ = load(typeof html === "string" ? html : Buffer.from(html).toString("utf8"));
     const assignments: string[] = [];
@@ -188,15 +188,16 @@ export function organonKeywordCountryEquivalent(html: string | Uint8Array, rows:
     if (!record(search) || search.status !== 200 || !Number.isSafeInteger(search.totalHits) || (search.totalHits as number) < 0 ||
       search.hits !== search.totalHits || !record(search.data) || search.data.keywords !== "China" ||
       !Array.isArray(search.data.jobs) || search.data.jobs.length !== search.totalHits || rows.length !== search.totalHits) return false;
-    const keyword = new Map<string,Record<string,unknown>>();
+    // List membership is independent of per-job field validity and presentation changes.
+    const key=(row:unknown)=>record(row)&&typeof row.jobSeqNo==='string'?`id:${row.jobSeqNo}`:`raw:${JSON.stringify(row)}`;
+    const keyword = new Set<string>();
     for (const row of search.data.jobs) {
-      if (!record(row) || !organonOfficialIdentity(row) || keyword.has(row.jobSeqNo as string)) return false;
-      keyword.set(row.jobSeqNo as string,row);
+      const id=key(row);if(keyword.has(id))return false;keyword.add(id);
     }
     const country = new Set<string>();
     for (const row of rows) {
-      const id=row.jobSeqNo as string;
-      if (!organonOfficialIdentity(row) || country.has(id) || !isDeepStrictEqual(keyword.get(id),row)) return false;
+      const id=key(row);
+      if (country.has(id)||!keyword.has(id)) return false;
       country.add(id);
     }
     return country.size === keyword.size;

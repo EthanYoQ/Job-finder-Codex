@@ -12,6 +12,7 @@ import type { SourceCrawlPlan } from "./sourcePlan";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import type { SourceFetchFunction } from "./runSourceCrawl";
 import type { StrictProfileBoundSourcePolicy } from "./profileBoundSourceEvidence";
+import {quarantineCompleteList,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
 
 export const AMGEN_MANUAL_WORKDAY_CONFIG = Object.freeze({ policy: "AMGEN_MANUAL_WORKDAY_LOOKUP_V2", pageSize: 12, maxPages: 30, lookupPageSize: 20, lookupMaxPages: 30 } as const);
 export type AmgenManualWorkdayConfig = typeof AMGEN_MANUAL_WORKDAY_CONFIG;
@@ -24,7 +25,7 @@ type Request = { url: string; method: "GET" | "POST"; headers: Record<string, st
 type Response = { body: string; status: number; finalUrl?: string; contentType?: string; capturedAt?: string };
 type Http = (request: Request) => Promise<Response>;
 type Role = "list" | "lookup" | "identity" | "application";
-type Row = { id: string; title: string; url: string };
+type Row = { id: string; title: string; url: string; listRowInvalid?:true };
 type LookupRow = { req: string; title: string; path: string; location: string };
 const { parsePage, pageBody, pageTrace } = amgenNativeListReplay;
 const hash = (v: string | Uint8Array) => createHash("sha256").update(v).digest("hex");
@@ -36,7 +37,7 @@ const json = (v: string) => { assert(hasUniqueJsonObjectKeys(v)); return object(
 const key = (role: Role, index: number) => `amgen-v2-${role}-${String(index).padStart(4, "0")}`;
 const request = (url: string, body?: unknown): Request => ({ url, method: body === undefined ? "GET" : "POST", headers: { Accept: "text/html,application/json", ...(body === undefined ? {} : { "Content-Type": "application/json; charset=utf-8" }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 const lookupRequest = (index: number) => request(LOOKUP, { appliedFacets: { LocationCountry: [CHINA] }, limit: 20, offset: index * 20 });
-const options = { expectedChannelIds: [] as string[], filteredOutput: true, allowPositiveOfficialTotalCountAfterAdapterReconciliation: true as const };
+const options = { expectedChannelIds: [] as string[], filteredOutput: true, ...JOB_QUARANTINE_PAGINATION };
 function exactPlan(plan: SourceCrawlPlan): boolean {
   return plan.adapterId === "official-json" && plan.company.id === "company-amgen-china" && plan.source.id === "source-amgen-china-social" &&
     plan.source.companyId === plan.company.id && plan.company.officialChineseName === "安进中国" && plan.company.category === "FOREIGN_PHARMA" &&
@@ -47,10 +48,12 @@ function exactPlan(plan: SourceCrawlPlan): boolean {
 }
 function artifact(role: Role, index: number, req: Request, response: Response, now: string): SourceFetchArtifactDraft {
   const mime = role === "lookup" || role === "application" || role === "list" && index > 1 ? /^application\/json(?:;|$)/iu : /^text\/html(?:;|$)/iu;
-  assert(response.status === 200 && response.finalUrl === req.url && typeof response.body === "string" && Buffer.byteLength(response.body) <= 2 * 1024 * 1024 && mime.test(response.contentType ?? ""));
+  const detail=role==='identity'||role==='application';
+  assert(Number.isInteger(response.status)&&response.status>=100&&response.status<=599&&response.finalUrl === req.url && typeof response.body === "string" && Buffer.byteLength(response.body) <= 2 * 1024 * 1024 &&
+    (response.status===200?mime.test(response.contentType??''):detail&&typeof response.contentType==='string'&&response.contentType.length>0));
   const capturedAt = response.capturedAt ?? now; assert(Number.isFinite(Date.parse(capturedAt)));
   return { id: key(role, index), logicalKey: key(role, index), kind: role === "list" ? "PAGINATION_PAGE" : role === "identity" ? "ATS_PAGE" : "ATS_API_RESPONSE",
-    requestedUrl: req.url, finalUrl: req.url, httpStatus: 200, contentType: response.contentType!, capturedAt, body: response.body, bodyRepresentation: "EXACT",
+    requestedUrl: req.url, finalUrl: req.url, httpStatus: response.status, contentType: response.contentType!, capturedAt, body: response.body, bodyRepresentation: "EXACT",
     extractorLocator: requestContractV2Locator(role === "list" ? "#search-results@data-total-job-results" : role === "lookup" ? "$.jobPostings:lookup-only" : role === "identity" ? "schema:JobPosting:identity-only" : "$.jobPostingInfo", {
       family: role === "lookup" || role === "application" ? "workday" : "html", role: `amgen-manual-workday-v2-${role}`, method: req.method, url: req.url,
       body: req.body ? JSON.parse(req.body) : null, coordinate: { index }
@@ -121,22 +124,23 @@ function reportArtifact(manualTotal: number, catalog: LookupRow[], bindings: Ret
   return { id: REPORT, logicalKey: REPORT, kind: "ORACLE_RESULT", capturedAt, bodyRepresentation: "EXACT", extractorLocator: "amgen-manual-workday-v2:replayed-bindings-and-lookup-only-difference",
     body: JSON.stringify({ policy: AMGEN_MANUAL_WORKDAY_CONFIG.policy, manualTotal, lookupTotal: catalog.length, lookupOnlyReqIds: catalog.filter(r => !selected.has(r.req)).map(r => r.req), bindings }) };
 }
-function assemble(artifacts: SourceFetchArtifactDraft[], pages: ReturnType<typeof parsePage>[], jobs: ReturnType<typeof project>["job"][]): PersistentSourceFetchEvidence {
+function assemble(artifacts: SourceFetchArtifactDraft[], pages: ReturnType<typeof parsePage>[], jobs: ReturnType<typeof project>["job"][],quarantines:JobQuarantine[]=[]): PersistentSourceFetchEvidence {
   let offset = 0;
   const traces = pages.map(page => { const selected = jobs.slice(offset, offset + page.rows.length); offset += page.rows.length; return pageTrace(page, artifacts.find(a => a.logicalKey === key("list", page.page))!, selected); });
   const first = artifacts[0]!;
-  return deriveCanonicalPaginationEvidence({ ...options, evidence: parsePersistentSourceFetchEvidence({ captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts, pages: traces,
+  const evidence=parsePersistentSourceFetchEvidence({ captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts, pages: traces,
     declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", scope: "SOURCE", value: pages[0]!.total, artifactLogicalKey: first.logicalKey, extractorLocator: first.extractorLocator },
-    fetchCounts: { rawCount: jobs.length, parsedCount: jobs.length, validCount: jobs.length, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] }) });
+    fetchCounts: { rawCount: jobs.length, parsedCount: jobs.length, validCount: jobs.length, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] });
+  return deriveCanonicalPaginationEvidence({...options,evidence:quarantineCompleteList(evidence,quarantines)});
 }
 function replay(artifacts: SourceFetchArtifactDraft[]) {
   const map = new Map(artifacts.map(a => [a.logicalKey, a])); assert(map.size === artifacts.length && artifacts.reduce((n, a) => n + Buffer.byteLength(a.body), 0) <= LIMIT);
   let consumed = 0, previous = Date.parse(artifacts[0]!.capturedAt); const start = previous;
   const read = (role: Role, index: number, req: Request) => {
-    const a = map.get(key(role, index)); assert(a && typeof a.body === "string" && a.logicalKey === artifacts[consumed++]?.logicalKey);
+    const a = map.get(key(role, index)); assert(a && typeof a.body === "string" && a.logicalKey === artifacts[consumed]?.logicalKey);
     const time = Date.parse(a.capturedAt); assert(time >= previous && time - start <= WINDOW); previous = time;
     const expected = artifact(role, index, req, { body: a.body, status: a.httpStatus!, finalUrl: a.finalUrl!, contentType: a.contentType!, capturedAt: a.capturedAt }, a.capturedAt);
-    assert(same({ ...a, id: expected.id }, expected)); return a.body;
+    assert(same({ ...a, id: expected.id }, expected));consumed++; assert(a.httpStatus===200); return a.body;
   };
   const entry = read("list", 1, request(AMGEN_NATIVE_ENTRY)), pages = [parsePage(entry, 1)]; pageBody(entry, 2);
   for (let i = 2; i <= pages[0]!.totalPages; i++) pages.push(parsePage(read("list", i, request(PAGES, pageBody(entry, i))), i));
@@ -145,20 +149,43 @@ function replay(artifacts: SourceFetchArtifactDraft[]) {
   const first = lookupPage(read("lookup", 0, lookupRequest(0)), 0), catalog = [...first.rows];
   for (let i = 1; i < Math.ceil(first.total / 20); i++) catalog.push(...lookupPage(read("lookup", i, lookupRequest(i)), i, first.total).rows);
   assert(catalog.length === first.total && new Set(catalog.map(r => r.req)).size === first.total && new Set(catalog.map(r => r.path)).size === first.total);
-  const selected = new Set<string>(), projected = rows.map((row, i) => { const html = read("identity", i, request(row.url)), id = identity(html, row), match = catalog.find(r => r.req === id.req);
-    assert(match && !selected.has(id.req)); selected.add(id.req); return project(row, html, match, read("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`))); });
+  const selected = new Set<string>(), projected:ReturnType<typeof project>[]=[],listJobs:ReturnType<typeof project>['job'][]=[],quarantines:JobQuarantine[]=[];
+  for(const [i,row]of rows.entries()){
+    let match:LookupRow|undefined,result:ReturnType<typeof project>|undefined;
+    try{
+      assert(!row.listRowInvalid);
+      const html=read('identity',i,request(row.url)),id=identity(html,row);match=catalog.find(r=>r.req===id.req);
+      assert(match&&!selected.has(id.req));selected.add(id.req);
+      result=project(row,html,match,read('application',i,request(`${WD}/wday/cxs/amgen/Careers${match.path}`)));
+    }catch{
+      // A failed request may have no bytes. Consume only its own retained originals.
+      for(const role of ['identity','application']as const){
+        const a=map.get(key(role,i));if(!a||artifacts[consumed]?.logicalKey!==a.logicalKey)continue;
+        const req=role==='identity'?request(row.url):match?request(`${WD}/wday/cxs/amgen/Careers${match.path}`):undefined;assert(req);
+        const time=Date.parse(a.capturedAt);assert(time>=previous&&time-start<=WINDOW);previous=time;
+        assert(same({...a,id:key(role,i)},artifact(role,i,req,{body:a.body as string,status:a.httpStatus!,finalUrl:a.finalUrl!,contentType:a.contentType!,capturedAt:a.capturedAt},a.capturedAt)));consumed++;
+      }
+    }
+    if(result){projected.push(result);listJobs.push(result.job);continue;}
+    const sourceJobId=match?`workday:sha256:${hash(match.path)}`:undefined,placeholder=`unidentified:${i}`;
+    const pageSequence=Math.floor(i/12),recordIndex=i%12,validJobId=`sha256:${hash(placeholder)}`;
+    quarantines.push({pageSequence,recordIndex,validJobId,rawLocator:`${key('list',pageSequence+1)}#row:${recordIndex}`,code:'AMGEN_JOB_UNVERIFIED',
+      ...(sourceJobId?{sourceJobId,officialUrl:`${WD}/Careers${match!.path}`}:{})});
+    listJobs.push({sourceJobId:placeholder,title:'',officialUrl:'',locationRaw:'',cities:[]});
+  }
   assert(artifacts.length === consumed + 1);
   const report = reportArtifact(rows.length, catalog, projected.map(p => p.binding), artifacts[consumed - 1]!.capturedAt);
   assert(same(artifacts[consumed], report));
   const jobs = projected.map(p => p.job); assert(new Set(jobs.map(j => j.sourceJobId)).size === jobs.length);
-  return { evidence: assemble(artifacts, pages, jobs), jobs };
+  return { evidence: assemble(artifacts, pages, listJobs,quarantines), jobs };
 }
 export function createAmgenManualWorkdaySourceFetch(deps: { http?: Http; now?: () => Date } = {}): SourceFetchFunction {
   return async plan => {
     const now = deps.now ?? (() => new Date()), startedAt = now().toISOString(), artifacts: SourceFetchArtifactDraft[] = []; let bytes = 0;
     try {
       assert(exactPlan(plan)); const http: Http = deps.http ?? (r => fetchWorkdayMainlandHttp(r.method === "POST" ? { ...r, method: "POST", body: r.body! } : { ...r, method: "GET" }));
-      const acquire = async (role: Role, index: number, req: Request) => { const a = artifact(role, index, req, await http(req), now().toISOString()); bytes += Buffer.byteLength(a.body); assert(bytes <= LIMIT); artifacts.push(a); return a.body as string; };
+      let blocked=false;
+      const acquire = async (role: Role, index: number, req: Request) => { assert(!blocked);const response=await http(req);if(response.status===403||response.status===429)blocked=true;const a = artifact(role, index, req, response, now().toISOString()); bytes += Buffer.byteLength(a.body); assert(bytes <= LIMIT); artifacts.push(a);assert(a.httpStatus===200); return a.body as string; };
       const entry = await acquire("list", 1, request(AMGEN_NATIVE_ENTRY)), pages = [parsePage(entry, 1)]; pageBody(entry, 2);
       for (let i = 2; i <= pages[0]!.totalPages; i++) pages.push(parsePage(await acquire("list", i, request(PAGES, pageBody(entry, i))), i));
       const rows = pages.flatMap(p => p.rows); assert(rows.length === pages[0]!.total && new Set(rows.map(r => r.id)).size === rows.length);
@@ -166,9 +193,9 @@ export function createAmgenManualWorkdaySourceFetch(deps: { http?: Http; now?: (
       for (let i = 1; i < Math.ceil(first.total / 20); i++) catalog.push(...lookupPage(await acquire("lookup", i, lookupRequest(i)), i, first.total).rows);
       assert(catalog.length === first.total && new Set(catalog.map(r => r.req)).size === first.total && new Set(catalog.map(r => r.path)).size === first.total);
       const bindings: ReturnType<typeof project>["binding"][] = [], seen = new Set<string>();
-      for (let i = 0; i < rows.length; i++) { const row = rows[i]!, html = await acquire("identity", i, request(row.url)), id = identity(html, row), match = catalog.find(r => r.req === id.req);
+      for (let i = 0; i < rows.length; i++) {try{ const row = rows[i]!;assert(!row.listRowInvalid);const html = await acquire("identity", i, request(row.url)), id = identity(html, row), match = catalog.find(r => r.req === id.req);
         assert(match && !seen.has(id.req)); seen.add(id.req);
-        bindings.push(project(row, html, match, await acquire("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`))).binding); }
+        bindings.push(project(row, html, match, await acquire("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`))).binding); }catch{/* Keep the complete list; replay derives this job's quarantine from retained originals. */} }
       const report = reportArtifact(rows.length, catalog, bindings, artifacts.at(-1)!.capturedAt);
       assert(bytes + Buffer.byteLength(report.body) <= LIMIT); artifacts.push(report);
       const result = replay(artifacts), paginationEvaluation = evaluatePaginationEvidence({ ...options, evidence: result.evidence }); assert(paginationEvaluation.safeCompleteness && paginationEvaluation.verifiedEligible);

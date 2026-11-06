@@ -100,7 +100,7 @@ function validateBaseStrictHtmlCompletenessProof(
           : false;
     }
     if (policy.kind === "STATIC_PUBLIC_LIST") {
-      return validateStaticPublicList(plan, evidence, exact);
+      return validateStaticPublicList(plan, evidence, exact,quarantines);
     }
     return htmlProofTrace(plan, "UNSUPPORTED_POLICY");
   } catch {
@@ -929,7 +929,7 @@ function validateTupuTraversal(
 function validateStaticPublicList(
   plan: HtmlPlan,
   evidence: PersistentSourceFetchEvidence,
-  artifacts: readonly ExactArtifact[]
+  artifacts: readonly ExactArtifact[],quarantines:readonly JobQuarantine[]=[]
 ): boolean {
   const config = plan.table.staticPublicList;
   const declaration = evidence.declaredCompleteness!;
@@ -970,7 +970,7 @@ function validateStaticPublicList(
     return validateApeloaStaticPlan(plan, $, rows);
   }
   if (policy.sourcePolicy === "ASTELLAS_CHINA_PDF_ACCORDION_V1") {
-    return validateAstellasStaticPlan(plan, $, rows);
+    return validateAstellasStaticPlan(plan, $, rows,quarantines);
   }
   // Retired zero-only policy names intentionally fall through to rejection.
   // Do not downgrade them to the generic static-list policy.
@@ -1015,7 +1015,7 @@ function validateApeloaStaticPlan(
 function validateAstellasStaticPlan(
   plan: HtmlPlan,
   $: ReturnType<typeof load>,
-  rows: readonly AnyNode[]
+  rows: readonly AnyNode[],quarantines:readonly JobQuarantine[]=[]
 ): boolean {
   const config = plan.table.staticPublicList;
   if (plan.source.id !== "source-astellas-china-social" ||
@@ -1031,7 +1031,8 @@ function validateAstellasStaticPlan(
   if (accordions.length !== 1 || allPdfs.length !== rows.length ||
     rows.some((row) => !allPdfs.includes(row))) return false;
   const seenUrls = new Set<string>();
-  for (const row of rows) {
+  for (const [index,row] of rows.entries()) {
+    if(quarantines.some(q=>q.pageSequence===0&&q.recordIndex===index))continue;
     const element = $(row);
     const rawUrl = element.attr("href");
     const url = rawUrl ? strictSameOriginUrl(rawUrl, plan.source.officialEntryUrl) : undefined;
