@@ -17,7 +17,8 @@ import type {NormalizedJobRecord} from './normalizedJob';
 /** A damaged row without an identity is an observation at a physical position. */
 export function htmlRowObservationId($:ReturnType<typeof load>,row:AnyNode,table:HtmlTableConfig,pageSequence:number,recordIndex:number):string{
  const fields=table.fields;
- const known=fields.sourceJobId?readField($,row,fields.sourceJobId):fields.sourceJobIdParts?fields.sourceJobIdParts.every(field=>readField($,row,field)):readField($,row,fields.officialUrl);
+ const url=readField($,row,fields.officialUrl);
+ const known=fields.sourceJobId?readField($,row,fields.sourceJobId):fields.sourceJobIdParts?fields.sourceJobIdParts.every(field=>readField($,row,field)):url&&isSafeAdapterUrl(url,'https://identity.invalid');
  const raw=$.html(row),value=known?raw:JSON.stringify([pageSequence,recordIndex,raw]);
  return `html-row:sha256:${createHash('sha256').update(value).digest('hex')}`;
 }
@@ -25,7 +26,7 @@ export function htmlRowObservationId($:ReturnType<typeof load>,row:AnyNode,table
 /** These list-only producers use the same HTML adapter in capture and replay.
  * Detail/PDF/partition producers keep their owning source-specific projections. */
 export function hasHtmlRowQuarantine(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapterId:'html-table'}>{
- return plan.adapterId==='html-table'&&['source-abbvie-china-social','source-takeda-china-social','source-viatris-social','source-astellas-china-social'].includes(plan.source.id);
+ return plan.adapterId==='html-table'&&['source-abbvie-china-social','source-takeda-china-social','source-viatris-social','source-astellas-china-social','source-qilu-social'].includes(plan.source.id);
 }
 export function reviewHtmlJobRows(plan:Extract<SourceCrawlPlan,{adapterId:'html-table'}>,evidence:PersistentSourceFetchEvidence,capturedAt:string,isBaseline:boolean):{jobs:NormalizedJobRecord[];quarantines:JobQuarantine[]}{
  const raw=restoreQuarantinedList(evidence),jobs:NormalizedJobRecord[]=[],quarantines:JobQuarantine[]=[];
@@ -37,12 +38,14 @@ export function reviewHtmlJobRows(plan:Extract<SourceCrawlPlan,{adapterId:'html-
   const input={company:plan.company,source:plan.source,table:plan.table,html,capturedAt,isBaseline};
   const result=htmlTableAdapter.extract(input),$=load(html),rows=selectHtmlTableRows($,plan.table);
   if(rows.length!==page.rawJobIds.length||!result.reconciliation)throw Error('HTML_JOB_QUARANTINE_ROW_COUNT_INVALID');
-  jobs.push(...result.jobs);
-  for(const loss of result.reconciliation.adapterLosses){
+  const qiluIdentity=(value:string)=>{try{const u=new URL(value,plan.source.officialEntryUrl);return u.origin==='https://www.qilu-pharma.com'&&u.pathname.startsWith('/JobPosting_Detail/')&&!u.search&&!u.hash&&!u.username&&!u.password;}catch{return false;}};
+  const wrongIdentity=plan.source.id==='source-qilu-social'?rows.flatMap((row,rawIndex)=>{const url=readField($,row,plan.table.fields.officialUrl);return url&&!qiluIdentity(url)?[{rawIndex}]:[];}):[];
+  jobs.push(...result.jobs.filter(job=>plan.source.id!=='source-qilu-social'||qiluIdentity(job.officialUrl)));
+  for(const loss of [...result.reconciliation.adapterLosses,...wrongIdentity.filter(row=>!result.reconciliation!.adapterLosses.some(loss=>loss.rawIndex===row.rawIndex))]){
    const row=rows[loss.rawIndex];if(!row)throw Error('HTML_JOB_QUARANTINE_ROW_MISSING');
    const id=plan.table.fields.sourceJobId?readField($,row,plan.table.fields.sourceJobId):undefined;
    const rawUrl=readField($,row,plan.table.fields.officialUrl);
-   const officialUrl=rawUrl&&isSafeAdapterUrl(rawUrl,plan.source.officialEntryUrl)?sanitizeEvidenceHttpUrl(new URL(rawUrl,plan.source.officialEntryUrl).href):undefined;
+   const officialUrl=rawUrl&&(plan.source.id!=='source-qilu-social'||qiluIdentity(rawUrl))&&isSafeAdapterUrl(rawUrl,plan.source.officialEntryUrl)?sanitizeEvidenceHttpUrl(new URL(rawUrl,plan.source.officialEntryUrl).href):undefined;
    quarantines.push({pageSequence,recordIndex:loss.rawIndex,validJobId:page.rawJobIds[loss.rawIndex]!,rawLocator:`${page.artifactLogicalKey}#row:${loss.rawIndex}`,
     ...(id&&!containsSensitiveAdapterValue(id)?{sourceJobId:id}:{}),...(officialUrl?{officialUrl}:{}),code:'JOB_ROW_NORMALIZATION_FAILED'});
   }

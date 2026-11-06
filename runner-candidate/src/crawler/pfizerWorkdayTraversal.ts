@@ -74,7 +74,7 @@ function identity(raw: unknown) {
 }
 // Main path uses the native Workday country objects, not the browser's JSON-LD classifier.
 export function projectPfizerDetail(raw: unknown, detailBody: string) {
-    const { row, id, path } = identity(raw), root = parse(detailBody), info = record(root.jobPostingInfo);
+    const { id, path } = identity(raw), root = parse(detailBody), info = record(root.jobPostingInfo);
     const country = record(info.country), requisition = record(record(info.jobRequisitionLocation).country);
     if (info.jobReqId !== id || typeof info.title !== "string" || !info.title.trim() || info.jobPostingSiteId !== "PfizerCareers" ||
         info.externalUrl !== PFIZER_ENTRY + path || info.posted !== true || info.canApply !== true ||
@@ -131,7 +131,7 @@ function slot(raw:unknown,pageSequence:number,recordIndex:number){
   const rawId=irreversibleOfficialJsonEvidenceId(nativeId??[pageSequence,recordIndex,raw]);
   const quarantine:JobQuarantine={pageSequence,recordIndex,rawLocator:`pfizer-page-${pageSequence}#record:${recordIndex}#${rawId}`,validJobId:bound?irreversibleOfficialJsonEvidenceId(pfizerSourceJobId(bound.path)):rawId,code:'PFIZER_JOB_UNVERIFIED',
     ...(bound?{sourceJobId:pfizerSourceJobId(bound.path),officialUrl:PFIZER_ENTRY+bound.path}:{})};
-  return {nativeId,bound,rawId,quarantine};
+  return {bound,rawId,quarantine};
 }
 function projectSlots(pages:readonly SourceFetchPageTrace[],artifacts:readonly SourceFetchArtifactDraft[],legacy=false){
   const jobs:ReturnType<typeof projectPfizerDetail>['job'][]=[],losses:PersistentSourceFetchEvidence['fetchLosses']=[],quarantines:JobQuarantine[]=[],used=new Set<string>();

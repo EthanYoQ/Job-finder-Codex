@@ -1,3 +1,4 @@
+import {qiluReviewedRowGeography} from './manualChromeQiluReplay';
 import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
 import { hasBiSemanticPlan, biJobId, biJobQuarantine, biRawObservationId, hasBiMainlandGeography, biDisplayCities } from "./biSemanticCompleteness";
 import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
@@ -10,7 +11,7 @@ import {isolateBeisenJobRows,beisenRawObservationId} from './beisenJobQuarantine
 import {quarantineFetchLosses,quarantineCompleteList,jobQuarantineLoss,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
 import {sanitizeEvidenceHttpUrl,parsePersistentSourceFetchEvidence} from './sourceFetchEvidence';
 import {phenomJobQuarantine} from './phenomJobQuarantine';
-import {exactFosunHongKongOnlyScope} from './strictSourceScopeExclusionProof';
+import {exactFosunHongKongOnlyScope,exactQiluUnitedStatesOrHongKongScope} from './strictSourceScopeExclusionProof';
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
@@ -409,7 +410,7 @@ export function createOfficialJsonSourceFetch(
           entryUrl: plan.source.officialEntryUrl,
           capturedAt,
           now
-        }),plan.source.id==='source-fosun-pharma-social'?exactFosunHongKongOnlyScope:()=>false), deps.http, now));
+        }),plan.source.id==='source-fosun-pharma-social'?exactFosunHongKongOnlyScope:plan.source.id==='source-qilu-social'?exactQiluUnitedStatesOrHongKongScope:()=>false), deps.http, now));
       }
 
       if (plan.officialJsonFetch.kind === "cnstaff") {
@@ -3559,6 +3560,9 @@ async function fetchBeisenZhiye2022({
           scope === "AMBIGUOUS" ? "AMBIGUOUS_SCOPE" : "OUT_OF_SCOPE",
           rawLocator, pageIndex, recordIndex);
         continue;
+      }
+      if(config.scopeExclusionProof==='QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2'&&!['EXPLICIT_MAINLAND','NATIONWIDE_ONLY'].includes(qiluReviewedRowGeography(raw)??'')){
+        recordBeisenLoss(losses,counts,'VALIDATION','AMBIGUOUS_SCOPE',rawLocator,pageIndex,recordIndex);continue;
       }
       let officialUrl: string;
       try {

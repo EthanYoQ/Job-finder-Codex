@@ -373,7 +373,7 @@ function exactForeignScope(raw: unknown): boolean {
     : scope.locations.length > 0 && scope.locations.every((value) => exactForeignValue(value, ALL_FOREIGN_TERMS));
 }
 
-function exactQiluUnitedStatesOrHongKongScope(raw: unknown): boolean {
+export function exactQiluUnitedStatesOrHongKongScope(raw: unknown): boolean {
   const scope = beisenScopeValues(raw);
   if (!scope || scope.all.length === 0 || scope.all.some((value) =>
     MAINLAND_MARKER.test(value.normalize("NFKC")))) return false;

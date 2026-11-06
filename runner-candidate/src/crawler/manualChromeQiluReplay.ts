@@ -5,14 +5,19 @@ import { manualCaptureError, manualCaptureSha256, parseManualCaptureJson } from 
 const reviewedNationwideLocations = new Set(["全国", "中国", "中国大陆"]);
 const reviewedForeignLocations = new Set(["美国", "香港", "香港特别行政区", "united states", "usa", "hong kong"]);
 
-/** Closed-label scope review, including alternate-field contradiction checks. */
+export function qiluOfficialLocationParts(raw:Record<string,unknown>):string[]{
+ if(Array.isArray(raw.LocNames)&&raw.LocNames.length)return raw.LocNames.filter((v):v is string=>typeof v==='string').map(v=>v.trim());
+ const fallback=[raw.LocName,raw.LocationName,raw.City].find(v=>typeof v==='string'&&v.trim());return typeof fallback==='string'?[fallback.trim()]:[];
+}
+/** Country and mainland geography bind scope; display aliases need no exact text equality. */
 export function qiluReviewedRowGeography(raw: unknown): "EXPLICIT_MAINLAND" | "NATIONWIDE_ONLY" | "AUDITED_FOREIGN_ONLY" | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const row = raw as Record<string, unknown>;
-  if (!Array.isArray(row.LocNames) || row.LocNames.length === 0 || row.LocNames.some(value => typeof value !== "string")) return undefined;
-  const locations = (row.LocNames as string[]).map(value => value.normalize("NFKC").trim());
+  if(Array.isArray(row.LocNames)&&row.LocNames.some(value=>typeof value!=='string'))return undefined;
+  const locations=qiluOfficialLocationParts(row).map(value=>value.normalize('NFKC').trim());if(!locations.length)return undefined;
   const foreignGroup = (value:string):string|undefined => /^(?:美国|united states|usa)$/iu.test(value) ? "US" : /^(?:香港|香港特别行政区|hong kong)$/iu.test(value) ? "HK" : undefined;
-  const mainland = hasExactFosunMainlandGeography(row);
+  const mainland = hasExactFosunMainlandGeography({...row,LocNames:locations});
+  if(mainland)return locations.every(value=>reviewedNationwideLocations.has(value))?"NATIONWIDE_ONLY":"EXPLICIT_MAINLAND";
   const foreign = locations.every(value => reviewedForeignLocations.has(value.toLowerCase()));
   if (locations.some(value => !value) || (!mainland && !foreign)) return undefined;
   for (const field of ["Country", "CountryName", "LocName", "LocationName", "City"] as const) {

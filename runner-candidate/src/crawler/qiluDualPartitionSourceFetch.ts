@@ -1,3 +1,6 @@
+import {beisenRawObservationId,verifyBeisenListQuarantines} from './beisenJobQuarantine';
+import {reviewHtmlJobRows,replayHtmlJobRows} from './htmlJobQuarantine';
+import {jobQuarantineLossesMatch,type JobQuarantine} from './jobQuarantine';
 import { mainlandDisplayCities } from "./fosunScopeGeography";
 import { load } from "cheerio";
 import { collectQiluMainPartitions, qiluPartitionPlans, type QiluMainPartitionCapture } from "./qiluDualPartitionMainCapture";
@@ -9,10 +12,9 @@ import { evaluatePaginationEvidence } from "./paginationEvidence";
 import type { StrictProfileBoundSourcePolicy } from "./profileBoundSourceEvidence";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import { validateStrictHtmlCompletenessProof } from "./strictHtmlCompletenessProof";
-import { htmlTableAdapter } from "./adapters/htmlTable";
 import { irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from "./officialJsonEvidence";
 import { requestContractV2Locator } from "./strictPageRequestContract";
-import { replayManualQiluCapture, qiluReviewedRowGeography } from "./manualChromeQiluReplay";
+import { qiluReviewedRowGeography,qiluOfficialLocationParts } from "./manualChromeQiluReplay";
 import { parseManualCaptureJson } from "./manualChromeCaptureEvidence";
 import { validateQiluForeignLossRowsForDiagnostic } from "./strictSourceScopeExclusionProof";
 const CHANNELS = QILU_DUAL_PARTITION_PROFILE.expectedChannelIds;
@@ -85,12 +87,14 @@ function compose(originals: readonly PersistentSourceFetchEvidence[]): Persisten
     const artifacts: PersistentSourceFetchEvidence["artifacts"] = [];
     const pages: PersistentSourceFetchEvidence["pages"] = [];
     const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+    const quarantines:JobQuarantine[]=[];
     const metadata = originals.map((e, index) => {
         const channelId = CHANNELS[index]!;
         const prefix = channelId + "-";
         const offset = pages.length;
         artifacts.push(...e.artifacts.map(a => ({ ...a, id: prefix + a.id, logicalKey: prefix + a.logicalKey, channelId })));
         pages.push(...e.pages.map(p => ({ ...p, sequence: offset + p.sequence, artifactLogicalKey: prefix + p.artifactLogicalKey, channelId })));
+        quarantines.push(...(e.jobQuarantines??[]).map(q=>({...q,pageSequence:offset+q.pageSequence,rawLocator:prefix+q.rawLocator})));
         losses.push(...e.fetchLosses.map(l => ({ ...l, rawLocator: prefix + l.rawLocator, details: { ...l.details,
                 ...(l.details.pageSequence !== undefined ? { pageSequence: offset + l.details.pageSequence } : {}) } })));
         return { channelId, evidence: { ...e, artifacts: e.artifacts.map(({ body, ...a }) => ({ ...a, bodySha256: sha(typeof body === "string" ? body : Buffer.from(body).toString("utf8")) })) } };
@@ -105,7 +109,7 @@ function compose(originals: readonly PersistentSourceFetchEvidence[]): Persisten
             fetchCounts[key] += e.fetchCounts[key];
     return parsePersistentSourceFetchEvidence({ captureTool: { name: "qilu-required-partition-http", version: "1" }, artifacts, pages,
         declaredCompleteness: { kind: "COMPLETE_PAGE_TRAVERSAL", value: pages.length, artifactLogicalKey: DECLARATION, extractorLocator: LOCATOR, scope: "SOURCE" },
-        fetchCounts, fetchLosses: losses });
+        fetchCounts, fetchLosses: losses,...(quarantines.length?{jobQuarantines:quarantines}:{}) });
 }
 function recover(e: PersistentSourceFetchEvidence): PersistentSourceFetchEvidence[] {
     const artifact = e.artifacts.find(a => a.logicalKey === MANIFEST);
@@ -148,7 +152,8 @@ export function validateStrictQiluDualPartitionEvidence(plan: SourceCrawlPlan, i
         const $ = load(ma.body);
         if (!$("a[href]").toArray().some(a => $(a).attr("href") === "https://qilu-pharma.zhiye.com/social" && /社会招聘/u.test($(a).text()) && /非营销/u.test($(a).text())))
             return false;
-        const marketingJobs = htmlTableAdapter.extract({ ...marketingPlan, html: ma.body, capturedAt: ma.capturedAt, isBaseline: true }).jobs;
+        const marketingJobs=reviewHtmlJobRows(marketingPlan,marketing,ma.capturedAt,true).jobs;
+        if(marketing.jobQuarantines?.length&&!replayHtmlJobRows(marketingPlan,marketing,marketingJobs,ma.capturedAt))return false;
         if (marketingJobs.length !== marketing.fetchCounts.validCount)
             return false;
         const expected = marketingJobs.map(j => ({ sourceJobId: j.sourceJobId, title: j.officialTitle, url: j.officialUrl, location: j.locationRaw, cities: j.cities }));
@@ -157,6 +162,8 @@ export function validateStrictQiluDualPartitionEvidence(plan: SourceCrawlPlan, i
         if (nonmarketing.captureTool.name !== "official-json-http" || nonmarketing.captureTool.version !== "1" ||
             nonmarketing.artifacts.length !== nonmarketing.pages.length || !validateQiluForeignLossRowsForDiagnostic(nonmarketing))
             return false;
+        if(nonmarketing.jobQuarantines?.length&&(!jobQuarantineLossesMatch(nonmarketing)||!verifyBeisenListQuarantines(qiluPartitionPlans()[1],nonmarketing)))return false;
+        const seenIds=new Set<string>();let total:number|undefined,rawCount=0;
         const entries = nonmarketing.pages.map((p, index) => {
             const a = nonmarketing.artifacts.find(a => a.logicalKey === p.artifactLogicalKey)!;
             const request = { PageIndex: index, PageSize: 15, Category: ["1"], KeyWords: "", SpecialType: 0, PortalId: "", DisplayFields: ["Category", "LocId", "Org", "PostDate", "WorkWeChatQrCode"] };
@@ -176,24 +183,22 @@ export function validateStrictQiluDualPartitionEvidence(plan: SourceCrawlPlan, i
                 p.nextPageSignalAfter !== (last ? null : `page:${index + 1}`) || p.termination !== (last ? "NEXT_ABSENT" : "CONTINUE") ||
                 p.anomalyCodes.length !== 0 || !/^application\/(?:[a-z0-9.+-]+\+)?json(?:;|$)/iu.test(a.contentType ?? ""))
                 throw new Error("Invalid Beisen trace");
-            if (!eq(p.rawJobIds, root.Data.map((r: any) => irreversibleOfficialJsonEvidenceId(r.Id.toLowerCase()))))
-                throw new Error("Invalid raw IDs");
-            if (root.Data.some((r: any) => typeof r.Id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(r.Id))) throw new Error("Invalid canonical UUID");
-            if (root.Data.some((r: any) => typeof r.Category !== "string" || r.Category.trim() !== "社会招聘" ||
-                String(r.CategoryId).trim() !== "1" || (typeof r.Kind === "string" && /(?:校园|校招|campus)/iu.test(r.Kind))))
-                throw new Error("Invalid social channel row");
-            if (root.Data.some((row: unknown) => qiluReviewedRowGeography(row) === undefined)) throw new Error("Unresolved or conflicting alternate geography");
+            if(root.Code!==200||!Number.isSafeInteger(root.Count)||root.Count<0||!Array.isArray(root.Data))throw Error('Qilu partition response invalid');
+            total??=root.Count;if(root.Count!==total||root.Data.length!==Math.min(15,Math.max(0,total!-index*15)))throw Error('Qilu partition page incomplete');rawCount+=root.Data.length;
+            for(const row of root.Data){if(typeof row?.Id==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(row.Id)){const id=row.Id.toLowerCase();if(seenIds.has(id))throw Error('Qilu duplicate native identity');seenIds.add(id);}}
+            if(!eq(p.rawJobIds,root.Data.map((r:unknown,n:number)=>beisenRawObservationId(r,index,n))))throw Error('Invalid raw IDs');
             const excluded = new Set(nonmarketing.fetchLosses.filter(l => l.details.pageSequence === index).map(l => l.details.recordIndex));
             const valid = root.Data.filter((_r: any, i: number) => !excluded.has(i));
             if (!eq(p.validJobIds, valid.map((r: any) => irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId(r.Id.toLowerCase())))))
                 throw new Error("Invalid valid IDs");
+            if(valid.some((r:any)=>!r||typeof r.Id!=='string'||typeof r.JobAdName!=='string'||!r.JobAdName.trim()||r.Category!=null&&String(r.Category).trim()!=='社会招聘'||r.CategoryId!=null&&String(r.CategoryId).trim()!=='1'||typeof r.Kind==='string'&&/(?:校园|校招|campus)/iu.test(r.Kind)||!['EXPLICIT_MAINLAND','NATIONWIDE_ONLY'].includes(qiluReviewedRowGeography(r)??'')||!qiluOfficialLocationParts(r).length))throw Error('Qilu current row unresolved');
             if (valid.some((r: any) => [r.Country, r.CountryName].some(country => country != null &&
                 (typeof country !== "string" || (country.trim() !== "" && !/^(?:china|prc|mainland china|china mainland|people'?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(country.normalize("NFKC").trim()))))))
                 throw new Error("Conflicting country scope");
             for (const r of valid)
-                expected.push({ sourceJobId: persistentOfficialJsonJobId(r.Id.toLowerCase()), title: r.JobAdName.trim(),
-                    url: `https://qilu-pharma.zhiye.com/social/detail?jobAdId=${r.Id.toLowerCase()}`, location: r.LocNames.map((s: string) => s.trim()).join(" / "),
-                    cities: mainlandDisplayCities(r.LocNames) });
+                expected.push({ sourceJobId: persistentOfficialJsonJobId(r.Id.toLowerCase()), title: r.JobAdName.replace(/\s+/gu," ").trim(),
+                    url: `https://qilu-pharma.zhiye.com/social/detail?jobAdId=${r.Id.toLowerCase()}`, location: qiluOfficialLocationParts(r).join(" / "),
+                    cities: mainlandDisplayCities(qiluOfficialLocationParts(r)) });
             return { started_at: a.capturedAt, url: API, method: "POST", http_status: 200, request_json_text: JSON.stringify(request), response_json_text: a.body,
                 request_text_sha256: sha(JSON.stringify(request)), response_text_sha256: sha(a.body) };
         });
@@ -203,10 +208,7 @@ export function validateStrictQiluDualPartitionEvidence(plan: SourceCrawlPlan, i
             nd.extractorLocator !== nonmarketing.artifacts[0]?.extractorLocator || nonmarketing.fetchCounts.parseDiscardCount !== 0 ||
             nonmarketing.fetchCounts.parsedCount !== nonmarketing.fetchCounts.rawCount || nonmarketing.supportingArtifactOnlyFailure !== undefined)
             return false;
-        const replay = replayManualQiluCapture({ business: { entries }, now: new Date(Math.max(...entries.map(e => Date.parse(e.started_at)))) });
-        if (replay.geographyCounts.unresolvedOrMixed !== 0 || replay.geographyCounts.auditedForeignOnly !== nonmarketing.fetchLosses.length ||
-            replay.rawCount !== nonmarketing.fetchCounts.rawCount || nonmarketing.fetchCounts.validCount !== expected.length - marketingJobs.length)
-            return false;
+        if(total===undefined||entries.length!==Math.max(1,Math.ceil(total/15))||rawCount!==total||rawCount!==nonmarketing.fetchCounts.rawCount||nonmarketing.fetchCounts.validCount!==expected.length-marketingJobs.length||nonmarketing.fetchCounts.validationDiscardCount!==nonmarketing.fetchLosses.length||nonmarketing.fetchCounts.validCount+nonmarketing.fetchCounts.validationDiscardCount!==rawCount)return false;
         const evaluation = evaluatePaginationEvidence({ evidence: e, expectedChannelIds: CHANNELS, filteredOutput: true, allowMissingReturnedPage: true, allowIndependentlyVerifiedProfileBoundExclusions: true });
         if (!evaluation.safeCompleteness || !evaluation.verifiedEligible)
             return false;

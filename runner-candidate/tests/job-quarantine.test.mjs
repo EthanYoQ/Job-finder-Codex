@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {quarantinedPriorJobKeys,sameNovartisRequisition} from '../src/crawler/jobQuarantine.ts';
+import {quarantinedPriorJobKeys,sameNovartisRequisition,restoreQuarantinedList} from '../src/crawler/jobQuarantine.ts';
 import {sanitizeEvidenceHttpUrl} from '../src/crawler/sourceFetchEvidence.ts';
 
 const previous=[
@@ -26,8 +26,14 @@ test('Workday retains the same native requisition when the title slug changes, w
 });
 
 test('same native Novartis requisition remains bound when its title slug changes',()=>{
- const old='https://www.novartis.com/careers/career-search/job/details/req-12345-old-title',fresh=old.replace('old-title','new-title');
+ const old='https://www.novartis.com.cn/careers/career-search/job/details/req-12345-old-title',fresh=old.replace('old-title','new-title');
  assert.equal(sameNovartisRequisition(old,fresh),true);
- for(const url of [fresh.replace('12345','12346'),fresh.replace('www.novartis.com','other.invalid'),fresh+'?id=1',fresh+'#other'])assert.equal(sameNovartisRequisition(old,url),false);
+ for(const url of [fresh.replace('12345','12346'),fresh.replace('www.novartis.com.cn','other.invalid'),fresh+'?id=1',fresh+'#other'])assert.equal(sameNovartisRequisition(old,url),false);
  assert.deepEqual([...quarantinedPriorJobKeys({jobQuarantines:[{officialUrl:fresh}]},[{dedupeKey:'old',record:{officialUrl:old}}])],['old']);
+});
+
+test('restoring an isolated HTML row keeps its physical list order',()=>{
+ const artifact={id:'list',logicalKey:'list',kind:'ATS_PAGE',requestedUrl:'https://example.invalid/list',finalUrl:'https://example.invalid/list',httpStatus:200,contentType:'text/html',extractorLocator:'synthetic',body:'synthetic',capturedAt:'2026-11-06T00:00:00.000Z'};
+ const evidence={captureTool:{name:'test',version:'1'},artifacts:[artifact],pages:[{sequence:0,artifactLogicalKey:'list',rawJobIds:['one','two','three'],validJobIds:['one','three'],termination:'NEXT_ABSENT',anomalyCodes:[],capturedAt:artifact.capturedAt}],fetchCounts:{rawCount:3,parsedCount:3,validCount:2,parseDiscardCount:0,validationDiscardCount:1},fetchLosses:[{stage:'VALIDATION',reason:'Unknown',rawLocator:'list#row:1',details:{code:'JOB_QUARANTINED'}}],jobQuarantines:[{rawLocator:'list#row:1',pageSequence:0,recordIndex:1,validJobId:'two',code:'JOB_ROW_NORMALIZATION_FAILED'}]};
+ assert.deepEqual(restoreQuarantinedList(evidence).pages[0].validJobIds,['one','two','three']);
 });

@@ -54,7 +54,10 @@ export function restoreQuarantinedList(evidence:PersistentSourceFetchEvidence):P
   if(!rows.length)return evidence;
   const locators=new Set(rows.map(row=>row.rawLocator)),{jobQuarantines:_,...base}=evidence;
   return parsePersistentSourceFetchEvidence({...base,
-    pages:evidence.pages.map((page,i)=>({...page,validJobIds:[...new Set([...page.validJobIds,...rows.filter(row=>row.pageSequence===i).map(row=>row.validJobId)])]})),
+    pages:evidence.pages.map((page,i)=>{
+      const ids=new Set([...page.validJobIds,...rows.filter(row=>row.pageSequence===i).map(row=>row.validJobId)]);
+      return {...page,validJobIds:[...ids].every(id=>page.rawJobIds.includes(id))?page.rawJobIds.filter(id=>ids.has(id)):[...ids]};
+    }),
     fetchCounts:{...evidence.fetchCounts,validCount:evidence.fetchCounts.validCount+rows.length,validationDiscardCount:evidence.fetchCounts.validationDiscardCount-rows.length},
     fetchLosses:evidence.fetchLosses.filter(loss=>loss.details?.code!=='JOB_QUARANTINED'||!locators.has(loss.rawLocator))});
 }
@@ -69,7 +72,7 @@ function sameWorkdayRequisition(left:string,right:string):boolean{
 /** Novartis title slugs are presentation; the native REQ and official origin bind identity. */
 export function sameNovartisRequisition(left:string,right:string):boolean{
  try{const a=new URL(left),b=new URL(right),id=(u:URL)=>/^\/careers\/career-search\/job\/details\/(req-\d+)(?:-[^/]+)?$/iu.exec(u.pathname)?.[1]?.toUpperCase();
-  return a.origin==='https://www.novartis.com'&&b.origin===a.origin&&!a.search&&!b.search&&!a.hash&&!b.hash&&!a.username&&!a.password&&!b.username&&!b.password&&id(a)!==undefined&&id(a)===id(b);
+  return a.origin==='https://www.novartis.com.cn'&&b.origin===a.origin&&!a.search&&!b.search&&!a.hash&&!b.hash&&!a.username&&!a.password&&!b.username&&!b.password&&id(a)!==undefined&&id(a)===id(b);
  }catch{return false;}
 }
 /** An unidentified damaged row cannot prove any previously known job disappeared. */

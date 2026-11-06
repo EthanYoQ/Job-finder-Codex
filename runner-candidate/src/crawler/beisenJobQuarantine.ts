@@ -8,7 +8,7 @@ import type {SourceFetchResult} from './runSourceCrawl';
 
 export function hasBeisenJobQuarantine(plan:SourceCrawlPlan):boolean{
  return plan.adapterId==='official-json'&&plan.officialJsonFetch?.kind==='beisen-zhiye-2022'&&
-  ['source-cttq-social','source-shanghai-pharma-social','source-fosun-pharma-social','source-hansoh-social'].includes(plan.source.id);
+  ['source-cttq-social','source-shanghai-pharma-social','source-fosun-pharma-social','source-hansoh-social','source-qilu-social'].includes(plan.source.id);
 }
 export const isBeisenListQuarantine=(row:JobQuarantine)=>row.rawLocator.includes('#record:');
 function originalUuid(raw:unknown):string|undefined{
