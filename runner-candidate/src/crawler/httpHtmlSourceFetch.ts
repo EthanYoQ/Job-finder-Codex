@@ -526,7 +526,8 @@ function talentbrewCriteria($: ReturnType<typeof load>, normalNext = false): Rec
   };
   if (normalNext) {
     // Match the official next-button mapping and its null-omitting query serializer.
-    const contentTotal = numberAttr(results, "data-total-content-results");
+    const contentTotal = results.attr("data-total-content-results")?.trim()
+      ? numberAttr(results, "data-total-content-results") : undefined;
     criteria.TotalContentResults = contentTotal ?? "";
     criteria.TotalContentPages = Math.ceil((contentTotal ?? Number.NaN) / Number(criteria.RecordsPerPage));
     for (const key of ["Latitude", "Longitude"]) {
