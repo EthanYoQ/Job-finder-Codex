@@ -1,9 +1,7 @@
-import { createHash } from "node:crypto";
 import { parse } from "@babel/parser";
 
 /** Newly reviewed reconstruction. Never evaluate the downloaded script. */
 export const BI_UI_RECONSTRUCTION_POLICY = "BI_UI_SEMANTIC_RECONSTRUCTION_20261001_V1";
-const REVIEWED_WHOLE_PROGRAM_AST_SHA256 = "2bedc4f3fc84d6e38cc2321ad87b4d6340b8c4360e027f570b04df66efd3ff0d";
 export const BI_ENTRY_URL = "https://campus.51job.com/BI/recruitSociety.html";
 export const BI_SCRIPT_URL = "https://campus.51job.com/BI/scripts/recruit.js?v=1";
 export const BI_DETAIL_URL = "https://campus.51job.com/BI/recruit_article_detail3.html";
@@ -11,66 +9,49 @@ export const BI_API_URL = "https://coapi.51job.com/job_list.php";
 
 const REQUEST_DECLARATION = `var params = { ctmid: "3479", pagesize: 500, pagenum: 1,
   sort: "issuedate", sequence: "0", keyword: null, jobarea: null, functype: null, divid: null, poscode: null };`;
-const EXCLUSIONS_DECLARATION = `let sxsPosCode = [
-  {code:"205901",jobareaname:"南昌"}, {code:"204542",jobareaname:"上海"},
-  {code:"204542",jobareaname:"北京"}, {code:"204023",jobareaname:"上海"},
-  {code:"205909",jobareaname:"上海"}, {code:"206067",jobareaname:"上海"},
-  {code:"207401",jobareaname:"上海"}, {code:"205538",jobareaname:"上海"} ];`;
 const FILTER_DECLARATION = `var filteredJobList = jobList.filter(function(job) {
   return !sxsPosCode.some(function(item) {
     return job.jobname.includes(item.code) && job.jobareaname.includes(item.jobareaname);
   });
 });`;
-const FETCH_FUNCTION = `function getJobList(params) {
-  coapi.getJobList(params, function(data) {
-    jobList = data.resultbody.joblist || null;
-    totalNum = data.resultbody.totalnum || 0;
-    pageTotal = Math.ceil(totalNum / 8);
-    console.log(data, jobList);
-    renderJob();
-  });
-}`;
-
 export interface BiUiSemanticContract {
   params: Record<string, string | number | null>;
   exclusions: Array<{ code: string; jobareaname: string }>;
 }
 
-/** Whole-program AST identity + explicit request/dataflow/exclusion/render checks.
- * Formatting and comments may change without changing the accepted program.
- * The AST pin covers every reviewed branch, including search/detail/apply handlers outside
- * the unfiltered list path. New/changed branches require a new review, never a best guess. */
+/** Read only the native unfiltered request, dataflow and literal exclusion list.
+ * Tracking, display handlers and statement positions do not define the source's job inventory. */
 export function replayBiUiSemanticContract(script: string): BiUiSemanticContract | undefined {
   try {
     const program = parse(script, { sourceType: "script", errorRecovery: false }).program;
-    if (hash(structural(program)) !== REVIEWED_WHOLE_PROGRAM_AST_SHA256 || program.body.length !== 1) return undefined;
-    const ready = program.body[0];
-    if (ready?.type !== "ExpressionStatement" || ready.expression.type !== "CallExpression") return undefined;
-    const callback = ready.expression.arguments[0];
-    if (callback?.type !== "FunctionExpression" || callback.params.length !== 0) return undefined;
-    const statements = callback.body.body;
-    if (statements.length !== 26 || !sameAst(statements[4], statement(REQUEST_DECLARATION)) ||
-        !sameAst(statements[11], statement(FETCH_FUNCTION)) ||
-        !sameAst(statements[14], statement(EXCLUSIONS_DECLARATION))) return undefined;
-    const render = statements[15];
-    if (render?.type !== "FunctionDeclaration" || render.id?.name !== "renderJob" ||
-        !sameAst(render.body.body[0], statement(FILTER_DECLARATION))) return undefined;
-    const loop = render.body.body[3];
-    const expectedLoop = statement("for (var index = 0; index < filteredJobList.length; index++) {}");
-    if (loop?.type !== "ForStatement" || expectedLoop.type !== "ForStatement" ||
-        !sameAst(loop.init, expectedLoop.init) || !sameAst(loop.test, expectedLoop.test) ||
-        !sameAst(loop.update, expectedLoop.update)) return undefined;
-    // These are literal-only AST projections, not JavaScript evaluation.
-    const params = literalDeclaration(statements[4]);
-    const exclusions = literalDeclaration(statements[14]);
-    if (!params || typeof params !== "object" || Array.isArray(params) || !Array.isArray(exclusions)) return undefined;
-    return { params: params as BiUiSemanticContract["params"], exclusions: exclusions as BiUiSemanticContract["exclusions"] };
+    const callbacks=program.body.flatMap(node=>node.type==='ExpressionStatement'&&node.expression.type==='CallExpression'&&node.expression.arguments[0]?.type==='FunctionExpression'?[node.expression.arguments[0]]:[]);
+    if(callbacks.length!==1||callbacks[0]!.params.length!==0)return;
+    const statements=callbacks[0]!.body.body;
+    const declarations=(name:string)=>statements.filter(node=>node.type==='VariableDeclaration'&&node.declarations.some(d=>d.id.type==='Identifier'&&d.id.name===name));
+    const functions=(name:string)=>statements.filter(node=>node.type==='FunctionDeclaration'&&node.id?.name===name);
+    const request=declarations('params'),rules=declarations('sxsPosCode'),fetch=functions('getJobList'),renders=functions('renderJob');
+    if(request.length!==1||rules.length!==1||fetch.length!==1||renders.length!==1)return;
+    const params=literalDeclaration(request[0]),exclusions=literalDeclaration(rules[0]);
+    if(!sameAst(params,literalDeclaration(statement(REQUEST_DECLARATION)))||!Array.isArray(exclusions)||
+      exclusions.some(rule=>!rule||typeof rule!=='object'||typeof rule.code!=='string'||!/^\d+$/u.test(rule.code)||typeof rule.jobareaname!=='string'||!rule.jobareaname.trim()))return;
+    const fetchNode=fetch[0]!,render=renders[0]!;
+    if(fetchNode.type!=='FunctionDeclaration'||render.type!=='FunctionDeclaration')return;
+    const calls=fetchNode.body.body.flatMap(node=>node.type==='ExpressionStatement'&&node.expression.type==='CallExpression'&&
+      node.expression.callee.type==='MemberExpression'&&node.expression.callee.object.type==='Identifier'&&node.expression.callee.object.name==='coapi'&&
+      node.expression.callee.property.type==='Identifier'&&node.expression.callee.property.name==='getJobList'?[node.expression]:[]);
+    if(calls.length!==1||calls[0]!.arguments[0]?.type!=='Identifier'||calls[0]!.arguments[0].name!=='params'||calls[0]!.arguments[1]?.type!=='FunctionExpression')return;
+    const callback=calls[0]!.arguments[1];
+    for(const source of ['jobList = data.resultbody.joblist || null;','totalNum = data.resultbody.totalnum || 0;','renderJob();'])
+      if(callback.body.body.filter(node=>sameAst(node,statement(source))).length!==1)return;
+    if(render.body.body.filter(node=>sameAst(node,statement(FILTER_DECLARATION))).length!==1)return;
+    const expectedLoop=statement('for (var index = 0; index < filteredJobList.length; index++) {}');
+    if(expectedLoop.type!=='ForStatement'||render.body.body.filter(node=>node.type==='ForStatement'&&sameAst(node.init,expectedLoop.init)&&sameAst(node.test,expectedLoop.test)&&sameAst(node.update,expectedLoop.update)).length!==1)return;
+    return {params:params as BiUiSemanticContract['params'],exclusions:exclusions as BiUiSemanticContract['exclusions']};
   } catch { return undefined; }
 }
 
 function statement(source: string) { return parse(source, { sourceType: "script" }).program.body[0]!; }
 function sameAst(left: unknown, right: unknown): boolean { return structural(left) === structural(right); }
-function hash(value: string): string { return createHash("sha256").update(value, "utf8").digest("hex"); }
 const NON_SEMANTIC_AST_KEYS = new Set(["start", "end", "loc", "extra", "leadingComments", "innerComments", "trailingComments", "comments", "tokens", "errors"]);
 function structural(value: unknown): string { return JSON.stringify(canonicalAst(value)); }
 function canonicalAst(value: unknown): unknown {

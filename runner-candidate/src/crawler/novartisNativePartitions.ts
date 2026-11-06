@@ -83,8 +83,8 @@ function parsedPage(a:SourceFetchArtifactDraft,url:string,page:number,role:strin
   return {rows:rs,count,pages,next:target};
 }
 function detailStatus(a:SourceFetchArtifactDraft,row:Row):"OBSERVED_PRESENT"|"EXPLICITLY_CLOSED"|"UNKNOWN" {
-  try{artifactOk(a,row.url,"novartis-partition-same-id-detail-v1");}catch{return "UNKNOWN";}
-  const $=load(body(a));
+  try{
+  artifactOk(a,row.url,"novartis-partition-same-id-detail-v1");const $=load(body(a));
   $("script,style,noscript,[hidden],[aria-hidden=true],.hidden,.d-none,.sr-only").remove();
   $("[style]").filter((_i,n)=>/(?:display\s*:\s*none|visibility\s*:\s*hidden)/iu.test($(n).attr("style")??"")).remove();
   const article=$("article"),h1=$("h1");article.find("p,div,li,section,br,h2,h3").before(" ").after(" ");
@@ -95,6 +95,7 @@ function detailStatus(a:SourceFetchArtifactDraft,row:Row):"OBSERVED_PRESENT"|"EX
   if(closed)return links.length?"UNKNOWN":"EXPLICITLY_CLOSED";
   const validApply=links.length>0&&links.every(n=>{const u=new URL($(n).attr("href")!,row.url);return u.origin==="https://platform.moseeker.com"&&u.pathname==="/m/customize/page/novartis"&&!u.username&&!u.password&&!u.hash&&[...u.searchParams].length===1&&u.searchParams.get("job_number")===row.id;});
   return validApply&&h1.length===1&&clean(h1.text())===row.title&&article.find("p").toArray().some(n=>clean($(n).text()).length>0)?"OBSERVED_PRESENT":"UNKNOWN";
+  }catch{return 'UNKNOWN';}
 }
 function counts(n:number) {return {rawCount:n,parsedCount:n,validCount:n,parseDiscardCount:0,validationDiscardCount:0};}
 function readRoot(plan:SourceCrawlPlan,root:SourceFetchArtifactDraft):{total:number;fields:string[]} {

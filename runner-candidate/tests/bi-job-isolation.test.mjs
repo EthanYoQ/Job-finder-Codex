@@ -19,6 +19,11 @@ test('BI: unidentified list rows keep physical positions and valid foreign confl
 // Archived public script is supplied locally; test metadata and job rows are synthetic.
 test('BI: full archived API replay updates good jobs while quarantining damaged individual rows',{skip:!process.env.JOBFINDER_BI_SCRIPT},async()=>{
  const script=await readFile(process.env.JOBFINDER_BI_SCRIPT,'utf8'),ui=replayBiUiSemanticContract(script);assert(ui);
+ const cosmetic=script.replace('var jobList;', 'var newDisplayBadge = "New"; var jobList;').replace('console.log(data, jobList);','console.log("New display", data);');
+ assert.deepEqual(replayBiUiSemanticContract(cosmetic),ui,'Unrelated script changes must not hold the inventory');
+ assert.equal(replayBiUiSemanticContract(script.replace('ctmid: "3479"','ctmid: "other"')),undefined);
+ assert.equal(replayBiUiSemanticContract(script.replace('jobList = data.resultbody.joblist','jobList = data.other.joblist')),undefined);
+ assert.equal(replayBiUiSemanticContract(script.replace('return !sxsPosCode.some','return sxsPosCode.some')),undefined);
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-boehringer-ingelheim-china-social'),at='2026-11-06T00:00:00.000Z';
  const locator='51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode|business-request-v1|'+JSON.stringify({method:'GET',baseUrl:BI_API_URL,params:ui.params,jsoncallback:'jsoncallback'});
  for(const mode of ['good','title','foreign','two-unidentified','two-invalid-ids','duplicate','missing-list']){
