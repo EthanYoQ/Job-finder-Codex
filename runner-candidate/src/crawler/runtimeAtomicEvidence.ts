@@ -1,5 +1,5 @@
 import { rocheQuarantinedSourceJobIds } from "./rocheChinaQuality";
-import { quarantinedPriorJobKeys } from "./jobQuarantine";
+import { quarantinedPriorJobKeys,sameNovartisRequisition } from "./jobQuarantine";
 import { exactNovoChinaQualityPlan, novoSourceJobExclusions } from "./novoChinaQuality";
 import { isDeepStrictEqual } from "node:util";
 import { isPfizerWorkdayTraversalPlan, pfizerQuarantinedOfficialIds, pfizerSourceJobId, PFIZER_ENTRY } from "./pfizerWorkdayTraversal";
@@ -575,7 +575,7 @@ export function buildAtomicRuntimeCommit(input: {
     }
     if(hasNovartisPartitionEvidence(evidence)){
       const pending=replayNovartisNativePartitions(plan,evidence);
-      for(const old of input.previousJobs)if(pending.unknownUrls.has(old.record.officialUrl)||pending.unboundUnknown&&!currentKeys.includes(old.dedupeKey))unknownKeys.add(old.dedupeKey);
+      for(const old of input.previousJobs)if([...pending.unknownUrls].some(url=>url===old.record.officialUrl||sameNovartisRequisition(url,old.record.officialUrl))||pending.unboundUnknown&&!currentKeys.includes(old.dedupeKey))unknownKeys.add(old.dedupeKey);
     }
     if(plan.source.id==="source-roche-china-social"){
       const ids=rocheQuarantinedSourceJobIds(evidence);

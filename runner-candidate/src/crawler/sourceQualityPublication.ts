@@ -7,7 +7,7 @@ import { hasNovartisOfficialPresencePlan, replayNovartisOfficialPresence } from 
 import { buildIngestionCommands, type IngestionCommand } from "./ingestion";
 import { applyCrawlObservation, type JobSnapshot } from "./lifecycle";
 import { buildJobDedupeKey } from "./normalizedJob";
-import { quarantinedPriorJobKeys } from "./jobQuarantine";
+import { quarantinedPriorJobKeys,sameNovartisRequisition } from "./jobQuarantine";
 import type { SourceCrawlResult } from "./runSourceCrawl";
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from "./sourcePlan";
 import { assertIssuedSourceQualityAdmission, getSourceQualityPolicy, type SourceQualityAdmission, verifySourceQualityReceipt, type SourceQualityReceipt } from "./sourceQualityAdmission";
@@ -70,7 +70,7 @@ export function buildSourceQualityJobCommands(input:SourceQualityPublicationInpu
     observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:receipt.issuedAt,
     baselineCompletedBeforeCrawl:input.baselineCompletedBeforeCrawl
   }).map(decision=>{
-    if(!quarantinedKeys.has(decision.dedupeKey)&&!(pending?.unboundUnknown&&!currentKeys.has(decision.dedupeKey))&&!unknownUrls.has(decision.record.officialUrl)&&!novoExclusions.insufficient.has(decision.record.sourceJobId??""))return decision;
+    if(!quarantinedKeys.has(decision.dedupeKey)&&!(pending?.unboundUnknown&&!currentKeys.has(decision.dedupeKey))&&![...unknownUrls].some(url=>url===decision.record.officialUrl||sameNovartisRequisition(url,decision.record.officialUrl))&&!novoExclusions.insufficient.has(decision.record.sourceJobId??""))return decision;
     const old=previous.find(job=>job.dedupeKey===decision.dedupeKey);
     if(!old||currentKeys.has(decision.dedupeKey))throw Error("NOVARTIS_UNKNOWN_CURRENT_CONTRADICTION");
     return {...old,missingSuccessfulCrawlCount:old.lifecycleStatus==="ACTIVE"?1:old.missingSuccessfulCrawlCount,isNew:false};

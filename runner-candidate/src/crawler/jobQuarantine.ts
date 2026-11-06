@@ -62,9 +62,15 @@ export function restoreQuarantinedList(evidence:PersistentSourceFetchEvidence):P
 /** Workday title slugs may change while the native requisition remains the same. */
 function sameWorkdayRequisition(left:string,right:string):boolean{
   try{
-    const a=new URL(left),b=new URL(right),id=(url:URL)=>/_(R-\d+|REQ\d+)(?:-\d+)?$/u.exec(url.pathname)?.[1];
+    const a=new URL(left),b=new URL(right),id=(url:URL)=>/_(R-\d+|REQ\d+|\d{7})(?:-\d+)?$/u.exec(url.pathname)?.[1];
     return a.origin===b.origin&&a.pathname.split('/job/')[0]===b.pathname.split('/job/')[0]&&id(a)!==undefined&&id(a)===id(b);
   }catch{return false;}
+}
+/** Novartis title slugs are presentation; the native REQ and official origin bind identity. */
+export function sameNovartisRequisition(left:string,right:string):boolean{
+ try{const a=new URL(left),b=new URL(right),id=(u:URL)=>/^\/careers\/career-search\/job\/details\/(req-\d+)(?:-[^/]+)?$/iu.exec(u.pathname)?.[1]?.toUpperCase();
+  return a.origin==='https://www.novartis.com'&&b.origin===a.origin&&!a.search&&!b.search&&!a.hash&&!b.hash&&!a.username&&!a.password&&!b.username&&!b.password&&id(a)!==undefined&&id(a)===id(b);
+ }catch{return false;}
 }
 /** An unidentified damaged row cannot prove any previously known job disappeared. */
 export function quarantinedPriorJobKeys(evidence: PersistentSourceFetchEvidence, previous: readonly JobSnapshot[], currentKeys: ReadonlySet<string> = new Set()): Set<string> {
@@ -72,7 +78,7 @@ export function quarantinedPriorJobKeys(evidence: PersistentSourceFetchEvidence,
   const unbound=quarantines.some(row=>!row.sourceJobId&&!row.officialUrl);
   return new Set(previous.filter(job=>unbound&&!currentKeys.has(job.dedupeKey)||quarantines.some(row=>
     row.sourceJobId!==undefined&&row.sourceJobId===job.record.sourceJobId||
-    row.officialUrl!==undefined&&(row.officialUrl===sanitizeEvidenceHttpUrl(job.record.officialUrl)||
+    row.officialUrl!==undefined&&(row.officialUrl===sanitizeEvidenceHttpUrl(job.record.officialUrl)||sameNovartisRequisition(row.officialUrl,job.record.officialUrl)||
       row.sourceJobId?.startsWith('workday:sha256:')&&job.record.sourceJobId?.startsWith('workday:sha256:')&&sameWorkdayRequisition(row.officialUrl,job.record.officialUrl))
   )).map(job=>job.dedupeKey));
 }

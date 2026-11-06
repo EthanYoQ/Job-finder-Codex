@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {quarantinedPriorJobKeys} from '../src/crawler/jobQuarantine.ts';
+import {quarantinedPriorJobKeys,sameNovartisRequisition} from '../src/crawler/jobQuarantine.ts';
 import {sanitizeEvidenceHttpUrl} from '../src/crawler/sourceFetchEvidence.ts';
 
 const previous=[
@@ -23,4 +23,11 @@ test('Workday retains the same native requisition when the title slug changes, w
  assert.deepEqual([...quarantinedPriorJobKeys({jobQuarantines:[q]},old)],['old-path']);
  for(const url of [q.officialUrl.replace('REQ123','REQ124'),q.officialUrl.replace('/external/','/other-site/'),q.officialUrl.replace('tenant.','other.')])
   assert.deepEqual([...quarantinedPriorJobKeys({jobQuarantines:[{...q,officialUrl:url}]},old)],[]);
+});
+
+test('same native Novartis requisition remains bound when its title slug changes',()=>{
+ const old='https://www.novartis.com/careers/career-search/job/details/req-12345-old-title',fresh=old.replace('old-title','new-title');
+ assert.equal(sameNovartisRequisition(old,fresh),true);
+ for(const url of [fresh.replace('12345','12346'),fresh.replace('www.novartis.com','other.invalid'),fresh+'?id=1',fresh+'#other'])assert.equal(sameNovartisRequisition(old,url),false);
+ assert.deepEqual([...quarantinedPriorJobKeys({jobQuarantines:[{officialUrl:fresh}]},[{dedupeKey:'old',record:{officialUrl:old}}])],['old']);
 });
