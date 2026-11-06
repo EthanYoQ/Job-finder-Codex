@@ -28,8 +28,9 @@ test('BI: full archived API replay updates good jobs while quarantining damaged 
  assert.equal(replayBiUiSemanticContract(script.replace('const track =','params.ctmid = "9999"; const track =')),undefined);
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-boehringer-ingelheim-china-social'),at='2026-11-06T00:00:00.000Z';
  const locator='51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode|business-request-v1|'+JSON.stringify({method:'GET',baseUrl:BI_API_URL,params:ui.params,jsoncallback:'jsoncallback'});
- for(const mode of ['good','title','foreign','two-unidentified','two-invalid-ids','duplicate','missing-list']){
+ for(const mode of ['good','title','foreign','two-unidentified','two-invalid-ids','dom-hidden','dom-bad-url','dom-unknown-id','dom-combined-title','dom-combined-foreign','dom-display','dom-missing-row','duplicate','missing-list']){
   const rows=[row(1),row(2)];if(mode==='title')rows[1].jobname='';if(mode==='foreign')rows[1].workareaname='Tokyo';if(mode==='two-unidentified')rows.push(null,null);if(mode==='duplicate')rows[1]=row(1);
+  if(mode==='dom-combined-title')rows[1].jobname='';if(mode==='dom-combined-foreign')rows[1].workareaname='Tokyo';
   if(mode==='two-invalid-ids')rows.push({...row(3),jobid:'broken'},{...row(3),jobid:'broken'});
   const body='jsoncallback('+JSON.stringify({status:'1',message:'接口调用成功',resultbody:{totalnum:String(rows.length+(mode==='missing-list'?1:0)),joblist:rows}})+')';
   const artifacts=[{id:'51job-ui-script',logicalKey:'51job-ui-script',kind:'OFFICIAL_COMPANY_PAGE',requestedUrl:BI_SCRIPT_URL,finalUrl:BI_SCRIPT_URL,httpStatus:200,contentType:'application/javascript',capturedAt:at,body:script,extractorLocator:'javascript:sxsPosCode[code,jobareaname]'},
@@ -39,11 +40,18 @@ test('BI: full archived API replay updates good jobs while quarantining damaged 
   const now=new Date().toISOString(),dom={source_url:plan.source.officialEntryUrl,captured_at:now,jobs:rows.flatMap(raw=>raw&&raw.jobid?[{jobId:raw.jobid,href:`/BI/recruit_article_detail3.html?jobId=${raw.jobid}`,visible:true,title:raw.jobname,location:raw.jobareaname}]:[])};
   // The native UI may omit an unidentified damaged row; it must still contain every verified ID.
   if(mode==='two-invalid-ids')dom.jobs=dom.jobs.filter(r=>r.jobId!=='broken');
+  if(mode==='dom-hidden')dom.jobs[1].visible=false;
+  if(mode==='dom-bad-url')dom.jobs[1].href='https://[';
+  if(['dom-unknown-id','dom-combined-title','dom-combined-foreign'].includes(mode))dom.jobs[1]={title:'Unidentified original DOM row'};
+  if(mode==='dom-display'){dom.jobs[1].title='Updated label';dom.jobs[1].location='Updated display city';}
+  if(mode==='dom-missing-row')dom.jobs.pop();
   const fetch=withLocalOfficialDom(async()=>fetched,async()=>({dom}));
+  if(mode==='dom-missing-row'){await assert.rejects(()=>runSourceCrawl(plan,{fetch,isBaseline:false}),/BI_DOM_API_SET_SIZE/);continue;}
   const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
   assert.equal(result.truth.completenessVerified,true,`${mode}: ${JSON.stringify(result.observation)}`);
-  assert.equal(result.jobs.length,['title','foreign'].includes(mode)?1:2,mode);
-  if(mode!=='good'){
+  assert.equal(result.jobs.length,['title','foreign','dom-hidden','dom-bad-url','dom-unknown-id','dom-combined-title','dom-combined-foreign'].includes(mode)?1:2,mode);
+  if(['dom-unknown-id','dom-combined-title','dom-combined-foreign'].includes(mode)){assert.equal(result.fetchEvidence.jobQuarantines[0].sourceJobId,undefined);assert.equal(result.fetchEvidence.jobQuarantines[0].officialUrl,undefined);}
+  if(!['good','dom-display'].includes(mode)){
    const evidence=structuredClone(result.fetchEvidence);assert.equal(evidence.jobQuarantines.length,['two-unidentified','two-invalid-ids'].includes(mode)?2:1);
    evidence.jobQuarantines[0].sourceJobId='wrong';assert.equal(replayStrictSourceQualityEvidence({plan,evidence,paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs:result.jobs,capturedAt:at}),false);
   }

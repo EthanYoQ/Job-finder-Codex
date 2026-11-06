@@ -307,17 +307,17 @@ export function pfizerDomPacketsToPages(packets: unknown, originalCaptureSha256:
                 const row = object(packet.rows[index]);
                 return row.officialId !== slot.officialId || (slot.card
                     ? (row.quarantineCode !== undefined && row.quarantineCode !== PFIZER_DETAIL_UNVERIFIED) || row.title !== slot.card.title || row.detailUrl !== slot.card.href
-                    : row.quarantineCode !== PFIZER_LIST_ROW_UNKNOWN || row.domRow !== slot.domRow);
+                    : row.quarantineCode !== (slot.unidentified ? 'PFIZER_LIST_IDENTITY_UNRESOLVED' : PFIZER_LIST_ROW_UNKNOWN) || row.domRow !== slot.domRow);
             })) throw Error("Pfizer quarantined DOM packet disagrees with the original list");
         }
         const rawRows = packet.rows.map((value: unknown, recordIndex: number): OfficialJsonRenderedRawRow => {
             const raw = object(value), quarantined = raw.quarantineCode !== undefined;
-            const country = quarantined ? "UNKNOWN" : object(object(object(JSON.parse(String(raw.jsonLd))).jobLocation).address).addressCountry;
+            const country = raw.quarantineCode==='PFIZER_LIST_IDENTITY_UNRESOLVED' ? 'UNKNOWN_IDENTITY' : quarantined ? "UNKNOWN" : object(object(object(JSON.parse(String(raw.jsonLd))).jobLocation).address).addressCountry;
             const row: OfficialJsonRenderedRawRow = {
                 sourceJobId: quarantined ? pfizerQuarantinedEvidenceKey(raw.officialId) : `workday:sha256:${createHash("sha256").update(String(raw.externalPath)).digest("hex")}`,
                 rawEvidenceId: irreversibleOfficialJsonEvidenceId(raw.officialId), scopeMarker: String(country),
                 scopeDecision: country === "China" ? "INCLUDED_MAINLAND" : "EXCLUDED_AUDITED", recordIndex,
-                rawPayload: {...raw, ...(recordIndex === 0 ? {listPage} : {})}
+                rawPayload: {...raw, ...(raw.quarantineCode==='PFIZER_LIST_IDENTITY_UNRESOLVED'?{domPage:listPage}:{}), ...(recordIndex === 0 ? {listPage} : {})}
             };
             replayPfizerRenderedRow(row, recordIndex);
             return row;
@@ -335,7 +335,7 @@ export function pfizerDomPacketsToPages(packets: unknown, originalCaptureSha256:
             const raw = object(packet.rows[recordIndex]), quarantined = raw.quarantineCode !== undefined;
             const ld = quarantined ? undefined : object(JSON.parse(raw.jsonLd));
             const rawPayload = {
-                ...(quarantined ? {officialId:raw.officialId,quarantineCode:raw.quarantineCode,noOmissionVerified:false,...(raw.quarantineCode===PFIZER_DETAIL_UNVERIFIED?{title:raw.title,detailUrl:raw.detailUrl,detailFailure:raw.detailFailure}:{domRow:raw.domRow}),capturedAt:raw.capturedAt} : {
+                ...(quarantined ? {officialId:raw.officialId,quarantineCode:raw.quarantineCode,noOmissionVerified:false,...(raw.quarantineCode===PFIZER_DETAIL_UNVERIFIED?{title:raw.title,detailUrl:raw.detailUrl,detailFailure:raw.detailFailure}:{domRow:raw.domRow,...(raw.quarantineCode==='PFIZER_LIST_IDENTITY_UNRESOLVED'?{domPage:listPage}:{})}),capturedAt:raw.capturedAt} : {
                     ...Object.fromEntries(scopeFields.filter(key => raw[key] !== undefined).map(key => [key, raw[key]])),
                     jsonLd: JSON.stringify({"@type": ld!["@type"], identifier: ld!.identifier, title: ld!.title, jobLocation: ld!.jobLocation, datePosted: ld!.datePosted}),
                     jsonLdRepresentation: "SCOPE_FIELDS"}), originalCaptureSha256,

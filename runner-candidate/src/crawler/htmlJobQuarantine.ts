@@ -50,7 +50,7 @@ export function reviewHtmlJobRows(plan:Extract<SourceCrawlPlan,{adapterId:'html-
     ...(id&&!containsSensitiveAdapterValue(id)?{sourceJobId:id}:{}),...(officialUrl?{officialUrl}:{}),code:'JOB_ROW_NORMALIZATION_FAILED'});
   }
  }
- return {jobs:reconcileAdapterRows(jobs.length,jobs.length,jobs,[]).jobs,quarantines};
+ return {jobs:reconcileAdapterRows(jobs.length,jobs.length,jobs,[]).jobs,quarantines:quarantines.sort((a,b)=>a.pageSequence-b.pageSequence||a.recordIndex-b.recordIndex)};
 }
 export function isolateHtmlJobRows(plan:SourceCrawlPlan,fetched:SourceFetchResult):SourceFetchResult{
  if(!hasHtmlRowQuarantine(plan)||!fetched.ok||!fetched.fetchEvidence||!fetched.paginationEvaluation?.safeCompleteness||fetched.fetchEvidence.fetchLosses.length)return fetched;

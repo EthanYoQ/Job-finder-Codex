@@ -2,6 +2,7 @@ import {isolateRedseaJobs} from './redseaJobQuarantine';
 import { captureLocalOfficialDom } from './local-browser/official-dom.mjs';
 import { reviewCspcDomHttp } from './local-browser/cspc-dom-http-review';
 import { reviewBiDomHttp } from './local-browser/bi-dom-http-review';
+import {isolateBiDomJobs} from './biSemanticCompleteness';
 import { replayBiUiSemanticContract } from './biUiSemanticContract';
 import { createJnjCareersDomSourceFetch } from './jnjCareersDomEvidence';
 import type { SourceFetchFunction } from './runSourceCrawl';
@@ -38,7 +39,8 @@ export function withLocalOfficialDom(http: SourceFetchFunction, captureDom = cap
     else {
       const script = result.fetchEvidence.artifacts.find(a => a.logicalKey === '51job-ui-script');
       if (!script || typeof script.body !== 'string') throw Error('BI_DOM_NATIVE_SCRIPT_REQUIRED');
-      reviewBiDomHttp({ ...input, uiContract: replayBiUiSemanticContract(script.body) });
+      const review=reviewBiDomHttp({ ...input, uiContract: replayBiUiSemanticContract(script.body) });
+      return isolateBiDomJobs(result,review.quarantinedRecordIndices,review.unboundDomRecordIndices);
     }
     return result;
   };

@@ -37,7 +37,7 @@ export function verifyPhenomJobQuarantines(plan:SourceCrawlPlan,evidence:Persist
    const detail=raw&&evidence.artifacts.find(a=>a.logicalKey===`${plan.source.id.includes('roche')?'roche':plan.source.id.includes('lilly')?'lilly':'organon'}-detail-${raw.reqId}`);
    if(detail){
     const expected=plan.source.id.includes('roche')?rocheNativeDetailUrl(raw):raw.applyUrl;
-    if(!expected||detail.requestedUrl!==sanitizeEvidenceHttpUrl(expected)||detail.finalUrl!==detail.requestedUrl||detail.bodyRepresentation==='REDACTED')return false;
+    if(!expected||detail.requestedUrl!==sanitizeEvidenceHttpUrl(expected)||detail.bodyRepresentation==='REDACTED')return false;
    }
    return true;
   });

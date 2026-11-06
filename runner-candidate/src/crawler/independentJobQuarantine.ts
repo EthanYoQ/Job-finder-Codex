@@ -104,7 +104,7 @@ export function isolateIndependentJobs(plan:SourceCrawlPlan,result:SourceCrawlRe
   const added=evidence.pages.flatMap((page,pageSequence)=>{
     const artifact=evidence.artifacts.find(a=>a.logicalKey===page.artifactLogicalKey);if(!artifact)throw Error('INDEPENDENT_MOKA_MAIN_PAGE_MISSING');
     const root=(plan.source.id==='source-bayer-healthcare-social'?decryptBayerArtifact:decodeServierArtifact)(artifact,iv),rows=(root.data as {jobs:unknown[]}).jobs;
-    return page.rawJobIds.flatMap((id,recordIndex)=>held.has(id)&&(page.validJobIds.includes(id)||unresolved.has(id))?[mokaJobQuarantine(rows[recordIndex],pageSequence,recordIndex,mokaRawLocator(rows[recordIndex],page.artifactLogicalKey,pageSequence,recordIndex),unresolved.has(id)?INDEPENDENT_IDENTITY_UNRESOLVED:'INDEPENDENT_JOB_UNVERIFIED')]:[]);
+    return page.rawJobIds.flatMap((id,recordIndex)=>held.has(id)?[mokaJobQuarantine(rows[recordIndex],pageSequence,recordIndex,mokaRawLocator(rows[recordIndex],page.artifactLogicalKey,pageSequence,recordIndex),unresolved.has(id)?INDEPENDENT_IDENTITY_UNRESOLVED:'INDEPENDENT_JOB_UNVERIFIED')]:[]);
   });
   if(!added.length)return result;
   return projectIndependentIsolation(plan,result,quarantineIndependentRows(evidence,added));

@@ -4,6 +4,9 @@ import {candidateCompanies} from '../src/data/companyRegistry.ts';
 import {buildStagedSourceCrawlPlans} from '../src/crawler/sourcePlan.ts';
 import {createGrifolsChinaSourceFetch,validateStrictGrifolsChinaEvidence} from '../src/crawler/grifolsChinaSourceFetch.ts';
 import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
+import {createHash} from 'node:crypto';
+import {sourcePlanConfigSha256} from '../src/crawler/sourcePlan.ts';
+import {issueAGradeOfficialTotalCertificate,verifyAGradeCompletenessCertificateReceipt} from '../src/crawler/completenessCertificate.ts';
 
 test('Grifols nationwide wording is not tied to one sentence; foreign or unbound locations remain rejected',async()=>{
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-grifols-china-social');
@@ -42,4 +45,20 @@ test('Grifols nationwide wording is not tied to one sentence; foreign or unbound
  assert.equal(isolated.truth.completenessVerified,true);assert.equal(isolated.jobs.length,1);assert.equal(isolated.fetchEvidence.jobQuarantines[0].sourceJobId,'1409962834');
  const badList=await capture('<p><b>Location: Open to candidates across China.</b></p>',true,true);
  const listIsolated=await runSourceCrawl(plan,{fetch:async()=>badList});assert.equal(listIsolated.truth.completenessVerified,true);assert.equal(listIsolated.jobs.length,1);assert.equal(listIsolated.fetchEvidence.jobQuarantines[0].code,'JOB_LIST_ROW_INVALID');
+});
+
+test('Grifols a bad detail and a proven foreign exclusion do not block a verified sibling certificate',async()=>{
+ const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-grifols-china-social'),at=new Date().toISOString();
+ const url=n=>`https://jobsearch.grifols.com/job/Home-Office-Test/${1409962800+n}/`;
+ const list=`<span class="paginationLabel">Results <b>1 – 3</b> of <b>3</b></span><table id="searchresults" aria-label="Search results for China. Page 1 of 1, Results 1 to 3 of 3"><tbody>${[1,2,3].map(n=>`<tr class="data-row"><td class="jobTitle hidden-phone"><a class="jobTitle-link" href="${url(n)}">Synthetic role ${n}</a></td><td class="colLocation hidden-phone"><span class="jobLocation">Home Office, CN</span></td></tr>`).join('')}</tbody></table>`;
+ const fetched=createGrifolsChinaSourceFetch({now:()=>new Date(at),http:async request=>{
+  if(request.url===plan.source.officialEntryUrl)return {status:200,body:list,finalUrl:request.url,contentType:'text/html',capturedAt:at};
+  const n=[1,2,3].find(n=>request.url===url(n));assert(n);
+  return {status:n===3?503:200,body:n===3?'Unavailable':`<link rel="canonical" href="${url(n)}"><div class="jobDisplayShell" itemscope itemtype="http://schema.org/JobPosting"><span itemprop="jobLocation"><span itemprop="address"><meta itemprop="streetAddress" content="Home Office, CN"></span></span><div class="jobDisplay"><div class="content"><p><b>Location: ${n===2?'APAC:Hong Kong:Home Office:Hong Kong':'Open to candidates across China.'}</b></p></div></div></div>`,finalUrl:request.url,contentType:'text/html',capturedAt:at};
+ }});
+ const result=await runSourceCrawl(plan,{fetch:fetched,isBaseline:false});assert.equal(result.truth.completenessVerified,true);assert.equal(result.jobs.length,1);assert.equal(result.fetchEvidence.jobQuarantines.length,1);
+ const binding={releaseCandidateId:'synthetic-grifols',batchId:'synthetic-mixed',sourceResultId:'result-mixed',sourceConfigSha256:sourcePlanConfigSha256(plan)},official=result.fetchEvidence.artifacts.find(a=>a.logicalKey===result.fetchEvidence.declaredCompleteness.artifactLogicalKey);
+ const decision=issueAGradeOfficialTotalCertificate({binding,plan,transportSuccess:true,adapterSuccess:true,evidence:result.fetchEvidence,paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs:result.jobs,officialArtifactSha256:createHash('sha256').update(official.body).digest('hex')});
+ assert.equal(decision.status,'CERTIFIED',JSON.stringify(decision));assert.equal(decision.certificate.counts.finalUniqueJobCount,1);assert.equal(decision.certificate.legalScopeExclusionLedger.length,1);assert.equal(decision.certificate.jobQuarantineLedger.length,1);
+ assert.equal(verifyAGradeCompletenessCertificateReceipt({certificate:JSON.parse(JSON.stringify(decision.certificate)),certificateSha256:decision.certificateSha256,expected:{...binding,sourceId:plan.source.id}}).status,'PASS');
 });

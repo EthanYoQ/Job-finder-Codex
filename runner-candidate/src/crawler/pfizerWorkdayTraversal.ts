@@ -238,12 +238,12 @@ export function pfizerMainSourceJobIds(evidence: PersistentSourceFetchEvidence):
     .map((raw: unknown) => { const id = pfizerQuarantinedRowId(raw); return id ? pfizerQuarantinedEvidenceKey(id) : pfizerSourceJobId(identity(raw).path); }));
 }
 
-/** Withhold only currently verified main jobs whose independent native detail failed. */
+/** An unverified independent detail also withholds an earlier main-side exclusion. */
 export function quarantinePfizerIndependentJobs(evidence:PersistentSourceFetchEvidence,rawIds:ReadonlySet<string>,unboundRawIds:ReadonlySet<string>=new Set()):PersistentSourceFetchEvidence {
  const added=evidence.pages.flatMap((page,pageSequence)=>{
   const original=evidence.artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
   return (parse(original.body).jobPostings as unknown[]).flatMap((raw,recordIndex)=>{const current=slot(raw,pageSequence,recordIndex);
-   return rawIds.has(current.rawId)&&(page.validJobIds.includes(current.quarantine.validJobId)||unboundRawIds.has(current.rawId))?[{...current.quarantine,code:unboundRawIds.has(current.rawId)?INDEPENDENT_IDENTITY_UNRESOLVED:'INDEPENDENT_JOB_UNVERIFIED'}]:[];});
+   return rawIds.has(current.rawId)?[{...current.quarantine,code:unboundRawIds.has(current.rawId)?INDEPENDENT_IDENTITY_UNRESOLVED:'INDEPENDENT_JOB_UNVERIFIED'}]:[];});
  });
  if(!added.length)return evidence;
  const held=new Map([...(evidence.jobQuarantines??[]),...added].map(q=>[evidence.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!,q.code]));

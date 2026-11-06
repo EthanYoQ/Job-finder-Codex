@@ -516,7 +516,7 @@ function exactGrifolsScopeExclusionLedger(
   const indexes = new Set<number>();
   const rows: Array<{ rawLocatorSha256: string; recordIndex: number;
     code: "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE" }> = [];
-  for (const loss of evidence.fetchLosses) {
+  for (const loss of evidence.fetchLosses.filter(loss=>loss.details.code!=='JOB_QUARANTINED')) {
     const recordIndex = loss.details?.recordIndex;
     if (loss.stage !== "VALIDATION" ||
         loss.reason !== "official detail places the job outside mainland China" ||

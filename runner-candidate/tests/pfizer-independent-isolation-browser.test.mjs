@@ -4,7 +4,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {chromium} from 'playwright-core';
-import {capturePfizerRenderedTraversal,replayPfizerRenderedRow} from '../src/crawler/pfizerRenderedTraversal.ts';
+import {capturePfizerRenderedTraversal,replayPfizerRenderedRow,pfizerDomPacketsToPages} from '../src/crawler/pfizerRenderedTraversal.ts';
 import {replayOfficialJsonRenderedTraversal} from '../src/crawler/officialJsonRenderedTraversalValidator.ts';
 const origin='https://pfizer.wd1.myworkdayjobs.com',entry=origin+'/en-US/PfizerCareers',country='6cb77610a8a543aea2d6bc10457e35d4';
 const id=n=>String(1234500+n),url=n=>entry+`/job/China/Role_${id(n)}?Location_Country=${country}`;
@@ -29,6 +29,10 @@ for(const mode of ['503','wrong-id','429','iframe-429','list-429','unbound','mal
   assert.equal(pages.length,2);assert.equal(replay.rawCount,21);assert.equal(replay.matchKeys.length,['429','iframe-429'].includes(mode)?1:20);
   assert.deepEqual(requests,['429','iframe-429'].includes(mode)?[1,2]:Array.from({length:21},(_,i)=>i+1).filter(n=>!['unbound','malformed-href'].includes(mode)||n!==2));
   for(const p of pages)for(const [index,row]of p.rawRows.entries())replayPfizerRenderedRow(row,index);
+  if(['unbound','malformed-href'].includes(mode)){
+   const projected=pfizerDomPacketsToPages(pages.map(p=>({listPage:p.rawRows[0].rawPayload.listPage,rows:p.rawRows.map(row=>row.rawPayload)})),'a'.repeat(64));
+   const projectedReplay=replayOfficialJsonRenderedTraversal('source-pfizer-china-social',projected);assert.deepEqual(projectedReplay.matchKeys,replay.matchKeys);assert.deepEqual(projectedReplay.rawEvidenceIds,replay.rawEvidenceIds);
+  }
   assert.equal(tabs.filter(tab=>tab!==page&&!tab.isClosed()).length,0,'All detail pages, including the failed operation, must finish');
  }finally{await browser.close();await rm(directory,{recursive:true,force:true});}
 });
