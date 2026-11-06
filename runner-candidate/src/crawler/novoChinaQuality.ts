@@ -44,12 +44,6 @@ function pair(value: unknown): { label: string; value: string } | undefined {
   return raw && text(raw.label) && text(raw.value)
     ? { label: raw.label, value: raw.value } : undefined;
 }
-function pairs(value: unknown): Array<{ label: string; value: string }> | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const values = value.map(pair);
-  return values.every((item): item is { label: string; value: string } => item !== undefined) &&
-    new Set(values.map(item => item.value)).size === values.length ? values : undefined;
-}
 
 export function exactNovoChinaBootstrap(input: {
   config: OfficialJsonFetchConfig; entryUrl: string; sourceIdentity: { id: string; companyId: string }; endpoint: string
@@ -226,8 +220,8 @@ export function novoInsufficientDetailLoss(raw: Record<string, unknown>, recordI
     details: { code: "NOVO_DETAIL_INSUFFICIENT", pageSequence: 0, recordIndex }, recordedAt };
 }
 
-/** Replay every list member. Insufficient JD is unpublished, never explicit closure;
- * unavailable or unbound pages still fail the source. */
+/** Replay the complete list and each good native chain. Unverifiable jobs retain prior data;
+ * only explicit application closure removes a previously known job. */
 export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence, output: readonly NormalizedJobRecord[], capturedAt: string): boolean {
   if (!exactNovoChinaQualityPlan(plan) || evidence.pages.length !== 1) return false;
   const artifact = evidence.artifacts[0], page = evidence.pages[0]!;
