@@ -16,3 +16,11 @@ test('identified job failures preserve only the matching prior job; an unbound r
  assert.deepEqual([...quarantinedPriorJobKeys({jobQuarantines:[q]},previous,new Set(['one']))],['two']);
  assert.deepEqual([...quarantinedPriorJobKeys({},previous)],[]);
 });
+
+test('Workday retains the same native requisition when the title slug changes, without matching another site or ID',()=>{
+ const old=[{dedupeKey:'old-path',record:{sourceJobId:'workday:sha256:'+'a'.repeat(64),officialUrl:'https://tenant.myworkdayjobs.com/external/job/Shanghai/Old-title_REQ123-1'}}];
+ const q={pageSequence:0,recordIndex:0,rawLocator:'page#row:0',validJobId:'q',code:'JOB_DETAIL_UNAVAILABLE',sourceJobId:'workday:sha256:'+'b'.repeat(64),officialUrl:'https://tenant.myworkdayjobs.com/external/job/Shanghai/New-title_REQ123-1'};
+ assert.deepEqual([...quarantinedPriorJobKeys({jobQuarantines:[q]},old)],['old-path']);
+ for(const url of [q.officialUrl.replace('REQ123','REQ124'),q.officialUrl.replace('/external/','/other-site/'),q.officialUrl.replace('tenant.','other.')])
+  assert.deepEqual([...quarantinedPriorJobKeys({jobQuarantines:[{...q,officialUrl:url}]},old)],[]);
+});

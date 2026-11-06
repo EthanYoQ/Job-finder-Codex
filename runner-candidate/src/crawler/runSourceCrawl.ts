@@ -1,5 +1,7 @@
 import { CITY_PENDING } from "../domain/jobLocation";
 import {hasHtmlRowQuarantine,reviewHtmlJobRows,replayHtmlJobRows} from './htmlJobQuarantine';
+import {hasBeisenJobQuarantine,verifyBeisenListQuarantines} from './beisenJobQuarantine';
+import {hasWorkdayJobQuarantine,verifyWorkdayJobQuarantines} from './workdayJobQuarantine';
 import { jobQuarantineLossesMatch, JOB_QUARANTINE_PAGINATION } from './jobQuarantine';
 import { mainlandDisplayCities } from "./fosunScopeGeography";
 import { reviewedMainlandCity } from "./reviewedMainlandCity";
@@ -410,7 +412,7 @@ async function finalizeTruth(
     observation.completenessEvidenceKind = declaration.kind;
     observation.completenessEvidenceUrl = declarationArtifact.finalUrl ?? declarationArtifact.requestedUrl!;
     if (declaration.kind === "OFFICIAL_TOTAL_COUNT") {
-      observation.expectedJobCount = hasBiSemanticPlan(plan)||strictEvidence.jobQuarantines?.length ? strictEvidence.fetchCounts.validCount : profileBoundPersistedExpectedJobCount(
+      observation.expectedJobCount = hasBiSemanticPlan(plan) ? strictEvidence.fetchCounts.validCount : profileBoundPersistedExpectedJobCount(
         plan,
         strictEvidence,
         result.jobs
@@ -505,6 +507,8 @@ export function replayStrictSourceQualityEvidence(input: {
   jobs: readonly NormalizedJobRecord[];
   capturedAt: string;
 }): boolean {
+  if(hasBeisenJobQuarantine(input.plan)&&input.evidence.jobQuarantines?.length&&!verifyBeisenListQuarantines(input.plan,input.evidence))return false;
+  if(hasWorkdayJobQuarantine(input.plan)&&input.evidence.jobQuarantines?.length&&!verifyWorkdayJobQuarantines(input.plan,input.evidence))return false;
   if(hasHtmlRowQuarantine(input.plan)&&input.evidence.jobQuarantines?.length){
     try{if(!replayHtmlJobRows(input.plan,input.evidence,input.jobs,input.capturedAt))return false;}catch{return false;}
   }
@@ -620,8 +624,12 @@ function strictCompletenessGate(
       // Novo's supplemental native-detail → official-application redirects are bound per ID by the replay above.
       const msdAjingaProof = plan.adapterId === "official-json" && plan.profileBoundSource?.kind === "msd-ajinga" && profileBoundEvidenceValidated;
       // Ajinga's per-ID query URLs have already been replayed exactly against each raw list row.
-      const networkEvidence = novoProof ? {...evidence,artifacts:[evidence.artifacts[0]!]} : msdAjingaProof
-        ? {...evidence,artifacts:evidence.artifacts.filter(a=>!a.logicalKey.startsWith("msd-ajinga-detail-")&&!a.logicalKey.startsWith("msd-ajinga-apply-"))} : evidence;
+      const grifolsProof=plan.adapterId==='official-json'&&plan.profileBoundSource?.kind==='grifols-china-detail-scope'&&profileBoundEvidenceValidated;
+      const workdayHeldKeys=new Set(hasWorkdayJobQuarantine(plan)?evidence.jobQuarantines?.map(q=>`workday-detail-${String(q.pageSequence).padStart(4,'0')}-${String(q.recordIndex).padStart(4,'0')}`):[]);
+      const networkEvidence = novoProof ? {...evidence,artifacts:[evidence.artifacts[0]!]} : grifolsProof
+        ? {...evidence,artifacts:evidence.artifacts.filter(a=>!a.logicalKey.startsWith('grifols-detail-'))} : msdAjingaProof
+        ? {...evidence,artifacts:evidence.artifacts.filter(a=>!a.logicalKey.startsWith("msd-ajinga-detail-")&&!a.logicalKey.startsWith("msd-ajinga-apply-"))}
+        : workdayHeldKeys.size?{...evidence,artifacts:evidence.artifacts.filter(a=>!workdayHeldKeys.has(a.logicalKey))}:evidence;
       artifactUrlBindings = strictNetworkArtifactUrlBindings(networkEvidence, urlRules);
       if (!artifactUrlBindings) return strictGateTrace(plan, "ARTIFACT_URL_BINDING");
       if (!strictEvidenceArtifactPurposes(plan, evidence, artifactUrlBindings)) {
@@ -645,7 +653,7 @@ function strictCompletenessGate(
     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
     const quarantinedJobs = jobQuarantineLossesMatch(evidence)&&
-      (hasAstraZenecaDetailPlan(plan)||hasBeisenDetailDatePlan(plan)||hasHtmlRowQuarantine(plan)||profileBoundEvidenceValidated);
+      (hasAstraZenecaDetailPlan(plan)||hasBeisenJobQuarantine(plan)||hasWorkdayJobQuarantine(plan)||hasHtmlRowQuarantine(plan)||profileBoundEvidenceValidated);
     const onlyQuarantinedLosses = quarantinedJobs && evidence.fetchLosses.every(loss=>loss.details.code==='JOB_QUARANTINED');
     if (evidence.fetchLosses.length > 0 && !onlyQuarantinedLosses && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !rocheScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");

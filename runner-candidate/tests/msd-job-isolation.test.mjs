@@ -11,12 +11,12 @@ test('MSD isolates bad native details after closing the original list',async()=>
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-msd-china-social');
  const company={pk:13472,root_pk:13471};
  const rows=[101,102,103].map(pk=>({pk,short_unique_id:`short${pk}`,title:`Role ${pk}`,company,job_visibility:'E',show_apply:1,finish_apply:false,cant_applied:false,is_overseas:false,url:`/job-detail-new/${pk}/c/`,apply_url:`/apply-job-process/${pk}/?company_id=${company.pk}`,cities:['上海']}));
- const at='2026-11-06T00:00:00.000Z';let bad=true,incomplete=false;
+ const at='2026-11-06T00:00:00.000Z';let bad=true,incomplete=false,invalidRow=false;
  const fetch=createMsdAjingaSourceFetch({now:()=>new Date(at),http:async url=>{
   let body,contentType='application/json';
   if(url===plan.source.officialEntryUrl){body='<script src="https://static-c.ajinga.com/v-prod/js/app.abc.js"></script>';contentType='text/html';}
   else if(url.includes('/v-prod/js/')){body='MSD:13471;professionals;/django_rest/job-list/';contentType='application/javascript';}
-  else if(url.includes('/job-list/'))body=JSON.stringify({code:200,data:{count:3,list:incomplete?rows.slice(0,2):rows,isLastPage:true,cant_applied:false}});
+  else if(url.includes('/job-list/'))body=JSON.stringify({code:200,data:{count:3,list:incomplete?rows.slice(0,2):invalidRow?[rows[0],null,rows[2]]:rows,isLastPage:true,cant_applied:false}});
   else{
    const row=rows.find(r=>url.includes(r.short_unique_id));assert.ok(row);
    body=url.includes('/info/')?JSON.stringify({code:200,data:{data:{is_in_china:true,company:{id:company.pk,root_company:{id:13471}},job:{id:row.pk,root_company_id:13471,company:{id:company.pk},short_unique_id:row.short_unique_id,i18n_name:row.title,job_visibility:'E',description:bad&&row.pk===102?'':'Official responsibilities',job_locations:[{city:{cn_name:'上海',name:'Shanghai'}}]}}}}):JSON.stringify({code:200,data:{show_apply:1,normal_share_url:`https://www.ajinga.com/recruiting/company/${company.pk}/job/${row.pk}/job-detail`}});
@@ -32,5 +32,7 @@ test('MSD isolates bad native details after closing the original list',async()=>
  assert.equal(decision.status,'CERTIFIED',JSON.stringify(decision));
  const changed=structuredClone(evidence);changed.jobQuarantines[0].sourceJobId='ajinga:101';assert.equal(validateStrictMsdAjingaEvidence(plan,changed,result.jobs),false);
  bad=false;const good=await runSourceCrawl(plan,{fetch,isBaseline:false});assert.equal(good.truth.completenessVerified,true);assert.equal(good.jobs.length,3);
+ invalidRow=true;const malformed=await runSourceCrawl(plan,{fetch,isBaseline:false});assert.equal(malformed.truth.completenessVerified,true);assert.equal(malformed.jobs.length,2);assert.equal(malformed.fetchEvidence.jobQuarantines[0].sourceJobId,undefined);
+ invalidRow=false;
  incomplete=true;const missing=await runSourceCrawl(plan,{fetch,isBaseline:false});assert.equal(missing.truth.completenessVerified,false);
 });

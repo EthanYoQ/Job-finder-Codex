@@ -27,7 +27,7 @@ test('410 official jobs and 28 list pages enter detail replay without historical
   sourceConfigSha256:sourcePlanConfigSha256(plan),listArtifactLogicalKeys:result.fetchEvidence.artifacts.map(a=>a.logicalKey),
   entries:jobs.map(j=>({sourceJobId:j.sourceJobId,officialUrl:j.officialUrl,outcome:{ok:false,code:'DETAIL_CANCELLED'}}))});
  const replay=value=>replayAstraZenecaDetails(plan,{...result.fetchEvidence,astraZenecaDetails:value},result.capturedAt,false);
- const pending=replay(envelope);assert.equal(pending.jobs.length,0);assert.equal(pending.quarantines.length,410);assert.equal(pending.detailComplete,false);
+ const pending=replay(envelope);assert.equal(pending.jobs.length,0);assert.equal(pending.quarantines.length,410);
  assert.throws(()=>replay({...envelope,entries:envelope.entries.slice(1)}),/ARTIFACT_SET_INVALID/);
  const wrong=structuredClone(envelope);wrong.entries[0].sourceJobId='999999';assert.throws(()=>replay(wrong),/ROW_BINDING_INVALID/);
  const missingPage={...result.fetchEvidence,artifacts:result.fetchEvidence.artifacts.slice(1),pages:result.fetchEvidence.pages.slice(1)};

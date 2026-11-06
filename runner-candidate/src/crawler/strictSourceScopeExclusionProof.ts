@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import {verifyBeisenListQuarantines} from './beisenJobQuarantine';
 import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import type { NormalizedJobRecord } from "./normalizedJob";
@@ -87,6 +88,7 @@ export function validateStrictSourceScopeExclusionProof(
   outputJobs: readonly NormalizedJobRecord[] = []
 ): boolean {
   try {
+    if(evidence.jobQuarantines?.length&&!verifyBeisenListQuarantines(plan,evidence))return false;
     if (plan.adapterId !== "official-json" || plan.executionAuthority !== "STAGED" ||
         evidence.supportingArtifactOnlyFailure || !exactTraversalDeclaration(evidence)) return false;
     const policy = configuredPolicy(plan);
@@ -242,6 +244,9 @@ function replayBeisen(
     const validIds: string[] = [];
     for (let index = 0; index < root.Data.length; index += 1) {
       const raw = root.Data[index];
+      if(evidence.jobQuarantines?.some(q=>q.pageSequence===sequence&&q.recordIndex===index)){
+        rawIds.push(irrevocable(strictRecord(raw)&&typeof raw.Id==='string'?raw.Id:raw));continue;
+      }
       if (!strictRecord(raw)) return false;
       if (policy === "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1") {
         if (typeof raw.Id !== "string" ||
@@ -266,7 +271,7 @@ function replayBeisen(
         !exactArray(page.validJobIds, validIds)) return false;
     rawCount += root.Data.length;
   }
-  return declaredTotal === rawCount && exactCounts(evidence, rawCount, totalExcluded(excludedByPage)) &&
+  return declaredTotal === rawCount && exactCounts(evidence, rawCount, totalExcluded(excludedByPage)+(evidence.jobQuarantines?.length??0)) &&
     (policy !== "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1" || exactFosunOutput(plan, fosunAcceptedRows, outputJobs)) &&
     (policy !== "THREESBIO_XIANYANG_HOMOGRAPH_V1" ||
       exactThreeSbioCorrectedOutput(outputJobs, exactHomographCorrections));
@@ -330,6 +335,7 @@ function exactLossIndexes(
 ): Map<number, Set<number>> | undefined {
   const byPage = new Map<number, Set<number>>();
   for (const loss of evidence.fetchLosses) {
+    if(loss.details.code==='JOB_QUARANTINED')continue;
     const sequence = loss.details.pageSequence;
     const index = loss.details.recordIndex;
     if (loss.stage !== "VALIDATION" || sequence === undefined || index === undefined ||
@@ -389,7 +395,7 @@ function exactFosunSocialRow(raw: Record<string, unknown>): boolean {
 // Only the observed Hong Kong-only vocabulary is admitted for this source. All
 // populated country/alternate location labels must agree; shadow fields cannot
 // hide mainland, mixed, malformed or unknown geography behind LocNames.
-function exactFosunHongKongOnlyScope(raw: unknown): boolean {
+export function exactFosunHongKongOnlyScope(raw: unknown): boolean {
   if (!strictRecord(raw) || !Array.isArray(raw.LocNames) || raw.LocNames.length === 0) return false;
   const hongKong = (value: unknown) => typeof value === "string" &&
     /^(?:香港(?:特别行政区)?|hong kong(?: special administrative region| sar)?)$/iu.test(value.normalize("NFKC").trim());

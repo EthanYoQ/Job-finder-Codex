@@ -6,6 +6,8 @@ import { CITY_PENDING } from "../domain/jobLocation";
 import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFailureArtifact, novoNativeGatewayRetryStart, novoNativeGatewayRetryArtifact, delayNovoNativeRetry } from "./novoNativeGatewayRetry";
 import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
 import { acquireBeisenDetailDates } from "./beisenDetailDates";
+import {isolateBeisenJobRows} from './beisenJobQuarantine';
+import {exactFosunHongKongOnlyScope} from './strictSourceScopeExclusionProof';
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
@@ -399,13 +401,13 @@ export function createOfficialJsonSourceFetch(
       }
 
       if (plan.officialJsonFetch.kind === "beisen-zhiye-2022") {
-        return finish(await acquireBeisenDetailDates(plan, await fetchBeisenZhiye2022({
+        return finish(await acquireBeisenDetailDates(plan, isolateBeisenJobRows(plan,await fetchBeisenZhiye2022({
           http,
           config: plan.officialJsonFetch,
           entryUrl: plan.source.officialEntryUrl,
           capturedAt,
           now
-        }), deps.http, now));
+        }),plan.source.id==='source-fosun-pharma-social'?exactFosunHongKongOnlyScope:()=>false), deps.http, now));
       }
 
       if (plan.officialJsonFetch.kind === "cnstaff") {
@@ -3482,21 +3484,7 @@ async function fetchBeisenZhiye2022({
       if (socialMismatch) {
         recordBeisenLoss(losses, counts, "VALIDATION", "SOCIAL_CHANNEL_MISMATCH",
           rawLocator, pageIndex, recordIndex, socialMismatch);
-        pages.push(beisenPageTrace({
-          artifact,
-          sequence: pageIndex,
-          requestedPage: pageIndex,
-          returnedPage,
-          rawJobIds: rawIds,
-          validJobIds: validIds,
-          ...(pageTotal === undefined ? {} : { declaredTotal: pageTotal }),
-          nextPageSignalBefore: pageIndex === 0 ? null : `page:${pageIndex}`,
-          nextPageSignalAfter: null,
-          termination: "FAILED"
-        }));
-        return beisenFailure(capturedAt, "Beisen Zhiye social channel binding failed",
-          artifacts, pages, counts, losses,
-          beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator));
+        continue;
       }
       const officialId = beisenCanonicalOriginalUuid(raw.Id);
       const detailId = officialId;

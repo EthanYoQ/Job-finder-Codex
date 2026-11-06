@@ -51,8 +51,8 @@ function scriptValid(script:SourceFetchArtifactDraft):boolean{const body=rawBody
 function pageData(artifact:SourceFetchArtifactDraft,page:number){
  const root=json(artifact),data=rec(root.data);
  failUnless(root.code===200&&data&&Number.isSafeInteger(data.count)&&(data.count as number)>=0&&Array.isArray(data.list)&&
-  data.list.every(rec)&&typeof data.isLastPage==="boolean"&&data.cant_applied===false,"MSD_AJINGA_LIST_INVALID");
- const total=data.count as number,rows=data.list as Record<string,unknown>[];
+  typeof data.isLastPage==="boolean"&&data.cant_applied===false,"MSD_AJINGA_LIST_INVALID");
+ const total=data.count as number,rows=(data.list as unknown[]).map(row=>rec(row)??{});
  failUnless(page<=Math.max(1,Math.ceil(total/30))&&rows.length===Math.min(30,Math.max(0,total-(page-1)*30))&&
   data.isLastPage===(page===Math.max(1,Math.ceil(total/30))),"MSD_AJINGA_PAGINATION_DRIFT");
  return {total,rows,last:data.isLastPage};
@@ -87,7 +87,7 @@ function locator(role:string,url:string,coordinate:unknown){return requestContra
 function trace(artifact:SourceFetchArtifactDraft,page:number,total:number,rows:Record<string,unknown>[]):SourceFetchPageTrace{
  const last=(page-1)*30+rows.length===total;
  return {sequence:page-1,artifactLogicalKey:artifact.logicalKey,requestedCursor:null,returnedCursor:null,requestedOffset:null,returnedOffset:null,
-  requestedPage:page,returnedPage:null,requestedPageSize:null,returnedPageSize:null,rawJobIds:rows.map(row=>String(row.pk)),validJobIds:rows.map(row=>`ajinga:${row.pk}`),
+  requestedPage:page,returnedPage:null,requestedPageSize:null,returnedPageSize:null,rawJobIds:rows.map((row,index)=>positive(row.pk)?String(row.pk):`unidentified:${page}:${index}`),validJobIds:rows.map((row,index)=>positive(row.pk)?`ajinga:${row.pk}`:`unidentified:${page}:${index}`),
   declaredTotal:total,declaredCount:null,declaredPages:null,nextPageSignalBefore:page===1?null:`page:${page}`,nextPageSignalAfter:last?null:`page:${page+1}`,
   responseFingerprintSha256:sha256Bytes(Buffer.from(rawBody(artifact))).sha256,termination:total===0?"EMPTY_PAGE":last?"DECLARED_TOTAL_REACHED":"CONTINUE",anomalyCodes:[],capturedAt:artifact.capturedAt};
 }
@@ -103,8 +103,12 @@ function evidenceFor(artifacts:SourceFetchArtifactDraft[],pages:SourceFetchPageT
 }
 function quarantineRow(row:Record<string,unknown>,index:number,pages:SourceFetchPageTrace[]):JobQuarantine{
  const pageSequence=Math.floor(index/MSD_AJINGA_CONFIG.pageSize),recordIndex=index%MSD_AJINGA_CONFIG.pageSize;
- return {pageSequence,recordIndex,validJobId:`ajinga:${row.pk}`,rawLocator:`${pages[pageSequence]!.artifactLogicalKey}#row:${recordIndex}`,
+ return {pageSequence,recordIndex,validJobId:positive(row.pk)?`ajinga:${row.pk}`:`unidentified:${pageSequence+1}:${recordIndex}`,rawLocator:`${pages[pageSequence]!.artifactLogicalKey}#row:${recordIndex}`,
   ...(positive(row.pk)?{sourceJobId:`ajinga:${row.pk}`,officialUrl:`${ORIGIN}/job-detail-new/${row.pk}/c/`}:{}),code:'JOB_DETAIL_UNAVAILABLE'};
+}
+function uniqueListedIdentities(rows:Record<string,unknown>[]):boolean{
+ const ids=rows.filter(row=>positive(row.pk)).map(row=>row.pk),shortIds=rows.filter(row=>text(row.short_unique_id)).map(row=>row.short_unique_id);
+ return new Set(ids).size===ids.length&&new Set(shortIds).size===shortIds.length;
 }
 export interface MsdAjingaHttpResponse{status:number;body:string;finalUrl:string;contentType:string;capturedAt:string;}
 type Http=(url:string)=>Promise<MsdAjingaHttpResponse>;
@@ -136,7 +140,7 @@ export function createMsdAjingaSourceFetch(deps:{http?:Http;now?:()=>Date}={}):S
     if(total===undefined)total=data.total;failUnless(data.total===total,"MSD_AJINGA_TOTAL_DRIFT");
     rows.push(...data.rows);pages.push(trace(a,page,total,data.rows));if(data.last)break;
    }
-   failUnless(rows.length===total&&new Set(rows.map(r=>r.pk)).size===total&&new Set(rows.map(r=>r.short_unique_id)).size===total,"MSD_AJINGA_SET_NOT_CLOSED");
+   failUnless(rows.length===total&&uniqueListedIdentities(rows),"MSD_AJINGA_SET_NOT_CLOSED");
    const jobs:Array<NonNullable<ReturnType<typeof projectMsdAjingaJob>>>=[],quarantines:JobQuarantine[]=[];
    for(let offset=0;offset<rows.length;offset+=4){
     const group=await Promise.all(rows.slice(offset,offset+4).map(async(row,inGroup)=>{
@@ -185,7 +189,7 @@ export function validateStrictMsdAjingaEvidence(plan:SourceCrawlPlan,input:Persi
    const expectedPage=trace(a,page,total,data.rows),actualPage=rawEvidence.pages[i]!;
    if(data.total!==total||!same({...actualPage,validJobIds:[...actualPage.validJobIds].sort()},{...expectedPage,validJobIds:[...expectedPage.validJobIds].sort()}))return false;rows.push(...data.rows);
   }
-  if(total===undefined||rows.length!==total||new Set(rows.map(r=>r.pk)).size!==total||new Set(rows.map(r=>r.short_unique_id)).size!==total||
+  if(total===undefined||rows.length!==total||!uniqueListedIdentities(rows)||
    !same(rawEvidence.fetchCounts,{rawCount:total,parsedCount:total,validCount:total,parseDiscardCount:0,validationDiscardCount:0}))return false;
   const first=artifacts.get("msd-ajinga-page-1")!;
   if(!same(evidence.declaredCompleteness,{kind:"OFFICIAL_TOTAL_COUNT",value:total,scope:"SOURCE",artifactLogicalKey:first.logicalKey,extractorLocator:first.extractorLocator}))return false;

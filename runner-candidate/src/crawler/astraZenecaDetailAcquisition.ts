@@ -144,7 +144,7 @@ export async function acquireAstraZenecaDetails(plan:SourceCrawlPlan,fetched:Sou
   const replay=replayAstraZenecaDetails(plan,complete,fetched.capturedAt,true),fetchEvidence=quarantineCompleteList(complete,replay.quarantines);
   return {...fetched,fetchEvidence,paginationEvaluation:evaluatePaginationEvidence({evidence:fetchEvidence,expectedChannelIds:[],filteredOutput:true,allowMissingReturnedPage:true,allowPositiveOfficialTotalCountAfterAdapterReconciliation:true,...(replay.quarantines.length?JOB_QUARANTINE_PAGINATION:{})})};
 }
-export function replayAstraZenecaDetails(plan:SourceCrawlPlan,supplied:PersistentSourceFetchEvidence,capturedAt:string,isBaseline:boolean):{listEvidence:PersistentSourceFetchEvidence;jobs:NormalizedJobRecord[];quarantines:JobQuarantine[];detailComplete:boolean;scopeReviewRequired:boolean}{
+export function replayAstraZenecaDetails(plan:SourceCrawlPlan,supplied:PersistentSourceFetchEvidence,capturedAt:string,isBaseline:boolean):{listEvidence:PersistentSourceFetchEvidence;jobs:NormalizedJobRecord[];quarantines:JobQuarantine[]}{
   if(!hasAstraZenecaDetailPlan(plan))throw Error('ASTRAZENECA_PLAN_INVALID');
   const evidence=parsePersistentSourceFetchEvidence(supplied),envelope=astraZenecaDetailEnvelopeSchema.parse(evidence.astraZenecaDetails);
   if(envelope.sourceConfigSha256!==sourcePlanConfigSha256(plan))throw Error('ASTRAZENECA_DETAIL_CONFIG_INVALID');
@@ -153,7 +153,7 @@ export function replayAstraZenecaDetails(plan:SourceCrawlPlan,supplied:Persisten
   const listReview=reviewAstraZenecaList(plan,listEvidence,capturedAt,isBaseline),jobs=listReview.rows.map(row=>row.job);
   const keys=[...envelope.listArtifactLogicalKeys,...envelope.entries.flatMap(e=>[e.artifactLogicalKey,e.applicationArtifactLogicalKey].filter((key):key is string=>key!==undefined))];
   if(envelope.entries.length!==jobs.length||new Set(keys).size!==keys.length||keys.length!==evidence.artifacts.length||evidence.artifacts.some(a=>!keys.includes(a.logicalKey)))throw Error('ASTRAZENECA_DETAIL_ARTIFACT_SET_INVALID');
-  let retained=listEvidence.artifacts.reduce((n,a)=>n+Buffer.byteLength(a.body as string),0),detailComplete=true,scopeReviewRequired=false;
+  let retained=listEvidence.artifacts.reduce((n,a)=>n+Buffer.byteLength(a.body as string),0);
   const quarantines:JobQuarantine[]=[...listReview.quarantines],accepted:NormalizedJobRecord[]=[];
   const hasBlock=envelope.entries.some(e=>!e.outcome.ok&&e.outcome.code==='DETAIL_BOT_BLOCKED');
   for(const [index,job] of jobs.entries()){
@@ -172,8 +172,6 @@ export function replayAstraZenecaDetails(plan:SourceCrawlPlan,supplied:Persisten
       else if(entry.outcome.ok||(entry.outcome.code!==replay.code&&!(replay.code==='DETAIL_APPLICATION_REQUIRED'&&!applicationArtifact&&['DETAIL_RESPONSE_INVALID','DETAIL_BODY_TOO_LARGE','DETAIL_TRANSPORT_FAILED','DETAIL_CANCELLED','DETAIL_BOT_BLOCKED'].includes(entry.outcome.code))))throw Error('ASTRAZENECA_DETAIL_FAILURE_INVALID');
     }else if(entry.outcome.ok||!['DETAIL_RESPONSE_INVALID','DETAIL_BODY_TOO_LARGE','DETAIL_TRANSPORT_FAILED','DETAIL_CANCELLED','DETAIL_RETAINED_BUDGET_EXCEEDED','DETAIL_NOT_ATTEMPTED_AFTER_BLOCK','DETAIL_BOT_BLOCKED'].includes(entry.outcome.code))throw Error('ASTRAZENECA_DETAIL_ARTIFACT_MISSING');
     if(!entry.outcome.ok&&entry.outcome.code==='DETAIL_NOT_ATTEMPTED_AFTER_BLOCK'&&!hasBlock)throw Error('ASTRAZENECA_DETAIL_FAILURE_INVALID');
-    if(!claim)detailComplete=false;
-    if(claim?.scopeReviewCodes.length||(!entry.outcome.ok&&entry.outcome.code==='DETAIL_COUNTRY_INVALID'))scopeReviewRequired=true;
     job.cities=claim?[...claim.cities]:[CONFIG.pendingCity];
     job.evidence.astraZenecaDetail={...(claim?{country:'中国' as const}:{sourceCountryContext:'中国' as const}),status:claim?.locationStatus??'UNRESOLVED',listLocationRaw:job.locationRaw,
       ...(artifact?{artifactLogicalKey:artifact.logicalKey,bodySha256:sha256Bytes(artifact.body instanceof Uint8Array?artifact.body:Buffer.from(artifact.body)).sha256}:{}),
@@ -187,5 +185,5 @@ export function replayAstraZenecaDetails(plan:SourceCrawlPlan,supplied:Persisten
   }
   quarantines.sort((a,b)=>a.pageSequence-b.pageSequence||a.recordIndex-b.recordIndex);
   if(evidence.jobQuarantines!==undefined&&!isDeepStrictEqual(evidence.jobQuarantines,quarantines))throw Error('ASTRAZENECA_JOB_QUARANTINE_INVALID');
-  return {listEvidence:quarantineCompleteList(listEvidence,quarantines),jobs:accepted,quarantines,detailComplete,scopeReviewRequired};
+  return {listEvidence:quarantineCompleteList(listEvidence,quarantines),jobs:accepted,quarantines};
 }
