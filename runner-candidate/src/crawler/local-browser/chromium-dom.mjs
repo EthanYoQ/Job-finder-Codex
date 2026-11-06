@@ -87,6 +87,7 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
       },
       close: () => page.close(), getAXState: snapshot,
       playwright: {
+        addLocatorHandler: (selector, handler) => page.addLocatorHandler(page.locator(selector), native => handler(locator(native))),
         locator: (...args) => locator(page.locator(...args)),
         frameLocator: (...args) => locator(page.frameLocator(...args)),
         getByRole: (...args) => locator(page.getByRole(...args)),

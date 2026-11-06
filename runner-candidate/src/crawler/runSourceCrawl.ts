@@ -3882,7 +3882,8 @@ function strictEightfoldDateReplay(
       const raw = strictRecord(value);
       const projection = raw && projectEightfoldPcsxPosition(raw, new URL(config.detailBaseUrl), config.cityScopePolicy);
       const officialPublishedAt = raw && bmsOfficialPostedDate(raw.postedTs);
-      rawIds.push(irreversibleOfficialJsonEvidenceId(raw?strictGateString(raw.id)??[index,recordIndex,value]:[index,recordIndex,value]));
+      const rawId = raw && (typeof raw.id === "number" || typeof raw.id === "boolean" ? String(raw.id) : strictNonblankText(raw.id));
+      rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? [index,recordIndex,value]));
       const quarantine=evidence.jobQuarantines?.find(q=>q.pageSequence===index&&q.recordIndex===recordIndex);
       if(!projection){if(!quarantine||!isDeepStrictEqual(quarantine,eightfoldJobQuarantine(value,new URL(config.detailBaseUrl),index,recordIndex,logicalKey,quarantine.code)))return strictGateTrace(plan,'BMS_QUARANTINE_INVALID');continue;}
       if(quarantine)return false;
