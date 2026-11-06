@@ -1,3 +1,4 @@
+import {quarantinedPriorJobKeys} from '../src/crawler/jobQuarantine.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {loadDirectPlans} from '../scripts/direct-round.ts';
@@ -23,6 +24,7 @@ test('CSPC complete HTTP and DOM lists isolate one damaged row or native detail'
   if(['duplicate','missing-page','wrong-list-set'].includes(mode)){assert.equal(result.truth.completenessVerified,false,mode);continue;}
   assert.equal(result.truth.completenessVerified,true,`${mode}: ${JSON.stringify(result.observation)}`);
   assert.equal(result.jobs.length,mode==='good'?3:mode==='two-unbound'?1:2,mode);
+  if(mode==='unbound-dom-failure'){const q=result.fetchEvidence.jobQuarantines[0];assert.equal(q.sourceJobId,undefined);assert.equal(q.officialUrl,undefined);const old={dedupeKey:'historical',record:{sourceJobId:channel+':'+id(9),officialUrl:entry+'?historical=1'}};assert.deepEqual([...quarantinedPriorJobKeys(result.fetchEvidence,[old])],['historical']);}
   if(mode!=='good'){const e=structuredClone(result.fetchEvidence);assert.equal(e.jobQuarantines.length,mode==='two-unbound'?2:1);e.jobQuarantines[0].sourceJobId='incorrect';assert.equal(replayStrictSourceQualityEvidence({plan,evidence:e,jobs:result.jobs,capturedAt:result.observation.crawledAt.toISOString(),paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation}),false);}
  }
 });

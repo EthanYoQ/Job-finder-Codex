@@ -147,7 +147,6 @@ async function readCspcListObservation(listTab) {
     if(rows.some(r=>r.officialId===row.officialId))throw Error('CSPC_DUPLICATE_OFFICIAL_ID');
     if(row.detailSections.length<2||row.detailSections.slice(0,2).some(s=>!s.trim()))throw Error('CSPC_DETAIL_SECTIONS_MISSING');
     const application=null;
-    if(row.detailSections.every(s=>s.trim()==='1'))row.detailInsufficient=true;
     const tab=await cua.getTab(row.tabId,{browser:'cdp'});await tab.close();owned.splice(owned.indexOf(row.tabId),1);
     rows.push(row);pending=undefined;
     checkTime();return {row,application};

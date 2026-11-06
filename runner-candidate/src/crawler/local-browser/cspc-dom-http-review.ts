@@ -1,3 +1,4 @@
+import {redseaNativeJobId} from '../redseaCandidateScope';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 const channel='0beb3022-3214-4333-a2e7-20786c4916d5';
@@ -29,13 +30,14 @@ export function reviewCspcDomHttp(input:{dom:any;applications:any;plan:any;repla
  const api=replayedEvidence.artifacts.filter((a:any)=>a.logicalKey===`redsea-${channel}-api`);assert.equal(api.length,1);
  const response=JSON.parse(api[0].body);assert.equal(response.state,'1');assert.equal(response.total,'');assert(Array.isArray(response.jsonList));observed(api[0].capturedAt);
  const rows=response.jsonList;assert.equal(rows.length,dom.rows.length,'DOM_HTTP_COMPLETE_SLOT_COUNT');
- const nativeId=(v:any)=>typeof v==='string'&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(v)?v:undefined;
+ const nativeId=redseaNativeJobId;
  const ids=dom.rows.map((r:any)=>nativeId(r.officialId)).filter(Boolean),apiIds=rows.map((r:any)=>nativeId(r?.REQUEST_ID)).filter(Boolean);
  unique(ids,'UNIQUE_DOM_IDS');unique(apiIds,'UNIQUE_HTTP_IDS');
  assert(ids.filter((id:string)=>!apiIds.includes(id)).length<=rows.length-apiIds.length,'DOM_HTTP_UNKNOWN_SLOT_BINDING');
  assert(apiIds.filter((id:string)=>!ids.includes(id)).length<=dom.rows.length-ids.length,'DOM_HTTP_UNKNOWN_SLOT_BINDING');
+ const unboundDomRecordIndices:number[]=[];
  const held=new Set<number>((replayedEvidence.jobQuarantines??[]).map((q:any)=>q.recordIndex));
- rows.forEach((raw:any,index:number)=>{if(!nativeId(raw?.REQUEST_ID)||!ids.includes(raw.REQUEST_ID))held.add(index);});
+ rows.forEach((raw:any,index:number)=>{if(!nativeId(raw?.REQUEST_ID)||!ids.includes(raw.REQUEST_ID)){held.add(index);if(nativeId(raw?.REQUEST_ID)&&!ids.includes(raw.REQUEST_ID))unboundDomRecordIndices.push(index);}});
  for(const r of dom.rows){
   const index=rows.findIndex((raw:any)=>nativeId(raw?.REQUEST_ID)&&raw.REQUEST_ID===r.officialId);if(index<0)continue;
   const raw=rows[index];
@@ -50,5 +52,5 @@ export function reviewCspcDomHttp(input:{dom:any;applications:any;plan:any;repla
  }
  assert.equal(applications.schema,'dot-cloud-cdp-application-entry-observation-v1');assert.equal(applications.sourceId,plan.source.id);
  for(const a of applications.observations){assert.equal(a.personalDataEntered,false);assert.equal(a.loginPerformed,false);assert.equal(a.applicationSubmitted,false);}
- return {status:'PASS',retrievalPath:'CDP_DOM_NAVIGATION_PLUS_INDEPENDENT_HTTP',domSha256:hash(dom),applicationsSha256:hash(applications),httpBodySha256:hash(api[0].body),visibleIds:[...ids].sort(),quarantinedRecordIndices:[...held].sort((a,b)=>a-b),observedAt:dom.observationStartedAt,checkedAt:input.now};
+ return {status:'PASS',retrievalPath:'CDP_DOM_NAVIGATION_PLUS_INDEPENDENT_HTTP',domSha256:hash(dom),applicationsSha256:hash(applications),httpBodySha256:hash(api[0].body),visibleIds:[...ids].sort(),quarantinedRecordIndices:[...held].sort((a,b)=>a-b),unboundDomRecordIndices,observedAt:dom.observationStartedAt,checkedAt:input.now};
 }

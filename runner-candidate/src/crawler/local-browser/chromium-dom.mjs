@@ -37,6 +37,14 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
   let context;
   try { context = await browser.newContext(); }
   catch (error) { await browser.close(); throw error; }
+  // Context observation includes a popup's first response, before its page event.
+  let cspcAccessBlock;
+  context.on('response',response=>{
+    const url=new URL(response.url()),request=response.request();
+    if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname.startsWith('/RedseaPlatform/')&&[403,429].includes(response.status())&&
+      (request.isNavigationRequest()||['fetch','xhr'].includes(request.resourceType?.())))
+      cspcAccessBlock={httpStatus:response.status(),retryAfter:response.headers()['retry-after']??null};
+  });
   const tabs = new Map(), pages = new WeakMap();
   let sequence = 0;
   function tabFor(page) {
@@ -48,14 +56,11 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
       return ['LOCAL_CHROMIUM_ARIA_SNAPSHOT', `Page: ${page.url()}`, 'networkCapture: false',
         ...frames.map(frame => `Frame: ${frame.url}\n${frame.aria}`)].join('\n');
     };
-    let navigationInfo,cspcListResponse,cspcAccessBlock;
+    let navigationInfo,cspcListResponse;
     page.on('response',response=>{
       if(response.request().isNavigationRequest()&&response.frame()===page.mainFrame())
         navigationInfo={httpStatus:response.status(),retryAfter:response.headers()['retry-after']};
       const url=new URL(response.url());
-      if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname.startsWith('/RedseaPlatform/')&&[403,429].includes(response.status())&&
-        (response.request().isNavigationRequest()||['fetch','xhr'].includes(response.request().resourceType?.())))
-        cspcAccessBlock={httpStatus:response.status(),retryAfter:response.headers()['retry-after']??null};
       if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname==='/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob'&&response.request().method()==='POST'){
         const form=new URLSearchParams(response.request().postData()??''),fields=['channelQrId','root_id','recruit_way','sortName','push_request_id','keyword','ftl_list_stru_id'];
         // Private failure diagnostics only: no headers, cookies, personal fields or response job bodies.
@@ -75,7 +80,7 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
         await popup.waitForLoadState('domcontentloaded',{timeout:remaining});return tabFor(popup);
       }, navigationInfo: async () => cspcAccessBlock?{...navigationInfo,...(cspcListResponse?{cspcListResponse}:{}),cspcAccessBlock}:cspcListResponse?{...navigationInfo,cspcListResponse}:navigationInfo,
       goto: async (url, config) => {
-        navigationInfo=undefined;cspcListResponse=undefined;cspcAccessBlock=undefined;
+        navigationInfo=undefined;cspcListResponse=undefined;
         const response=await page.goto(url, {waitUntil:'domcontentloaded',...options(config)});
         navigationInfo=response?{httpStatus:response.status(),retryAfter:await response.headerValue('retry-after')}:undefined;
         return response;

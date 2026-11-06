@@ -34,7 +34,7 @@ export function withLocalOfficialDom(http: SourceFetchFunction, captureDom = cap
     if (!result.ok || !result.fetchEvidence) return result;
     const input = { ...capture, plan, replayedEvidence: result.fetchEvidence, runStartedAt,
       now: new Date().toISOString(), dispatchBefore: new Date(Date.parse(runStartedAt) + 30 * 60_000).toISOString() };
-    if (sourceId === 'source-cspc-social') {const review=reviewCspcDomHttp({ ...input, dom: capture.dom, applications: capture.applications });return isolateRedseaJobs(plan,result,review.quarantinedRecordIndices);}
+    if (sourceId === 'source-cspc-social') {const review=reviewCspcDomHttp({ ...input, dom: capture.dom, applications: capture.applications });return isolateRedseaJobs(plan,result,review.quarantinedRecordIndices,review.unboundDomRecordIndices);}
     else {
       const script = result.fetchEvidence.artifacts.find(a => a.logicalKey === '51job-ui-script');
       if (!script || typeof script.body !== 'string') throw Error('BI_DOM_NATIVE_SCRIPT_REQUIRED');

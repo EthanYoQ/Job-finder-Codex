@@ -81,7 +81,7 @@ import {
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
-import { auditRedseaCandidateScope } from "./redseaCandidateScope";
+import { auditRedseaCandidateScope,redseaNativeJobId } from "./redseaCandidateScope";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import { exactGileadPublicAgePlan } from "./gileadPublicAge";
 import {
@@ -7101,7 +7101,7 @@ export function normalizeRedseaJob({
   if (!requestId || !title || !locationRaw) {
     return { ok: false, code: "MISSING_REQUIRED_FIELD" };
   }
-  if (!safeOfficialJsonId(requestId)||rootId==='cspc'&&!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(requestId)) return { ok: false, code: "UNSAFE_OFFICIAL_ID", field: "REQUEST_ID" };
+  if (!safeOfficialJsonId(requestId)||rootId==='cspc'&&!redseaNativeJobId(requestId)) return { ok: false, code: "UNSAFE_OFFICIAL_ID", field: "REQUEST_ID" };
   if (sensitiveOfficialJsonField({ requestId, title, locationRaw })) return { ok: false, code: "SENSITIVE_OUTPUT" };
   const normalizedLocation = locationRaw.normalize("NFKC");
   const locationScope = cnstaffGeographyScope(normalizedLocation);
