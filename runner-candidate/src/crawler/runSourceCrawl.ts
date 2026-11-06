@@ -1,3 +1,4 @@
+import {hasRedseaJobQuarantine,replayRedseaJobs} from './redseaJobQuarantine';
 import {mokaRawJobId,mokaQuarantineAt,mokaQuarantinedDetailKey} from './mokaJobQuarantine';
 import { CITY_PENDING } from "../domain/jobLocation";
 import {hasHtmlRowQuarantine,reviewHtmlJobRows,replayHtmlJobRows} from './htmlJobQuarantine';
@@ -510,6 +511,7 @@ export function replayStrictSourceQualityEvidence(input: {
   jobs: readonly NormalizedJobRecord[];
   capturedAt: string;
 }): boolean {
+  if(hasRedseaJobQuarantine(input.plan)&&!replayRedseaJobs(input.plan,input.evidence,input.jobs,input.capturedAt))return false;
   if(hasBeisenJobQuarantine(input.plan)&&input.evidence.jobQuarantines?.length&&!verifyBeisenListQuarantines(input.plan,input.evidence))return false;
   if(hasWorkdayJobQuarantine(input.plan)&&input.evidence.jobQuarantines?.length&&!verifyWorkdayJobQuarantines(input.plan,input.evidence))return false;
   if(hasPhenomJobQuarantine(input.plan)&&input.evidence.jobQuarantines?.length&&!verifyPhenomJobQuarantines(input.plan,input.evidence))return false;
@@ -617,6 +619,7 @@ function strictCompletenessGate(
     if (plan.adapterId === "official-json" && plan.profileBoundSource && !profileBoundEvidenceValidated) {
       return strictGateTrace(plan, "PROFILE_BOUND_EVIDENCE");
     }
+    if(hasRedseaJobQuarantine(plan)&&!replayRedseaJobs(plan,evidence,outputJobs,fetchResult.capturedAt))return false;
     const novoProof = exactNovoChinaQualityPlan(plan) && replayNovoChinaRows(plan, evidence, outputJobs, fetchResult.capturedAt);
     let artifactUrlBindings: Map<string, StrictUrlRule[]> | undefined;
     if (configuredHtmlProof) {
@@ -662,7 +665,7 @@ function strictCompletenessGate(
     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
     const quarantinedJobs = jobQuarantineLossesMatch(evidence)&&
-      (plan.adapterId==='official-json'&&!!plan.moka||kelunScopeProof||!!biProof||yelloScopeProof||hasAstraZenecaDetailPlan(plan)||hasBeisenJobQuarantine(plan)||hasWorkdayJobQuarantine(plan)||hasHtmlRowQuarantine(plan)||hasPhenomJobQuarantine(plan)||profileBoundEvidenceValidated||plan.adapterId==='official-json'&&(!!plan.hotjobLegacy||['eightfold-pcsx','cnstaff'].includes(plan.officialJsonFetch?.kind??'')));
+      (plan.adapterId==='official-json'&&!!plan.moka||kelunScopeProof||!!biProof||yelloScopeProof||hasAstraZenecaDetailPlan(plan)||hasRedseaJobQuarantine(plan)||hasBeisenJobQuarantine(plan)||hasWorkdayJobQuarantine(plan)||hasHtmlRowQuarantine(plan)||hasPhenomJobQuarantine(plan)||profileBoundEvidenceValidated||plan.adapterId==='official-json'&&(!!plan.hotjobLegacy||['eightfold-pcsx','cnstaff'].includes(plan.officialJsonFetch?.kind??'')));
     const onlyQuarantinedLosses = quarantinedJobs && evidence.fetchLosses.every(loss=>loss.details.code==='JOB_QUARANTINED');
     if (evidence.fetchLosses.length > 0 && !onlyQuarantinedLosses && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !rocheScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");

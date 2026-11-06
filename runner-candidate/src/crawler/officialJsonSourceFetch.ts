@@ -1,3 +1,4 @@
+import {isolateRedseaJobs,redseaRawObservationId} from './redseaJobQuarantine';
 import {qiluReviewedRowGeography} from './manualChromeQiluReplay';
 import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
 import { hasBiSemanticPlan, biJobId, biJobQuarantine, biRawObservationId, hasBiMainlandGeography, biDisplayCities } from "./biSemanticCompleteness";
@@ -479,13 +480,13 @@ export function createOfficialJsonSourceFetch(
       }
 
       if (plan.officialJsonFetch.kind === "redsea-zp-channel") {
-        return finish(await fetchRedseaZpChannel({
+        return finish(isolateRedseaJobs(plan,await fetchRedseaZpChannel({
           http,
           config: plan.officialJsonFetch,
           entryUrl: plan.source.officialEntryUrl,
           capturedAt,
           now
-        }));
+        })));
       }
 
       if (plan.officialJsonFetch.kind === "xiuzheng-job-list") {
@@ -1458,8 +1459,7 @@ async function fetchRedseaZpChannel({
     const validIds: string[] = [];
     for (let recordIndex = 0; recordIndex < parsed.jobs.length; recordIndex += 1) {
       const raw = parsed.jobs[recordIndex]; counts.rawCount += 1;
-      const rawId = isStrictRecord(raw) ? stringValue(raw.REQUEST_ID) : undefined;
-      const evidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? raw);
+      const evidenceId = redseaRawObservationId(raw,channelIndex,recordIndex);
       if (!rawIds.includes(evidenceId)) rawIds.push(evidenceId);
       const locator = `${apiArtifactResult.artifact.logicalKey}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId([recordIndex, raw])}`;
       if (!isStrictRecord(raw)) { recordRedseaLoss(losses, counts, "PARSE", "NON_OBJECT_RECORD", locator, channelIndex, recordIndex); continue; }
@@ -7076,7 +7076,7 @@ function redseaHasUnsafePaginationSignal(root: Record<string, unknown>, rowCount
   return false;
 }
 
-function normalizeRedseaJob({
+export function normalizeRedseaJob({
   origin,
   channelQrId,
   rootId,
@@ -7101,7 +7101,7 @@ function normalizeRedseaJob({
   if (!requestId || !title || !locationRaw) {
     return { ok: false, code: "MISSING_REQUIRED_FIELD" };
   }
-  if (!safeOfficialJsonId(requestId)) return { ok: false, code: "UNSAFE_OFFICIAL_ID", field: "REQUEST_ID" };
+  if (!safeOfficialJsonId(requestId)||rootId==='cspc'&&!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(requestId)) return { ok: false, code: "UNSAFE_OFFICIAL_ID", field: "REQUEST_ID" };
   if (sensitiveOfficialJsonField({ requestId, title, locationRaw })) return { ok: false, code: "SENSITIVE_OUTPUT" };
   const normalizedLocation = locationRaw.normalize("NFKC");
   const locationScope = cnstaffGeographyScope(normalizedLocation);

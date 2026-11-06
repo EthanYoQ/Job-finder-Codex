@@ -14,12 +14,12 @@ async function waitCspcDomReady(tab, locator, deadline=Infinity) {
   throw Error('CSPC_DOM_LOADING_TIMEOUT');
 }
 
-async function captureCspcDomBatch(listTab, indices) {
+async function captureCspcDomBatch(listTab, indices, deadline=Infinity) {
   const frame = listTab.playwright.frameLocator('#recruit-content-iframe');
   const rows = await frame.locator('.vxe-table--body tbody tr').evaluateAll(elements =>
     elements.map((row, index) => ({
       index,
-      title: row.querySelector('a').innerText,
+      title: row.querySelector('a')?.innerText??'',
       text: row.innerText
     }))
   );
@@ -28,11 +28,13 @@ async function captureCspcDomBatch(listTab, indices) {
     await listTab.getAXState({emit: false});
     const before = await cua.listTabs({browser: 'cdp', emit: false});
     const clickStartedAt = new Date().toISOString();
-    await frame.locator('.vxe-table--body tbody tr').nth(index).locator('a').click();
+    const budget=Math.max(1,Math.min(30000,deadline-Date.now()));
+    const click=()=>frame.locator('.vxe-table--body tbody tr').nth(index).locator('a').click({timeoutMs:budget});
+    if(listTab.clickAndWaitForPopup)await listTab.clickAndWaitForPopup(click,budget);else await click();
     await listTab.getAXState({emit: false});
     const after = await cua.listTabs({browser: 'cdp', emit: false});
     const added = after.filter(tab => !before.some(previous => previous.id === tab.id));
-    if (added.length !== 1) throw Error('Expected exactly one new detail tab');
+    if (added.length !== 1) throw Error('CSPC_DETAIL_TAB_NOT_OBSERVED');
     const tab = await cua.getTab(added[0].id, {browser: 'cdp'});
     const url = await tab.url();
     captures.push({
@@ -89,7 +91,7 @@ async function readCspcListObservation(listTab) {
     pagerText: el.querySelector('.vxe-pager')?.innerText
   }));
   const snapshot = await listTab.playwright.domSnapshot();
-  const rows = await frame.locator('.vxe-table--body tbody tr').evaluateAll(elements => elements.map((row,index)=>({index,title:row.querySelector('a').innerText,text:row.innerText})));
+  const rows = await frame.locator('.vxe-table--body tbody tr').evaluateAll(elements => elements.map((row,index)=>({index,title:row.querySelector('a')?.innerText??'',text:row.innerText})));
   const rootHtml = await listTab.playwright.evaluate(() => document.documentElement.outerHTML);
   const frameHtml = await frame.locator('html').evaluate(el => el.outerHTML);
   const url = await listTab.url();
@@ -97,29 +99,9 @@ async function readCspcListObservation(listTab) {
     readCompletedAt:new Date().toISOString(),url,listFilters,terminal,rows,snapshot,rootHtml,frameHtml};
 }
 
-async function captureCspcApplicationEntry(tab, deadline=Infinity) {
-  const clickStartedAt = new Date().toISOString();
-  await tab.playwright.frameLocator('#recruit-content-iframe').getByRole('button',{name:'投递',exact:true}).first().click();
-  const clickCompletedAt = new Date().toISOString();
-  await tab.getAXState({emit:false});
-  // The four inspected entries currently open this login gate; never enter data.
-  await waitCspcDomReady(tab,tab.playwright.getByRole('heading',{name:'登录',exact:true}),Math.min(deadline,Date.now()+30000));
-  const readStartedAt = new Date().toISOString();
-  const snapshot = await tab.playwright.domSnapshot();
-  const rootHtml = await tab.playwright.evaluate(() => document.documentElement.outerHTML);
-  const frameHtml = await tab.playwright.frameLocator('#recruit-content-iframe').locator('html').evaluate(el => el.outerHTML);
-  const url = await tab.url();
-  return {url,clickStartedAt,clickCompletedAt,readStartedAt,readCompletedAt:new Date().toISOString(),
-    snapshot,rootHtml,frameHtml,
-    applicationState:'LOGIN_REQUIRED_POST_LOGIN_STATUS_UNVERIFIED',
-    personalDataEntered:false,loginPerformed:false,applicationSubmitted:false};
-}
-
-
-
   const sourceId='source-cspc-social',channelId='0beb3022-3214-4333-a2e7-20786c4916d5';
   const entryUrl='https://ehr.e-cspc.com:8081/RedseaPlatform/zhaopin/zpChannelQrCode/'+channelId+'/officeWebsite.mob';
-  let list,before,observationStartedAt,deadline;
+  let list,before,observationStartedAt,deadline,pending,accessStopped=false;
   const rows=[],applications=[],owned=[];
   const checkTime=()=>{if(Date.now()>=deadline)throw Error('CSPC_CONTROL_WINDOW_EXPIRED');};
   function checkList(value) {
@@ -156,24 +138,34 @@ async function captureCspcApplicationEntry(tab, deadline=Infinity) {
   async function readRow(index) {
     checkTime();
     if(index!==rows.length||index>=before.rows.length)throw Error('CSPC_SEQUENTIAL_ROW_INDEX');
-    const captures=await captureCspcDomBatch(list,[index]);
+    pending=undefined;if(accessStopped)return isolateRowFailure(index,Error('CSPC_ACCESS_STOPPED'));
+    const captures=await captureCspcDomBatch(list,[index],deadline);pending=captures[0];
     owned.push(captures[0].tabId);
     const [row]=await readCspcCompletedDetails(captures,deadline);
     if(row.row.title!==before.rows[index].title||row.row.text!==before.rows[index].text)throw Error('CSPC_LIST_ROW_DRIFT');
     row.officialId=identity(row.url);row.sourceJobId=channelId+':'+row.officialId;row.clickOrdinal=index+1;
     if(rows.some(r=>r.officialId===row.officialId))throw Error('CSPC_DUPLICATE_OFFICIAL_ID');
-    if(row.detailSections.length!==2||row.detailSections.some(s=>!s.trim()))throw Error('CSPC_DETAIL_SECTIONS_MISSING');
-    let application=null;
-    if(row.detailSections.every(s=>s.trim()==='1')) {
-      const tab=await cua.getTab(row.tabId,{browser:'cdp'});
-      application={...await captureCspcApplicationEntry(tab,deadline),officialId:row.officialId,
-        sourceJobId:row.sourceJobId,detailState:'DETAIL_INSUFFICIENT'};
-      if(identity(application.url)!==row.officialId)throw Error('CSPC_APPLICATION_ID_DRIFT');
-      applications.push(application);
-    }
-    rows.push(row);
+    if(row.detailSections.length<2||row.detailSections.slice(0,2).some(s=>!s.trim()))throw Error('CSPC_DETAIL_SECTIONS_MISSING');
+    const application=null;
+    if(row.detailSections.every(s=>s.trim()==='1'))row.detailInsufficient=true;
     const tab=await cua.getTab(row.tabId,{browser:'cdp'});await tab.close();owned.splice(owned.indexOf(row.tabId),1);
+    rows.push(row);pending=undefined;
     checkTime();return {row,application};
+  }
+  async function isolateRowFailure(index,error){
+    checkTime();
+    if(index!==rows.length||/CSPC_(?:LIST_ROW_DRIFT|DUPLICATE_OFFICIAL_ID)/.test(String(error?.message??error)))throw error;
+    let officialId;
+    if(pending)try{officialId=identity(pending.url);}catch{}
+    const tabs=await cua.listTabs({browser:'cdp',emit:false});
+    for(const item of tabs.filter(tab=>tab.id!==list.id)){
+      const tab=await cua.getTab(item.id,{browser:'cdp'});
+      try{const nav=await tab.navigationInfo?.();if([403,429].includes(nav?.httpStatus)||nav?.cspcAccessBlock)accessStopped=true;}catch{}
+      await tab.close();
+    }
+    owned.length=0;
+    const row={row:before.rows[index],captureFailure:true,code:/^CSPC_[A-Z_]+$/.test(String(error?.message??''))?error.message:'CSPC_DETAIL_CAPTURE_FAILED',observedAt:new Date().toISOString(),...(officialId?{officialId,sourceJobId:channelId+':'+officialId}:{})};
+    rows.push(row);pending=undefined;return {row,application:null};
   }
   async function finish(sampleOnly=false) {
     checkTime();
@@ -186,7 +178,7 @@ async function captureCspcApplicationEntry(tab, deadline=Infinity) {
       sourceConfigurationCandidateCountIsOfficialTotal:false,applicationObservationsPending:false,
       observationStartedAt,observationCompletedAt:new Date().toISOString(),
       listFilters:after.listFilters,listObservationBefore:before,listObservationAfter:after,
-      listSnapshotAfter:after.snapshot,terminal:{...after.terminal,readStartedAt:after.readStartedAt,readCompletedAt:after.readCompletedAt},rows};
+      listSnapshotAfter:after.snapshot,accessStopped,terminal:{...after.terminal,readStartedAt:after.readStartedAt,readCompletedAt:after.readCompletedAt},rows};
     return {dom,applications:{schema:'dot-cloud-cdp-application-entry-observation-v1',sourceId,
       tool:'mcp__cua_repl__js',observations:applications}};
   }
@@ -214,7 +206,7 @@ async function captureCspcApplicationEntry(tab, deadline=Infinity) {
     for(const id of owned){const tab=await cua.getTab(id,{browser:'cdp'});await tab.close();}
     if(list)await list.close();
   }
-  return {start,readRow,finish,failureState,close};
+  return {start,readRow,isolateRowFailure,finish,failureState,close};
 }
 
 

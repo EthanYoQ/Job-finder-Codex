@@ -48,11 +48,14 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
       return ['LOCAL_CHROMIUM_ARIA_SNAPSHOT', `Page: ${page.url()}`, 'networkCapture: false',
         ...frames.map(frame => `Frame: ${frame.url}\n${frame.aria}`)].join('\n');
     };
-    let navigationInfo,cspcListResponse;
+    let navigationInfo,cspcListResponse,cspcAccessBlock;
     page.on('response',response=>{
       if(response.request().isNavigationRequest()&&response.frame()===page.mainFrame())
         navigationInfo={httpStatus:response.status(),retryAfter:response.headers()['retry-after']};
       const url=new URL(response.url());
+      if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname.startsWith('/RedseaPlatform/')&&[403,429].includes(response.status())&&
+        (response.request().isNavigationRequest()||['fetch','xhr'].includes(response.request().resourceType?.())))
+        cspcAccessBlock={httpStatus:response.status(),retryAfter:response.headers()['retry-after']??null};
       if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname==='/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob'&&response.request().method()==='POST'){
         const form=new URLSearchParams(response.request().postData()??''),fields=['channelQrId','root_id','recruit_way','sortName','push_request_id','keyword','ftl_list_stru_id'];
         // Private failure diagnostics only: no headers, cookies, personal fields or response job bodies.
@@ -63,9 +66,16 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
           .catch(()=>{record.resultUnavailable=true;});
       }
     });
-    const tab = {id, url: async () => page.url(), navigationInfo: async () => cspcListResponse?{...navigationInfo,cspcListResponse}:navigationInfo,
+    const tab = {id, url: async () => page.url(),
+      clickAndWaitForPopup:async(click,timeoutMs)=>{
+        const deadline=Date.now()+timeoutMs;
+        const settled=await Promise.allSettled([page.waitForEvent('popup',{timeout:timeoutMs}),click()]);
+        const failure=settled.find(value=>value.status==='rejected');if(failure)throw failure.reason;
+        const popup=settled[0].value,remaining=deadline-Date.now();if(remaining<=0)throw Error('CSPC_DETAIL_POPUP_TIMEOUT');
+        await popup.waitForLoadState('domcontentloaded',{timeout:remaining});return tabFor(popup);
+      }, navigationInfo: async () => cspcAccessBlock?{...navigationInfo,...(cspcListResponse?{cspcListResponse}:{}),cspcAccessBlock}:cspcListResponse?{...navigationInfo,cspcListResponse}:navigationInfo,
       goto: async (url, config) => {
-        navigationInfo=undefined;cspcListResponse=undefined;
+        navigationInfo=undefined;cspcListResponse=undefined;cspcAccessBlock=undefined;
         const response=await page.goto(url, {waitUntil:'domcontentloaded',...options(config)});
         navigationInfo=response?{httpStatus:response.status(),retryAfter:await response.headerValue('retry-after')}:undefined;
         return response;

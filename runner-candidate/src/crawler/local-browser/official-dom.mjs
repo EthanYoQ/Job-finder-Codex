@@ -12,7 +12,7 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
     const runtime = createCspcDomRuntime(cua);
     try {
       const { rowCount } = await runtime.start({ runStartedAt, dispatchBefore: new Date(deadline).toISOString() });
-      for (let index = 0; index < rowCount; index++) await runtime.readRow(index);
+      for(let index=0;index<rowCount;index++){try{await runtime.readRow(index);}catch(error){await runtime.isolateRowFailure(index,error);}}
       const result = await runtime.finish(false);
       const provenance = { tool: 'playwright-core-local-chromium', browser: 'chromium', networkCapture: false };
       return { dom: { ...result.dom, ...provenance }, applications: { ...result.applications, ...provenance } };
