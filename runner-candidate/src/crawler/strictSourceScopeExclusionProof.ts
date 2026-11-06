@@ -245,7 +245,7 @@ function replayBeisen(
     for (let index = 0; index < root.Data.length; index += 1) {
       const raw = root.Data[index];
       if(evidence.jobQuarantines?.some(q=>q.pageSequence===sequence&&q.recordIndex===index)){
-        rawIds.push(irrevocable(strictRecord(raw)&&typeof raw.Id==='string'?raw.Id:raw));continue;
+        rawIds.push(irrevocable(strictRecord(raw)&&typeof raw.Id==='string'?raw.Id:[sequence,index,raw]));continue;
       }
       if (!strictRecord(raw)) return false;
       if (policy === "FOSUN_EXPLICIT_HONG_KONG_ONLY_V1") {

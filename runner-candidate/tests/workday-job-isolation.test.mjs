@@ -9,13 +9,14 @@ const at='2026-11-06T00:00:00.000Z',countryId='6cb77610a8a543aea2d6bc10457e35d4'
 for(const sourceId of ['source-biogen-china-social','source-csl-china-social'])test(`${sourceId}: complete list rows can update despite an invalid job`,async()=>{
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id===sourceId),biogen=sourceId.includes('biogen');
  const rows=[1,2].map(index=>({title:`Role ${index}`,externalPath:biogen?`/job/Shanghai-China/Role_REQ${index}-1`:`/job/APAC-CN-Shanghai-CSL-Behring/Role_R-${index}`,locationsText:biogen?'Shanghai, China':'APAC, CN, Shanghai, CSL Behring',bulletFields:biogen?[`REQ${index}`]:['China',`R-${index}`]}));
- for(const mode of ['good','missing-title','non-object']){
+ for(const mode of ['good','missing-title','non-object','two-unidentified']){
   const data=structuredClone(rows);if(mode!=='good')data[1]=mode==='non-object'?null:{...data[1],title:''};
-  const fetch=createWorkdaySourceFetch({now:()=>new Date(at),http:async({url})=>({status:200,finalUrl:url,contentType:'application/json',capturedAt:at,body:JSON.stringify({total:2,jobPostings:data,userAuthenticated:false,facets:[{facetParameter:'locationCountry',values:[{id:countryId,descriptor:'China',count:2}]}]})})});
+  if(mode==='two-unidentified'){data[1]=null;data.push(null);}
+  const fetch=createWorkdaySourceFetch({now:()=>new Date(at),http:async({url})=>({status:200,finalUrl:url,contentType:'application/json',capturedAt:at,body:JSON.stringify({total:data.length,jobPostings:data,userAuthenticated:false,facets:[{facetParameter:'locationCountry',values:[{id:countryId,descriptor:'China',count:data.length}]}]})})});
   const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
   assert.equal(result.truth.completenessVerified,true,`${mode}: ${JSON.stringify({truth:result.truth,observation:result.observation})}`);assert.equal(result.jobs.length,mode==='good'?2:1);
   if(mode!=='good'){
-   assert.equal(result.fetchEvidence.fetchCounts.rawCount,2);assert.equal(result.fetchEvidence.jobQuarantines.length,1);
+   assert.equal(result.fetchEvidence.fetchCounts.rawCount,data.length);assert.equal(result.fetchEvidence.jobQuarantines.length,mode==='two-unidentified'?2:1);
    const changed=structuredClone(result.fetchEvidence);changed.jobQuarantines[0].sourceJobId='wrong';
    assert.equal(replayStrictSourceQualityEvidence({plan,evidence:changed,paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs:result.jobs,capturedAt:at}),false);
   }

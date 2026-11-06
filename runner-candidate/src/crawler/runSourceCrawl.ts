@@ -2,7 +2,7 @@ import { CITY_PENDING } from "../domain/jobLocation";
 import {hasHtmlRowQuarantine,reviewHtmlJobRows,replayHtmlJobRows} from './htmlJobQuarantine';
 import {hasBeisenJobQuarantine,verifyBeisenListQuarantines} from './beisenJobQuarantine';
 import {hasWorkdayJobQuarantine,verifyWorkdayJobQuarantines} from './workdayJobQuarantine';
-import {hasPhenomJobQuarantine,phenomJobQuarantine,phenomRawId,verifyPhenomJobQuarantines} from './phenomJobQuarantine';
+import {hasPhenomJobQuarantine,phenomRawId,verifyPhenomJobQuarantines} from './phenomJobQuarantine';
 import { jobQuarantineLossesMatch, JOB_QUARANTINE_PAGINATION } from './jobQuarantine';
 import { mainlandDisplayCities } from "./fosunScopeGeography";
 import { reviewedMainlandCity } from "./reviewedMainlandCity";
@@ -2528,7 +2528,7 @@ function strictPhenomRequestContracts(
         const native = raw && organonNativeDetail(raw, nativeArtifact, capturedAt);
         const date = raw && phenomOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??value));
+        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??[pageIndex,recordIndex,value]));
         organonRows.push(value);
         if(held.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
         if (!raw || !cities || !title || !organonOfficialIdentity(raw) || !native) return false;
@@ -2565,7 +2565,7 @@ function strictPhenomRequestContracts(
         const cities = raw && merckOfficialCities(raw);
         const date = raw && merckOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??value));
+        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??[pageIndex,recordIndex,value]));
         if(evidence.jobQuarantines?.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
         if (!raw || !cities || !title || !merckOfficialIdentity(raw)) return false;
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
@@ -2599,7 +2599,7 @@ function strictPhenomRequestContracts(
         const detail = raw && lillyNativeDetail(raw, nativeArtifact, capturedAt);
         const date = raw && lillyOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??value));
+        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??[pageIndex,recordIndex,value]));
         if(held.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
         if (!raw || !listCities || !detail || !title) return false;
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
@@ -2625,7 +2625,7 @@ function strictPhenomRequestContracts(
       const rawIds: string[] = [];
       const validIds: string[] = [];
       for (const [recordIndex,raw] of envelope.jobs.entries()) {
-        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(raw)??raw));
+        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(raw)??[pageIndex,recordIndex,raw]));
         if(evidence.jobQuarantines?.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
         const expectedOutput = strictUcbDateOutput(raw);
         if (!expectedOutput || ucbOutputs.has(expectedOutput.sourceJobId)) return false;
@@ -2646,11 +2646,11 @@ function strictPhenomRequestContracts(
         envelope.jobs.length !== Math.min(pageSize, merckPartitionReplay.expectedTotal - offset)) return false;
       const expectedRawIds: string[] = [];
       const expectedValidIds: string[] = [];
-      for (const raw of envelope.jobs) {
+      for (const [recordIndex,raw] of envelope.jobs.entries()) {
         const record = strictRecord(raw);
         const rawId = record ? strictPhenomOfficialId(record.jobSeqNo) ??
           strictPhenomOfficialId(record.reqId) ?? strictPhenomOfficialId(record.jobId) : undefined;
-        const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? raw);
+        const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? [pageIndex,recordIndex,raw]);
         if (!expectedRawIds.includes(rawEvidenceId)) expectedRawIds.push(rawEvidenceId);
         if (!record || !rawId || !safeOfficialJsonId(rawId) ||
           !merckPartitionReplay.expectedRawIds.has(rawId) || merckReturnedRawIds.has(rawId)) return false;
@@ -2679,7 +2679,7 @@ function strictPhenomRequestContracts(
         const record = strictRecord(raw);
         const rawId = record ? strictPhenomOfficialId(record.jobSeqNo) ??
           strictPhenomOfficialId(record.reqId) ?? strictPhenomOfficialId(record.jobId) : undefined;
-        const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? raw);
+        const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? [pageIndex,recordIndex,raw]);
         if (!expectedRawIds.includes(rawEvidenceId)) expectedRawIds.push(rawEvidenceId);
         if(held.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
         if (!record || !rawId || !safeOfficialJsonId(rawId)) return false;
@@ -3872,7 +3872,7 @@ function strictEightfoldDateReplay(
       const raw = strictRecord(value);
       const projection = raw && projectEightfoldPcsxPosition(raw, new URL(config.detailBaseUrl), config.cityScopePolicy);
       const officialPublishedAt = raw && bmsOfficialPostedDate(raw.postedTs);
-      rawIds.push(irreversibleOfficialJsonEvidenceId(raw?strictGateString(raw.id)??value:value));
+      rawIds.push(irreversibleOfficialJsonEvidenceId(raw?strictGateString(raw.id)??[index,recordIndex,value]:[index,recordIndex,value]));
       const quarantine=evidence.jobQuarantines?.find(q=>q.pageSequence===index&&q.recordIndex===recordIndex);
       if(!projection){if(!quarantine||!isDeepStrictEqual(quarantine,eightfoldJobQuarantine(value,new URL(config.detailBaseUrl),index,recordIndex,logicalKey,quarantine.code)))return strictGateTrace(plan,'BMS_QUARANTINE_INVALID');continue;}
       if(quarantine)return false;
@@ -4101,7 +4101,7 @@ function strictCnstaffRequestContracts(
       if(quarantine){
         if(!isDeepStrictEqual(quarantine,cnstaffJobQuarantine(raw,plan.source.officialEntryUrl,index,rowIndex,logicalKey,quarantine.code)))return false;
         const row=strictRecord(raw),id=row?(strictGateString(row.job_publish_id)??strictGateString(row.job_id)):undefined;
-        rawIds.push(strictGateEvidenceId(id??raw));continue;
+        rawIds.push(strictGateEvidenceId(id??[index,rowIndex,raw]));continue;
       }
       const parsed = strictCnstaffChinaRecord(raw);
       if (!parsed || rawIds.includes(strictGateEvidenceId(parsed.officialId)) ||

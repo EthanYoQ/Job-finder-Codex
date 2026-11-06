@@ -185,7 +185,7 @@ export function projectWorkdayMainlandEvidence(plan: SourceCrawlPlan, evidence: 
     const rawIds: string[] = [], validIds: string[] = [];
     for (let index = 0; index < root.jobPostings.length; index++) {
       const raw = root.jobPostings[index], row = parseWorkdayMainlandRow(plan, raw);
-      rawIds.push(`sha256:${hash(JSON.stringify(raw))}`);
+      rawIds.push(workdayRawObservationId(plan,raw,sequence,index));
       if(evidence.jobQuarantines?.some(q=>q.pageSequence===sequence&&q.recordIndex===index)){
         const detailKey=`workday-detail-${String(sequence).padStart(4,'0')}-${String(index).padStart(4,'0')}`,detail=artifacts.get(detailKey);
         if(detail){if(!row||detail.requestedUrl!==workdayMainlandDetailUrl(plan,row)||detail.extractorLocator!==workdayMainlandDetailLocator(plan,row,sequence,index))return undefined;used.add(detailKey);}
@@ -252,4 +252,4 @@ export async function fetchWorkdayMainlandHttp(request: WorkdayHttpRequest | Wor
       body: new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)), capturedAt: new Date().toISOString() };
   } finally { clearTimeout(deadline); source?.removeEventListener("abort", abort); controller.signal.removeEventListener("abort", cancel); reader?.releaseLock(); }
 }
-import {verifyWorkdayJobQuarantines} from './workdayJobQuarantine';
+import {verifyWorkdayJobQuarantines,workdayRawObservationId} from './workdayJobQuarantine';

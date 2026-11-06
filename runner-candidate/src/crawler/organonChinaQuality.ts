@@ -189,18 +189,18 @@ export function organonKeywordCountryEquivalent(html: string | Uint8Array, rows:
       search.hits !== search.totalHits || !record(search.data) || search.data.keywords !== "China" ||
       !Array.isArray(search.data.jobs) || search.data.jobs.length !== search.totalHits || rows.length !== search.totalHits) return false;
     // List membership is independent of per-job field validity and presentation changes.
-    const key=(row:unknown)=>record(row)&&typeof row.jobSeqNo==='string'?`id:${row.jobSeqNo}`:`raw:${JSON.stringify(row)}`;
-    const keyword = new Set<string>();
+    const key=(row:unknown)=>record(row)&&typeof row.jobSeqNo==='string'&&row.jobSeqNo.trim()?`id:${row.jobSeqNo}`:'unidentified';
+    const keyword = new Map<string,number>();
     for (const row of search.data.jobs) {
-      const id=key(row);if(keyword.has(id))return false;keyword.add(id);
+      const id=key(row);if(id!=='unidentified'&&keyword.has(id))return false;keyword.set(id,(keyword.get(id)??0)+1);
     }
-    const country = new Set<string>();
+    const country = new Map<string,number>();
     for (const row of rows) {
       const id=key(row);
-      if (country.has(id)||!keyword.has(id)) return false;
-      country.add(id);
+      if (id!=='unidentified'&&country.has(id)||!keyword.has(id)) return false;
+      country.set(id,(country.get(id)??0)+1);
     }
-    return country.size === keyword.size;
+    return country.size===keyword.size&&[...country].every(([id,count])=>keyword.get(id)===count);
   } catch { return false; }
 }
 

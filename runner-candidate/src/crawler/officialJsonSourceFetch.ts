@@ -2591,7 +2591,7 @@ async function fetchEightfoldPcsx({
       const raw = root.data.positions[recordIndex];
       counts.rawCount += 1;
       const rawId = isStrictRecord(raw) ? stringValue(raw.id) : undefined;
-      rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? raw));
+      rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? [pageIndex,recordIndex,raw]));
       if (!isStrictRecord(raw)) {
         counts.parseDiscardCount += 1;
         losses.push({stage:'PARSE',reason:'Invalid Eightfold job row',rawLocator:`${artifact.logicalKey}#record:${recordIndex}`,details:{code:'NON_OBJECT_RECORD',pageSequence:pageIndex,recordIndex}});
@@ -3104,7 +3104,7 @@ async function fetchCnstaff({
       const rawOfficialId = isStrictRecord(raw)
         ? stringValue(raw.job_publish_id) ?? stringValue(raw.job_id)
         : undefined;
-      const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawOfficialId ?? raw);
+      const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawOfficialId ?? [page-1,recordIndex,raw]);
       if (!rawIds.includes(rawEvidenceId)) rawIds.push(rawEvidenceId);
       const rawLocator = `${artifact.logicalKey}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId([recordIndex, raw])}`;
       if (!isStrictRecord(raw)) {
@@ -3484,11 +3484,11 @@ async function fetchBeisenZhiye2022({
     }
 
     const rawJobs = root.Data as unknown[];
-    const rawIds: string[] = rawJobs.map((raw) => {
+    const rawIds: string[] = rawJobs.map((raw,recordIndex) => {
       const rawOfficialId = isStrictRecord(raw) && typeof raw.Id === "string"
         ? raw.Id
         : undefined;
-      return irreversibleOfficialJsonEvidenceId(rawOfficialId ?? raw);
+      return irreversibleOfficialJsonEvidenceId(rawOfficialId ?? [pageIndex,recordIndex,raw]);
     }).filter((id, index, ids) => ids.indexOf(id) === index);
     const validIds: string[] = [];
     for (let recordIndex = 0; recordIndex < rawJobs.length; recordIndex += 1) {
@@ -4316,7 +4316,7 @@ async function fetchPhenomWidgets({
       const rawOfficialId = isStrictRecord(raw)
         ? stringValue(raw.jobSeqNo) ?? stringValue(raw.reqId) ?? stringValue(raw.jobId)
         : undefined;
-      const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawOfficialId ?? raw);
+      const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawOfficialId ?? [pageIndex,recordIndex,raw]);
       if (!rawIds.includes(rawEvidenceId)) rawIds.push(rawEvidenceId);
       const rawLocator = `${artifact.logicalKey}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId([recordIndex, raw])}`;
       if (!isStrictRecord(raw)) {
@@ -4543,6 +4543,7 @@ async function fetchPhenomWidgets({
       }));
     }
   }
+  losses.sort((a,b)=>(a.details.pageSequence??0)-(b.details.pageSequence??0)||(a.details.recordIndex??0)-(b.details.recordIndex??0));
   let finalized: ReturnType<typeof finalizeOfficialJsonEvidenceBundle>;
   try {
     finalized = finalizeOfficialJsonEvidenceBundle({

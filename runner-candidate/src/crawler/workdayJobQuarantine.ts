@@ -8,10 +8,15 @@ const hash=(value:string)=>sha256Bytes(Buffer.from(value,'utf8')).sha256;
 export function hasWorkdayJobQuarantine(plan:SourceCrawlPlan):boolean{
  return plan.adapterId==='official-json'&&!!plan.workday&&['source-biogen-china-social','source-csl-china-social'].includes(plan.source.id);
 }
-function rowQuarantine(plan:SourceCrawlPlan,raw:unknown,pageSequence:number,recordIndex:number,rawLocator:string,code:string):JobQuarantine{
+function rowPath(plan:SourceCrawlPlan,raw:unknown):string|undefined{
  const path=raw&&typeof raw==='object'&&'externalPath'in raw&&typeof raw.externalPath==='string'?raw.externalPath:undefined;
- const valid=path&&path.startsWith('/job/')&&!/[?#\u0000-\u001f\u007f]/u.test(path)&&isSafeAdapterUrl(path,plan.source.officialEntryUrl);
- const id=valid?`workday:sha256:${hash(path)}`:undefined;
+ return path&&path.startsWith('/job/')&&!/[?#\u0000-\u001f\u007f]/u.test(path)&&isSafeAdapterUrl(path,plan.source.officialEntryUrl)?path:undefined;
+}
+export function workdayRawObservationId(plan:SourceCrawlPlan,raw:unknown,pageSequence:number,recordIndex:number):string{
+ return `sha256:${hash(JSON.stringify(rowPath(plan,raw)?raw:[pageSequence,recordIndex,raw]))}`;
+}
+function rowQuarantine(plan:SourceCrawlPlan,raw:unknown,pageSequence:number,recordIndex:number,rawLocator:string,code:string):JobQuarantine{
+ const path=rowPath(plan,raw),id=path?`workday:sha256:${hash(path)}`:undefined;
  const site=plan.adapterId==='official-json'?plan.workday?.site:undefined;
  return {pageSequence,recordIndex,rawLocator,code,validJobId:id?`sha256:${hash(JSON.stringify(id))}`:`unidentified:${pageSequence}:${recordIndex}`,
   ...(id&&site?{sourceJobId:id,officialUrl:sanitizeEvidenceHttpUrl(new URL(plan.source.officialEntryUrl).origin+'/'+site+path)}:{})};

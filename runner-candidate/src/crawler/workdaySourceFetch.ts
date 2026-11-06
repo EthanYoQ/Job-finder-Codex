@@ -1,5 +1,5 @@
 import { fetchPfizerWorkdayTraversal, PFIZER_TRAVERSAL_POLICY } from "./pfizerWorkdayTraversal";
-import {isolateWorkdayJobRows} from './workdayJobQuarantine';
+import {hasWorkdayJobQuarantine,isolateWorkdayJobRows,workdayRawObservationId} from './workdayJobQuarantine';
 import {JOB_QUARANTINE_PAGINATION} from './jobQuarantine';
 import type {MainlandWorkdayRow} from './workdayMainlandQuality';
 import { exactWorkdayMainlandQualityPlan, requiresWorkdayMainlandQuality, parseWorkdayMainlandRow, projectWorkdayMainlandRow,
@@ -892,7 +892,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         for (let recordIndex = 0; recordIndex < parsed.jobPostings.length; recordIndex += 1) {
           const raw = parsed.jobPostings[recordIndex];
           const rawLocator = workdayRawLocator(raw, artifactLogicalKey, pageIndex, recordIndex);
-          rawJobIds.push(irreversibleEvidenceId(raw));
+          rawJobIds.push(hasWorkdayJobQuarantine(plan)?workdayRawObservationId(plan,raw,pageIndex,recordIndex):irreversibleEvidenceId(raw));
           rawCount += 1;
           if (!isRecord(raw) || Array.isArray(raw)) {
             parseDiscardCount += 1;

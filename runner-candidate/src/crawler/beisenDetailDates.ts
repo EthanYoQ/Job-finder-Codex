@@ -57,7 +57,7 @@ function rows(plan:SourceCrawlPlan,evidence:PersistentSourceFetchEvidence):Array
       const country=raw.Country??raw.CountryName;if(country!==undefined&&typeof country!=='string'||beisenDomesticRecordScopeReview(country,raw.LocNames,raw.LocNames.join(' / '),config.geographyScope,config.mixedLocationPolicy).scope!=='CHINA')throw Error('BEISEN_DETAIL_DATE_LIST_SCOPE_INVALID');
       return [{...raw,$pageSequence:index,$recordIndex:recordIndex}];
     });
-    const rawIds=body.Data.map(raw=>irreversibleOfficialJsonEvidenceId(raw&&typeof raw==='object'&&typeof raw.Id==='string'?raw.Id:raw)).sort();
+    const rawIds=body.Data.map((raw,recordIndex)=>irreversibleOfficialJsonEvidenceId(raw&&typeof raw==='object'&&typeof raw.Id==='string'?raw.Id:[index,recordIndex,raw])).sort();
     const validIds=values.filter(row=>!evidence.jobQuarantines?.some(q=>!isBeisenListQuarantine(q)&&q.pageSequence===index&&q.recordIndex===row.$recordIndex)).map(raw=>irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId(raw.Id))).sort();
     if(new Set(rawIds).size!==body.Data.length||!isDeepStrictEqual([...page.rawJobIds].sort(),rawIds)||!isDeepStrictEqual([...page.validJobIds].sort(),validIds))throw Error('BEISEN_DETAIL_DATE_PAGE_IDS_INVALID');
     return values;

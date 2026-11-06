@@ -1,5 +1,5 @@
 import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
-import {verifyWorkdayJobQuarantines} from './workdayJobQuarantine';
+import {verifyWorkdayJobQuarantines,workdayRawObservationId} from './workdayJobQuarantine';
 import { reviewedMainlandCityLabel } from "./reviewedMainlandCity";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { createHash } from "node:crypto";
@@ -108,7 +108,7 @@ function biogenListProjection(plan: SourceCrawlPlan, evidence: PersistentSourceF
     declaredTotal = root.total;
     const rawIds: string[] = [], validIds: string[] = [];
     for (const [recordIndex,candidate] of root.jobPostings.entries()) {
-      rawIds.push(`sha256:${hash(JSON.stringify(candidate))}`);
+      rawIds.push(workdayRawObservationId(plan,candidate,page.sequence,recordIndex));
       if(evidence.jobQuarantines?.some(q=>q.pageSequence===page.sequence&&q.recordIndex===recordIndex))continue;
       const raw = record(candidate), cities = raw && biogenListCities(raw);
       if (!raw || !cities) return undefined;
