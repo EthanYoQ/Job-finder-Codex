@@ -81,8 +81,8 @@ test('Sanofi captures complete rendered lists and handles cookies through the no
         await context.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());return context;}};}};
     cua=await createChromiumDom({chromium:confined,executablePath:process.platform==='win32'?'C:/Program Files/Google/Chrome/Application/chrome.exe':'/usr/bin/chromium'});
     for(const path of ['/cookie','/plain','/late-cookie','/late-rows','/incomplete-rows'])await t.test(path,async()=>{
-      let tab;
-      const runtime=createSanofiDomRuntime({async createBrowserTab(name){return tab=await cua.createBrowserTab(name,base+path);}},{failureDirectory:directory});
+      const tab=await cua.createBrowserTab('cdp',base+path);
+      const runtime=createSanofiDomRuntime({async createBrowserTab(){return tab;}},{failureDirectory:directory});
       await runtime.start(path==='/incomplete-rows'?Date.now()+1000:undefined);
       if(path==='/incomplete-rows'){
         await assert.rejects(runtime.readPage(),error=>error.message==='SANOFI_CN_DOM_LOADING_TIMEOUT'&&error.sourceFetchStage==='SANOFI_PAGE_READ'&&!!error.privateCapture);
