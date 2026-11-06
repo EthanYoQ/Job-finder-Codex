@@ -1,3 +1,5 @@
+import { bindIndependentJobQuarantines, projectIndependentJobQuarantines, INDEPENDENT_JOB_ISOLATION_SOURCES, type IndependentJobQuarantine } from './independentJobQuarantine';
+import { JOB_QUARANTINE_PAGINATION } from './jobQuarantine';
 import { pfizerComparisonTraversal } from "./pfizerRenderedTraversal";
 import { load } from "cheerio";
 import { sanofiPersistentJobId } from "./sanofiLegacyIdentity";
@@ -502,7 +504,8 @@ const certificateV2Schema = z.object({
     canonicalRawMatchKeySetSha256: SHA256,
     canonicalExcludedMatchKeySetSha256: SHA256,
     sanofiIdentityProof: sanofiIdentityProofSchema.optional(),
-    pfizerQuarantinedOfficialIds: z.array(z.string().regex(/^\d{7}$/u)).min(1).optional()
+    pfizerQuarantinedOfficialIds: z.array(z.string().regex(/^\d{7}$/u)).min(1).optional(),
+    jobQuarantine: z.object({ledger:z.array(z.object({rawLocatorSha256:SHA256,pageSequence:z.number().int().nonnegative(),recordIndex:z.number().int().nonnegative()}).strict()).min(1),rawEvidenceIds:z.array(NONBLANK).min(1),mainRawEvidenceIdSetSha256:SHA256}).strict().optional()
   }).strict(),
   independentValidation: browserValidationSchema,
   validationPolicy: z.object({
@@ -1125,6 +1128,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       "officialTotalTraversal" in planBoundPolicy && planBoundPolicy.officialTotalTraversal === true;
     pagination = evaluatePaginationEvidence({
       evidence,
+      ...(evidence.jobQuarantines?.length ? JOB_QUARANTINE_PAGINATION : {}),
       ...(isSanofiChinesePlan(input.plan) ? SANOFI_CN_PAGINATION_POLICY : {}),
       ...(isPfizerWorkdayTraversalPlan(input.plan) ? PFIZER_PAGINATION_POLICY : {}),
       expectedChannelIds: isOfficialJsonRenderedTraversalSourceId(input.plan.source.id) &&
@@ -1290,9 +1294,13 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
   const renderedReplay = validation?.schemaVersion === "official-json-browser-network-traversal-v1"
     ? validation.sourceId === "source-sanofi-china-social" ? replaySanofiChineseIndependent(validation.pages)
       : replayOfficialJsonRenderedTraversal(validation.sourceId, validation.pages) : undefined;
-  const comparisonReplay = pfizerMainProof && renderedReplay && validation?.schemaVersion === "official-json-browser-network-traversal-v1"
+  let jobQuarantine:IndependentJobQuarantine|undefined;
+  if(evidence&&renderedReplay){try{jobQuarantine=bindIndependentJobQuarantines(input.plan.source.id,evidence,renderedReplay);}catch{blockers.add("INDEPENDENT_JOB_SET_MISMATCH");}}
+  const comparisonReplay = jobQuarantine && renderedReplay && validation?.schemaVersion === "official-json-browser-network-traversal-v1"
+    ? projectIndependentJobQuarantines(renderedReplay,validation.pages,jobQuarantine.rawEvidenceIds)
+    : pfizerMainProof && renderedReplay && validation?.schemaVersion === "official-json-browser-network-traversal-v1"
     ? pfizerComparisonTraversal(renderedReplay, validation.pages, pfizerUnknownIds) : renderedReplay;
-  if (validation && (pfizerMainProof && comparisonReplay ? canonicalStringSetSha256(comparisonReplay.matchKeys)
+  if (validation && ((pfizerMainProof || jobQuarantine) && comparisonReplay ? canonicalStringSetSha256(comparisonReplay.matchKeys)
       : validationMatchKeySetSha256(validation)) !== canonicalStringSetSha256(outputIds)) {
     blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
   }
@@ -1336,13 +1344,13 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
         const oracle=evidence.artifacts.find(a=>a.logicalKey==="sanofi-cn-module-anomalies-v2");
         if(!oracle) throw new Error("SANOFI_CN_IDENTITY_ORACLE_REQUIRED");
         sanofiIdentityProof={oracleBody:typeof oracle.body==="string"?oracle.body:Buffer.from(oracle.body).toString("utf8")};
-        assertSanofiIdentityReplay(sanofiIdentityProof,independent,validation.pages,validation.artifactSha256,input.sanofiArchive ? evidence : undefined);
-        if(canonicalJson(main.anomalies.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY"))!==canonicalJson(independent.descriptionAnomalies)||
+        assertSanofiIdentityReplay(sanofiIdentityProof,independent,validation.pages,validation.artifactSha256,input.sanofiArchive ? evidence : undefined,jobQuarantine?.rawEvidenceIds);
+        if(!jobQuarantine && (canonicalJson(main.anomalies.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY"))!==canonicalJson(independent.descriptionAnomalies)||
           canonicalJson(mainRawMatchKeys)!==canonicalJson(replay.rawSourceJobIds)||
-          canonicalJson(mainExcludedMatchKeys)!==canonicalJson(replay.excludedSourceJobIds)) blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
+          canonicalJson(mainExcludedMatchKeys)!==canonicalJson(replay.excludedSourceJobIds))) blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
       }catch{blockers.add("INDEPENDENT_JOB_SET_MISMATCH");}
     }
-    if (pfizerMainProof) {
+    if (pfizerMainProof && !jobQuarantine) {
       mainRawMatchKeys = canonicalStrings(pfizerMainSourceJobIds(evidence));
       mainExcludedMatchKeys = mainRawMatchKeys.filter(key => !outputIds.includes(key));
       if (canonicalJson(replay.rawSourceJobIds) !== canonicalJson(mainRawMatchKeys) ||
@@ -1353,9 +1361,9 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       ? replay.rawCount !== input.jobs.length || replay.excludedCount !== 0
       : replay.rawCount !== evidence.fetchCounts.rawCount ||
         replay.excludedCount !== evidence.fetchCounts.validationDiscardCount ||
-        canonicalJson(replay.rawEvidenceIds) !== canonicalJson(mainRawEvidenceIds)) {
+        (!jobQuarantine && canonicalJson(replay.rawEvidenceIds) !== canonicalJson(mainRawEvidenceIds))) {
       blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
-    } else if (!pfizerMainProof && !isSanofiChinesePlan(input.plan)) {
+    } else if (jobQuarantine || !pfizerMainProof && !isSanofiChinesePlan(input.plan)) {
       mainRawMatchKeys = replay.rawSourceJobIds;
       mainExcludedMatchKeys = replay.excludedSourceJobIds;
     }
@@ -1396,7 +1404,8 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       canonicalRawMatchKeySetSha256: canonicalStringSetSha256(mainRawMatchKeys),
       canonicalExcludedMatchKeySetSha256: canonicalStringSetSha256(mainExcludedMatchKeys),
       ...(sanofiIdentityProof ? {sanofiIdentityProof} : {}),
-      ...(pfizerUnknownIds.length ? {pfizerQuarantinedOfficialIds:pfizerUnknownIds} : {})
+      ...(pfizerUnknownIds.length && !jobQuarantine ? {pfizerQuarantinedOfficialIds:pfizerUnknownIds} : {}),
+      ...(jobQuarantine ? {jobQuarantine} : {})
     },
     independentValidation: validation,
     validationPolicy: { trigger: input.trigger, execution: input.validationExecution },
@@ -1419,7 +1428,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
     },
     issuedAt: input.now.toISOString()
   };
-  if(input.bayerArchive){
+  if(input.bayerArchive&&!jobQuarantine){
     if(!isBayerMedicalTraversalPlan(input.plan)||validation.schemaVersion!=="official-json-browser-network-traversal-v1")throw Error("BAYER_COMPACT_SCOPE_REQUIRED");
     const {pages,...summary}=validation;
     for(const a of evidence.artifacts){
@@ -1438,7 +1447,7 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
       canonicalRawEvidenceIdSetSha256:canonicalStringSetSha256(evidence.pages.flatMap(p=>p.rawJobIds)),bayerArtifacts:input.bayerArchive.artifacts}});
     return {status:"CERTIFIED",certificate,certificateSha256};
   }
-  if(input.sanofiArchive){
+  if(input.sanofiArchive&&!jobQuarantine){
     if(!isSanofiChinesePlan(input.plan)||validation.schemaVersion!=="official-json-browser-network-traversal-v1"||!sanofiIdentityProof)throw Error("SANOFI_COMPACT_SCOPE_REQUIRED");
     const {pages,...summary}=validation;
     for(const a of evidence.artifacts){
@@ -1521,7 +1530,8 @@ export function verifyBGradeTraversalCertificateReceipt(input: {
   assertRawEvidenceCommitment(
     certificate.independentValidation,
     certificate.binding.sourceId,
-    expected.canonicalRawEvidenceIdSetSha256
+    expected.canonicalRawEvidenceIdSetSha256,
+    certificate.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION ? certificate.mainTraversal.jobQuarantine : undefined
   );
   const requirement = evaluateBGradeValidationRequirement({
     trigger: "STABLE_RUN",
@@ -1556,7 +1566,8 @@ export function verifyBGradeTraversalCertificateReceipt(input: {
   }
   const pfizerQuarantine = certificate.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION && certificate.mainTraversal.pfizerQuarantinedOfficialIds;
   if (pfizerQuarantine && certificate.binding.sourceId !== "source-pfizer-china-social") throw Error("Pfizer quarantine source mismatch");
-  if ((!pfizerQuarantine && (certificateMainMatchKeySetSha256(certificate) !== validationMatchKeySetSha256(certificate.independentValidation) ||
+  const jobQuarantine = certificate.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION && certificate.mainTraversal.jobQuarantine;
+  if ((!pfizerQuarantine && !jobQuarantine && (certificateMainMatchKeySetSha256(certificate) !== validationMatchKeySetSha256(certificate.independentValidation) ||
       certificate.counts.mainUniqueJobCount !== certificate.counts.independentUniqueJobCount)) ||
       certificate.counts.mainUniqueJobCount !== certificate.counts.finalUniqueJobCount) {
     throw new Error("B-grade traversal certificate equations do not reconcile");
@@ -1581,6 +1592,7 @@ function verifyCompactCertificate(input: {
   const c=(input.certificate as {schemaVersion?:unknown})?.schemaVersion===BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION?bayerCompactCertificateSchema.parse(input.certificate):sanofiCompactCertificateSchema.parse(input.certificate),v=c.independentValidation,e=input.expected;
   const bayer=c.schemaVersion===BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION;
   const fail=(code:string):never=>{throw Error(`${bayer?"BAYER":"SANOFI"}_COMPACT_${code}`);};
+  if(c.mainTraversal.jobQuarantine)fail("QUARANTINE_REQUIRES_FULL_PROOF");
   const policy=bGradePolicy(c.binding.sourceId)!;
   if(sha256(canonicalJson(c))!==input.certificateSha256)fail("HASH_MISMATCH");
   if(!validDate(input.now)||Date.parse(c.issuedAt)>input.now.getTime())fail("ISSUANCE_TIME");
@@ -1654,13 +1666,16 @@ function assertSanofiIdentityReplay(
   independent: ReturnType<typeof replaySanofiChineseIndependent>,
   pages: Parameters<typeof replaySanofiChineseIndependent>[0],
   independentArtifactSha256: string,
-  mainEvidence?: PersistentSourceFetchEvidence
+  mainEvidence?: PersistentSourceFetchEvidence,
+  quarantinedRawIds:readonly string[]=[]
 ): z.infer<typeof sanofiIdentityOracleSchema> {
   if (!hasUniqueJsonObjectKeys(proof.oracleBody)) throw new Error("SANOFI_CN_IDENTITY_ORACLE_INVALID");
   const oracle=sanofiIdentityOracleSchema.parse(JSON.parse(proof.oracleBody));
+  const held=new Set(quarantinedRawIds),heldIds=new Set(pages.flatMap(p=>p.rawRows).filter(r=>held.has(r.rawEvidenceId)).map(r=>(r.rawPayload.domRow as SanofiChineseRow).id));
+  const comparableIndependent={decisions:independent.decisions.filter(d=>!heldIds.has(d.id)),descriptionAnomalies:independent.descriptionAnomalies.filter(a=>!heldIds.has(a.id))};
   // Internal application records may change; the official sourcePid identifies the same ordinary job.
   const comparableDecisions=oracle.decisions.map((decision,index)=>{
-    const other=independent.decisions[index];
+    const other=comparableIndependent.decisions[index];
     if(!mainEvidence||!other||decision.nativePositionId===other.nativePositionId||decision.state!=="PUBLISHING"||
       !decision.nativePositionId||!other.nativePositionId||oracle.entries.some(a=>a.id===decision.id))return decision;
     const artifact=mainEvidence.artifacts.find(a=>a.logicalKey===`sanofi-cn-tupu-${decision.reqId}`);
@@ -1674,8 +1689,8 @@ function assertSanofiIdentityReplay(
       canonicalJson(pageIds(native.body))!==canonicalJson([other.nativePositionId]))return decision;
     return {...decision,nativePositionId:other.nativePositionId};
   });
-  if(canonicalJson(comparableDecisions)!==canonicalJson(independent.decisions) ||
-    canonicalJson(oracle.entries.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY"))!==canonicalJson(independent.descriptionAnomalies))
+  if(canonicalJson(comparableDecisions)!==canonicalJson(comparableIndependent.decisions) ||
+    canonicalJson(oracle.entries.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY"))!==canonicalJson(comparableIndependent.descriptionAnomalies))
     throw new Error("SANOFI_CN_INDEPENDENT_IDENTITY_MISMATCH");
   const byId=new Map(independent.decisions.map(d=>[d.id,d])),headers=new Set<string>();
   for(const anomaly of oracle.entries){
@@ -1732,8 +1747,10 @@ function assertSanofiPersistedIdentityCommitments(
 function assertRawEvidenceCommitment(
   validation: BGradeIndependentTraversalValidation,
   sourceId: string,
-  expectedSha256: string | undefined
+  expectedSha256: string | undefined,
+  quarantine?:IndependentJobQuarantine
 ): void {
+  if(quarantine){if(!INDEPENDENT_JOB_ISOLATION_SOURCES.has(sourceId)||!SHA256.safeParse(expectedSha256).success||expectedSha256!==quarantine.mainRawEvidenceIdSetSha256)throw Error("B-grade quarantined main raw evidence commitment mismatch");return;}
   if (validation.schemaVersion === "qilu-browser-traversal-validator-v2" &&
       (!SHA256.safeParse(expectedSha256).success ||
        expectedSha256 !== qiluRawEvidenceIdSetSha256(validation))) {
@@ -1778,18 +1795,23 @@ function assertCertificateValidationSetEquations(certificate: FullBGradeTraversa
       ? replaySanofiChineseIndependent(certificate.independentValidation.pages) : undefined;
     const observedReplay=sanofiReplay ?? replayOfficialJsonRenderedTraversal(certificate.independentValidation.sourceId,certificate.independentValidation.pages);
     const unknownIds=certificate.mainTraversal.pfizerQuarantinedOfficialIds;
-    const replay=unknownIds ? pfizerComparisonTraversal(observedReplay,certificate.independentValidation.pages,unknownIds) : observedReplay;
-    if (unknownIds && (certificate.binding.sourceId !== "source-pfizer-china-social" ||
+    const jobQuarantine=certificate.mainTraversal.jobQuarantine;
+    if(jobQuarantine && (!INDEPENDENT_JOB_ISOLATION_SOURCES.has(certificate.binding.sourceId)||unknownIds||jobQuarantine.ledger.length!==jobQuarantine.rawEvidenceIds.length||
+      new Set(jobQuarantine.ledger.map(q=>`${q.pageSequence}:${q.recordIndex}`)).size!==jobQuarantine.ledger.length||
+      new Set(jobQuarantine.ledger.map(q=>q.rawLocatorSha256)).size!==jobQuarantine.ledger.length))throw Error("Independent job quarantine ledger does not reconcile");
+    const replay=jobQuarantine ? projectIndependentJobQuarantines(observedReplay,certificate.independentValidation.pages,jobQuarantine.rawEvidenceIds)
+      : unknownIds ? pfizerComparisonTraversal(observedReplay,certificate.independentValidation.pages,unknownIds) : observedReplay;
+    if ((unknownIds||jobQuarantine) && (unknownIds && certificate.binding.sourceId !== "source-pfizer-china-social" ||
         observedReplay.matchKeys.length !== certificate.counts.independentUniqueJobCount ||
         replay.matchKeys.length !== certificate.counts.finalUniqueJobCount ||
         canonicalStringSetSha256(replay.matchKeys) !== certificate.mainTraversal.canonicalMatchKeySetSha256))
-      throw Error("Pfizer quarantined publication set does not reconcile");
-    const sanofiOracle=sanofiReplay ? assertSanofiIdentityReplay(certificate.mainTraversal.sanofiIdentityProof!,sanofiReplay,certificate.independentValidation.pages,certificate.independentValidation.artifactSha256) : undefined;
+      throw Error("Independent quarantined publication set does not reconcile");
+    const sanofiOracle=sanofiReplay ? assertSanofiIdentityReplay(certificate.mainTraversal.sanofiIdentityProof!,sanofiReplay,certificate.independentValidation.pages,certificate.independentValidation.artifactSha256,undefined,jobQuarantine?.rawEvidenceIds) : undefined;
     const boehringerRenderedOutputOnly = certificate.binding.sourceId ===
       "source-boehringer-ingelheim-china-social";
     if ((boehringerRenderedOutputOnly
       ? replay.rawCount !== certificate.counts.independentUniqueJobCount || replay.excludedCount !== 0
-      : replay.rawCount !== (unknownIds ? certificate.counts.finalUniqueJobCount : certificate.counts.independentUniqueJobCount) + certificate.counts.validationDiscardCount ||
+      : replay.rawCount !== (unknownIds||jobQuarantine ? certificate.counts.finalUniqueJobCount : certificate.counts.independentUniqueJobCount) + certificate.counts.validationDiscardCount ||
         replay.excludedCount !== certificate.counts.validationDiscardCount) ||
         certificate.counts.dedupeDiscardCount !== 0 ||
         certificate.mainTraversal.canonicalRawMatchKeySetSha256 !==

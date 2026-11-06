@@ -52,7 +52,7 @@ export function compactCommittedCertificate(value: unknown, includeMembers = tru
   return {schemaVersion: c.schemaVersion, policyId: c.policyId, observedAt: c.observedAt,
     observation: c.observation && {crawledAt: c.observation.crawledAt},
     counts: c.counts && {finalUniqueJobCount: c.counts.finalUniqueJobCount, validationDiscardCount: c.counts.validationDiscardCount,
-      quarantinedJobCount:c.counts.quarantinedJobCount??(Array.isArray(c.jobQuarantineLedger)?c.jobQuarantineLedger.length:0)},
+      quarantinedJobCount:c.counts.quarantinedJobCount??(Array.isArray(c.jobQuarantineLedger)?c.jobQuarantineLedger.length:Array.isArray(c.mainTraversal?.jobQuarantine?.ledger)?c.mainTraversal.jobQuarantine.ledger.length:0)},
     mainTraversal: c.mainTraversal && {matchKeyKind: c.mainTraversal.matchKeyKind, canonicalMatchKeySetSha256: c.mainTraversal.canonicalMatchKeySetSha256}};
 }
 

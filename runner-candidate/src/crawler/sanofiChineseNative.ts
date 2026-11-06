@@ -270,6 +270,8 @@ function project(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,primary:
       evidence:{officialEntryUrl:SANOFI_CN_ENTRY,officialChainEvidenceUrl:"https://jobs.sanofi.cn/",capturedAt:start}});
     }catch(error){
       if(error instanceof Error&&error.message==='SANOFI_CN_DUPLICATE_REQ')throw error;
+      for(let i=anomalies.length-1;i>=0;i--)if(anomalies[i]!.id===row.id)anomalies.splice(i,1);
+      for(let i=decisions.length-1;i>=0;i--)if(decisions[i]!.id===row.id)decisions.splice(i,1);
       const q:JobQuarantine={pageSequence:row.pageSequence,recordIndex:row.recordIndex,rawLocator:row.rawLocator,validJobId:sanofiRawEvidenceId(row.id),code:'SANOFI_JOB_UNVERIFIED',...(detail?{sourceJobId:sanofiPersistentJobId(detail.reqId),officialUrl:sanitizeEvidenceHttpUrl(detail.applyUrl)}:{})};
       quarantines.push(q);losses.push(jobQuarantineLoss(q,start));
     }

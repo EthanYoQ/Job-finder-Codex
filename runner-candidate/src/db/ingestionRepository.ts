@@ -1,3 +1,4 @@
+import { INDEPENDENT_JOB_ISOLATION_SOURCES, type IndependentJobQuarantine } from '../crawler/independentJobQuarantine';
 import { Prisma } from "@prisma/client";
 import {isCurrentBGradeCertificateSchema,SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION} from "../crawler/traversalCertificate";
 import { buildJobProjectionDeltaReceipt } from "./jobProjectionDeltaCompiler";
@@ -2277,6 +2278,7 @@ function validateAtomicSourceEvidenceCommit(
       sha256: officialArtifact.sha256
     }, provenance.canonicalRawSha256, input.artifacts);
   }
+  validateIndependentJobQuarantineLedger(input);
   onStage("ARTIFACT_VALIDATION");
   if (result.expectedEvidenceKind === "OFFICIAL_TOTAL_COUNT") {
     if (result.expectedJobCount === null || (!NETWORK_ARTIFACT_KINDS.has(officialArtifact.kind) && !hasBoundJnjDomOfficialArtifact(input, officialArtifact))) {
@@ -2383,6 +2385,19 @@ const GRIFOLS_SOURCE_ID = "source-grifols-china-social";
 const BOEHRINGER_SOURCE_ID = "source-boehringer-ingelheim-china-social";
 const GRIFOLS_DETAIL_LOCATOR =
   "grifols-successfactors-detail-v1|html:canonical+streetAddress+content-location";
+
+function validateIndependentJobQuarantineLedger(input:AtomicSourceEvidenceCommit):void {
+  if(!INDEPENDENT_JOB_ISOLATION_SOURCES.has(input.sourceResult.sourceId))return;
+  const certificate=input.sourceResult.completenessCertificate as {mainTraversal?:{jobQuarantine?:IndependentJobQuarantine};counts?:{validationDiscardCount?:number}}|null;
+  const manifest=certificate?.mainTraversal?.jobQuarantine;
+  const losses=input.lossLedger.filter(loss=>(loss.details as {code?:unknown}|null)?.code==='JOB_QUARANTINED');
+  if(!manifest&&!losses.length)return;
+  if(!manifest||manifest.ledger.length!==losses.length||certificate?.counts?.validationDiscardCount!==input.sourceResult.validationDiscardCount||
+    manifest.mainRawEvidenceIdSetSha256!==input.observationProvenance.canonicalRawSha256||losses.some(loss=>{
+      const detail=loss.details as {pageSequence?:unknown;recordIndex?:unknown};
+      return loss.stage!=='VALIDATION'||!manifest.ledger.some(q=>q.rawLocatorSha256===createHash('sha256').update(loss.rawLocator).digest('hex')&&q.pageSequence===detail.pageSequence&&q.recordIndex===detail.recordIndex);
+    }))throw Error('INDEPENDENT_JOB_QUARANTINE_PERSISTED_LEDGER_MISMATCH');
+}
 
 function hasVerifiedAGradeOfficialTotalReconciliation(input: AtomicSourceEvidenceCommit): boolean {
   const result = input.sourceResult;
