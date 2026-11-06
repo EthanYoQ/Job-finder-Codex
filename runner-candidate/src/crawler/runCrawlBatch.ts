@@ -372,6 +372,32 @@ async function archiveAndVerifyRuntimeEvidence(input: {
   });
 }
 
+async function archiveIndependentOriginal(input: {
+  deps: RunP0CrawlBatchDeps;
+  batchId: string;
+  plan: SourceCrawlPlan;
+  pending: { id: string };
+  validation: Extract<BGradeIndependentTraversalValidation, { schemaVersion: "official-json-browser-network-traversal-v1" }>;
+  onArchived?: (artifacts: readonly ArchivedEvidenceArtifact[]) => void;
+}) {
+  const { deps, batchId, plan, pending, validation } = input;
+  const bayer = plan.source.id === "source-bayer-healthcare-social";
+  const locator = bayer ? BAYER_INDEPENDENT_ORIGINAL_LOCATOR : SANOFI_INDEPENDENT_ORIGINAL_LOCATOR;
+  const body = Buffer.from(JSON.stringify(validation));
+  const tuple = { releaseCandidateId: deps.identity.releaseCandidateId, batchId, sourceId: plan.source.id, sourceResultId: pending.id };
+  const archiveInput = { ...tuple, workspaceRoot: deps.workspaceRoot ?? process.cwd(),
+    evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence" };
+  const archived = await (deps.archiveEvidence ?? archiveSourceEvidence)({ ...archiveInput,
+    captureTool: { name: "playwright-core-local-chromium", version: "1" },
+    artifacts: bindRuntimeEvidenceArtifactIds({ ...tuple, artifacts: [{ id: locator, logicalKey: locator,
+      extractorLocator: locator, kind: "COMMAND_OUTPUT", body, bodyRepresentation: "EXACT",
+      capturedAt: bayer ? bayerHybridFinishedAt(validation.pages) : sanofiChineseIndependentFinishedAt(validation.pages) }] }) });
+  input.onArchived?.(archived.artifacts);
+  const artifacts = await (deps.verifyArchive ?? verifyArchivedSourceEvidence)({ ...archiveInput, artifacts: archived.artifacts });
+  return { artifacts, binding: { sha256: createHash("sha256").update(body).digest("hex"), byteCount: body.length,
+    canonicalArtifactSha256: validation.artifactSha256 } };
+}
+
 export async function runP0CrawlBatch(
   plans: readonly SourceCrawlPlan[],
   deps: RunP0CrawlBatchDeps
@@ -654,6 +680,15 @@ export async function runP0CrawlBatch(
               ))
         };
         if (crawlResult.fetchEvidence) {
+          if (plan.source.id === "source-sanofi-china-social" &&
+              preCapturedValidation?.schemaVersion === "official-json-browser-network-traversal-v1") {
+            try {
+              // Retain the completed observation for diagnosis, outside the failed fetch evidence commit.
+              await archiveIndependentOriginal({ deps, batchId: batch.id, plan, pending, validation: preCapturedValidation });
+            } catch (error) {
+              console.error(JSON.stringify(sourceFetchDiagnostic(plan.source.id, { error })));
+            }
+          }
           let retainedFailureArtifacts: readonly ArchivedEvidenceArtifact[] = [];
           let failedCommit: ReturnType<typeof buildFailedRuntimeEvidenceCommit> | undefined;
           try {
@@ -764,22 +799,10 @@ export async function runP0CrawlBatch(
         const compactSource = plan.source.id === "source-bayer-healthcare-social" ? "bayer"
           : plan.source.id === "source-sanofi-china-social" ? "sanofi" : null;
         if (compactSource && independentTraversalValidation?.schemaVersion === "official-json-browser-network-traversal-v1") {
-          const body = Buffer.from(JSON.stringify(independentTraversalValidation));
-          const locator = compactSource === "bayer" ? BAYER_INDEPENDENT_ORIGINAL_LOCATOR : SANOFI_INDEPENDENT_ORIGINAL_LOCATOR;
-          const tuple = { releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id, sourceId: plan.source.id, sourceResultId: pending.id };
-          const archiveInput = { ...tuple, workspaceRoot: deps.workspaceRoot ?? process.cwd(),
-            evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence" };
-          const archived = await (deps.archiveEvidence ?? archiveSourceEvidence)({ ...archiveInput,
-            captureTool: { name: "playwright-core-local-chromium", version: "1" },
-            artifacts: bindRuntimeEvidenceArtifactIds({ ...tuple, artifacts: [{ id: locator, logicalKey: locator,
-              extractorLocator: locator, kind: "COMMAND_OUTPUT", body, bodyRepresentation: "EXACT",
-              capturedAt: compactSource === "bayer" ? bayerHybridFinishedAt(independentTraversalValidation.pages)
-                : sanofiChineseIndependentFinishedAt(independentTraversalValidation.pages) }] }) });
-          retainedArtifacts = [...verifiedArtifacts, ...archived.artifacts];
-          const checked = await (deps.verifyArchive ?? verifyArchivedSourceEvidence)({ ...archiveInput, artifacts: archived.artifacts });
-          verifiedArtifacts.push(...checked);
-          independentOriginal = { sha256: createHash("sha256").update(body).digest("hex"), byteCount: body.length,
-            canonicalArtifactSha256: independentTraversalValidation.artifactSha256 };
+          const original = await archiveIndependentOriginal({ deps, batchId: batch.id, plan, pending, validation: independentTraversalValidation,
+            onArchived: artifacts => { retainedArtifacts = [...verifiedArtifacts, ...artifacts]; } });
+          verifiedArtifacts.push(...original.artifacts);
+          independentOriginal = original.binding;
         }
         atomicFailureCode = "ATOMIC_COMMIT_BUILD_FAILED";
         const qualityAdmission = qualityRequired ? await issueSourceQualityAdmission({ plan, result: crawlResult,
