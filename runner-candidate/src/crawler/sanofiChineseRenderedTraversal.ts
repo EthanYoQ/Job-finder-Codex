@@ -30,7 +30,7 @@ export function validateSanofiChineseDom(capture:SanofiChineseDomCapture):{total
       Number.isSafeInteger(n)&&n>0&&n===total&&Number(root.attr("data-current-page"))===index+1&&Number(root.attr("data-total-pages"))===capture.pages.length&&root.attr("data-records-per-page")==="15");
     const next=root.find("a.next"),active=root.find("input.pagination-current");assert(next.length===1&&next.hasClass("disabled")===(index===capture.pages.length-1)&&active.length===1&&active.attr("value")===String(index+1)&&active.attr("max")===String(capture.pages.length));
     const rows:SanofiChineseRow[]=[];
-    for(const [recordIndex,node] of root.find("#search-results-list > li").toArray().entries()){
+    for(const [recordIndex,node] of root.find("#search-results-list > li, #search-results-list > ul > li").toArray().entries()){
       const r=$(node),link=r.find("a[data-job-id]"),candidates=new Set(r.find("button.js-save-job-btn,a[data-job-id]").toArray().map(n=>$(n).attr('data-job-id')));
       const known=candidates.size===1&&/^\d+$/u.test([...candidates][0]??'')?[...candidates][0]:undefined;
       const id=known??`unidentified:${sanofiHash(JSON.stringify([index,recordIndex,$.html(node)]))}`,href=new Set(link.toArray().map(n=>$(n).attr('href'))).size===1?link.attr('href')??'':'';

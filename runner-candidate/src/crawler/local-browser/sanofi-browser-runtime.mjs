@@ -40,7 +40,7 @@ export function createSanofiDomRuntime(cua, {failureDirectory=join(process.env.J
         captured = await root.evaluate(e => {
           const next = e.querySelector('a.next');
           return { searchResultsHtml: e.outerHTML, nextDisabled: next ? next.classList.contains('disabled') : null,
-            total: Number(e.getAttribute('data-total-job-results')), rowCount: e.querySelectorAll('#search-results-list > li').length };
+            total: Number(e.getAttribute('data-total-job-results')), rowCount: e.querySelectorAll('#search-results-list > li, #search-results-list > ul > li').length };
         });
         if (Number.isSafeInteger(captured.total) && captured.total > 0 &&
           captured.rowCount === Math.min(15, captured.total - (pageNumber - 1) * 15)) break;

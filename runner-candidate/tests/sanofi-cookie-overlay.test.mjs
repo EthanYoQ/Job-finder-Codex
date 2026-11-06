@@ -55,17 +55,17 @@ test('Sanofi waits for each current page and captures complete DOM without docum
 });
 
 test('Sanofi captures complete rendered lists and handles cookies through the normal UI',async t=>{
-  const list=(number,count=number===1?15:1)=>`<section id="search-results" data-location="中国" data-keywords="" data-location-path="1814991" data-organization-ids="2649" data-current-page="${number}" data-total-pages="2" data-total-job-results="16" data-records-per-page="15"><ul id="search-results-list">${Array.from({length:count},(_,index)=>{
+  const list=(number,count=number===1?15:1)=>`<section id="search-results" data-location="中国" data-keywords="" data-location-path="1814991" data-organization-ids="2649" data-current-page="${number}" data-total-pages="2" data-total-job-results="16" data-records-per-page="15"><div id="search-results-list"><meta data-show-saved="True"><ul>${Array.from({length:count},(_,index)=>{
     const id=(number-1)*15+index+1;
     return `<li><a data-job-id="${id}" href="/job/synthetic/3036/${id}"><h2>Synthetic role ${id}</h2></a></li>`;
-  }).join('')}</ul><input class="pagination-current" value="${number}" max="2"><a class="next${number===2?' disabled':''}" href="#">下一页</a></section>`;
+  }).join('')}</ul><nav id="pagination-bottom"><ul><li><input class="pagination-current" value="${number}" max="2"><a class="next${number===2?' disabled':''}" href="#">下一页</a></li></ul></nav></div></section>`;
   const server=createServer((request,response)=>{response.setHeader('content-type','text/html; charset=utf-8');
     const cookie=['/cookie','/late-cookie'].includes(request.url),late=request.url==='/late-cookie',lateRows=request.url==='/late-rows';
     response.end(`${list(1,lateRows||request.url==='/incomplete-rows'?0:15)}${cookie?`<div id="cookie-banner" ${late?'hidden':''}><div class="onetrust-pc-dark-filter ot-fade-in" style="position:fixed;inset:0;background:#3338;z-index:10"></div><button id="onetrust-reject-all-handler" style="position:fixed;top:30px;left:30px;z-index:11" onclick="window.cookieChoice='rejected';document.querySelector('#cookie-banner').remove()">全部拒絕</button></div>`:''}<script>
       const next=document.querySelector('a.next');
       next.style.visibility=${JSON.stringify(late?'hidden':'visible')};
       next.onclick=event=>{event.preventDefault();window.nextClicks=(window.nextClicks||0)+1;document.querySelector('#search-results').outerHTML=${JSON.stringify(list(2,lateRows?0:1))};${lateRows?`setTimeout(()=>document.querySelector('#search-results').outerHTML=${JSON.stringify(list(2))},100);`:''}};
-      window.populateRows=()=>document.querySelector('#search-results-list').innerHTML=${JSON.stringify(list(1).match(/<ul id="search-results-list">([\s\S]*?)<\/ul>/)[1])};
+      window.populateRows=()=>document.querySelector('#search-results-list > ul').innerHTML=${JSON.stringify(list(1).match(/<ul>([\s\S]*?)<\/ul>/)[1])};
       window.showCookieBanner=()=>{document.querySelector('#cookie-banner').hidden=false;next.style.visibility='visible'};
     </script>`);
   });
@@ -83,7 +83,7 @@ test('Sanofi captures complete rendered lists and handles cookies through the no
     for(const path of ['/cookie','/plain','/late-cookie','/late-rows','/incomplete-rows'])await t.test(path,async()=>{
       const tab=await cua.createBrowserTab('cdp',base+path);
       const runtime=createSanofiDomRuntime({async createBrowserTab(){return tab;}},{failureDirectory:directory});
-      await runtime.start(path==='/incomplete-rows'?Date.now()+1000:undefined);
+      await runtime.start(Date.now()+(path==='/incomplete-rows'?1000:3000));
       if(path==='/incomplete-rows'){
         await assert.rejects(runtime.readPage(),error=>error.message==='SANOFI_CN_DOM_LOADING_TIMEOUT'&&error.sourceFetchStage==='SANOFI_PAGE_READ'&&!!error.privateCapture);
         assert.equal(await tab.playwright.evaluate(()=>window.nextClicks??0),0);

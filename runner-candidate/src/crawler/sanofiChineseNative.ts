@@ -46,7 +46,7 @@ function exactPlan(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapte
     plan.table.sanofiChineseEntryUrl===SANOFI_CN_ENTRY&&plan.table.sanofiLegacyIdentitySha256===SANOFI_LEGACY_IDENTITY_SHA256;
 }
 function listPlan(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>){
-  const p=structuredClone(plan);delete p.table.sanofiNativePolicy;delete p.table.sanofiChineseEntryUrl;delete p.table.sanofiLegacyIdentitySha256;p.table.rowSelector='#search-results-list > li';return p;
+  const p=structuredClone(plan);delete p.table.sanofiNativePolicy;delete p.table.sanofiChineseEntryUrl;delete p.table.sanofiLegacyIdentitySha256;p.table.rowSelector='#search-results-list > li, #search-results-list > ul > li';return p;
 }
 export interface SanofiChineseRow { id:string; title:string; url:string; listLocation:string }
 export interface SanofiModuleAnomaly { code:"SANOFI_CN_FOREIGN_MAIN_MODULE"; id:string; reqId:string; foreignId:string; foreignReq:string|null; foreignApplyUrl:string; mainDescriptionSha256:string }
@@ -229,7 +229,7 @@ function exactArtifact(a:SourceFetchArtifactDraft|undefined,url:string,role:stri
 function listRows(primary:PersistentSourceFetchEvidence):Array<SanofiChineseRow&{valid:boolean;pageSequence:number;recordIndex:number;rawLocator:string}> {
   const rows:Array<SanofiChineseRow&{valid:boolean;pageSequence:number;recordIndex:number;rawLocator:string}>=[];
   for(const p of primary.pages){const a=primary.artifacts.find(a=>a.logicalKey===p.artifactLogicalKey)!,$=load(String(parseJson(body(a)).results));
-    for(const [recordIndex,n] of $('#search-results-list > li').toArray().entries()){
+    for(const [recordIndex,n] of $('#search-results-list > li, #search-results-list > ul > li').toArray().entries()){
       const row=$(n),button=row.find('button.js-save-job-btn'),link=row.find('a[data-job-id]'),rawId=button.attr('data-job-id'),href=link.attr('href'),title=clean(row.find('h2').text());
       let valid=button.length===1&&link.length===1&&/^\d+$/u.test(rawId??'')&&link.attr('data-job-id')===rawId&&!!title,url='';
       try{const u=new URL(href??'',SANOFI_CN_ENTRY);valid=valid&&text(href)&&u.origin==='https://jobs.sanofi.cn'&&u.pathname.endsWith(`/3036/${rawId}`)&&!u.search&&!u.hash&&!u.username&&!u.password;url=u.href;}catch{valid=false;}
@@ -245,7 +245,8 @@ function loadPrimary(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,evid
   const trace=evidence.artifacts.find(a=>a.logicalKey===TRACE);requireValue(trace?.kind==="ORACLE_RESULT"&&trace.bodyRepresentation==="EXACT"&&trace.extractorLocator===TRACE);
   const primary=parsePersistentSourceFetchEvidence({...parseJson(body(trace!)),artifacts:evidence.artifacts.filter(a=>a.logicalKey.startsWith("official-html-"))});
   const legacy=listPlan(plan);legacy.table.rowSelector=plan.table.rowSelector;
-  requireValue(validateStrictHtmlCompletenessProof(listPlan(plan),primary)||validateStrictHtmlCompletenessProof(legacy,primary));
+  const direct=listPlan(plan);direct.table.rowSelector='#search-results-list > li';
+  requireValue(validateStrictHtmlCompletenessProof(listPlan(plan),primary)||validateStrictHtmlCompletenessProof(direct,primary)||validateStrictHtmlCompletenessProof(legacy,primary));
   const begin=Date.parse(primary.artifacts[0]!.capturedAt);
   requireValue(primary.artifacts.every(a=>Date.parse(a.capturedAt)>=begin&&Date.parse(a.capturedAt)<=begin+30*60_000)&&
     trace!.capturedAt===primary.artifacts.at(-1)!.capturedAt);return primary;
