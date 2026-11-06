@@ -1,4 +1,5 @@
 import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { jobQuarantineLossesMatch, restoreQuarantinedList, type JobQuarantine } from './jobQuarantine';
 import { replayKelunMainlandScope } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,validateSanofiNativeQuality} from "./sanofiNativeQuality";
 import type {NormalizedJobRecord} from "./normalizedJob";
@@ -40,15 +41,20 @@ export function validateStrictHtmlCompletenessProof(
   evidence: PersistentSourceFetchEvidence,
   jobs?: readonly NormalizedJobRecord[]
 ): boolean {
+  const quarantines=evidence.jobQuarantines??[];
+  if(evidence.jobQuarantines?.length){
+    if(!jobQuarantineLossesMatch(evidence))return false;
+    evidence=restoreQuarantinedList(evidence);
+  }
   if (plan.source.id === "source-kelun-social") {
     const replay = replayKelunMainlandScope(plan, evidence, jobs);
     return !!replay && validateBaseStrictHtmlCompletenessProof(plan, replay.rawEvidence, jobs);
   }
-  return validateBaseStrictHtmlCompletenessProof(plan, evidence, jobs);
+  return validateBaseStrictHtmlCompletenessProof(plan, evidence, jobs,quarantines);
 }
 
 function validateBaseStrictHtmlCompletenessProof(
-  plan: HtmlPlan, evidence: PersistentSourceFetchEvidence, jobs?: readonly NormalizedJobRecord[]
+  plan: HtmlPlan, evidence: PersistentSourceFetchEvidence, jobs?: readonly NormalizedJobRecord[],quarantines:readonly JobQuarantine[]=[]
 ): boolean {
   try {
     if (hasSanofiNativePolicy(plan)) return validateSanofiNativeQuality(plan,evidence,jobs);
@@ -72,7 +78,11 @@ function validateBaseStrictHtmlCompletenessProof(
     const exact = artifacts as ExactArtifact[];
     if (plan.source.id === "source-abbvie-china-social" && (
       sourcePlanConfigSha256(plan) !== "4bc13113d0ea829b7df6935081d009ac389f24c97340390f09bbb7ad5234e5a9" ||
-      !exact.every(artifact => validateAbbvieChinaRowScope(artifact.body))
+      !exact.every(artifact => {
+        const pageSequence=evidence.pages.findIndex(page=>page.artifactLogicalKey===artifact.logicalKey),$=load(artifact.body);
+        return $('.attrax-vacancy-tile').toArray().every((row,recordIndex)=>validateAbbvieChinaRowScope($.html(row))||
+          quarantines.some(q=>q.pageSequence===pageSequence&&q.recordIndex===recordIndex));
+      })
     )) return htmlProofTrace(plan, "ABBVIE_ROW_SCOPE_UNREVIEWED");
     if (new Set(exact.map((artifact) => artifact.logicalKey)).size !== exact.length) return htmlProofTrace(plan, "ARTIFACT_KEYS");
 

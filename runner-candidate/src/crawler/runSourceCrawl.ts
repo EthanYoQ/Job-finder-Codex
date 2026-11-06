@@ -1,4 +1,6 @@
 import { CITY_PENDING } from "../domain/jobLocation";
+import {hasHtmlRowQuarantine,reviewHtmlJobRows,replayHtmlJobRows} from './htmlJobQuarantine';
+import { jobQuarantineLossesMatch, JOB_QUARANTINE_PAGINATION } from './jobQuarantine';
 import { mainlandDisplayCities } from "./fosunScopeGeography";
 import { reviewedMainlandCity } from "./reviewedMainlandCity";
 import { hasNovartisPartitionEvidence, replayNovartisNativePartitions, NOVARTIS_PARTITION_PAGINATION } from "./novartisNativePartitions";
@@ -263,7 +265,6 @@ export async function runSourceCrawl(
         crawledAt: new Date(fetchResult.capturedAt), successful: true, structuredJobCount: replay.jobs.length,
         stableRequiredFields: ["company", "title", "officialUrl", "location"],
         completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-        ...(!replay.detailComplete || replay.scopeReviewRequired ? {completenessBlockerReason: replay.scopeReviewRequired ? "ASTRAZENECA_SOURCE_SCOPE_REVIEW" : "ASTRAZENECA_DETAIL_UNRESOLVED"} : {})
       }};
       return finalizeTruth(withFetchEvidence(result, fetchResult), fetchResult, plan);
     }
@@ -275,6 +276,13 @@ export async function runSourceCrawl(
         successful:true,structuredJobCount:replay.jobs.length,stableRequiredFields:["company","title","officialUrl","location"],
         completenessStatus:"NEEDS_MANUAL_COMPLETENESS_REVIEW"
       }};
+      return finalizeTruth(withFetchEvidence(result,fetchResult),fetchResult,plan);
+    }
+    if(hasHtmlRowQuarantine(plan)&&fetchResult.fetchEvidence?.jobQuarantines?.length){
+      const reviewed=reviewHtmlJobRows(plan,fetchResult.fetchEvidence,fetchResult.capturedAt,deps.isBaseline??true);
+      const result:CrawlAdapterResult={status:'SUCCESS',...reconcileAdapterRows(reviewed.jobs.length,reviewed.jobs.length,reviewed.jobs,[]),observation:{
+        id:`${plan.source.id}:isolated-list:${fetchResult.capturedAt}`,sourceId:plan.source.id,crawledAt:new Date(fetchResult.capturedAt),successful:true,
+        structuredJobCount:reviewed.jobs.length,stableRequiredFields:['company','title','officialUrl','location'],completenessStatus:'NEEDS_MANUAL_COMPLETENESS_REVIEW'}};
       return finalizeTruth(withFetchEvidence(result,fetchResult),fetchResult,plan);
     }
     const htmlResult = reconcileResult(htmlTableAdapter.extract({
@@ -402,7 +410,7 @@ async function finalizeTruth(
     observation.completenessEvidenceKind = declaration.kind;
     observation.completenessEvidenceUrl = declarationArtifact.finalUrl ?? declarationArtifact.requestedUrl!;
     if (declaration.kind === "OFFICIAL_TOTAL_COUNT") {
-      observation.expectedJobCount = hasBiSemanticPlan(plan) ? strictEvidence.fetchCounts.validCount : profileBoundPersistedExpectedJobCount(
+      observation.expectedJobCount = hasBiSemanticPlan(plan)||strictEvidence.jobQuarantines?.length ? strictEvidence.fetchCounts.validCount : profileBoundPersistedExpectedJobCount(
         plan,
         strictEvidence,
         result.jobs
@@ -497,6 +505,9 @@ export function replayStrictSourceQualityEvidence(input: {
   jobs: readonly NormalizedJobRecord[];
   capturedAt: string;
 }): boolean {
+  if(hasHtmlRowQuarantine(input.plan)&&input.evidence.jobQuarantines?.length){
+    try{if(!replayHtmlJobRows(input.plan,input.evidence,input.jobs,input.capturedAt))return false;}catch{return false;}
+  }
   if (hasNovartisPartitionEvidence(input.evidence)) {
     return strictCompletenessGate({ok:true,capturedAt:input.capturedAt,payload:null,fetchEvidence:input.evidence,
       paginationEvaluation:input.paginationEvaluation},input.reconciliation,input.plan,input.jobs);
@@ -518,7 +529,7 @@ export function replayStrictSourceQualityEvidence(input: {
   if (hasAstraZenecaDetailPlan(input.plan) || input.evidence.astraZenecaDetails) {
     try {
       const replay = replayAstraZenecaDetails(input.plan,input.evidence,input.capturedAt,input.jobs[0]?.isBaseline ?? true);
-      if (!replay.detailComplete || replay.scopeReviewRequired || !isDeepStrictEqual(replay.jobs,input.jobs)) return false;
+      if (!isDeepStrictEqual(replay.jobs,input.jobs)) return false;
       return strictCompletenessGate({ok:true,capturedAt:input.capturedAt,payload:null,fetchEvidence:replay.listEvidence,
         paginationEvaluation:input.paginationEvaluation},input.reconciliation,input.plan,input.jobs);
     } catch { return false; }
@@ -633,7 +644,10 @@ function strictCompletenessGate(
     const organonScopeProof = exactOrganonPostedDatePlan(plan);
     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
-    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !rocheScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
+    const quarantinedJobs = jobQuarantineLossesMatch(evidence)&&
+      (hasAstraZenecaDetailPlan(plan)||hasBeisenDetailDatePlan(plan)||hasHtmlRowQuarantine(plan)||profileBoundEvidenceValidated);
+    const onlyQuarantinedLosses = quarantinedJobs && evidence.fetchLosses.every(loss=>loss.details.code==='JOB_QUARANTINED');
+    if (evidence.fetchLosses.length > 0 && !onlyQuarantinedLosses && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !rocheScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
     }
     if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) {
@@ -652,7 +666,8 @@ function strictCompletenessGate(
       filteredOutput: true,
       ...(replayPolicy ?? {}),
       ...(htmlReplayPolicy ?? {}),
-      ...(htmlOfficialTotalReplayPolicy ?? {})
+      ...(htmlOfficialTotalReplayPolicy ?? {}),
+      ...(quarantinedJobs ? JOB_QUARANTINE_PAGINATION : {})
     });
     if (independentlyEvaluated.safeCompleteness !== true || independentlyEvaluated.verifiedEligible !== true ||
       independentlyEvaluated.paginationTraceSha256 !== fetchResult.paginationEvaluation.paginationTraceSha256 ||
@@ -691,7 +706,9 @@ function strictCompletenessGate(
         replayPolicy?.allowIndependentlyVerifiedProfileBoundExclusions === true &&
         declared.value === evidence.fetchCounts.rawCount &&
         ledger.rawInputCount === evidence.fetchCounts.validCount;
-      if (declared.value !== ledger.rawInputCount && !profileBoundExclusionReconciled) return strictGateTrace(plan, "OFFICIAL_TOTAL_COUNT");
+      const quarantinedTotalReconciled = onlyQuarantinedLosses && declared.value===evidence.fetchCounts.rawCount &&
+        declared.value===ledger.rawInputCount+(evidence.jobQuarantines?.length??0);
+      if (declared.value !== ledger.rawInputCount && !profileBoundExclusionReconciled && !quarantinedTotalReconciled) return strictGateTrace(plan, "OFFICIAL_TOTAL_COUNT");
       const configuredHtmlPositiveTotal = configuredHtmlProof && plan.adapterId === "html-table" &&
         plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
         plan.table.pagination?.expectedJobCountSelector !== undefined;

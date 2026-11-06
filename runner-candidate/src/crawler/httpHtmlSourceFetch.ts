@@ -1,4 +1,5 @@
 import { acquireNovartisNativePartitions } from "./novartisNativePartitions";
+import {isolateHtmlJobRows} from './htmlJobQuarantine';
 import {isSanofiChinesePlan,createSanofiChineseSourceFetch} from "./sanofiChineseNative";
 import { projectKelunMainlandFetch } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,createSanofiNativeSourceFetch} from "./sanofiNativeQuality";
@@ -68,7 +69,7 @@ export function createHttpHtmlSourceFetch(
   deps: HttpHtmlSourceFetchDeps = {}
 ): SourceFetchFunction {
   const fetch = createUnpartitionedHttpHtmlSourceFetch(deps);
-  return async (plan, tracker) => projectKelunMainlandFetch(plan, await fetch(plan, tracker));
+  return async (plan, tracker) => isolateHtmlJobRows(plan,projectKelunMainlandFetch(plan, await fetch(plan, tracker)));
 }
 
 function createUnpartitionedHttpHtmlSourceFetch(

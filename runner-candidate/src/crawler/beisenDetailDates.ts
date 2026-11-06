@@ -1,4 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
+import {quarantineCompleteList,restoreQuarantinedList,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
+import {evaluatePaginationEvidence} from './paginationEvidence';
 import { createHash } from 'node:crypto';
 import type { SourceCrawlPlan } from './sourcePlan';
 import type { SourceFetchResult } from './runSourceCrawl';
@@ -75,6 +77,23 @@ function verifyDetail(plan:SourceCrawlPlan,row:ReturnType<typeof rows>[number],a
   if(root.Code!==200||!raw||raw.Id!==row.Id||raw.JobAdName!==row.JobAdName||raw.CategoryId!=='1'||raw.Category!=='社会招聘'||raw.Status!==1||typeof raw.Kind==='string'&&/(?:校园|校招|campus)/iu.test(raw.Kind)||!isDeepStrictEqual(raw.LocNames,row.LocNames)||!(typeof raw.Duty==='string'&&raw.Duty.trim()||typeof raw.Require==='string'&&raw.Require.trim()))throw Error('BEISEN_DETAIL_DATE_IDENTITY_INVALID');
   return beisenNativePublishedAt(raw);
 }
+/** Dates enrich an already scoped list job. A missing date response is not a bad job;
+ * a same-ID native scope conflict is isolated instead of blocking its company. */
+function optionalDetail(plan:SourceCrawlPlan,row:ReturnType<typeof rows>[number],artifact:SourceFetchArtifactDraft|undefined,capturedAt:string):{quarantine:boolean;date?:string}{
+  if(!artifact)return {quarantine:false};
+  try{
+    const data=json(artifact.body).Data as Record<string,unknown>|undefined;
+    if(artifact.httpStatus===200&&data?.Id===row.Id&&(typeof data.Kind==='string'&&/(?:校园|校招|campus)/iu.test(data.Kind)||data.Category!==undefined&&data.Category!=='社会招聘'||data.CategoryId!==undefined&&data.CategoryId!=='1'||data.Status!==undefined&&data.Status!==1))return {quarantine:true};
+    const date=verifyDetail(plan,row,artifact,capturedAt);
+    return {quarantine:false,...(date?{date}:{})};
+  }catch{return {quarantine:false};}
+}
+function quarantineRow(plan:SourceCrawlPlan,row:ReturnType<typeof rows>[number],index:number,evidence:PersistentSourceFetchEvidence):JobQuarantine{
+  if(plan.adapterId!=='official-json'||plan.officialJsonFetch?.kind!=='beisen-zhiye-2022')throw Error('BEISEN_DETAIL_DATE_PLAN_INVALID');
+  const pageSequence=Math.floor(index/(plan.officialJsonFetch.pageSize??100)),recordIndex=index%(plan.officialJsonFetch.pageSize??100);
+  return {sourceJobId:persistentOfficialJsonJobId(row.Id),officialUrl:sanitizeEvidenceHttpUrl(beisenZhiyeDetailUrl(plan.source.officialEntryUrl,'social/detail',row.Id)),pageSequence,recordIndex,
+    validJobId:irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId(row.Id)),rawLocator:`${evidence.pages[pageSequence]!.artifactLogicalKey}#row:${recordIndex}`,code:'JOB_SCOPE_UNRESOLVED'};
+}
 async function fetchDetail(request:OfficialJsonHttpRequest,sourceSignal:AbortSignal,onBlocked:()=>void):Promise<OfficialJsonHttpResponse>{
   const signal=AbortSignal.any([sourceSignal,AbortSignal.timeout(officialHttpTimeoutMs())]);signal.throwIfAborted();
   const response=await fetch(request.url,{method:'GET',headers:request.headers??{},redirect:'error',credentials:'omit',signal});
@@ -89,7 +108,7 @@ async function fetchDetail(request:OfficialJsonHttpRequest,sourceSignal:AbortSig
   }}finally{signal.removeEventListener('abort',aborted);reader.releaseLock();}
   return {status:response.status,body:new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks,size)),finalUrl:response.url,contentType:response.headers.get('content-type')??'application/octet-stream',capturedAt:new Date().toISOString()};
 }
-/** Only exact native public details are fetched; one unresolved detail holds A.
+/** Only exact native public details are fetched for optional posted-date enrichment.
  * Native list rows and counts survive a partial request failure for diagnosis. */
 export async function acquireBeisenDetailDates(plan:SourceCrawlPlan,fetched:SourceFetchResult,http?:OfficialJsonHttpClient,now:()=>Date=()=>new Date()):Promise<SourceFetchResult>{
   if(!hasBeisenDetailDatePlan(plan)||!fetched.ok)return fetched;
@@ -110,27 +129,33 @@ export async function acquireBeisenDetailDates(plan:SourceCrawlPlan,fetched:Sour
       if(Buffer.byteLength(response.body)>MAX_BODY)throw Error('BEISEN_DETAIL_BODY_LIMIT');
       const artifact=officialJsonNetworkArtifact({id:key(row.Id),logicalKey:key(row.Id),kind:'ATS_API_RESPONSE',requestedUrl,response,extractorLocator:POLICY,bodyRepresentation:'EXACT'});results[i]=artifact;retained+=Buffer.byteLength(response.body);
       if(response.status===403||response.status===429)blocked=true;
-      const date=verifyDetail(plan,row,artifact,fetched.capturedAt),job=payload.jobs.find(j=>j.sourceJobId===persistentOfficialJsonJobId(row.Id));
+      const date=optionalDetail(plan,row,artifact,fetched.capturedAt).date,job=payload.jobs.find(j=>j.sourceJobId===persistentOfficialJsonJobId(row.Id));
       if(!job)throw Error('BEISEN_DETAIL_DATE_OUTPUT_ID_INVALID');if(date)job.officialPublishedAt=date;
-    }catch{/* Original list and completed detail bytes remain diagnostic; strict replay rejects any gap. */}
+    }catch{/* List identity and scope do not depend on supplementary date availability. */}
     finally{reserved-=MAX_BODY;}
   }};
   await Promise.all(Array.from({length:6},worker));
-  return {...fetched,payload,fetchEvidence:{...fetched.fetchEvidence,artifacts:[...fetched.fetchEvidence.artifacts,...results.filter((a):a is SourceFetchArtifactDraft=>a!==undefined)]}};
+  const quarantines=list.flatMap((row,index)=>optionalDetail(plan,row,results[index],fetched.capturedAt).quarantine?[quarantineRow(plan,row,index,fetched.fetchEvidence!)]:[]);
+  const heldIds=new Set(quarantines.map(row=>row.sourceJobId));payload.jobs=payload.jobs.filter(job=>!heldIds.has(job.sourceJobId));
+  const evidence=quarantineCompleteList({...fetched.fetchEvidence,artifacts:[...fetched.fetchEvidence.artifacts,...results.filter((a):a is SourceFetchArtifactDraft=>a!==undefined)]},quarantines);
+  return {...fetched,payload,fetchEvidence:evidence,paginationEvaluation:quarantines.length?evaluatePaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,allowMissingReturnedPage:true,...JOB_QUARANTINE_PAGINATION}):fetched.paginationEvaluation};
 }
 /** Supplementary detail bytes are individually validated before the unmodified
  * list-only A proof receives its own original page artifacts. */
 export function replayBeisenDetailDates(plan:SourceCrawlPlan,evidence:PersistentSourceFetchEvidence,jobs:readonly NormalizedJobRecord[],capturedAt:string):PersistentSourceFetchEvidence{
   source(plan);if(evidence.artifacts.some(a=>a.logicalKey.startsWith('beisen-detail-')&&Buffer.byteLength(a.body)>MAX_BODY)||evidence.artifacts.reduce((n,a)=>n+Buffer.byteLength(a.body),0)>MAX_RETAINED)throw Error('BEISEN_DETAIL_BODY_LIMIT');
   if(plan.adapterId!=='official-json')throw Error('BEISEN_DETAIL_DATE_PLAN_INVALID');
-  const list=rows(plan,evidence),byId=new Map(jobs.map(j=>[j.sourceJobId,j]));
+  const list=rows(plan,restoreQuarantinedList(evidence)),byId=new Map(jobs.map(j=>[j.sourceJobId,j])),quarantines:JobQuarantine[]=[];
   const pageKeys=new Set(evidence.pages.map(p=>p.artifactLogicalKey)),detailKeys=new Set(list.map(r=>key(r.Id)));
-  if(list.length!==jobs.length||byId.size!==jobs.length||detailKeys.size!==list.length||evidence.artifacts.length!==pageKeys.size+detailKeys.size||new Set(evidence.artifacts.map(a=>a.logicalKey)).size!==evidence.artifacts.length||evidence.artifacts.some(a=>!pageKeys.has(a.logicalKey)&&!detailKeys.has(a.logicalKey)))throw Error('BEISEN_DETAIL_DATE_ARTIFACT_SET_INVALID');
-  for(const row of list){const artifact=evidence.artifacts.find(a=>a.logicalKey===key(row.Id)),job=byId.get(persistentOfficialJsonJobId(row.Id));
-    if(!artifact||!job||job.officialTitle!==clean(row.JobAdName)||job.locationRaw!==clean(row.LocNames.join(' / ')))throw Error('BEISEN_DETAIL_DATE_OUTPUT_INVALID');
-    const date=verifyDetail(plan,row,artifact,capturedAt);
+  if(byId.size!==jobs.length||detailKeys.size!==list.length||new Set(evidence.artifacts.map(a=>a.logicalKey)).size!==evidence.artifacts.length||evidence.artifacts.some(a=>!pageKeys.has(a.logicalKey)&&!detailKeys.has(a.logicalKey)))throw Error('BEISEN_DETAIL_DATE_ARTIFACT_SET_INVALID');
+  for(const [index,row] of list.entries()){const artifact=evidence.artifacts.find(a=>a.logicalKey===key(row.Id)),job=byId.get(persistentOfficialJsonJobId(row.Id));
+    const reviewed=optionalDetail(plan,row,artifact,capturedAt);
+    if(reviewed.quarantine){if(job)throw Error('BEISEN_QUARANTINED_JOB_CANNOT_BE_CURRENT');quarantines.push(quarantineRow(plan,row,index,evidence));continue;}
+    if(!job||job.officialTitle!==clean(row.JobAdName)||job.locationRaw!==clean(row.LocNames.join(' / ')))throw Error('BEISEN_DETAIL_DATE_OUTPUT_INVALID');
+    const date=reviewed.date;
     const projected=officialJsonAdapter.extract({company:plan.company,source:plan.source,json:plan.json,capturedAt,isBaseline:job.isBaseline,payload:{jobs:[{sourceJobId:persistentOfficialJsonJobId(row.Id),title:row.JobAdName,officialUrl:beisenZhiyeDetailUrl(plan.source.officialEntryUrl,'social/detail',row.Id),locationRaw:row.LocNames.join(' / '),cities:citiesFromBeisenLocation(row.LocNames),...(date?{officialPublishedAt:date}:{})}]}});
     if(projected.status!=='SUCCESS'||projected.jobs.length!==1||!isDeepStrictEqual(projected.jobs[0],job))throw Error('BEISEN_DETAIL_DATE_OUTPUT_INVALID');
   }
+  if(jobs.length+quarantines.length!==list.length||!isDeepStrictEqual(evidence.jobQuarantines??[],quarantines))throw Error('BEISEN_JOB_QUARANTINE_INVALID');
   return {...evidence,artifacts:evidence.artifacts.filter(a=>pageKeys.has(a.logicalKey))};
 }

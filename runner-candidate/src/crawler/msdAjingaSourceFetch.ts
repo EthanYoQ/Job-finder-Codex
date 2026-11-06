@@ -1,4 +1,5 @@
 import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import {quarantineCompleteList,restoreQuarantinedList,jobQuarantineLossesMatch,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
 import { mainlandDisplayCities } from "./fosunScopeGeography";
 import {retryableHttpTransportFailure,retryableTransportFailureFromError,type SourceTransportFailure} from "./sourceFetchFailure";
 import {isDeepStrictEqual as same} from "node:util";
@@ -100,6 +101,11 @@ function evidenceFor(artifacts:SourceFetchArtifactDraft[],pages:SourceFetchPageT
  const evidence=deriveCanonicalPaginationEvidence({...evaluationOptions,evidence:raw});
  return {evidence,evaluation:evaluatePaginationEvidence({...evaluationOptions,evidence})};
 }
+function quarantineRow(row:Record<string,unknown>,index:number,pages:SourceFetchPageTrace[]):JobQuarantine{
+ const pageSequence=Math.floor(index/MSD_AJINGA_CONFIG.pageSize),recordIndex=index%MSD_AJINGA_CONFIG.pageSize;
+ return {pageSequence,recordIndex,validJobId:`ajinga:${row.pk}`,rawLocator:`${pages[pageSequence]!.artifactLogicalKey}#row:${recordIndex}`,
+  ...(positive(row.pk)?{sourceJobId:`ajinga:${row.pk}`,officialUrl:`${ORIGIN}/job-detail-new/${row.pk}/c/`}:{}),code:'JOB_DETAIL_UNAVAILABLE'};
+}
 export interface MsdAjingaHttpResponse{status:number;body:string;finalUrl:string;contentType:string;capturedAt:string;}
 type Http=(url:string)=>Promise<MsdAjingaHttpResponse>;
 async function defaultHttp(url:string):Promise<MsdAjingaHttpResponse>{const response=await fetchWithOfficialTimeout(url,{redirect:"follow",headers:{Accept:"application/json,text/html,application/javascript","User-Agent":"job-search-crawler/0.1"}});return {status:response.status,body:await response.text(),finalUrl:response.url,contentType:response.headers.get("content-type")??"",capturedAt:new Date().toISOString()};}
@@ -112,10 +118,11 @@ export function createMsdAjingaSourceFetch(deps:{http?:Http;now?:()=>Date}={}):S
  return async plan=>{
   const now=deps.now??(()=>new Date()),http=deps.http??defaultHttp;let capturedAt=now().toISOString();
   if(!exactPlan(plan))return {ok:false,capturedAt,failureReason:"MSD_AJINGA_PLAN_INVALID"};
-  const artifacts:SourceFetchArtifactDraft[]=[],pages:SourceFetchPageTrace[]=[];let total:number|undefined,transportFailure:SourceTransportFailure|undefined;
+  const artifacts:SourceFetchArtifactDraft[]=[],pages:SourceFetchPageTrace[]=[];let total:number|undefined,transportFailure:SourceTransportFailure|undefined,blocked=false;
   const get=async(url:string,key:string,role:string,coordinate:unknown,mime:RegExp)=>{
    let response;try{response=await http(url);}catch(error){transportFailure=retryableTransportFailureFromError(error)??transportFailure;throw error;}
    transportFailure=retryableHttpTransportFailure(response.status)??transportFailure;
+   if(response.status===403||response.status===429)blocked=true;
    const a:SourceFetchArtifactDraft={id:key,logicalKey:key,kind:role==="entry"||role==="script"?"OFFICIAL_COMPANY_PAGE":role==="list"?"PAGINATION_PAGE":"ATS_API_RESPONSE",
     requestedUrl:sanitizeEvidenceHttpUrl(url),finalUrl:sanitizeEvidenceHttpUrl(response.finalUrl),httpStatus:response.status,contentType:response.contentType,capturedAt:response.capturedAt,body:response.body,bodyRepresentation:"EXACT",extractorLocator:locator(role,url,coordinate)};
    artifacts.push(a);failUnless(validArtifact(a,url,role,coordinate,capturedAt,mime),"MSD_AJINGA_RESPONSE_INVALID");return a;
@@ -130,16 +137,22 @@ export function createMsdAjingaSourceFetch(deps:{http?:Http;now?:()=>Date}={}):S
     rows.push(...data.rows);pages.push(trace(a,page,total,data.rows));if(data.last)break;
    }
    failUnless(rows.length===total&&new Set(rows.map(r=>r.pk)).size===total&&new Set(rows.map(r=>r.short_unique_id)).size===total,"MSD_AJINGA_SET_NOT_CLOSED");
-   const jobs:Array<NonNullable<ReturnType<typeof projectMsdAjingaJob>>>=[];
+   const jobs:Array<NonNullable<ReturnType<typeof projectMsdAjingaJob>>>=[],quarantines:JobQuarantine[]=[];
    for(let offset=0;offset<rows.length;offset+=4){
-    const group=await Promise.all(rows.slice(offset,offset+4).map(async row=>{
+    const group=await Promise.all(rows.slice(offset,offset+4).map(async(row,inGroup)=>{
+     try{
+     if(blocked)throw Error('MSD_AJINGA_BLOCKED');
      const u=urls(row),coordinate={id:row.pk,shortId:row.short_unique_id,companyId:rec(row.company)!.pk};
-     const [detail,apply]=await Promise.all([get(u.detail,`msd-ajinga-detail-${row.pk}`,"detail",coordinate,/^application\/json(?:;|$)/iu),get(u.apply,`msd-ajinga-apply-${row.pk}`,"apply",coordinate,/^application\/json(?:;|$)/iu)]);
-     const job=projectMsdAjingaJob(row,json(detail),json(apply));failUnless(job,"MSD_AJINGA_RECORD_INVALID");return job;
-    }));jobs.push(...group);
+     const outcomes=await Promise.allSettled([get(u.detail,`msd-ajinga-detail-${row.pk}`,"detail",coordinate,/^application\/json(?:;|$)/iu),get(u.apply,`msd-ajinga-apply-${row.pk}`,"apply",coordinate,/^application\/json(?:;|$)/iu)]);
+     const [detail,apply]=outcomes.map(outcome=>{if(outcome.status==='rejected')throw outcome.reason;return outcome.value;});
+     const job=projectMsdAjingaJob(row,json(detail!),json(apply!));failUnless(job,"MSD_AJINGA_RECORD_INVALID");return job;
+     }catch{quarantines.push(quarantineRow(row,offset+inGroup,pages));return undefined;}
+    }));jobs.push(...group.filter((job):job is NonNullable<typeof job>=>job!==undefined));
    }
    const result=evidenceFor(artifacts,pages,total);
-   return {ok:true,capturedAt,payload:{jobs},fetchEvidence:result.evidence,paginationEvaluation:result.evaluation,
+   quarantines.sort((a,b)=>a.pageSequence-b.pageSequence||a.recordIndex-b.recordIndex);
+   const evidence=quarantineCompleteList(result.evidence,quarantines),evaluation=evaluatePaginationEvidence({...evaluationOptions,...JOB_QUARANTINE_PAGINATION,evidence});
+   return {ok:true,capturedAt,payload:{jobs},fetchEvidence:evidence,paginationEvaluation:evaluation,
     completeness:{completenessStatus:"NEEDS_MANUAL_COMPLETENESS_REVIEW",expectedJobCount:total,completenessEvidenceKind:"OFFICIAL_TOTAL_COUNT",completenessEvidenceUrl:MSD_AJINGA_CONFIG.entryUrl}};
   }catch(error){
    let retained;try{if(artifacts.length)retained=evidenceFor(artifacts,pages,total);}catch{}
@@ -150,7 +163,7 @@ export function createMsdAjingaSourceFetch(deps:{http?:Http;now?:()=>Date}={}):S
 }
 export function getStrictMsdAjingaPolicy(plan:SourceCrawlPlan):StrictProfileBoundSourcePolicy|undefined{
  if(!exactPlan(plan))return undefined;
- return {allowMissingReturnedPage:true,allowPositiveOfficialTotalCountAfterAdapterReconciliation:true,urlRules:[
+ return {allowMissingReturnedPage:true,allowPositiveOfficialTotalCountAfterAdapterReconciliation:true,allowIndependentlyVerifiedProfileBoundExclusions:true,urlRules:[
   {id:"msd-ajinga-entry",url:MSD_AJINGA_CONFIG.entryUrl,match:"EXACT"},{id:"msd-ajinga-script",url:"https://static-c.ajinga.com/v-prod/js/",match:"PATH_PREFIX"},
   ...Array.from({length:20},(_,i)=>({id:`msd-ajinga-list-${i+1}`,url:listUrl(i+1),match:"EXACT" as const,allowsPagination:true as const,
    ...(i===0?{allowsDeclaration:true as const,allowsPositiveTotalDeclaration:true as const}:{})}))]};
@@ -158,7 +171,8 @@ export function getStrictMsdAjingaPolicy(plan:SourceCrawlPlan):StrictProfileBoun
 export function validateStrictMsdAjingaEvidence(plan:SourceCrawlPlan,input:PersistentSourceFetchEvidence,jobs:readonly NormalizedJobRecord[]):boolean{
  try{
   if(!exactPlan(plan))return false;const evidence=parsePersistentSourceFetchEvidence(input),artifacts=new Map(evidence.artifacts.map(a=>[a.logicalKey,a]));
-  if(artifacts.size!==evidence.artifacts.length||evidence.fetchLosses.length)return false;
+  if(artifacts.size!==evidence.artifacts.length||evidence.fetchLosses.length&&(!jobQuarantineLossesMatch(evidence)||evidence.fetchLosses.some(loss=>loss.details.code!=='JOB_QUARANTINED')))return false;
+  const rawEvidence=restoreQuarantinedList(evidence);
   const entry=artifacts.get("msd-ajinga-entry"),start=entry?.capturedAt??"";
   if(!validArtifact(entry,MSD_AJINGA_CONFIG.entryUrl,"entry",null,start,/^text\/html(?:;|$)/iu))return false;
   const script=artifacts.get("msd-ajinga-script");
@@ -168,19 +182,30 @@ export function validateStrictMsdAjingaEvidence(plan:SourceCrawlPlan,input:Persi
    const page=i+1,a=artifacts.get(`msd-ajinga-page-${page}`);
    if(page>20||!validArtifact(a,listUrl(page),"list",{page},start,/^application\/json(?:;|$)/iu))return false;
    const data=pageData(a,page);if(total===undefined)total=data.total;
-   if(data.total!==total||!same(evidence.pages[i],trace(a,page,total,data.rows)))return false;rows.push(...data.rows);
+   const expectedPage=trace(a,page,total,data.rows),actualPage=rawEvidence.pages[i]!;
+   if(data.total!==total||!same({...actualPage,validJobIds:[...actualPage.validJobIds].sort()},{...expectedPage,validJobIds:[...expectedPage.validJobIds].sort()}))return false;rows.push(...data.rows);
   }
   if(total===undefined||rows.length!==total||new Set(rows.map(r=>r.pk)).size!==total||new Set(rows.map(r=>r.short_unique_id)).size!==total||
-   evidence.artifacts.length!==2+evidence.pages.length+2*total||!same(evidence.fetchCounts,{rawCount:total,parsedCount:total,validCount:total,parseDiscardCount:0,validationDiscardCount:0}))return false;
+   !same(rawEvidence.fetchCounts,{rawCount:total,parsedCount:total,validCount:total,parseDiscardCount:0,validationDiscardCount:0}))return false;
   const first=artifacts.get("msd-ajinga-page-1")!;
   if(!same(evidence.declaredCompleteness,{kind:"OFFICIAL_TOTAL_COUNT",value:total,scope:"SOURCE",artifactLogicalKey:first.logicalKey,extractorLocator:first.extractorLocator}))return false;
   const expected=new Map<string,ReturnType<typeof projectMsdAjingaJob>>();
-  for(const row of rows){const u=urls(row),coordinate={id:row.pk,shortId:row.short_unique_id,companyId:rec(row.company)!.pk};
+  const permittedKeys=new Set(['msd-ajinga-entry','msd-ajinga-script',...evidence.pages.map(page=>page.artifactLogicalKey)]);
+  for(const [index,row] of rows.entries()){
+   const quarantined=evidence.jobQuarantines?.find(q=>q.pageSequence===Math.floor(index/30)&&q.recordIndex===index%30);
+   if(quarantined&&!same(quarantined,quarantineRow(row,index,rawEvidence.pages)))return false;
+   let u:ReturnType<typeof urls>|undefined;try{u=urls(row);}catch{if(quarantined)continue;return false;}
+   const coordinate={id:row.pk,shortId:row.short_unique_id,companyId:rec(row.company)!.pk};
    const detail=artifacts.get(`msd-ajinga-detail-${row.pk}`),apply=artifacts.get(`msd-ajinga-apply-${row.pk}`);
-   if(!validArtifact(detail,u.detail,"detail",coordinate,start,/^application\/json(?:;|$)/iu)||!validArtifact(apply,u.apply,"apply",coordinate,start,/^application\/json(?:;|$)/iu))return false;
-   const output=projectMsdAjingaJob(row,json(detail),json(apply));if(!output)return false;expected.set(output.sourceJobId,output);
+   for(const [artifact,url,role] of [[detail,u.detail,'detail'],[apply,u.apply,'apply']] as const){
+    if(artifact){permittedKeys.add(artifact.logicalKey);if(artifact.requestedUrl!==sanitizeEvidenceHttpUrl(url)||artifact.extractorLocator!==locator(role,url,coordinate))return false;}
+   }
+   let output:ReturnType<typeof projectMsdAjingaJob>;
+   try{if(validArtifact(detail,u.detail,"detail",coordinate,start,/^application\/json(?:;|$)/iu)&&validArtifact(apply,u.apply,"apply",coordinate,start,/^application\/json(?:;|$)/iu))output=projectMsdAjingaJob(row,json(detail),json(apply));}catch{}
+   if(quarantined){if(output)return false;continue;}
+   if(!output)return false;expected.set(output.sourceJobId,output);
   }
-  return jobs.length===total&&new Set(jobs.map(j=>j.sourceJobId)).size===total&&jobs.every(job=>{const row=job.sourceJobId&&expected.get(job.sourceJobId);
+  return evidence.artifacts.every(a=>permittedKeys.has(a.logicalKey))&&jobs.length===expected.size&&new Set(jobs.map(j=>j.sourceJobId)).size===expected.size&&jobs.every(job=>{const row=job.sourceJobId&&expected.get(job.sourceJobId);
    return !!row&&typeof job.isBaseline==="boolean"&&same(job,{companyId:plan.company.id,sourceId:plan.source.id,sourceKind:"SOCIAL",atsKind:"OFFICIAL_JSON",
     officialChineseCompanyName:plan.company.officialChineseName,officialTitle:row.title,officialUrl:row.officialUrl,listUrl:MSD_AJINGA_CONFIG.entryUrl,
     sourceJobId:row.sourceJobId,locationRaw:row.locationRaw,cities:row.cities,category:"其他",isBaseline:job.isBaseline,
