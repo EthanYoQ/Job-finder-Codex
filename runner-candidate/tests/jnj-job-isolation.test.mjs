@@ -13,10 +13,11 @@ test('JNJ: bad list fields or individual native detail failures preserve old job
  const directory=await mkdtemp(join(tmpdir(),'jnj-row-isolation-')),oldRoot=process.env.JOBFINDER_STATE_ROOT;process.env.JOBFINDER_STATE_ROOT=directory;
  t.after(async()=>{if(oldRoot===undefined)delete process.env.JOBFINDER_STATE_ROOT;else process.env.JOBFINDER_STATE_ROOT=oldRoot;await rm(directory,{recursive:true,force:true});});
  const plan=(await loadDirectPlans()).find(p=>p.sourceId==='source-johnson-innovative-medicine-social').plan;
- for(const mode of ['good','title','foreign','two-unbound','detail-title','missing-detail','no-apply','detail-unavailable','duplicate','missing-page']){
+ for(const mode of ['good','title','foreign','malformed-link','two-unbound','detail-title','missing-detail','no-apply','detail-unavailable','duplicate','missing-page']){
   const input=fixture(mode==='two-unbound'?5:3),$=load(input.list.fragment.html),second=$('[data-id="r-000002"]');
   if(mode==='title'){second.find('a').text('');input.list.fragment.items[1].links[0].title='';}
   if(mode==='foreign')second.find('.PagePromo-location').text('Tokyo');
+  if(mode==='malformed-link'){second.removeAttr('data-id').find('a').attr('href','https://[');input.list.fragment.items[1].links[0].url='https://[';input.details.splice(1,1);}
   if(mode==='two-unbound'){
    for(const n of [1,2]){$(`[data-id="r-00000${n+1}"]`).replaceWith('<li class="PageList-items-item card-job">Broken</li>');input.list.fragment.items[n]={text:'Broken',links:[]};}
    input.details.splice(1,2);

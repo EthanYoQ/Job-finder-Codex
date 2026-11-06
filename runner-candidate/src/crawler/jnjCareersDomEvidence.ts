@@ -22,7 +22,7 @@ const base = z.object({ kind: z.literal(JNJ_DOM_OBSERVATION_KIND), url: z.string
   heading: z.string().min(1), dom: z.string().min(1) });
 const listSchema = base.extend({
   fragment: z.object({ html: z.string().min(1), htmlLength: z.number().int().positive(),
-    items: z.array(z.object({ text: z.string(), links: z.array(z.object({ title: z.string(), url: z.string().url() }).strict()) }).strict()) }).strict(),
+    items: z.array(z.object({ text: z.string(), links: z.array(z.object({ title: z.string(), url: z.string() }).strict()) }).strict()) }).strict(),
   filters: z.array(z.object({ id: z.string(), name: z.string(), selectedOptions: z.array(z.object({ text: z.string(), value: z.string() }).strict()) }).strict()),
   pagination: z.array(z.object({ label: z.string(), text: z.string().optional(), url: z.string().url() }).strict()),
   sameIdentityOrderAsEarlier: z.boolean().optional()
