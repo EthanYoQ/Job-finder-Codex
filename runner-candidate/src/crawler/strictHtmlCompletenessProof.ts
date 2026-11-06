@@ -41,14 +41,14 @@ export function validateStrictHtmlCompletenessProof(
   evidence: PersistentSourceFetchEvidence,
   jobs?: readonly NormalizedJobRecord[]
 ): boolean {
-  const quarantines=evidence.jobQuarantines??[];
-  if(evidence.jobQuarantines?.length){
-    if(!jobQuarantineLossesMatch(evidence))return false;
-    evidence=restoreQuarantinedList(evidence);
-  }
   if (plan.source.id === "source-kelun-social") {
     const replay = replayKelunMainlandScope(plan, evidence, jobs);
     return !!replay && validateBaseStrictHtmlCompletenessProof(plan, replay.rawEvidence, jobs);
+  }
+  const quarantines=evidence.jobQuarantines??[];
+  if(quarantines.length){
+    if(!jobQuarantineLossesMatch(evidence))return false;
+    evidence=restoreQuarantinedList(evidence);
   }
   return validateBaseStrictHtmlCompletenessProof(plan, evidence, jobs,quarantines);
 }

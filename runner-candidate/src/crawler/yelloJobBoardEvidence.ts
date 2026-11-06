@@ -119,17 +119,11 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
     }
     const title = link.text().trim();
     const locationRaw = locationSpans.first().text().trim();
-    const officialUrl = new URL(link.attr("href")?.trim() ?? "", "https://gilead.yello.co");
-    const officialId = officialUrl.pathname.match(/^\/jobs\/([A-Za-z0-9_-]{22})$/u)?.[1];
-    const query = [...officialUrl.searchParams.entries()];
-    if (!title || !officialId || officialUrl.origin !== "https://gilead.yello.co" ||
-        officialUrl.username || officialUrl.password || officialUrl.hash || query.length !== 1 || query[0]![0] !== "job_board_id" ||
-        query[0]![1] !== config.boardId) {
-      throw new Error("Yello result row identity or China scope is invalid");
-    }
+    if(!title||!bound)throw new Error('Yello result identity or title is invalid');
+    const {officialId,officialUrl}=bound;
     const age = row.find(".search-results__post-time");
     const publicAgeRaw = age.text();
-    const identity = { rowIndex, officialId, title, officialUrl: officialUrl.toString(), locationRaw,
+    const identity = { rowIndex, officialId, title, officialUrl, locationRaw,
       rawHtml: rawRows[rowIndex]!, publicAgeRaw };
     // Only this exact, mutually consistent location/flag pair is a proven exclusion.
     // A China filter is not a mainland guarantee; unresolved rows retain prior data.

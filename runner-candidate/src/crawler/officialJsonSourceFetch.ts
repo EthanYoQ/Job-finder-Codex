@@ -1,5 +1,5 @@
 import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
-import { hasBiSemanticPlan, biJobQuarantine, biRawObservationId, hasBiMainlandGeography, biDisplayCities } from "./biSemanticCompleteness";
+import { hasBiSemanticPlan, biJobId, biJobQuarantine, biRawObservationId, hasBiMainlandGeography, biDisplayCities } from "./biSemanticCompleteness";
 import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
 import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
 import { CITY_PENDING } from "../domain/jobLocation";
@@ -2344,21 +2344,14 @@ function replay51jobArtifacts(
   const quarantines:JobQuarantine[]=[];
   for (let index = 0; index < envelope.jobs.length; index += 1) {
     const raw = envelope.jobs[index]!;
-    const rawId=isStrictRecord(raw)?stringValue(raw.jobid):undefined;
+    const rawId=biJobId(raw);
     if(rawId){if(seen.has(rawId))return failed(capturedAt,'51job duplicate official ID');seen.add(rawId);}
     rawIds.push(biRawObservationId(raw,index));
     const quarantine=biJobQuarantine(raw,index);
     if(quarantine){quarantines.push(quarantine);counts.validationDiscardCount++;losses.push(jobQuarantineLoss(quarantine,apiArtifact.capturedAt));continue;}
     if(!isStrictRecord(raw))return failed(capturedAt,'51job invalid row');
-    const title = stringValue(raw.jobname);
-    const locationRaw = stringValue(raw.jobareaname);
-    if (!rawId || !title || !locationRaw) {
-      counts.validationDiscardCount += 1;
-      losses.push({ stage: "VALIDATION", reason: "51job record rejected: INVALID_REQUIRED_FIELD",
-        rawLocator: officialJsonRawLocator(0, index), details: { code: "INVALID_REQUIRED_FIELD", recordIndex: index } });
-      continue;
-    }
-    if (!hasBiMainlandGeography(raw)) return failed(capturedAt, "51job record mainland geography is unproven");
+    const title = stringValue(raw.jobname)!;
+    const locationRaw = stringValue(raw.jobareaname)!;
     if (ui.exclusions.some((rule) => title.includes(rule.code) && locationRaw.includes(rule.jobareaname))) {
       counts.validationDiscardCount += 1;
       losses.push({ stage: "VALIDATION", reason: "51job record excluded by official recruitment UI",
@@ -2366,8 +2359,8 @@ function replay51jobArtifacts(
       continue;
     }
     const officialUrl = new URL(detailBase);
-    officialUrl.searchParams.set("jobId", rawId);
-    const sourceJobId = persistentOfficialJsonJobId(rawId);
+    officialUrl.searchParams.set("jobId", rawId!);
+    const sourceJobId = persistentOfficialJsonJobId(rawId!);
     jobs.push({ sourceJobId, title, officialUrl: officialUrl.toString(), locationRaw,
       cities: biDisplayCities(raw) });
     counts.validCount += 1;

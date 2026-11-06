@@ -17,7 +17,7 @@ const CHAIN = "https://www.boehringer-ingelheim.cn/careers/jobs";
 const API_LOCATOR = "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode";
 const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 
-function biJobId(raw:unknown):string|undefined{
+export function biJobId(raw:unknown):string|undefined{
   return record(raw)&&id(raw.jobid)?raw.jobid as string:undefined;
 }
 export function biRawObservationId(raw:unknown,index:number):string{
