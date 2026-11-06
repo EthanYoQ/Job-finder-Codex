@@ -164,7 +164,7 @@ export function validateStrictQiluDualPartitionEvidence(plan: SourceCrawlPlan, i
             return false;
         if(nonmarketing.jobQuarantines?.length&&(!jobQuarantineLossesMatch(nonmarketing)||!verifyBeisenListQuarantines(qiluPartitionPlans()[1],nonmarketing)))return false;
         const seenIds=new Set<string>();let total:number|undefined,rawCount=0;
-        const entries = nonmarketing.pages.map((p, index) => {
+        nonmarketing.pages.forEach((p, index) => {
             const a = nonmarketing.artifacts.find(a => a.logicalKey === p.artifactLogicalKey)!;
             const request = { PageIndex: index, PageSize: 15, Category: ["1"], KeyWords: "", SpecialType: 0, PortalId: "", DisplayFields: ["Category", "LocId", "Org", "PostDate", "WorkWeChatQrCode"] };
             const base = `beisen-zhiye-page-v1|requestPageIndex:${index}|requestPageSize:15|requestCategory:${irreversibleOfficialJsonEvidenceId("1")}|json:$.Count,$.Data`;
@@ -191,7 +191,7 @@ export function validateStrictQiluDualPartitionEvidence(plan: SourceCrawlPlan, i
             const valid = root.Data.filter((_r: any, i: number) => !excluded.has(i));
             if (!eq(p.validJobIds, valid.map((r: any) => irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId(r.Id.toLowerCase())))))
                 throw new Error("Invalid valid IDs");
-            if(valid.some((r:any)=>!r||typeof r.Id!=='string'||typeof r.JobAdName!=='string'||!r.JobAdName.trim()||r.Category!=null&&String(r.Category).trim()!=='社会招聘'||r.CategoryId!=null&&String(r.CategoryId).trim()!=='1'||typeof r.Kind==='string'&&/(?:校园|校招|campus)/iu.test(r.Kind)||!['EXPLICIT_MAINLAND','NATIONWIDE_ONLY'].includes(qiluReviewedRowGeography(r)??'')||!qiluOfficialLocationParts(r).length))throw Error('Qilu current row unresolved');
+            if(valid.some((r:any)=>!r||r.Status!==1||typeof r.Id!=='string'||typeof r.JobAdName!=='string'||!r.JobAdName.trim()||r.Category!=null&&String(r.Category).trim()!=='社会招聘'||r.CategoryId!=null&&String(r.CategoryId).trim()!=='1'||typeof r.Kind==='string'&&/(?:校园|校招|campus)/iu.test(r.Kind)||!['EXPLICIT_MAINLAND','NATIONWIDE_ONLY'].includes(qiluReviewedRowGeography(r)??'')||!qiluOfficialLocationParts(r).length))throw Error('Qilu current row unresolved');
             if (valid.some((r: any) => [r.Country, r.CountryName].some(country => country != null &&
                 (typeof country !== "string" || (country.trim() !== "" && !/^(?:china|prc|mainland china|china mainland|people'?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(country.normalize("NFKC").trim()))))))
                 throw new Error("Conflicting country scope");
@@ -199,8 +199,7 @@ export function validateStrictQiluDualPartitionEvidence(plan: SourceCrawlPlan, i
                 expected.push({ sourceJobId: persistentOfficialJsonJobId(r.Id.toLowerCase()), title: r.JobAdName.replace(/\s+/gu," ").trim(),
                     url: `https://qilu-pharma.zhiye.com/social/detail?jobAdId=${r.Id.toLowerCase()}`, location: qiluOfficialLocationParts(r).join(" / "),
                     cities: mainlandDisplayCities(qiluOfficialLocationParts(r)) });
-            return { started_at: a.capturedAt, url: API, method: "POST", http_status: 200, request_json_text: JSON.stringify(request), response_json_text: a.body,
-                request_text_sha256: sha(JSON.stringify(request)), response_text_sha256: sha(a.body) };
+
         });
         const nd = nonmarketing.declaredCompleteness;
         if (nd?.kind !== "COMPLETE_PAGE_TRAVERSAL" || nd.scope !== "SOURCE" || nd.channelId !== undefined ||
@@ -208,7 +207,7 @@ export function validateStrictQiluDualPartitionEvidence(plan: SourceCrawlPlan, i
             nd.extractorLocator !== nonmarketing.artifacts[0]?.extractorLocator || nonmarketing.fetchCounts.parseDiscardCount !== 0 ||
             nonmarketing.fetchCounts.parsedCount !== nonmarketing.fetchCounts.rawCount || nonmarketing.supportingArtifactOnlyFailure !== undefined)
             return false;
-        if(total===undefined||entries.length!==Math.max(1,Math.ceil(total/15))||rawCount!==total||rawCount!==nonmarketing.fetchCounts.rawCount||nonmarketing.fetchCounts.validCount!==expected.length-marketingJobs.length||nonmarketing.fetchCounts.validationDiscardCount!==nonmarketing.fetchLosses.length||nonmarketing.fetchCounts.validCount+nonmarketing.fetchCounts.validationDiscardCount!==rawCount)return false;
+        if(total===undefined||nonmarketing.pages.length!==Math.max(1,Math.ceil(total/15))||rawCount!==total||rawCount!==nonmarketing.fetchCounts.rawCount||nonmarketing.fetchCounts.validCount!==expected.length-marketingJobs.length||nonmarketing.fetchCounts.validationDiscardCount!==nonmarketing.fetchLosses.length||nonmarketing.fetchCounts.validCount+nonmarketing.fetchCounts.validationDiscardCount!==rawCount)return false;
         const evaluation = evaluatePaginationEvidence({ evidence: e, expectedChannelIds: CHANNELS, filteredOutput: true, allowMissingReturnedPage: true, allowIndependentlyVerifiedProfileBoundExclusions: true });
         if (!evaluation.safeCompleteness || !evaluation.verifiedEligible)
             return false;

@@ -19,7 +19,7 @@ export function qiluReviewedRowGeography(raw: unknown): "EXPLICIT_MAINLAND" | "N
   const mainland = hasExactFosunMainlandGeography({...row,LocNames:locations});
   if(mainland)return locations.every(value=>reviewedNationwideLocations.has(value))?"NATIONWIDE_ONLY":"EXPLICIT_MAINLAND";
   const foreign = locations.every(value => reviewedForeignLocations.has(value.toLowerCase()));
-  if (locations.some(value => !value) || (!mainland && !foreign)) return undefined;
+  if (locations.some(value => !value) || !foreign) return undefined;
   for (const field of ["Country", "CountryName", "LocName", "LocationName", "City"] as const) {
     const value = row[field];
     if (value === undefined || value === null) continue;
@@ -27,17 +27,16 @@ export function qiluReviewedRowGeography(raw: unknown): "EXPLICIT_MAINLAND" | "N
     const normalized = value.normalize("NFKC").trim();
     if (!normalized) continue;
     if (field === "Country" || field === "CountryName") {
-      const china = /^(?:china|prc|mainland china|china mainland|people'?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(normalized);
-      if (mainland ? !china : !foreignGroup(normalized) || locations.some(location => foreignGroup(location) !== foreignGroup(normalized))) return undefined;
+      if (!foreignGroup(normalized)||locations.some(location=>foreignGroup(location)!==foreignGroup(normalized)))return undefined;
     } else {
       // A city may repeat an exact component of an already-reviewed full label.
       // No province prefix, foreign substring, or guessed location is accepted.
       const exactPrimaryPart = locations.some(location => location === normalized || location.split("·").includes(normalized));
-      const sameForeign = foreign && foreignGroup(normalized) !== undefined && locations.every(location => foreignGroup(location) === foreignGroup(normalized));
+      const sameForeign = foreignGroup(normalized) !== undefined && locations.every(location => foreignGroup(location) === foreignGroup(normalized));
       if (!exactPrimaryPart && !sameForeign) return undefined;
     }
   }
-  return foreign ? "AUDITED_FOREIGN_ONLY" : locations.every(value => reviewedNationwideLocations.has(value)) ? "NATIONWIDE_ONLY" : "EXPLICIT_MAINLAND";
+  return "AUDITED_FOREIGN_ONLY";
 }
 
 const sha = z.string().regex(/^[a-f0-9]{64}$/u);

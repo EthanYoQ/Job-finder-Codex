@@ -3561,7 +3561,7 @@ async function fetchBeisenZhiye2022({
           rawLocator, pageIndex, recordIndex);
         continue;
       }
-      if(config.scopeExclusionProof==='QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2'&&!['EXPLICIT_MAINLAND','NATIONWIDE_ONLY'].includes(qiluReviewedRowGeography(raw)??'')){
+      if(config.scopeExclusionProof==='QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2'&&(raw.Status!==1||!['EXPLICIT_MAINLAND','NATIONWIDE_ONLY'].includes(qiluReviewedRowGeography(raw)??''))){
         recordBeisenLoss(losses,counts,'VALIDATION','AMBIGUOUS_SCOPE',rawLocator,pageIndex,recordIndex);continue;
       }
       let officialUrl: string;
