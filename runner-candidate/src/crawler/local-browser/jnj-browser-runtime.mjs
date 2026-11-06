@@ -56,7 +56,7 @@ async function saveDetailFailure(tab, context, directory) {
 export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBFINDER_STATE_ROOT ?? '/data/job-finder','diagnostics','jnj')} = {}) {
   const origin = 'https://www.careers.jnj.com';
   const listUrl = page => origin+'/en/jobs/?'+(page===1?'':'page='+page+'&')+'country=China&origin=global#results';
-  let list, detail, deadline, total, current = [], page = 1;
+  let list, detail, deadline, total, current = [], page = 1, detailsBlocked=false;
   const seen = new Set();
   const checkTime = () => { if (Date.now() >= deadline) throw Error('JNJ_ORIGINAL_30_MINUTE_CAPTURE_DEADLINE'); };
   const raw = value => JSON.stringify(value,null,2)+'\n';
@@ -123,15 +123,13 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
        fragment.items.length!==Math.min(20,total-(page-1)*20)) {
       return {file:'jnj-list-page-'+page+'.json',raw:raw(value),failure:'JNJ_DOM_PAGE_DRIFT:'+JSON.stringify({page,expectedUrl:listUrl(page),actualUrl:value.url,heading,itemCount:fragment.items.length,total})};
     }
-    const names=['team','subteam','country','state','location','type','pattern'];
-    if(JSON.stringify(value.filters.map(f=>f.name))!==JSON.stringify(names) || value.filters.some(f=>JSON.stringify(f.selectedOptions)!==JSON.stringify(f.name==='country'?[{text:'China',value:'China'}]:[]))) throw Error('JNJ_DOM_SCOPE');
-    for (const [index,item] of fragment.items.entries()) {
-      if(item.links.length!==1) throw Error('JNJ_DOM_CARD_IDENTITY');
-      const card=item.links[0],url=new URL(card.url),id=/^\/en\/jobs\/(r-\d+)\/[^/?#]+\/$/.exec(url.pathname)?.[1];
-      if(!id || url.origin!==origin || url.username || url.password || url.search || url.hash || seen.has(id)) {
-        // Preserve this real failed page before the Functions caller holds the source.
-        return {file:'jnj-list-page-'+page+'.json',raw:raw(value),failure:'JNJ_DOM_DUPLICATE_OR_INVALID_ID:'+JSON.stringify({page,index,id:id??null,url:card.url,alreadySeen:seen.has(id)})};
-      }
+    if(value.filters.filter(f=>f.name==='country').length!==1 || value.filters.some(f=>JSON.stringify(f.selectedOptions)!==JSON.stringify(f.name==='country'?[{text:'China',value:'China'}]:[]))) throw Error('JNJ_DOM_SCOPE');
+    for(const [index,item] of fragment.items.entries()){
+      let card,id,url;
+      try{if(item.links.length===1){card=item.links[0];url=new URL(card.url);id=/^\/en\/jobs\/(r-\d+)\/[^/?#]+\/$/.exec(url.pathname)?.[1];}}
+      catch{/* A malformed list link is isolated by the source-own raw replay. */}
+      if(!id||url.origin!==origin||url.username||url.password||url.search||url.hash){current.push({skip:true});continue;}
+      if(seen.has(id))return {file:'jnj-list-page-'+page+'.json',raw:raw(value),failure:'JNJ_DOM_DUPLICATE_OR_INVALID_ID:'+JSON.stringify({page,index,id,url:card.url,alreadySeen:true})};
       seen.add(id);current.push({...card,id});
     }
     const next=value.pagination.filter(a=>a.label==='Next page');
@@ -143,6 +141,8 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     checkTime();
     const card=current?.[index];
     if(!card) throw Error('JNJ_DOM_DETAIL_NOT_IN_CURRENT_PAGE');
+    if(card.skip)return {skipped:true};
+    if(detailsBlocked)return unavailable(card,'JNJ_DETAIL_ACCESS_STOPPED');
     // Sequential requests still caused HTTP 429; leave space between detail pages.
     if(index>0)await new Promise(resolve=>setTimeout(resolve,2000));
     checkTime();
@@ -190,7 +190,7 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     } catch(error) {
       const cause=error instanceof Error?error:Error('JNJ_DETAIL_CAPTURE_FAILED');
       cause.sourceFetchStage=sourceFetchStage;
-      cause.sourceJobId=card.id;
+      cause.sourceJobId=card.id;cause.navigationStatus=navigationStatus;
       // A timed-out evaluate is still pending. Do not queue browser diagnostics; the caller's finally closes the tab.
       try { cause.privateCapture=await saveDetailFailure(detail,{sourceJobId:card.id,sourceFetchStage,
         detailIndex:index,completedDetails:index,total,navigationStatus,
@@ -201,6 +201,22 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
       throw cause;
     }
   }
+  function unavailable(card,code,error) {
+    const value={kind:'JNJ_DETAIL_CAPTURE_UNAVAILABLE',expectedUrl:card.url,sourceJobId:card.id,observedAt:new Date().toISOString(),code,
+      ...(Number.isInteger(error?.navigationStatus)?{httpStatus:error.navigationStatus}:{}),
+      ...(error?.transportFailure?.retryAfterMs!==undefined?{retryAfterMs:error.transportFailure.retryAfterMs}:{})};
+    return {file:card.id+'.json',raw:raw(value)};
+  }
+  async function isolateDetailFailure(index,error) {
+    if(Date.now()>=deadline)throw error;
+    const card=current[index];if(!card||card.skip)throw error;
+    const code=String(error?.message??'');
+    if(error?.navigationStatus===403||error?.navigationStatus===429||['JNJ_HTTP_403','JNJ_HTTP_429','JNJ_BROWSER_CHALLENGE'].includes(code))detailsBlocked=true;
+    // Close and settle a failed page before the next job can use the browser.
+    try{await detail.close();detail=undefined;}catch{detailsBlocked=true;}
+    if(!detailsBlocked){try{detail=await cua.createBrowserTab('cdp');}catch{detailsBlocked=true;}}
+    return unavailable(card,'JNJ_DETAIL_CAPTURE_FAILED',error);
+  }
   async function advance() {
     checkTime();
     const nextUrl=await list.playwright.getByRole('link',{name:'Next page',exact:true}).evaluate(e=>e.href);
@@ -210,7 +226,7 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     return {page};
   }
   async function close() { if(detail) await detail.close(); if(list) await list.close(); }
-  return {start,readList,readDetail,advance,close};
+  return {start,readList,readDetail,isolateDetailFailure,advance,close};
 }
 
 

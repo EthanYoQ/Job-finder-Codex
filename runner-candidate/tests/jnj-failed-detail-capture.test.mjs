@@ -31,7 +31,7 @@ function fixture(directory,{applyFailure=false,captureFailure=false,readFailures
   let tabIndex=0;
   const runtime=createJnjDomRuntime({async createBrowserTab(){return tabIndex++===0?list:detail;}},{failureDirectory:directory});
   return {error,navigationError,readyWaits,get reads(){return reads;},get navigations(){return navigations;},get diagnosticReads(){return diagnosticReads;},
-    close:()=>runtime.close(),async run(overallDeadline){await runtime.start(overallDeadline);await runtime.readList();return runtime.readDetail(0);}};
+    close:()=>runtime.close(),isolate:error=>runtime.isolateDetailFailure(0,error),readAfterFailure:()=>runtime.readDetail(0),async run(overallDeadline){await runtime.start(overallDeadline);await runtime.readList();return runtime.readDetail(0);}};
 }
 
 test('a hung readiness probe expires without queuing browser work and is settled by cleanup',async t=>{
@@ -52,7 +52,8 @@ test('a hung readiness probe expires without queuing browser work and is settled
   assert.equal(failure.sourceFetchStage,'JNJ_DETAIL_READY');assert.equal(failure.sourceJobId,'r-123456');
   const saved=JSON.parse(await readFile(join(directory,failure.privateCapture.file),'utf8'));
   assert.equal(saved.readinessDeadlineExceeded,true);assert.deepEqual(saved.observation,{captureUnavailable:true});
-  await setup.close();assert.equal(pending,false);assert.equal(setup.navigations,1);
+  const isolated=JSON.parse((await setup.isolate(failure)).raw);assert.equal(isolated.kind,'JNJ_DETAIL_CAPTURE_UNAVAILABLE');assert.equal(isolated.expectedUrl,detailUrl);
+  assert.equal(pending,false);assert.equal(setup.navigations,1);
 });
 
 test('a normal readiness probe completes within the existing deadline',async t=>{
@@ -151,4 +152,14 @@ test('browser capture failure still saves metadata and disk failure never replac
   const blocked=join(directory,'ordinary-file');await writeFile(blocked,'synthetic');
   const noDisk=fixture(blocked);await assert.rejects(noDisk.run(),error=>error===noDisk.error);
   assert.equal(sourceFetchDiagnostic('source-johnson-innovative-medicine-social',{error:noDisk.error}).privateCaptureUnavailable,true);
+});
+
+test('isolating a denied JNJ detail stops later detail requests and retains Retry-After',async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'jnj-isolation-access-'));
+ const failure=Object.assign(Error('JNJ_HTTP_429'),{transportFailure:{code:'OFFICIAL_HTTP_429',retryable:true,retryAfterMs:120000}});
+ const setup=fixture(directory,{readFailures:0,onNavigate:()=>{throw failure;}});
+ try{await assert.rejects(setup.run(),error=>error===failure);
+  const isolated=JSON.parse((await setup.isolate(failure)).raw);assert.equal(isolated.retryAfterMs,120000);
+  const stopped=JSON.parse((await setup.readAfterFailure()).raw);assert.equal(stopped.code,'JNJ_DETAIL_ACCESS_STOPPED');assert.equal(setup.navigations,1);
+ }finally{await setup.close();await rm(directory,{recursive:true,force:true});}
 });

@@ -597,8 +597,7 @@ function strictCompletenessGate(
     // This source-local DOM proof retains original UI observations without
     // claiming network metadata. Every other source follows the existing gates.
     if (evidence.captureTool.name === JNJ_DOM_CAPTURE_TOOL.name) {
-      const replay = evaluatePaginationEvidence({ evidence, expectedChannelIds: [], filteredOutput: true,
-        allowPositiveOfficialTotalCountAfterAdapterReconciliation: true });
+      const replay = evaluatePaginationEvidence({ evidence, expectedChannelIds: [], filteredOutput: true,...JOB_QUARANTINE_PAGINATION });
       return replay.safeCompleteness && replay.verifiedEligible && replay.derivedAnomalyCodes.length === 0 &&
         replay.paginationTraceSha256 === fetchResult.paginationEvaluation.paginationTraceSha256 &&
         ledger.adapterLosses.length === 0 && ledger.collisionGroups.length === 0 &&

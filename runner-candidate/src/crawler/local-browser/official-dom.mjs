@@ -35,7 +35,10 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
         if (value.failure) throw value.error ?? Error(value.failure);
         lists.push(value.raw);
         if (!value.next) {
-          for (let index = 0; index < value.total; index++) details.push((await runtime.readDetail(index)).raw);
+          for(let index=0;index<value.total;index++){
+            let detail;try{detail=await runtime.readDetail(index);}catch(error){detail=await runtime.isolateDetailFailure(index,error);}
+            if(detail.raw)details.push(detail.raw);
+          }
           return { lists, details };
         }
         await runtime.advance();
