@@ -1,4 +1,4 @@
-import { isolateIndependentMokaJobs } from './independentJobQuarantine';
+import { isolateIndependentJobs } from './independentJobQuarantine';
 import { isProvenUnstartedBatchAbort } from "../domain/unstartedBatchAbort";
 import { getPortableCoverageScope } from "../release/portableCoveragePolicy";
 import { getPortableSourceCoverageHold } from "../release/portableSourceCoverageHolds";
@@ -740,7 +740,7 @@ export async function runP0CrawlBatch(
       let atomicFailureCode = "ATOMIC_COMMIT_BUILD_FAILED";
       try {
         if(independentTraversalValidation?.schemaVersion==='official-json-browser-network-traversal-v1')
-          crawlResult=isolateIndependentMokaJobs(plan,crawlResult,independentTraversalValidation.pages);
+          crawlResult=isolateIndependentJobs(plan,crawlResult,independentTraversalValidation.pages);
         if (!crawlResult.fetchEvidence) throw new Error("strict fetch evidence is required for atomic runtime commit");
         if (isSanofiChinesePlan(plan) && independentTraversalValidation) {
           crawlResult.fetchEvidence = bindSanofiChineseIndependentArtifact(plan, crawlResult.fetchEvidence, independentTraversalValidation.artifactSha256);

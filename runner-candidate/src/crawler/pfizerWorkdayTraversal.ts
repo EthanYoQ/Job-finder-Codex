@@ -1,4 +1,4 @@
-import {jobQuarantineLoss,type JobQuarantine} from './jobQuarantine';
+import {jobQuarantineLoss,quarantineCompleteList,type JobQuarantine} from './jobQuarantine';
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { SourceCrawlPlan } from "./sourcePlan";
@@ -133,13 +133,13 @@ function slot(raw:unknown,pageSequence:number,recordIndex:number){
     ...(bound?{sourceJobId:pfizerSourceJobId(bound.path),officialUrl:PFIZER_ENTRY+bound.path}:{})};
   return {bound,rawId,quarantine};
 }
-function projectSlots(pages:readonly SourceFetchPageTrace[],artifacts:readonly SourceFetchArtifactDraft[],legacy=false){
+function projectSlots(pages:readonly SourceFetchPageTrace[],artifacts:readonly SourceFetchArtifactDraft[],legacy=false,independentRawIds:ReadonlySet<string>=new Set()){
   const jobs:ReturnType<typeof projectPfizerDetail>['job'][]=[],losses:PersistentSourceFetchEvidence['fetchLosses']=[],quarantines:JobQuarantine[]=[],used=new Set<string>();
   const projectedPages=pages.map((page,pageSequence)=>{
     const original=artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
     const rawRows=parse(original.body).jobPostings as unknown[],validJobIds:string[]=[];
     rawRows.forEach((raw,recordIndex)=>{
-      const current=slot(raw,pageSequence,recordIndex);
+      const current=slot(raw,pageSequence,recordIndex);if(independentRawIds.has(current.rawId))current.quarantine.code='INDEPENDENT_JOB_UNVERIFIED';
       if(legacy&&pfizerQuarantinedRowId(raw)){losses.push(quarantineLoss(pfizerQuarantinedRowId(raw)!,pageSequence,recordIndex,original.capturedAt));return;}
       try{
         if(!current.bound)throw Error('Pfizer list job unresolved');
@@ -148,6 +148,7 @@ function projectSlots(pages:readonly SourceFetchPageTrace[],artifacts:readonly S
         if(!a)throw Error('Pfizer detail unavailable');
         const checked=artifact(key,url,{status:a.httpStatus!,body:String(a.body),finalUrl:a.finalUrl!,contentType:a.contentType??"",capturedAt:a.capturedAt},{method:'GET',url,officialId:id});
         if(!isDeepStrictEqual({...a,id:checked.id},checked))throw Error('Pfizer detail binding mismatch');
+        if(independentRawIds.has(current.rawId))throw Error('Pfizer independent detail was not verified');
         const r=projectPfizerDetail(raw,String(a.body));
         if(r.excluded)losses.push({stage:'VALIDATION',reason:'Official detail establishes India and no explicit mainland posting location',rawLocator:`${page.artifactLogicalKey}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId(id)}`,details:{code:'PFIZER_VERIFIED_INDIA_SCOPE',pageSequence,recordIndex},recordedAt:a.capturedAt});
         else{jobs.push(r.job);validJobIds.push(irreversibleOfficialJsonEvidenceId(r.job.sourceJobId));}
@@ -222,7 +223,7 @@ export function replayPfizerWorkdayTraversal(plan:SourceCrawlPlan,evidence:Persi
   }
   const url=PFIZER_API+'/jobs',terminal=get('pfizer-terminal',url,{method:'POST',url,body:requestBody(evidence.pages.length*20)});
   if(!terminalBoundaryMatches(parse(map.get('pfizer-page-0')!.body),parse(terminal.body),total,evidence.pages.at(-1)!.rawJobIds.length)||seen.size!==total)return false;
-  const projected=projectSlots(evidence.pages,evidence.artifacts,evidence.jobQuarantines===undefined);
+  const projected=projectSlots(evidence.pages,evidence.artifacts,evidence.jobQuarantines===undefined,new Set((evidence.jobQuarantines??[]).filter(q=>q.code==='INDEPENDENT_JOB_UNVERIFIED').map(q=>evidence.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!)));
   for(const key of projected.used)used.add(key);
   if(used.size!==map.size||!isDeepStrictEqual(projected.pages,evidence.pages)||!isDeepStrictEqual(projected.quarantines,evidence.jobQuarantines??[])||!isDeepStrictEqual(projected.losses,evidence.fetchLosses)||!isDeepStrictEqual(evidence.fetchCounts,{rawCount:total,parsedCount:total,validCount:projected.jobs.length,parseDiscardCount:0,validationDiscardCount:projected.losses.length}))return false;
   const declared=evidence.declaredCompleteness;if(!declared||declared.kind!=='COMPLETE_PAGE_TRAVERSAL'||declared.scope!=='SOURCE'||declared.value!==evidence.pages.length||declared.artifactLogicalKey!=='pfizer-terminal'||declared.extractorLocator!==terminal.extractorLocator)return false;
@@ -235,4 +236,14 @@ export function replayPfizerWorkdayTraversal(plan:SourceCrawlPlan,evidence:Persi
 export function pfizerMainSourceJobIds(evidence: PersistentSourceFetchEvidence): string[] {
   return evidence.pages.flatMap(page => parse(evidence.artifacts.find(a => a.logicalKey === page.artifactLogicalKey)!.body).jobPostings
     .map((raw: unknown) => { const id = pfizerQuarantinedRowId(raw); return id ? pfizerQuarantinedEvidenceKey(id) : pfizerSourceJobId(identity(raw).path); }));
+}
+
+/** Withhold only currently verified main jobs whose independent native detail failed. */
+export function quarantinePfizerIndependentJobs(evidence:PersistentSourceFetchEvidence,rawIds:ReadonlySet<string>):PersistentSourceFetchEvidence {
+ const added=evidence.pages.flatMap((page,pageSequence)=>{
+  const original=evidence.artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
+  return (parse(original.body).jobPostings as unknown[]).flatMap((raw,recordIndex)=>{const current=slot(raw,pageSequence,recordIndex);
+   return rawIds.has(current.rawId)&&page.validJobIds.includes(current.quarantine.validJobId)?[{...current.quarantine,code:'INDEPENDENT_JOB_UNVERIFIED'}]:[];});
+ });
+ return quarantineCompleteList(evidence,added);
 }

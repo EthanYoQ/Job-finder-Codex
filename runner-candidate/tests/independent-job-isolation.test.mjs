@@ -4,7 +4,7 @@ import {createCipheriv} from 'node:crypto';
 import {loadDirectPlans} from '../scripts/direct-round.ts';
 import {createMokaSourceFetch} from '../src/crawler/mokaSourceFetch.ts';
 import {canonicalStringSetSha256} from '../src/crawler/sourceFetchEvidence.ts';
-import {isolateIndependentMokaJobs} from '../src/crawler/independentJobQuarantine.ts';
+import {isolateIndependentJobs} from '../src/crawler/independentJobQuarantine.ts';
 import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
 import {captureBayerIndependentDetails} from '../src/crawler/bayerMokaRenderedTraversal.ts';
 import {captureServierIndependentDetails} from '../src/crawler/servierMokaRenderedTraversal.ts';
@@ -31,7 +31,7 @@ for(const bayer of [true,false])test(`${bayer?'Bayer':'Servier'} independent cer
   if(['independent-429','receipt-callback','source-abort'].includes(mode)){await assert.rejects(capture(),mode==='source-abort'?/source cancellation/:mode==='receipt-callback'?/archive failure/:/access restricted/);assert.equal(responses.length,3,'No request after source denial, archive failure or cancellation');continue;}
   const captured=await capture();
   const validation=createOfficialJsonRenderedTraversalValidation({sourceId,companyId:plan.company.id,sourceConfigSha256:route.sourceConfigSha256,surfaceIds:[plan.source.surfaceId],channelIds:plan.expectedChannels.map(c=>c.channelId),...captured,expiresAt:'2026-11-06T00:30:00.000Z'}),original=JSON.stringify(validation);
-  let result=await runSourceCrawl(plan,{fetch:createMokaSourceFetch({now:()=>new Date(at),http:r=>response(r,false)}),isBaseline:false});assert.equal(result.truth.completenessVerified,true);result=isolateIndependentMokaJobs(plan,result,validation.pages);
+  let result=await runSourceCrawl(plan,{fetch:createMokaSourceFetch({now:()=>new Date(at),http:r=>response(r,false)}),isBaseline:false});assert.equal(result.truth.completenessVerified,true);result=isolateIndependentJobs(plan,result,validation.pages);
   const binding={releaseCandidateId:'synthetic-b-quarantine',batchId:`batch-${mode}`,sourceResultId:`source-${mode}`,sourceConfigSha256:route.sourceConfigSha256};
   const decision=issueBGradeTraversalCertificate({binding,plan,transportSuccess:true,adapterSuccess:true,evidence:result.fetchEvidence,paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs:result.jobs,independentValidation:validation,validationExecution:'CURRENT_RUN',trigger:'INITIAL_QUALIFICATION',now:new Date(at)});
   assert.equal(decision.status,'CERTIFIED',`${mode}: ${JSON.stringify(decision)}`);assert.equal(decision.certificate.counts.independentUniqueJobCount,['independent-503','independent-transport','independent-wrong-id'].includes(mode)?2:count);assert.equal(decision.certificate.counts.finalUniqueJobCount,['good','unbound','independent-display','independent-short-body'].includes(mode)?3:2);assert.equal(JSON.stringify(validation),original);
