@@ -6,7 +6,7 @@ import { load } from 'cheerio';
 import { mokaJobQuarantine, mokaRawLocator } from './mokaJobQuarantine';
 import { decryptBayerArtifact } from './bayerMokaScope';
 import { decodeServierArtifact } from './servierMokaScope';
-import { quarantineCompleteList, JOB_QUARANTINE_PAGINATION } from './jobQuarantine';
+import { quarantineIndependentRows, JOB_QUARANTINE_PAGINATION, INDEPENDENT_IDENTITY_UNRESOLVED, isUnboundJobQuarantine } from './jobQuarantine';
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from './paginationEvidence';
 import { reconcileAdapterRows } from './adapters/reconciliation';
 import { replayStrictSourceQualityEvidence, type SourceCrawlResult } from './runSourceCrawl';
@@ -45,7 +45,7 @@ export function bindIndependentJobQuarantines(
   for(const q of evidence.jobQuarantines){
     const id=evidence.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!;
     if(independent.has(id))bound.add(id);
-    else if(!q.sourceJobId&&!q.officialUrl)unidentified++;
+    else if(isUnboundJobQuarantine(q))unidentified++;
     else throw Error('INDEPENDENT_JOB_QUARANTINE_IDENTITY_MISMATCH');
   }
   const known=new Set([...verified,...bound]),ambiguous=replay.rawEvidenceIds.filter(id=>!known.has(id));
@@ -69,8 +69,10 @@ export function projectIndependentJobQuarantines(
  * Both original response bodies remain intact and the source replays the result. */
 export function isolateIndependentJobs(plan:SourceCrawlPlan,result:SourceCrawlResult,pages:readonly OfficialJsonRenderedPageCapture[]):SourceCrawlResult {
   if(!INDEPENDENT_JOB_ISOLATION_SOURCES.has(plan.source.id)||!result.fetchEvidence||result.status!=='SUCCESS'||!result.truth.transportSuccess||!result.truth.adapterSuccess)return result;
-  const held=new Set(pages.flatMap(p=>p.rawRows).filter(r=>['UNKNOWN_JOB','UNKNOWN_GEOGRAPHY'].includes(r.scopeMarker)||plan.source.id==='source-pfizer-china-social'&&r.scopeMarker==='UNKNOWN').map(r=>r.rawEvidenceId));
+  const held=new Set(pages.flatMap(p=>p.rawRows).filter(r=>['UNKNOWN_JOB','UNKNOWN_GEOGRAPHY','UNKNOWN_IDENTITY'].includes(r.scopeMarker)||plan.source.id==='source-pfizer-china-social'&&r.scopeMarker==='UNKNOWN').map(r=>r.rawEvidenceId));
   const evidence=result.fetchEvidence;
+  const independentIds=new Set(pages.flatMap(p=>p.rawRows).map(r=>r.rawEvidenceId)),unresolved=new Set<string>();
+  if(pages.some(p=>p.rawRows.some(r=>r.scopeMarker==='UNKNOWN_IDENTITY')))for(const page of evidence.pages)for(const id of page.rawJobIds)if(!independentIds.has(id)){held.add(id);unresolved.add(id);}
   if(plan.source.id==='source-sanofi-china-social'){
     const baseline=result.jobs[0]?.isBaseline??true,main=replaySanofiChineseNative(plan,evidence,baseline),peer=replaySanofiChineseIndependent(pages),byId=new Map(peer.decisions.map(d=>[d.id,d]));
     const rawIds=new Set(peer.rawEvidenceIds),unbound=new Set<string>(),special=new Set(main.anomalies.map(a=>a.id));
@@ -93,7 +95,7 @@ export function isolateIndependentJobs(plan:SourceCrawlPlan,result:SourceCrawlRe
   }
   if(!held.size)return result;
   if(plan.source.id==='source-pfizer-china-social'){
-    const reviewed=quarantinePfizerIndependentJobs(evidence,held);if(reviewed===evidence)return result;
+    const reviewed=quarantinePfizerIndependentJobs(evidence,held,unresolved);if(reviewed===evidence)return result;
     return projectIndependentIsolation(plan,result,reviewed);
   }
   const entry=evidence.artifacts.find(a=>a.logicalKey==='moka-entry-0000');
@@ -102,16 +104,16 @@ export function isolateIndependentJobs(plan:SourceCrawlPlan,result:SourceCrawlRe
   const added=evidence.pages.flatMap((page,pageSequence)=>{
     const artifact=evidence.artifacts.find(a=>a.logicalKey===page.artifactLogicalKey);if(!artifact)throw Error('INDEPENDENT_MOKA_MAIN_PAGE_MISSING');
     const root=(plan.source.id==='source-bayer-healthcare-social'?decryptBayerArtifact:decodeServierArtifact)(artifact,iv),rows=(root.data as {jobs:unknown[]}).jobs;
-    return page.rawJobIds.flatMap((id,recordIndex)=>held.has(id)&&page.validJobIds.includes(id)?[mokaJobQuarantine(rows[recordIndex],pageSequence,recordIndex,mokaRawLocator(rows[recordIndex],page.artifactLogicalKey,pageSequence,recordIndex),'INDEPENDENT_JOB_UNVERIFIED')]:[]);
+    return page.rawJobIds.flatMap((id,recordIndex)=>held.has(id)&&(page.validJobIds.includes(id)||unresolved.has(id))?[mokaJobQuarantine(rows[recordIndex],pageSequence,recordIndex,mokaRawLocator(rows[recordIndex],page.artifactLogicalKey,pageSequence,recordIndex),unresolved.has(id)?INDEPENDENT_IDENTITY_UNRESOLVED:'INDEPENDENT_JOB_UNVERIFIED')]:[]);
   });
   if(!added.length)return result;
-  return projectIndependentIsolation(plan,result,quarantineCompleteList(evidence,added));
+  return projectIndependentIsolation(plan,result,quarantineIndependentRows(evidence,added));
 }
 
 function projectIndependentIsolation(plan:SourceCrawlPlan,result:SourceCrawlResult,evidence:PersistentSourceFetchEvidence,proposedJobs?:readonly SourceCrawlResult['jobs'][number][]):SourceCrawlResult{
  if(result.status!=='SUCCESS')return result;
  const prior=new Set(result.fetchEvidence?.jobQuarantines?.map(q=>q.rawLocator)??[]);
- const added=(evidence.jobQuarantines??[]).filter(q=>q.code==='INDEPENDENT_JOB_UNVERIFIED'&&!prior.has(q.rawLocator)),ids=new Set(added.map(q=>q.sourceJobId));
+ const added=(evidence.jobQuarantines??[]).filter(q=>['INDEPENDENT_JOB_UNVERIFIED',INDEPENDENT_IDENTITY_UNRESOLVED].includes(q.code)&&!prior.has(q.rawLocator)),ids=new Set(added.map(q=>q.sourceJobId));
  const jobs=proposedJobs??result.jobs.filter(job=>!ids.has(job.sourceJobId));
  const options={expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION,...(plan.source.id==='source-pfizer-china-social'?{allowLaterZeroDeclaredTotalAfterExactReconciliation:true,allowAuditedTraversalScopeExclusions:true}:plan.source.id==='source-sanofi-china-social'?SANOFI_CN_PAGINATION_POLICY:{})};
  const reviewed=deriveCanonicalPaginationEvidence({evidence,...options}),paginationEvaluation=evaluatePaginationEvidence({evidence:reviewed,...options});

@@ -56,10 +56,11 @@ export async function captureServierIndependentDetails(input: {
     const { rows, ...domPage } = captured;
     const rawRows: OfficialJsonRenderedPageCapture["rawRows"][number][] = [];
     for (let recordIndex = 0; recordIndex < rows.length; recordIndex++) {
-      const domRow = rows[recordIndex]!, identity = domIdentity(domRow);
+      const domRow = rows[recordIndex]!, identity = domIdentity(domRow,captured.pageNumber-1,recordIndex);
       let detailResponse:HttpReceipt|undefined,detailUnavailable:{code:'CAPTURE_FAILED';capturedAt:string}|undefined;
-      try{detailResponse=await request(SERVIER_MOKA_DETAIL,detailRequest(identity.id));}
+      try{if(identity.known)detailResponse=await request(SERVIER_MOKA_DETAIL,detailRequest(identity.id));}
       catch(error){input.signal?.throwIfAborted();currentOfficialSourceAttemptSignal()?.throwIfAborted();if(!(error as {independentTransportFailure?:boolean})?.independentTransportFailure)throw error;detailUnavailable={code:'CAPTURE_FAILED',capturedAt:now().toISOString()};}
+      if(!identity.known)detailUnavailable={code:'CAPTURE_FAILED',capturedAt:now().toISOString()};
       // A website access restriction stops this source; do not send the next request.
       if(detailResponse&&[403,429].includes(detailResponse.status))throw Error('Servier independent access restricted');
       const outcome=projectDetail(identity,detailResponse,detailUnavailable,iv,input.dom.observedAt);
@@ -97,7 +98,7 @@ export function replayServierHybridTraversal(pages: readonly OfficialJsonRendere
       if (payload.captureMethod !== SERVIER_HYBRID_RETRIEVAL_PATH || payload.entrySha256 !== entry.bodySha256 ||
           row.recordIndex !== recordIndex || !isDeepStrictEqual(payload.domPage, first) ||
           (index !== 0 || recordIndex !== 0) && payload.entry !== undefined) throw new Error("Servier independent row provenance mismatch");
-      const domRow=payload.domRow as ServierDomRow,identity=domIdentity(domRow),id=evidenceId(identity.id);
+      const domRow=payload.domRow as ServierDomRow,identity=domIdentity(domRow,index,recordIndex),id=evidenceId(identity.id);
       const outcome=projectDetail(identity,payload.detailResponse as HttpReceipt|undefined,payload.detailUnavailable as {code:string;capturedAt:string}|undefined,iv,observedAt!);
       if(row.sourceJobId!==id||row.rawEvidenceId!==id||row.scopeMarker!==outcome.marker||row.scopeDecision!==outcome.decision)
         throw Error('Servier independent row outcome mismatch');
@@ -159,19 +160,18 @@ export function validateServierDomCapture(capture: ServierDomCapture): number {
     if (next.length !== 1 || next.is("[disabled]") !== p.nextDisabled || active.length !== 1 || active.text().trim() !== String(p.pageNumber)) {
       throw new Error("Servier independent DOM terminal control mismatch");
     }
-    for (const row of p.rows) { const id = domIdentity(row).id; if (ids.has(id)) throw new Error("Servier independent DOM duplicate ID"); ids.add(id); }
+    for (const [recordIndex,row] of p.rows.entries()) { const id = domIdentity(row,index,recordIndex).id; if (ids.has(id)) throw new Error("Servier independent DOM duplicate ID"); ids.add(id); }
   }
   if (ids.size !== total || capture.pages.length !== Math.ceil(total! / 30)) throw new Error("Servier independent DOM total mismatch");
   return total!;
 }
 
-function domIdentity(row:ServierDomRow):{id:string}{
+function domIdentity(row:ServierDomRow,pageSequence:number,recordIndex:number):{id:string;known:boolean}{
  const id=typeof row?.href==='string'?/^#\/job\/([0-9a-f-]{36})$/u.exec(row.href)?.[1]:undefined;
- if(!id)throw Error('Servier DOM native job identity is invalid');
- return {id};
+ return {id:id??`unidentified:${hash(JSON.stringify([pageSequence,recordIndex,row]))}`,known:!!id};
 }
-function projectDetail(identity:{id:string},receipt:HttpReceipt|undefined,unavailable:{code:string;capturedAt:string}|undefined,iv:string,observedAt:string):{marker:string;decision:'INCLUDED_MAINLAND'|'EXCLUDED_AUDITED'}{
- if(!receipt){if(unavailable?.code!=='CAPTURE_FAILED'||!validTime(unavailable.capturedAt)||Date.parse(unavailable.capturedAt)<Date.parse(observedAt))throw Error('Servier independent unavailable capture invalid');return {marker:'UNKNOWN_JOB',decision:'EXCLUDED_AUDITED'};}
+function projectDetail(identity:{id:string;known:boolean},receipt:HttpReceipt|undefined,unavailable:{code:string;capturedAt:string}|undefined,iv:string,observedAt:string):{marker:string;decision:'INCLUDED_MAINLAND'|'EXCLUDED_AUDITED'}{
+ if(!receipt){if(unavailable?.code!=='CAPTURE_FAILED'||!validTime(unavailable.capturedAt)||Date.parse(unavailable.capturedAt)<Date.parse(observedAt))throw Error('Servier independent unavailable capture invalid');return {marker:identity.known?'UNKNOWN_JOB':'UNKNOWN_IDENTITY',decision:'EXCLUDED_AUDITED'};}
  if(unavailable)throw Error('Servier independent duplicate detail outcome');
  try{
   validateReceipt(receipt,SERVIER_MOKA_DETAIL,observedAt,observedAt,detailRequest(identity.id));

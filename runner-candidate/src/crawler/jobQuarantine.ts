@@ -2,6 +2,10 @@ import { parsePersistentSourceFetchEvidence, sanitizeEvidenceHttpUrl, type Persi
 import type { JobSnapshot } from './lifecycle';
 
 export type JobQuarantine = NonNullable<PersistentSourceFetchEvidence['jobQuarantines']>[number];
+export const INDEPENDENT_IDENTITY_UNRESOLVED='INDEPENDENT_IDENTITY_UNRESOLVED';
+export function isUnboundJobQuarantine(row:JobQuarantine):boolean {
+  return !row.sourceJobId&&!row.officialUrl||row.code===INDEPENDENT_IDENTITY_UNRESOLVED;
+}
 export const JOB_QUARANTINE_PAGINATION = {
   allowPositiveOfficialTotalCountAfterAdapterReconciliation:true,
   allowIndependentlyVerifiedProfileBoundExclusions:true
@@ -48,6 +52,22 @@ export function quarantineCompleteList(evidence:PersistentSourceFetchEvidence,ro
     fetchLosses:[...evidence.fetchLosses,...rows.map(row=>jobQuarantineLoss(row,evidence.pages[row.pageSequence]!.capturedAt))]});
 }
 
+/** Independent ambiguity also withholds previously excluded or already held rows. */
+export function quarantineIndependentRows(evidence:PersistentSourceFetchEvidence,rows:JobQuarantine[]):PersistentSourceFetchEvidence {
+  if(!rows.length)return evidence;
+  const key=(row:{pageSequence:number;recordIndex:number})=>`${row.pageSequence}:${row.recordIndex}`;
+  const requested=new Map(rows.map(row=>[key(row),row]));
+  const reviewed=quarantineCompleteList(evidence,rows.filter(row=>evidence.pages[row.pageSequence]!.validJobIds.includes(row.validJobId)));
+  const ledger=new Map((reviewed.jobQuarantines??[]).map(row=>[key(row),requested.get(key(row))??row]));
+  const losses=reviewed.fetchLosses.map(loss=>{
+    const {pageSequence,recordIndex}=loss.details,row=pageSequence===undefined||recordIndex===undefined?undefined:requested.get(`${pageSequence}:${recordIndex}`);
+    if(!row)return loss;
+    ledger.set(key(row),row);return jobQuarantineLoss(row,loss.recordedAt??evidence.pages[row.pageSequence]!.capturedAt);
+  });
+  if(rows.some(row=>!ledger.has(key(row))))throw Error('INDEPENDENT_JOB_QUARANTINE_ROW_UNACCOUNTED');
+  return parsePersistentSourceFetchEvidence({...reviewed,jobQuarantines:[...ledger.values()].sort((a,b)=>a.pageSequence-b.pageSequence||a.recordIndex-b.recordIndex),fetchLosses:losses});
+}
+
 /** Reconstruct only list metadata; source replay still checks every original page body and identity. */
 export function restoreQuarantinedList(evidence:PersistentSourceFetchEvidence):PersistentSourceFetchEvidence {
   const rows=evidence.jobQuarantines??[];
@@ -78,7 +98,7 @@ export function sameNovartisRequisition(left:string,right:string):boolean{
 /** An unidentified damaged row cannot prove any previously known job disappeared. */
 export function quarantinedPriorJobKeys(evidence: PersistentSourceFetchEvidence, previous: readonly JobSnapshot[], currentKeys: ReadonlySet<string> = new Set()): Set<string> {
   const quarantines=evidence.jobQuarantines??[];
-  const unbound=quarantines.some(row=>!row.sourceJobId&&!row.officialUrl);
+  const unbound=quarantines.some(isUnboundJobQuarantine);
   return new Set(previous.filter(job=>unbound&&!currentKeys.has(job.dedupeKey)||quarantines.some(row=>
     row.sourceJobId!==undefined&&row.sourceJobId===job.record.sourceJobId||
     row.officialUrl!==undefined&&(row.officialUrl===sanitizeEvidenceHttpUrl(job.record.officialUrl)||sameNovartisRequisition(row.officialUrl,job.record.officialUrl)||
