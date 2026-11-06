@@ -24,6 +24,8 @@ test('BI: full archived API replay updates good jobs while quarantining damaged 
  assert.equal(replayBiUiSemanticContract(script.replace('ctmid: "3479"','ctmid: "other"')),undefined);
  assert.equal(replayBiUiSemanticContract(script.replace('jobList = data.resultbody.joblist','jobList = data.other.joblist')),undefined);
  assert.equal(replayBiUiSemanticContract(script.replace('return !sxsPosCode.some','return sxsPosCode.some')),undefined);
+ for(const insertion of ['jobList = jobList.slice(0,1);','jobList.splice(0,1);'])assert.equal(replayBiUiSemanticContract(script.replace('totalNum = data.resultbody.totalnum',`${insertion} totalNum = data.resultbody.totalnum`)),undefined);
+ assert.equal(replayBiUiSemanticContract(script.replace('const track =','params.ctmid = "9999"; const track =')),undefined);
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-boehringer-ingelheim-china-social'),at='2026-11-06T00:00:00.000Z';
  const locator='51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode|business-request-v1|'+JSON.stringify({method:'GET',baseUrl:BI_API_URL,params:ui.params,jsoncallback:'jsoncallback'});
  for(const mode of ['good','title','foreign','two-unidentified','two-invalid-ids','duplicate','missing-list']){

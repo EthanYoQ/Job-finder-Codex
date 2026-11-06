@@ -41,9 +41,14 @@ export function replayBiUiSemanticContract(script: string): BiUiSemanticContract
       node.expression.callee.property.type==='Identifier'&&node.expression.callee.property.name==='getJobList'?[node.expression]:[]);
     if(calls.length!==1||calls[0]!.arguments[0]?.type!=='Identifier'||calls[0]!.arguments[0].name!=='params'||calls[0]!.arguments[1]?.type!=='FunctionExpression')return;
     const callback=calls[0]!.arguments[1];
-    for(const source of ['jobList = data.resultbody.joblist || null;','totalNum = data.resultbody.totalnum || 0;','renderJob();'])
-      if(callback.body.body.filter(node=>sameAst(node,statement(source))).length!==1)return;
+    const dataflow=['jobList = data.resultbody.joblist || null;','totalNum = data.resultbody.totalnum || 0;','renderJob();'].map(statement);
+    if(dataflow.some(expected=>callback.body.body.filter(node=>sameAst(node,expected)).length!==1))return;
+    const positions=dataflow.map(expected=>callback.body.body.findIndex(node=>sameAst(node,expected)));
+    if(positions[0]!>positions[2]!||positions[1]!>positions[2]!)return;
     if(render.body.body.filter(node=>sameAst(node,statement(FILTER_DECLARATION))).length!==1)return;
+    const inventoryAssignments=['jobList = data.resultbody.joblist || null;','totalNum = data.resultbody.totalnum || 0;'].map(statement);
+    const queryAssignments=['divid:business','functype:functype','jobarea:jobarea','poscode:jobid'].map(pair=>{const [field,value]=pair.split(':');return statement(`params.${field} = ${value} === "null" ? null : ${value};`);});
+    if(changesInventory(statements,[request[0],rules[0],...queryAssignments])||changesInventory(callback.body.body,inventoryAssignments)||changesInventory(render.body.body,[statement(FILTER_DECLARATION)]))return;
     const expectedLoop=statement('for (var index = 0; index < filteredJobList.length; index++) {}');
     if(expectedLoop.type!=='ForStatement'||render.body.body.filter(node=>node.type==='ForStatement'&&sameAst(node.init,expectedLoop.init)&&sameAst(node.test,expectedLoop.test)&&sameAst(node.update,expectedLoop.update)).length!==1)return;
     return {params:params as BiUiSemanticContract['params'],exclusions:exclusions as BiUiSemanticContract['exclusions']};
@@ -52,6 +57,18 @@ export function replayBiUiSemanticContract(script: string): BiUiSemanticContract
 
 function statement(source: string) { return parse(source, { sourceType: "script" }).program.body[0]!; }
 function sameAst(left: unknown, right: unknown): boolean { return structural(left) === structural(right); }
+function changesInventory(value:unknown,allowed:readonly unknown[]):boolean{
+  if(Array.isArray(value))return value.some(node=>changesInventory(node,allowed));
+  if(!value||typeof value!=='object'||allowed.some(node=>sameAst(value,node)))return false;
+  const node=value as Record<string,unknown>,type=node.type;
+  if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(String(type)))return false;
+  const name=(target:unknown):unknown=>{if(!target||typeof target!=='object')return;const n=target as Record<string,unknown>;return n.type==='Identifier'?n.name:n.type==='MemberExpression'?name(n.object):undefined;};
+  const protectedNames=new Set(['params','jobList','totalNum','sxsPosCode','filteredJobList']);
+  if((type==='AssignmentExpression'&&protectedNames.has(String(name(node.left))))||(type==='UpdateExpression'&&protectedNames.has(String(name(node.argument))))||
+    (type==='VariableDeclarator'&&node.init!=null&&protectedNames.has(String(name(node.id))))||
+    (type==='CallExpression'&&node.callee&&typeof node.callee==='object'&&(node.callee as Record<string,unknown>).type==='MemberExpression'&&protectedNames.has(String(name((node.callee as Record<string,unknown>).object)))&&['push','pop','shift','unshift','splice','sort','reverse','copyWithin','fill'].includes(String(((node.callee as Record<string,unknown>).property as Record<string,unknown>)?.name))))return true;
+  return Object.entries(node).some(([key,child])=>!NON_SEMANTIC_AST_KEYS.has(key)&&changesInventory(child,allowed));
+}
 const NON_SEMANTIC_AST_KEYS = new Set(["start", "end", "loc", "extra", "leadingComments", "innerComments", "trailingComments", "comments", "tokens", "errors"]);
 function structural(value: unknown): string { return JSON.stringify(canonicalAst(value)); }
 function canonicalAst(value: unknown): unknown {
