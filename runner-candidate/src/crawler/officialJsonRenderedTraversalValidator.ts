@@ -190,10 +190,10 @@ export async function captureOfficialJsonRenderedTraversal(
     }
     if (dom.schemaVersion === "bayer-cua-dom-list-v1") {
       const { captureBayerIndependentDetails } = await import("./bayerMokaRenderedTraversal");
-      return captureBayerIndependentDetails({ dom });
+      return captureBayerIndependentDetails({ dom,...(input.signal?{signal:input.signal}:{}) });
     }
     const { captureServierIndependentDetails } = await import("./servierMokaRenderedTraversal");
-    return captureServierIndependentDetails({ dom });
+    return captureServierIndependentDetails({ dom,...(input.signal?{signal:input.signal}:{}) });
   }
   const release = await acquireBrowserSourcePermit(input.signal);
   try {

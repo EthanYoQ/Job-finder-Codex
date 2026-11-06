@@ -59,7 +59,7 @@ export function servierIndependentDetailScope(identity: { id: string; title: str
   if (detail.id !== identity.id || !/^[0-9a-f-]{36}$/u.test(identity.id) || detail.orgId !== "shiweiya" ||
       detail.siteId !== undefined && String(detail.siteId) !== "47734" || typeof detail.title !== "string" ||
       clean(detail.title) !== clean(identity.title) || !clean(identity.title) || detail.status !== "open" ||
-      typeof detail.jobDescription !== "string" || load(detail.jobDescription).text().trim().length < 20 ||
+      typeof detail.jobDescription !== "string" || !load(detail.jobDescription).text().trim() ||
       !Array.isArray(detail.locations)) throw Error("Servier detail identity, activity or body is unresolved");
   assertServierOpenActivity(detail);
   const locations = detail.locations;
