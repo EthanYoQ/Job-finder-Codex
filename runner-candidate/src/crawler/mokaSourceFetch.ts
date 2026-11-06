@@ -1,4 +1,4 @@
-import {mokaRawJobId as mokaJobId,mokaRawObservationId,mokaJobQuarantine} from './mokaJobQuarantine';
+import {mokaRawJobId as mokaJobId,mokaRawObservationId,mokaJobQuarantine,mokaRawLocator} from './mokaJobQuarantine';
 import {quarantineFetchLosses,JOB_QUARANTINE_PAGINATION} from './jobQuarantine';
 import { CITY_PENDING } from "../domain/jobLocation";
 import { mokaDisplayCities,hasMainlandCountryLocation } from "./hengruiMainlandGeography";
@@ -293,14 +293,11 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
           : rawCount < pageTotal;
         const isLastAllowedPage = pageIndex === MOKA_MAX_PAGES - 1;
         const returnedOffset = readMokaOffset(decrypted) ?? null;
-        const allValidIds = new Set([...pages.flatMap((candidate) => candidate.validJobIds), ...validJobIds]);
         const termination: SourceFetchPageTrace["termination"] = hasNext
           ? (isLastAllowedPage ? "MAX_PAGE_LIMIT" : "CONTINUE")
           : pageTotal === 0 && rawPageJobs.length === 0
             ? "EMPTY_PAGE"
-            : !scopedTraversal && pageTotal !== undefined && allValidIds.size === pageTotal
-              ? "DECLARED_TOTAL_REACHED"
-              : "NEXT_ABSENT";
+            : "NEXT_ABSENT";
         pages.push({
           sequence: pageIndex,
           artifactLogicalKey,
@@ -1363,16 +1360,6 @@ function buildMokaJobUrl(officialEntryUrl: string, sourceJobId: string): string 
   return url.toString();
 }
 
-function mokaRawLocator(
-  raw: unknown,
-  artifactLogicalKey: string,
-  pageSequence: number,
-  recordIndex: number
-): string {
-  return `${artifactLogicalKey}#page-${pageSequence}#record-${recordIndex}#sha256:${
-    sha256Bytes(Buffer.from(JSON.stringify(raw), "utf8")).sha256
-  }`;
-}
 
 function irreversibleEvidenceId(value: unknown): string {
   return `sha256:${sha256Bytes(Buffer.from(JSON.stringify(value), "utf8")).sha256}`;

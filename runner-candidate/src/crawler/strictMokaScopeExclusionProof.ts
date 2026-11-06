@@ -100,7 +100,7 @@ export function replayHengruiScopeExclusionProof(
         const original=data.jobs[index],raw=record(original),id=mokaRawJobId(original),title=text(raw?.title);
         if(id){if(seenIds.has(id))return;seenIds.add(id);}
         rawIds.push(mokaRawObservationId(original,sequence,index));
-        const q=mokaQuarantineAt(evidence,original,sequence,index,`${logicalKey}#page-${sequence}#record-${index}#sha256:${hash(JSON.stringify(original))}`);
+        const q=mokaQuarantineAt(evidence,original,sequence,index);
         if(q){const key=mokaQuarantinedDetailKey(evidence,q,id,plan.moka!);if(key)used.add(key);continue;}
         if(!raw||!id||!title||containsSensitiveAdapterValue(id)||containsSensitiveAdapterValue(title))return;
         const evidenceId = `sha256:${hash(JSON.stringify(id))}`;

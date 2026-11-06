@@ -140,7 +140,7 @@ export function replayBayerMedicalTraversal(
         const original=data.jobs[i],raw=record(original),id=mokaRawJobId(original);
         if(id){if(seen.has(id))return;seen.add(id);}
         rawIds.push(mokaRawObservationId(original,sequence,i));
-        const q=mokaQuarantineAt(evidence,original,sequence,i,`${artifact.logicalKey}#page-${sequence}#record-${i}#sha256:${hash(JSON.stringify(original))}`);
+        const q=mokaQuarantineAt(evidence,original,sequence,i);
         if(q){const key=mokaQuarantinedDetailKey(evidence,q,id,(plan as Extract<SourceCrawlPlan,{adapterId:'official-json'}>).moka!);if(key)used.add(key);continue;}
         if(!raw||typeof raw.id!=='string')return;
         const evidenceId = `sha256:${hash(JSON.stringify(raw.id))}`;

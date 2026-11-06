@@ -2166,7 +2166,7 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
     for (let recordIndex = 0; recordIndex < data.jobs.length; recordIndex += 1) {
       const original=data.jobs[recordIndex],record = strictRecord(original);
       const jobId = mokaRawJobId(original);
-      const q=mokaQuarantineAt(evidence,original,page.sequence,recordIndex,`${page.artifactLogicalKey}#page-${page.sequence}#record-${recordIndex}#sha256:${createHash('sha256').update(JSON.stringify(original)).digest('hex')}`);
+      const q=mokaQuarantineAt(evidence,original,page.sequence,recordIndex);
       if(q){const key=mokaQuarantinedDetailKey(evidence,q,jobId,config);if(key)heldDetails.add(key);continue;}
       if (!record || !jobId || !strictNonblankText(record.title)) continue;
       if (config.requisitionStatusPolicy && record.status !== "open") return false;

@@ -13,15 +13,18 @@ export function mokaRawJobId(raw:unknown):string|undefined{
 export function mokaRawObservationId(raw:unknown,pageSequence:number,recordIndex:number):string{
  return irreversibleOfficialJsonEvidenceId(mokaRawJobId(raw)??['missing-id',pageSequence,recordIndex,raw]);
 }
+export function mokaRawLocator(raw:unknown,artifactLogicalKey:string,pageSequence:number,recordIndex:number):string{
+ return `${artifactLogicalKey}#page-${pageSequence}#record-${recordIndex}#${irreversibleOfficialJsonEvidenceId(raw)}`;
+}
 export function mokaJobQuarantine(raw:unknown,pageSequence:number,recordIndex:number,rawLocator:string,code:string):JobQuarantine{
  const id=mokaRawJobId(raw),sourceJobId=id?irreversibleOfficialJsonEvidenceId(id):undefined;
  return {pageSequence,recordIndex,rawLocator,code,validJobId:sourceJobId??`unidentified:${pageSequence}:${recordIndex}`,...(sourceJobId?{sourceJobId}:{})};
 }
 /** The owning replay still checks every list request, raw row, duplicate and good output. */
-export function mokaQuarantineAt(evidence:PersistentSourceFetchEvidence,raw:unknown,pageSequence:number,recordIndex:number,rawLocator:string):JobQuarantine|undefined{
+export function mokaQuarantineAt(evidence:PersistentSourceFetchEvidence,raw:unknown,pageSequence:number,recordIndex:number):JobQuarantine|undefined{
  const row=evidence.jobQuarantines?.find(q=>q.pageSequence===pageSequence&&q.recordIndex===recordIndex);
  if(!row)return;
- if(!isDeepStrictEqual(row,mokaJobQuarantine(raw,pageSequence,recordIndex,rawLocator,row.code)))throw Error('MOKA_JOB_QUARANTINE_IDENTITY_MISMATCH');
+ if(!isDeepStrictEqual(row,mokaJobQuarantine(raw,pageSequence,recordIndex,mokaRawLocator(raw,evidence.pages[pageSequence]!.artifactLogicalKey,pageSequence,recordIndex),row.code)))throw Error('MOKA_JOB_QUARANTINE_IDENTITY_MISMATCH');
  return row;
 }
 export function mokaQuarantinedDetailKey(evidence:PersistentSourceFetchEvidence,row:JobQuarantine,id:string|undefined,config:MokaFetchConfig):string|undefined{
