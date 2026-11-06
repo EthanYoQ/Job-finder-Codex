@@ -30,7 +30,7 @@ test('Sanofi follows the official next-button query and replays each complete re
  const legacy=page=>`https://jobs.sanofi.cn/search-jobs/results?ActiveFacetID=0&RecordsPerPage=15&TotalContentResults=0&Distance=50&RadiusUnitType=0&Keywords=&Location=%E4%B8%AD%E5%9B%BD&Latitude=35&Longitude=105&ShowRadius=False&IsPagination=${page===1?'False':'True'}&CustomFacetName=&FacetTerm=&FacetType=0&SearchResultsModuleName=Search+Results&SearchFiltersModuleName=Search+Filters&SortCriteria=0&SortDirection=0&SearchType=1&CategoryFacetTerm=&CategoryFacetType=&LocationFacetTerm=&LocationFacetType=&KeywordType=&LocationType=2&LocationPath=1814991&OrganizationIds=2649&PostalCode=&ResultsType=0&fc=&fl=&fcf=&afc=&afl=&afcf=&CurrentPage=${page}`;
  async function collect(blockStatus,contentTotal){
   const calls=[];
-  const entry=`${root(1)}</section>${filter}`;
+  const entry=`${body(1)}${filter}`;
   const result=await createHttpHtmlSourceFetch({now:()=>new Date(at),http:async request=>{
    calls.push(request.url);const page=Number(new URL(request.url).searchParams.get('CurrentPage')??0);
    return {status:page===2&&blockStatus?blockStatus:200,finalUrl:request.url,capturedAt:at,contentType:page?'application/json':'text/html',
@@ -39,34 +39,43 @@ test('Sanofi follows the official next-button query and replays each complete re
   return {result,calls};
  }
  const {result,calls}=await collect();
- assert.equal(calls.length,18);assert.equal(calls[0],SANOFI_CN_ENTRY);
- for(let page=1;page<=17;page++)assert.equal(calls[page],normal(page));
+ assert.equal(calls.length,17);assert.equal(calls[0],SANOFI_CN_ENTRY);
+ for(let page=2;page<=17;page++)assert.equal(calls[page-1],normal(page));
  assert.equal(result.ok,true,result.failureReason);
  assert.equal(result.fetchEvidence.fetchCounts.rawCount,252);
+ assert.equal(result.fetchEvidence.artifacts[0].body,`${body(1)}${filter}`);
+ assert.equal(result.fetchEvidence.pages[0].artifactLogicalKey,result.fetchEvidence.artifacts[0].logicalKey);
  assert.equal(validateStrictHtmlCompletenessProof(plan,result.fetchEvidence),true);
  function withRequests(select){
   const evidence=structuredClone(result.fetchEvidence);
+  evidence.artifacts.splice(1,0,{...evidence.artifacts[0],kind:'PAGINATION_PAGE',contentType:'application/json',
+   body:JSON.stringify({results:body(1),filters:filter,hasJobs:true,hasContent:false})});
   for(const [index,artifact]of evidence.artifacts.entries()){
    if(index===0)continue;
+   artifact.id=artifact.logicalKey=`official-html-page-${String(index).padStart(4,'0')}`;
    const requestUrl=new URL(select(index));for(const key of [...requestUrl.searchParams.keys()])if(key.toLowerCase().includes('keyword'))requestUrl.searchParams.delete(key);
    const safe=sanitizeEvidenceHttpUrl(requestUrl.toString());artifact.requestedUrl=safe;artifact.finalUrl=safe;
    artifact.extractorLocator=requestContractV2Locator(plan.table.rowSelector,{family:'html',role:'talentbrew-page',method:'GET',url:safe,body:null,
     coordinate:{sequence:index,channelId:null,requestedPage:null,requestedPageSize:null}});
+   evidence.pages[index-1].artifactLogicalKey=artifact.logicalKey;
+   evidence.pages[index-1].responseFingerprintSha256=createHash('sha256').update(artifact.body).digest('hex');
   }
+  evidence.declaredCompleteness.artifactLogicalKey=evidence.artifacts[1].logicalKey;
   evidence.declaredCompleteness.extractorLocator=evidence.artifacts[1].extractorLocator;return evidence;
  }
  assert.equal(validateStrictHtmlCompletenessProof(plan,withRequests(legacy)),true,'historical whole traversal remains replayable');
+ assert.equal(validateStrictHtmlCompletenessProof(plan,withRequests(normal)),true,'historical normal-query traversal with a separate AJAX first page remains replayable');
  assert.equal(validateStrictHtmlCompletenessProof(plan,withRequests(p=>p===2?legacy(p):normal(p))),false,'a matching locator cannot hide one page switching modes');
  assert.equal(validateStrictHtmlCompletenessProof(plan,withRequests(p=>p===2?normal(p):legacy(p))),false,'legacy mode also applies to the whole traversal');
  const emptyContent=await collect(undefined,'');
  assert.equal(emptyContent.result.ok,true);
  assert.equal(validateStrictHtmlCompletenessProof(plan,emptyContent.result.fetchEvidence),true,'an empty content total uses the same official defaults as an absent attribute');
- assert.equal(emptyContent.calls[1],normal(1));
+ assert.equal(emptyContent.calls[1],normal(2));
  const parsedContent=await collect(undefined,'1e3');
  assert.equal(parsedContent.result.ok,true);
  assert.equal(validateStrictHtmlCompletenessProof(plan,parsedContent.result.fetchEvidence),true,'optional content totals follow the official integer parser');
- assert.equal(parsedContent.calls[1],normal(1).replace('TotalContentResults=&','TotalContentResults=1&').replace('TotalContentPages=NaN','TotalContentPages=1'));
- for(const status of [403,429]){const blocked=await collect(status);assert.equal(blocked.result.ok,false);assert.equal(blocked.calls.length,3);}
+ assert.equal(parsedContent.calls[1],normal(2).replace('TotalContentResults=&','TotalContentResults=1&').replace('TotalContentPages=NaN','TotalContentPages=1'));
+ for(const status of [403,429]){const blocked=await collect(status);assert.equal(blocked.result.ok,false);assert.equal(blocked.calls.length,2);}
 });
 test('Sanofi complete China list isolates individual list, detail and native application failures',async()=>{
  const plan=(await loadDirectPlans()).find(p=>p.sourceId==='source-sanofi-china-social').plan;
@@ -75,7 +84,7 @@ test('Sanofi complete China list isolates individual list, detail and native app
   const rows=Array.from({length:count},(_,i)=>i+1).map(n=>`<li>${mode==='missing-button'&&n===bad?'':`<button class="js-save-job-btn" data-job-id="${mode==='duplicate'&&n===bad?101:100+n}"></button>`}<a data-job-id="${mode==='duplicate'&&n===bad?101:100+n}" href="${mode==='bad-link'&&n===bad?'https://[':url(n)}"><h2>${mode==='title'&&n===bad?'':title(n)}</h2><span class="job-location">中国南宁</span></a></li>`).join('');
   const list=`<section id="search-results" data-location="中国" data-keywords="" data-location-path="1814991" data-organization-ids="2649" data-current-page="1" data-total-pages="1" data-total-job-results="${mode==='missing-page'?count+1:count}" data-records-per-page="15">${wrapped?`<div id="search-results-list"><meta data-show-saved="True"><ul>${rows}</ul><nav><ul><li>Pagination</li></ul></nav></div>`:`<ul id="search-results-list">${rows}</ul>`}</section>`;
   const http=async request=>{calls.push(request);let body,contentType='text/html',status=200;
-   if(request.url===SANOFI_CN_ENTRY)body=`<section id="search-results" data-ajax-url="/search-results" data-total-pages="1" data-total-job-results="${mode==='missing-page'?count+1:count}" data-records-per-page="15" data-active-facet-id="0"></section><div id="search-filters"></div>`;
+   if(request.url===SANOFI_CN_ENTRY)body=`${list.replace('id="search-results"','id="search-results" data-ajax-url="/search-results" data-active-facet-id="0"')}<div id="search-filters"></div>`;
    else if(new URL(request.url).pathname==='/search-results'){contentType='application/json';body=JSON.stringify({results:list,filters:'<section id="search-filters"><input class="filter-checkbox"></section>',hasJobs:true,hasContent:false});}
    else{const own=request.url.startsWith('https://jobs.sanofi.cn'),n=own?Number(request.url.split('/').pop())-100:Number(new URL(request.url).searchParams.get('exid').slice(-1));
     if(n===bad&&own&&mode==='detail-transport')throw Error('Synthetic transport failure');
@@ -130,7 +139,7 @@ test('Sanofi independent failures isolate one job and ordinary display differenc
   const observedRow=(n,peer)=>{let html=row(n,peer);if(peer&&((mode==='missing-id'||mode==='ambiguous-id'||mode==='combined-unbound')&&n===2||mode==='two-unbound'&&n>1))html=mode==='ambiguous-id'?html.replace('</li>','<button class="js-save-job-btn" data-job-id="999"></button></li>'):html.replaceAll(/ data-job-id="\d+"/g,'');return html;};
   const list=peer=>`<section id="search-results" data-location="中国" data-keywords="" data-location-path="1814991" data-organization-ids="2649" data-current-page="1" data-total-pages="1" data-total-job-results="3" data-records-per-page="15"><ul id="search-results-list">${rows.map(n=>observedRow(n,peer)).join('')}</ul><input class="pagination-current" value="1" max="1"><a class="next disabled">下一页</a></section>`;
   const http=peer=>async request=>{
-   if(request.url===SANOFI_CN_ENTRY)return {status:200,finalUrl:request.url,body:'<section id="search-results" data-ajax-url="/search-results" data-total-pages="1" data-total-job-results="3" data-records-per-page="15" data-active-facet-id="0"></section><div id="search-filters"></div>',contentType:'text/html',capturedAt:at};
+   if(request.url===SANOFI_CN_ENTRY)return {status:200,finalUrl:request.url,body:`${list(false).replace('id="search-results"','id="search-results" data-ajax-url="/search-results" data-active-facet-id="0"')}<div id="search-filters"></div>`,contentType:'text/html',capturedAt:at};
    if(new URL(request.url).pathname==='/search-results')return {status:200,finalUrl:request.url,body:JSON.stringify({results:list(false),filters:'<section id="search-filters"><input class="filter-checkbox"></section>',hasJobs:true,hasContent:false}),contentType:'application/json',capturedAt:at};
    const own=request.url.startsWith('https://jobs.sanofi.cn'),n=own?Number(request.url.split('/').pop())-100:Number(new URL(request.url).searchParams.get('exid').slice(-1));
    if(peer&&n===2&&own&&mode==='detail-transport')throw Error('Synthetic transport failure');

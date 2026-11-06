@@ -809,9 +809,11 @@ function validateUnpartitionedTalentbrewOfficialTotal(
 ): boolean {
   const pagination = plan.table.pagination;
   const declaration = evidence.declaredCompleteness!;
+  const sanofiChinese = plan.source.id === "source-sanofi-china-social" && new URL(plan.source.officialEntryUrl).hostname === "jobs.sanofi.cn";
+  const entryFirstPage = sanofiChinese && evidence.pages[0]?.artifactLogicalKey === artifacts[0]?.logicalKey;
   if (!pagination || pagination.ajaxMode !== "talentbrew" || pagination.talentbrewScope !== undefined ||
     declaration.kind !== "OFFICIAL_TOTAL_COUNT" || declaration.value !== evidence.fetchCounts.rawCount ||
-    artifacts.length !== evidence.pages.length + 1 || evidence.pages.some((page) => page.channelId !== undefined)) {
+    artifacts.length !== evidence.pages.length + (entryFirstPage ? 0 : 1) || evidence.pages.some((page) => page.channelId !== undefined)) {
     return htmlProofTrace(plan, "TALENTBREW_TOTAL_ENVELOPE");
   }
 
@@ -838,8 +840,8 @@ function validateUnpartitionedTalentbrewOfficialTotal(
 
   // Select one request contract for the entire traversal; historical archives keep their original URLs.
   const firstArtifact = artifactForPage(evidence.pages[0]!, artifacts);
-  const normalNext = plan.source.id === "source-sanofi-china-social" && new URL(rawEntryUrl).hostname === "jobs.sanofi.cn" &&
-    firstArtifact !== undefined && sameUrl(firstArtifact, evidenceUrl(talentbrewRequestUrl(entryDom, ajaxUrl, staticFilters, undefined, 1, true)));
+  const normalNext = entryFirstPage || sanofiChinese && firstArtifact !== undefined &&
+    sameUrl(firstArtifact, evidenceUrl(talentbrewRequestUrl(entryDom, ajaxUrl, staticFilters, undefined, 1, true)));
   const seen = new Set<string>();
   let declaredTotal: number | undefined;
   let declaredPages: number | undefined;
@@ -849,18 +851,20 @@ function validateUnpartitionedTalentbrewOfficialTotal(
     const page = evidence.pages[index]!;
     const pageNumber = index + 1;
     const artifact = artifactForPage(page, artifacts);
+    const isEntryPage = entryFirstPage && index === 0;
+    const requestSequence = index + (entryFirstPage ? 0 : 1);
     const rawExpectedUrl = talentbrewRequestUrl(entryDom, ajaxUrl, staticFilters, undefined, pageNumber, normalNext);
-    const expectedUrl = evidenceUrl(rawExpectedUrl);
+    const expectedUrl = isEntryPage ? entryUrl : evidenceUrl(rawExpectedUrl);
     const expectedPageSize = queryPositiveInt(rawExpectedUrl, "RecordsPerPage") ?? null;
     if (!artifact || artifact.channelId !== undefined || !sameUrl(artifact, expectedUrl) ||
       page.sequence !== index || page.requestedPage !== pageNumber || page.returnedPage !== pageNumber ||
       page.requestedPageSize !== expectedPageSize ||
-      !matchesRequestContract(artifact, plan.table.rowSelector, "talentbrew-page", index + 1, "GET", expectedUrl, null, {
-        sequence: index + 1, channelId: null, requestedPage: null, requestedPageSize: null
+      !isEntryPage && !matchesRequestContract(artifact, plan.table.rowSelector, "talentbrew-page", requestSequence, "GET", expectedUrl, null, {
+        sequence: requestSequence, channelId: null, requestedPage: null, requestedPageSize: null
       }) || !validTermination(page, index, evidence.pages.length)) {
       return htmlProofTrace(plan, `TALENTBREW_TOTAL_PAGE_CONTRACT:${pageNumber}`);
     }
-    const html = strictTalentbrewResults(artifact.body, plan.table.rowSelector);
+    const html = isEntryPage ? artifact.body : strictTalentbrewResults(artifact.body, plan.table.rowSelector);
     const returned = load(html)("#search-results");
     const current = strictInt(returned.first().attr("data-current-page"), true);
     const totalPages = strictInt(returned.first().attr("data-total-pages"), true);

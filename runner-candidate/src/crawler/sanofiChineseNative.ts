@@ -228,7 +228,7 @@ function exactArtifact(a:SourceFetchArtifactDraft|undefined,url:string,role:stri
 }
 function listRows(primary:PersistentSourceFetchEvidence):Array<SanofiChineseRow&{valid:boolean;pageSequence:number;recordIndex:number;rawLocator:string}> {
   const rows:Array<SanofiChineseRow&{valid:boolean;pageSequence:number;recordIndex:number;rawLocator:string}>=[];
-  for(const p of primary.pages){const a=primary.artifacts.find(a=>a.logicalKey===p.artifactLogicalKey)!,$=load(String(parseJson(body(a)).results));
+  for(const p of primary.pages){const a=primary.artifacts.find(a=>a.logicalKey===p.artifactLogicalKey)!,$=load(a.kind==='OFFICIAL_COMPANY_PAGE'?body(a):String(parseJson(body(a)).results));
     for(const [recordIndex,n] of $('#search-results-list > li, #search-results-list > ul > li').toArray().entries()){
       const row=$(n),button=row.find('button.js-save-job-btn'),link=row.find('a[data-job-id]'),rawId=button.attr('data-job-id'),href=link.attr('href'),title=clean(row.find('h2').text());
       let valid=button.length===1&&link.length===1&&/^\d+$/u.test(rawId??'')&&link.attr('data-job-id')===rawId&&!!title,url='';

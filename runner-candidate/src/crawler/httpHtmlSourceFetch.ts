@@ -320,31 +320,35 @@ async function fetchTalentbrewAjaxPages({
     let declaredPageSize: number | undefined;
     let page = 1;
     do {
-      const url = new URL(ajaxUrl, entryUrl);
-      url.search = bindQueryParams({
-        ...criteria,
-        FacetFilters: [
-          ...talentbrewStaticFacetFilters($),
-          ...(partition.filter ? [partition.filter] : [])
-        ],
-        IsPagination: !normalNext && page > 1 ? "True" : "False",
-        CurrentPage: page
-      });
-      const pageResponse = await http({
-        url: url.toString(),
-        headers: {
-          Accept: "application/json, text/javascript, */*; q=0.01",
-          Referer: entryUrl,
-          "X-Requested-With": "XMLHttpRequest",
-          "User-Agent": "job-search-crawler/0.1"
-        },
-        ...(partition.channelId ? { evidenceChannelId: partition.channelId } : {})
-      });
-      const validation = validateResponse(pageResponse);
-      if (!validation.ok) return failed(capturedAt, `TalentBrew page ${page}: ${validation.failureReason}`);
-      const parsed = parseTalentbrewAjaxResponse(pageResponse.body);
-      if (!parsed.ok) return failed(capturedAt, parsed.failureReason);
-      const pageDom = load(parsed.results);
+      let pageHtml = html;
+      if (!normalNext || scope !== undefined || page > 1) {
+        const url = new URL(ajaxUrl, entryUrl);
+        url.search = bindQueryParams({
+          ...criteria,
+          FacetFilters: [
+            ...talentbrewStaticFacetFilters($),
+            ...(partition.filter ? [partition.filter] : [])
+          ],
+          IsPagination: !normalNext && page > 1 ? "True" : "False",
+          CurrentPage: page
+        });
+        const pageResponse = await http({
+          url: url.toString(),
+          headers: {
+            Accept: "application/json, text/javascript, */*; q=0.01",
+            Referer: entryUrl,
+            "X-Requested-With": "XMLHttpRequest",
+            "User-Agent": "job-search-crawler/0.1"
+          },
+          ...(partition.channelId ? { evidenceChannelId: partition.channelId } : {})
+        });
+        const validation = validateResponse(pageResponse);
+        if (!validation.ok) return failed(capturedAt, `TalentBrew page ${page}: ${validation.failureReason}`);
+        const parsed = parseTalentbrewAjaxResponse(pageResponse.body);
+        if (!parsed.ok) return failed(capturedAt, parsed.failureReason);
+        pageHtml = parsed.results;
+      }
+      const pageDom = load(pageHtml);
       const returned = pageDom("#search-results").first();
       if (hasInvalidTalentbrewDeclarations(returned)) return failed(capturedAt, "HTML_DECLARATION_INVALID");
       const returnedPage = numberAttr(returned, "data-current-page");
@@ -364,7 +368,7 @@ async function fetchTalentbrewAjaxPages({
       if (scope && (returnedPages !== declaredPages || returnedJobs !== declaredJobs || returnedPageSize !== declaredPageSize)) {
         return failed(capturedAt, "TALENTBREW_SCOPE_INVALID");
       }
-      pages.push(parsed.results);
+      pages.push(pageHtml);
       const effectiveDeclaredPages = declaredPages ?? initialTotalPages ?? 1;
       const pagesToVisit = Math.min(effectiveDeclaredPages, Math.max(1, maxPages));
       page += 1;
@@ -861,6 +865,8 @@ function attachHtmlEvidence(
     ? Math.max(...interactions.map(({ response }) =>
         readPaginationEvidence(response.body, table.pagination).declaredTotalPages ?? 0)) || undefined
     : undefined;
+  const entryFirstPage = mode === "talentbrew" && interactions[0]!.request.url === SANOFI_CN_ENTRY &&
+    table.pagination?.talentbrewScope === undefined;
   interactions.forEach(({ request, response }, sequence) => {
     const logicalKey = `official-html-page-${String(sequence).padStart(4, "0")}`;
     const isTalentEntry = mode === "talentbrew" && sequence === 0;
@@ -890,9 +896,9 @@ function attachHtmlEvidence(
         ? "#search-results[data-ajax-url]"
         : strictExtractorLocator ?? table.rowSelector, mode, request, sequence, table.pagination)
     });
-    if (isTalentEntry) return;
+    if (isTalentEntry && !entryFirstPage) return;
     let html = response.body;
-    if (mode === "talentbrew") {
+    if (mode === "talentbrew" && !isTalentEntry) {
       try { html = strictTalentbrewResults(response.body); } catch { html = ""; }
     }
     const $ = load(html);
@@ -926,7 +932,7 @@ function attachHtmlEvidence(
       ? ordinaryRequestCoordinate(request.url, table.pagination, sequence)
       : {};
     const requestedPage = mode === "talentbrew"
-      ? strictOptionalPositiveInt(url.searchParams.get("CurrentPage")) ?? null
+      ? isTalentEntry ? 1 : strictOptionalPositiveInt(url.searchParams.get("CurrentPage")) ?? null
       : ordinaryCoordinate.requestedPage ?? null;
     const requestedOffset = mode === "tupu360"
       ? strictOptionalNonnegativeInt(new URLSearchParams(request.body ?? "").get("offset")) ?? null
@@ -934,7 +940,7 @@ function attachHtmlEvidence(
     const requestedPageSize = mode === "tupu360"
       ? strictOptionalPositiveInt(new URLSearchParams(request.body ?? "").get("max"))
       : mode === "talentbrew"
-        ? strictOptionalPositiveInt(url.searchParams.get("RecordsPerPage"))
+        ? strictOptionalPositiveInt(isTalentEntry ? $("#search-results").first().attr("data-records-per-page") ?? null : url.searchParams.get("RecordsPerPage"))
         : table.pagination?.pageSize ?? null;
     const ordinaryDeclaration = mode === "ordinary" ? readPaginationEvidence(html, table.pagination) : undefined;
     const returnedPage = mode === "talentbrew"
