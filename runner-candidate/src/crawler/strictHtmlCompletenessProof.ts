@@ -1464,9 +1464,9 @@ function talentbrewRequestUrl(
     CurrentPage: page
   };
   if (normalNext) {
-    const contentTotal = strictInt(results.attr("data-total-content-results"), false);
-    criteria.TotalContentResults = contentTotal ?? "";
-    criteria.TotalContentPages = Math.ceil((contentTotal ?? Number.NaN) / Number(criteria.RecordsPerPage));
+    const contentTotal = Number.parseInt(results.attr("data-total-content-results") ?? "");
+    criteria.TotalContentResults = Number.isNaN(contentTotal) ? "" : contentTotal;
+    criteria.TotalContentPages = Math.ceil(contentTotal / Number(criteria.RecordsPerPage));
     for (const key of ["Latitude", "Longitude"]) {
       const value = Number.parseFloat(String(criteria[key]));
       if (Number.isNaN(value)) delete criteria[key];

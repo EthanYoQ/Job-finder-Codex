@@ -526,10 +526,9 @@ function talentbrewCriteria($: ReturnType<typeof load>, normalNext = false): Rec
   };
   if (normalNext) {
     // Match the official next-button mapping and its null-omitting query serializer.
-    const contentTotal = results.attr("data-total-content-results")?.trim()
-      ? numberAttr(results, "data-total-content-results") : undefined;
-    criteria.TotalContentResults = contentTotal ?? "";
-    criteria.TotalContentPages = Math.ceil((contentTotal ?? Number.NaN) / Number(criteria.RecordsPerPage));
+    const contentTotal = Number.parseInt(results.attr("data-total-content-results") ?? "");
+    criteria.TotalContentResults = Number.isNaN(contentTotal) ? "" : contentTotal;
+    criteria.TotalContentPages = Math.ceil(contentTotal / Number(criteria.RecordsPerPage));
     for (const key of ["Latitude", "Longitude"]) {
       const value = Number.parseFloat(String(criteria[key]));
       if (Number.isNaN(value)) delete criteria[key];

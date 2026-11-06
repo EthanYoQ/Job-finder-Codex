@@ -28,13 +28,13 @@ test('Sanofi follows the official next-button query and replays each complete re
  // Captured official search.js mapping and tb-corepack serializer, with the archived China entry attributes.
  const normal=page=>`https://jobs.sanofi.cn/search-jobs/results?ActiveFacetID=0&CurrentPage=${page}&RecordsPerPage=15&TotalContentResults=&Distance=50&RadiusUnitType=0&Keywords=&Location=%E4%B8%AD%E5%9B%BD&Latitude=35.00000&Longitude=105.00000&ShowRadius=False&IsPagination=False&CustomFacetName=&FacetTerm=&FacetType=0&SearchResultsModuleName=Search+Results&SearchFiltersModuleName=Search+Filters&SortCriteria=0&SortDirection=0&SearchType=1&LocationType=2&LocationPath=1814991&OrganizationIds=2649&PostalCode=&ResultsType=0&fc=&fl=&fcf=&afc=&afl=&afcf=&TotalContentPages=NaN`;
  const legacy=page=>`https://jobs.sanofi.cn/search-jobs/results?ActiveFacetID=0&RecordsPerPage=15&TotalContentResults=0&Distance=50&RadiusUnitType=0&Keywords=&Location=%E4%B8%AD%E5%9B%BD&Latitude=35&Longitude=105&ShowRadius=False&IsPagination=${page===1?'False':'True'}&CustomFacetName=&FacetTerm=&FacetType=0&SearchResultsModuleName=Search+Results&SearchFiltersModuleName=Search+Filters&SortCriteria=0&SortDirection=0&SearchType=1&CategoryFacetTerm=&CategoryFacetType=&LocationFacetTerm=&LocationFacetType=&KeywordType=&LocationType=2&LocationPath=1814991&OrganizationIds=2649&PostalCode=&ResultsType=0&fc=&fl=&fcf=&afc=&afl=&afcf=&CurrentPage=${page}`;
- async function collect(blockStatus,emptyContentTotal=false){
+ async function collect(blockStatus,contentTotal){
   const calls=[];
   const entry=`${root(1)}</section>${filter}`;
   const result=await createHttpHtmlSourceFetch({now:()=>new Date(at),http:async request=>{
    calls.push(request.url);const page=Number(new URL(request.url).searchParams.get('CurrentPage')??0);
    return {status:page===2&&blockStatus?blockStatus:200,finalUrl:request.url,capturedAt:at,contentType:page?'application/json':'text/html',
-    body:page?JSON.stringify({results:body(page),filters:filter,hasJobs:true,hasContent:false}):emptyContentTotal?entry.replace('id="search-results"','id="search-results" data-total-content-results=""'):entry};
+    body:page?JSON.stringify({results:body(page),filters:filter,hasJobs:true,hasContent:false}):contentTotal!==undefined?entry.replace('id="search-results"',`id="search-results" data-total-content-results="${contentTotal}"`):entry};
   }})(plan);
   return {result,calls};
  }
@@ -58,10 +58,14 @@ test('Sanofi follows the official next-button query and replays each complete re
  assert.equal(validateStrictHtmlCompletenessProof(plan,withRequests(legacy)),true,'historical whole traversal remains replayable');
  assert.equal(validateStrictHtmlCompletenessProof(plan,withRequests(p=>p===2?legacy(p):normal(p))),false,'a matching locator cannot hide one page switching modes');
  assert.equal(validateStrictHtmlCompletenessProof(plan,withRequests(p=>p===2?normal(p):legacy(p))),false,'legacy mode also applies to the whole traversal');
- const emptyContent=await collect(undefined,true);
+ const emptyContent=await collect(undefined,'');
  assert.equal(emptyContent.result.ok,true);
  assert.equal(validateStrictHtmlCompletenessProof(plan,emptyContent.result.fetchEvidence),true,'an empty content total uses the same official defaults as an absent attribute');
  assert.equal(emptyContent.calls[1],normal(1));
+ const parsedContent=await collect(undefined,'1e3');
+ assert.equal(parsedContent.result.ok,true);
+ assert.equal(validateStrictHtmlCompletenessProof(plan,parsedContent.result.fetchEvidence),true,'optional content totals follow the official integer parser');
+ assert.equal(parsedContent.calls[1],normal(1).replace('TotalContentResults=&','TotalContentResults=1&').replace('TotalContentPages=NaN','TotalContentPages=1'));
  for(const status of [403,429]){const blocked=await collect(status);assert.equal(blocked.result.ok,false);assert.equal(blocked.calls.length,3);}
 });
 test('Sanofi complete China list isolates individual list, detail and native application failures',async()=>{
