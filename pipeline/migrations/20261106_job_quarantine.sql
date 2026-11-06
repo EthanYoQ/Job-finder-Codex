@@ -3,6 +3,7 @@ DO $patch$
 DECLARE
   definition text := pg_get_functiondef('public.enforce_source_result_state_machine()'::regprocedure);
   anchor text := $anchor$                    OR (
+                        -- Lilly's original application can close while its search listing remains visible.
                         NEW."sourceId" = 'source-lilly-china-social' AND$anchor$;
   addition text := $addition$                    -- BEGIN JOB QUARANTINE TOTAL
                     OR (
