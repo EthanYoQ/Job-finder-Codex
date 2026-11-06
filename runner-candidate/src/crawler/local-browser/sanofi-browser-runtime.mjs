@@ -25,6 +25,7 @@ export function createSanofiDomRuntime(cua, {failureDirectory=join(process.env.J
     deadline = Math.min(Date.now() + 20 * 60 * 1000, overallDeadline ?? Infinity);
     checkTime();
     tab = await cua.createBrowserTab('cdp', entry);
+    await tab.playwright.addLocatorHandler('#onetrust-reject-all-handler', button => button.click());
     return { deadline };
   }
   async function readPage() {
@@ -32,20 +33,24 @@ export function createSanofiDomRuntime(cua, {failureDirectory=join(process.env.J
     try {
     const root = tab.playwright.locator('#search-results[data-current-page="' + pageNumber + '"]');
     const until = Math.min(deadline, Date.now() + 60000);
-    let ready = false;
+    let captured;
     while (Date.now() < until) {
       try {
         await root.waitFor({ state: 'visible', timeoutMs: Math.max(1, Math.min(10000, until - Date.now())) });
-        ready = true; break;
+        captured = await root.evaluate(e => {
+          const next = e.querySelector('a.next');
+          return { searchResultsHtml: e.outerHTML, nextDisabled: next ? next.classList.contains('disabled') : null,
+            total: Number(e.getAttribute('data-total-job-results')), rowCount: e.querySelectorAll('#search-results-list > li').length };
+        });
+        if (Number.isSafeInteger(captured.total) && captured.total > 0 &&
+          captured.rowCount === Math.min(15, captured.total - (pageNumber - 1) * 15)) break;
+        captured = undefined;
+        await new Promise(resolve => setTimeout(resolve, Math.max(1, Math.min(100, until - Date.now()))));
       } catch (error) {
         if (error?.name !== 'TimeoutError' && !/Timed out waiting for load|Runtime.evaluate timed out|locator.waitFor\(visible\) timed out/.test(String(error))) throw error;
       }
     }
-    if (!ready) throw Error('SANOFI_CN_DOM_LOADING_TIMEOUT');
-    const captured = await root.evaluate(e => {
-      const next = e.querySelector('a.next');
-      return { searchResultsHtml: e.outerHTML, nextDisabled: next ? next.classList.contains('disabled') : null };
-    });
+    if (!captured) throw Error('SANOFI_CN_DOM_LOADING_TIMEOUT');
     if (captured.nextDisabled === null) throw Error('SANOFI_CN_DOM_NEXT_CONTROL_MISSING');
     const page = { url: await tab.url(), capturedAt: new Date().toISOString(), searchResultsHtml: captured.searchResultsHtml };
     checkTime();
@@ -55,8 +60,6 @@ export function createSanofiDomRuntime(cua, {failureDirectory=join(process.env.J
   async function advance() {
     checkTime();
     try {
-    const rejectOptionalCookies=tab.playwright.locator('#onetrust-reject-all-handler');
-    if(await rejectOptionalCookies.isVisible())await rejectOptionalCookies.click();
     await tab.playwright.locator('#search-results a.next').click();
     return { pageNumber: ++pageNumber };
     } catch(error) {return failed(error,'SANOFI_PAGE_NEXT');}
