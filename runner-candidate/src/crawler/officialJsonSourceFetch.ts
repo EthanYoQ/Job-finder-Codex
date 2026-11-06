@@ -8,7 +8,7 @@ import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl, ro
 import { acquireBeisenDetailDates } from "./beisenDetailDates";
 import {isolateBeisenJobRows,beisenRawObservationId} from './beisenJobQuarantine';
 import {quarantineFetchLosses,quarantineCompleteList,jobQuarantineLoss,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
-import {sanitizeEvidenceHttpUrl} from './sourceFetchEvidence';
+import {sanitizeEvidenceHttpUrl,parsePersistentSourceFetchEvidence} from './sourceFetchEvidence';
 import {phenomJobQuarantine} from './phenomJobQuarantine';
 import {exactFosunHongKongOnlyScope} from './strictSourceScopeExclusionProof';
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
@@ -16,7 +16,7 @@ import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEq
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
-import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoIncompleteDetailIsBound, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss } from "./novoChinaQuality";
+import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoJobQuarantine, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoIncompleteDetailIsBound, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss } from "./novoChinaQuality";
 import { BMS_GEOGRAPHY_POLICY, bmsMainlandCities } from "./bmsMainlandGeography";
 import { bmsOfficialPostedDate, exactBmsPostedDatePlan, requiresBmsPostedDate } from "./bmsOfficialPostedDate";
 import { ucbOfficialCities, exactUcbPostedDatePlan, exactUcbPostedDateBootstrap, requiresUcbPostedDate, ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
@@ -911,6 +911,7 @@ async function fetchSingleResponseOfficialJson({
     termination: "ABORTED"
   });
   if (novoNestedResponse) {
+    const quarantines:JobQuarantine[]=[];let accessStopped=false;
     const artifacts: SourceFetchArtifactDraft[] = [artifact];
     const jobs: NormalizedOfficialJsonJob[] = [];
     const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
@@ -956,6 +957,7 @@ async function fetchSingleResponseOfficialJson({
           }
           throw error;
         }
+        if(response.status===403||response.status===429)accessStopped=true;
         assertOfficialJsonEvidenceResponse(response, { requestedUrl: allowApplicationRedirect ? response.finalUrl! : url,
           crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime() });
         const deadline = currentOfficialSourceAttemptDeadlineAtMs();
@@ -996,7 +998,9 @@ async function fetchSingleResponseOfficialJson({
       const entry = await html(entryUrl, "novo-native-entry"), base = novoNativeDetailBase(entry.body);
       if (!base || novoNestedResponse.total > 500) throw new Error("Novo native entry or bounded listing is unresolved");
       for (let i = 0; i < novoNestedResponse.total; i++) {
-        const raw = novoNestedResponse.rawJobs[i]!, projection = novoNestedResponse.jobs[i]!;
+        const raw=novoNestedResponse.rawJobs[i] as Record<string,unknown>,projection=novoNestedResponse.jobs[i];
+        try {
+        if(!projection||accessStopped||remaining()<=0)throw Error('NOVO_JOB_UNVERIFIED');
         const detailUrl = `${base}.${raw.jobId}.html`;
         const detail = await html(detailUrl, `novo-detail-${raw.jobId}`);
         const applyUrl = novoNativeApplicationUrl(detail.body, detailUrl, String(raw.jobId));
@@ -1011,10 +1015,14 @@ async function fetchSingleResponseOfficialJson({
         if (!status) throw new Error("Novo official application status is UNKNOWN");
         if (status.status === "CLOSED") losses.push(novoClosedLoss(raw, i, application.capturedAt!));
         else jobs.push({ ...projection, ...(status.cityUncertain ? {cities: [CITY_PENDING]} : {}), officialUrl: detailUrl, title: status.title! });
+        }catch(error){
+          currentOfficialSourceAttemptSignal()?.throwIfAborted();
+          const q=novoJobQuarantine(raw,i);quarantines.push(q);losses.push(jobQuarantineLoss(q,capturedAt));
+        }
       }
     } catch (error) {
       // Preserve failure classification, but do not restart a begun native traversal.
-      // Unbound pages, application uncertainty, access blocks and cancellation still fail closed.
+      // Failure of the shared entry or cancellation still holds the company.
       const transportFailure = nativeHttpFailure ?? retryableTransportFailureFromError(error);
       const code = "NOVO_APPLICATION_STATUS_UNKNOWN";
       return { ...failedWithEvidence(capturedAt, transportFailure
@@ -1032,7 +1040,7 @@ async function fetchSingleResponseOfficialJson({
       declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: novoNestedResponse.total,
         artifactLogicalKey: artifact.logicalKey, extractorLocator, scope: "SOURCE" },
       allowPositiveOfficialTotalCountAfterAdapterReconciliation: true, allowIndependentlyVerifiedProfileBoundExclusions: true });
-    return { ok: true, capturedAt, payload: { jobs }, fetchEvidence: evidence, paginationEvaluation: evaluation,
+    return { ok: true, capturedAt, payload: { jobs }, fetchEvidence: parsePersistentSourceFetchEvidence({...evidence,...(quarantines.length?{jobQuarantines:quarantines}:{})}), paginationEvaluation: evaluation,
       completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: novoNestedResponse.total,
         completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT", completenessEvidenceUrl,
         completenessBlockerReason: "Native raw total and explicit application closures require downstream replay", pagesVisited: 1 } };

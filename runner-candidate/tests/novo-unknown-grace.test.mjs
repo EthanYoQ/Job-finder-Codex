@@ -56,9 +56,6 @@ for(const mode of ['short-description','bound-empty-shell','unbound-empty-shell'
         getTrustedCompletenessBaseline:async()=>null,getFirstAcceptedCurrentPolicyReceipt:async()=>priorReceipt,
         fetch:createOwnedSourceQualityFetch()
       }));
-      if(mode==='unbound-empty-shell'){
-        assert.notEqual(result.status,'SUCCESS');assert.equal(writes.length,0);break;
-      }
       assert.equal(result.status,'SUCCESS');
       assert.equal(memory.rows[0].completenessState,'VERIFIED');
       assert.equal(memory.rows[0].atomicCommitState,'COMMITTED');
