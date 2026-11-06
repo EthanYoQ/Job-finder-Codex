@@ -48,7 +48,7 @@ test('sandboxed original DOM collectors feed native Bayer, Servier and Sanofi B 
     else if (name === 'sanofi-dom') response.end(sanofiHtml);
     else if (name === 'sanofi-detail') response.end(sanofiDetail);
     else if (name === 'sanofi-native') response.end(sanofiNative);
-    else if (name === 'sanofi-main-entry') response.end('<section id="search-results" data-ajax-url="/search-results" data-total-pages="1" data-total-job-results="1" data-records-per-page="15" data-active-facet-id="0"></section><div id="search-filters"></div>');
+    else if (name === 'sanofi-main-entry') response.end(sanofiHtml.replace('id="search-results"','id="search-results" data-ajax-url="/search-results" data-active-facet-id="0"')+'<div id="search-filters"></div>');
     else if (name === 'sanofi-main-list') { response.setHeader('content-type', 'application/json'); response.end(JSON.stringify({ results: sanofiHtml, filters: '<section id="search-filters"><input class="filter-checkbox"></section>', hasJobs: true, hasContent: false })); }
     else {
       const bayer = name.startsWith('bayer'), org = bayer ? 'bayer' : 'shiweiya', siteId = bayer ? '148387' : '47734';
@@ -161,13 +161,13 @@ test('Sanofi main pagination failure retains the completed independent original 
   const fetch = createSanofiChineseSourceFetch({ http: async request => {
     mainRequests.push(request.url);
     const page = Number(new URL(request.url).searchParams.get('CurrentPage') ?? 0);
+    const list = sanofiHtml.replace('data-total-job-results="1"', 'data-total-job-results="16"')
+      .replace('data-total-pages="1"', 'data-total-pages="2"').replace('data-current-page="1"', `data-current-page="${page||1}"`)
+      .replace(/<li>[\s\S]*?<\/li>/u, match => page < 2
+        ? Array.from({ length: 15 }, (_, index) => match.replaceAll('101', String(101 + index))).join('') : match);
     const body = page === 0
-      ? '<section id="search-results" data-ajax-url="/search-results" data-total-pages="2" data-total-job-results="16" data-records-per-page="15" data-active-facet-id="0"></section><div id="search-filters"></div>'
-      : JSON.stringify({ results: sanofiHtml.replace('data-total-job-results="1"', 'data-total-job-results="16"')
-        .replace('data-total-pages="1"', 'data-total-pages="2"').replace('data-current-page="1"', `data-current-page="${page}"`)
-        .replace(/<li>[\s\S]*?<\/li>/u, match => page === 1
-          ? Array.from({ length: 15 }, (_, index) => match.replaceAll('101', String(101 + index))).join('') : match),
-        filters: '<section id="search-filters"><input class="filter-checkbox"></section>', hasJobs: true, hasContent: false });
+      ? list.replace('id="search-results"','id="search-results" data-ajax-url="/search-results" data-active-facet-id="0"')+'<div id="search-filters"></div>'
+      : JSON.stringify({ results: list, filters: '<section id="search-filters"><input class="filter-checkbox"></section>', hasJobs: true, hasContent: false });
     return { status: 200, finalUrl: request.url, contentType: page === 0 ? 'text/html' : 'application/json', body,
       capturedAt: new Date().toISOString() };
   } });
@@ -200,8 +200,8 @@ test('Sanofi main pagination failure retains the completed independent original 
       assert.equal(memory.rows[0].atomicCommitState, 'NOT_ATTEMPTED');
       assert.equal(memory.jobWrites(), 0);
       assert.equal(independentCalls, 1);
-      assert.equal(mainRequests.length, 3);
-      assert.equal(memory.artifacts.length, 3, 'failed commit contains only the original main fetch evidence');
+      assert.equal(mainRequests.length, 2);
+      assert.equal(memory.artifacts.length, 2, 'failed commit contains only the original main fetch evidence');
       const tupleDirectory = join(workspaceRoot, 'outputs', 'p0-rc', candidate.id, 'evidence', 'artifacts',
         memory.rows[0].batchId, row.sourceId, memory.rows[0].id);
       const original = (await readdir(tupleDirectory)).find(name => name.endsWith('--sanofi-cn-independent-original-v1.bin'));
