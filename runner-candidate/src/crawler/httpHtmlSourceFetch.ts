@@ -1,6 +1,6 @@
 import { acquireNovartisNativePartitions } from "./novartisNativePartitions";
 import {isolateHtmlJobRows,htmlRowObservationId} from './htmlJobQuarantine';
-import {isSanofiChinesePlan,createSanofiChineseSourceFetch} from "./sanofiChineseNative";
+import {isSanofiChinesePlan,createSanofiChineseSourceFetch,SANOFI_CN_ENTRY} from "./sanofiChineseNative";
 import { projectKelunMainlandFetch } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,createSanofiNativeSourceFetch} from "./sanofiNativeQuality";
 import { hasNovartisOfficialPresencePlan, NOVARTIS_PRESENCE_UNKNOWN } from "./novartisOfficialPresence";
@@ -304,7 +304,8 @@ async function fetchTalentbrewAjaxPages({
     return failed(capturedAt, "TalentBrew search results did not expose total pages or total jobs");
   }
 
-  const criteria = talentbrewCriteria($);
+  const normalNext = entryUrl === SANOFI_CN_ENTRY;
+  const criteria = talentbrewCriteria($, normalNext);
   const partitions = scope
     ? strictTalentbrewPartitions($, searchResults, scope)
     : [{ channelId: undefined, filter: undefined }];
@@ -326,7 +327,7 @@ async function fetchTalentbrewAjaxPages({
           ...talentbrewStaticFacetFilters($),
           ...(partition.filter ? [partition.filter] : [])
         ],
-        IsPagination: page > 1 ? "True" : "False",
+        IsPagination: !normalNext && page > 1 ? "True" : "False",
         CurrentPage: page
       });
       const pageResponse = await http({
@@ -481,11 +482,12 @@ type TalentbrewCriteriaValue =
   | TalentbrewCriteriaValue[]
   | { readonly [key: string]: TalentbrewCriteriaValue };
 
-function talentbrewCriteria($: ReturnType<typeof load>): Record<string, TalentbrewCriteriaValue> {
+function talentbrewCriteria($: ReturnType<typeof load>, normalNext = false): Record<string, TalentbrewCriteriaValue> {
   const results = $("#search-results").first();
   const filters = $("#search-filters").first();
-  return {
+  const criteria: Record<string, TalentbrewCriteriaValue> = {
     ActiveFacetID: numberAttr(results, "data-active-facet-id") ?? 0,
+    ...(normalNext ? { CurrentPage: 1 } : {}),
     RecordsPerPage: numberAttr(results, "data-records-per-page") ?? 20,
     TotalContentResults: numberAttr(results, "data-total-content-results") ?? 0,
     Distance: numberAttr(results, "data-distance") ?? 50,
@@ -522,6 +524,22 @@ function talentbrewCriteria($: ReturnType<typeof load>): Record<string, Talentbr
     afl: filters.attr("data-filtered-advanced-locations") ?? "",
     afcf: filters.attr("data-filtered-advanced-custom-facet") ?? ""
   };
+  if (normalNext) {
+    // Match the official next-button mapping and its null-omitting query serializer.
+    const contentTotal = numberAttr(results, "data-total-content-results");
+    criteria.TotalContentResults = contentTotal ?? "";
+    criteria.TotalContentPages = Math.ceil((contentTotal ?? Number.NaN) / Number(criteria.RecordsPerPage));
+    for (const key of ["Latitude", "Longitude"]) {
+      const value = Number.parseFloat(String(criteria[key]));
+      if (Number.isNaN(value)) delete criteria[key];
+      else criteria[key] = value.toFixed(5);
+    }
+    for (const key of Object.keys(criteria)) {
+      if (criteria[key] === null || criteria[key] === "" &&
+          ["CategoryFacetTerm", "CategoryFacetType", "LocationFacetTerm", "LocationFacetType", "KeywordType"].includes(key)) delete criteria[key];
+    }
+  }
+  return criteria;
 }
 
 function talentbrewStaticFacetFilters($: ReturnType<typeof load>): TalentbrewCriteriaValue[] {

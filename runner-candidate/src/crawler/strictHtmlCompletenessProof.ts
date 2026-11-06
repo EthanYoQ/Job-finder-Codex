@@ -836,6 +836,10 @@ function validateUnpartitionedTalentbrewOfficialTotal(
   const staticFilters = talentbrewStaticFilters(entryDom);
   if (!staticFilters) return htmlProofTrace(plan, "TALENTBREW_TOTAL_STATIC_FILTERS");
 
+  // Select one request contract for the entire traversal; historical archives keep their original URLs.
+  const firstArtifact = artifactForPage(evidence.pages[0]!, artifacts);
+  const normalNext = plan.source.id === "source-sanofi-china-social" && new URL(rawEntryUrl).hostname === "jobs.sanofi.cn" &&
+    firstArtifact !== undefined && sameUrl(firstArtifact, evidenceUrl(talentbrewRequestUrl(entryDom, ajaxUrl, staticFilters, undefined, 1, true)));
   const seen = new Set<string>();
   let declaredTotal: number | undefined;
   let declaredPages: number | undefined;
@@ -845,7 +849,7 @@ function validateUnpartitionedTalentbrewOfficialTotal(
     const page = evidence.pages[index]!;
     const pageNumber = index + 1;
     const artifact = artifactForPage(page, artifacts);
-    const rawExpectedUrl = talentbrewRequestUrl(entryDom, ajaxUrl, staticFilters, undefined, pageNumber);
+    const rawExpectedUrl = talentbrewRequestUrl(entryDom, ajaxUrl, staticFilters, undefined, pageNumber, normalNext);
     const expectedUrl = evidenceUrl(rawExpectedUrl);
     const expectedPageSize = queryPositiveInt(rawExpectedUrl, "RecordsPerPage") ?? null;
     if (!artifact || artifact.channelId !== undefined || !sameUrl(artifact, expectedUrl) ||
@@ -1418,7 +1422,8 @@ function talentbrewRequestUrl(
   endpoint: URL,
   staticFilters: TalentValue[],
   partition: TalentbrewPartition | undefined,
-  page: number
+  page: number,
+  normalNext = false
 ): string {
   const results = $("#search-results").first();
   const filters = $("#search-filters").first();
@@ -1426,13 +1431,14 @@ function talentbrewRequestUrl(
     strictInt(element.attr(attr), false) ?? fallback;
   const criteria: Record<string, TalentValue> = {
     ActiveFacetID: numberOr(results, "data-active-facet-id", 0),
+    ...(normalNext ? { CurrentPage: page } : {}),
     RecordsPerPage: numberOr(results, "data-records-per-page", 20),
     TotalContentResults: numberOr(results, "data-total-content-results", 0),
     Distance: numberOr(results, "data-distance", 50),
     RadiusUnitType: numberOr(filters, "data-radius-unit-type", 2),
     Keywords: results.attr("data-keywords") ?? "", Location: results.attr("data-location") ?? "",
     Latitude: results.attr("data-latitude") ?? "", Longitude: results.attr("data-longitude") ?? "",
-    ShowRadius: results.attr("data-show-radius") ?? "False", IsPagination: page > 1 ? "True" : "False",
+    ShowRadius: results.attr("data-show-radius") ?? "False", IsPagination: !normalNext && page > 1 ? "True" : "False",
     CustomFacetName: results.attr("data-custom-facet-name") ?? "",
     FacetTerm: results.attr("data-facet-term") ?? "",
     FacetType: strictInt(results.attr("data-facet-type"), false) ?? null,
@@ -1457,6 +1463,20 @@ function talentbrewRequestUrl(
     afl: filters.attr("data-filtered-advanced-locations") ?? "", afcf: filters.attr("data-filtered-advanced-custom-facet") ?? "",
     CurrentPage: page
   };
+  if (normalNext) {
+    const contentTotal = strictInt(results.attr("data-total-content-results"), false);
+    criteria.TotalContentResults = contentTotal ?? "";
+    criteria.TotalContentPages = Math.ceil((contentTotal ?? Number.NaN) / Number(criteria.RecordsPerPage));
+    for (const key of ["Latitude", "Longitude"]) {
+      const value = Number.parseFloat(String(criteria[key]));
+      if (Number.isNaN(value)) delete criteria[key];
+      else criteria[key] = value.toFixed(5);
+    }
+    for (const key of Object.keys(criteria)) {
+      if (criteria[key] === null || criteria[key] === "" &&
+          ["CategoryFacetTerm", "CategoryFacetType", "LocationFacetTerm", "LocationFacetType", "KeywordType"].includes(key)) delete criteria[key];
+    }
+  }
   endpoint.search = encodeTalentbrew(criteria);
   return endpoint.toString();
 }
