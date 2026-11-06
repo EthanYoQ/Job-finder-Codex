@@ -1,3 +1,5 @@
+import {mokaRawJobId,mokaRawObservationId,mokaQuarantineAt,mokaQuarantinedDetailKey} from './mokaJobQuarantine';
+import {jobQuarantineLossesMatch} from './jobQuarantine';
 import { createDecipheriv, createHash } from "node:crypto";
 import { load } from "cheerio";
 import { hasMainlandCountryLocation, mokaDisplayCities } from "./hengruiMainlandGeography";
@@ -43,6 +45,7 @@ export function replayHengruiScopeExclusionProof(
         plan.moka.allowDetailSiteIdOmission !== undefined || plan.moka.allowedEntryRedirect !== undefined) return undefined;
     validateExecutablePlanChannelBinding(plan);
     const evidence = parsePersistentSourceFetchEvidence(input);
+    if(evidence.jobQuarantines?.length&&!jobQuarantineLossesMatch(evidence))return;
     const declared = evidence.declaredCompleteness;
     if (evidence.supportingArtifactOnlyFailure || !evidence.pages.length || !declared ||
         declared.kind !== "OFFICIAL_TOTAL_COUNT" || declared.scope !== "SOURCE" || declared.channelId !== undefined ||
@@ -94,12 +97,13 @@ export function replayHengruiScopeExclusionProof(
       if (artifact.extractorLocator !== locator || (sequence === 0 && declared.extractorLocator !== locator)) return undefined;
       const rawIds: string[] = [], validIds: string[] = [];
       for (let index = 0; index < data.jobs.length; index++) {
-        const raw = record(data.jobs[index]);
-        const id = jobId(raw), title = text(raw?.title);
-        if (!raw || !id || !title || seenIds.has(id) || containsSensitiveAdapterValue(id) || containsSensitiveAdapterValue(title)) return undefined;
-        seenIds.add(id);
+        const original=data.jobs[index],raw=record(original),id=mokaRawJobId(original),title=text(raw?.title);
+        if(id){if(seenIds.has(id))return;seenIds.add(id);}
+        rawIds.push(mokaRawObservationId(original,sequence,index));
+        const q=mokaQuarantineAt(evidence,original,sequence,index,`${logicalKey}#page-${sequence}#record-${index}#sha256:${hash(JSON.stringify(original))}`);
+        if(q){const key=mokaQuarantinedDetailKey(evidence,q,id,plan.moka!);if(key)used.add(key);continue;}
+        if(!raw||!id||!title||containsSensitiveAdapterValue(id)||containsSensitiveAdapterValue(title))return;
         const evidenceId = `sha256:${hash(JSON.stringify(id))}`;
-        rawIds.push(evidenceId);
         const rawLocator = `${logicalKey}#page-${sequence}#record-${index}#sha256:${hash(JSON.stringify(raw))}`;
         let locations = raw.locations;
         if (locations !== undefined && (!Array.isArray(locations) || !locations.every(exactLocationShape))) return undefined;
@@ -149,10 +153,10 @@ export function replayHengruiScopeExclusionProof(
           page.termination !== expectedTermination) return undefined;
     }
     const counts = evidence.fetchCounts;
-    if (used.size !== artifacts.size || rawCount !== declared.value || rawCount !== seenIds.size ||
+    if (used.size !== artifacts.size || rawCount !== declared.value || rawCount !== seenIds.size+(evidence.jobQuarantines?.filter(q=>!q.sourceJobId).length??0) ||
         counts.rawCount !== rawCount || counts.parsedCount !== rawCount || counts.parseDiscardCount !== 0 ||
-        counts.validCount !== expectedOutputs.size || counts.validationDiscardCount !== exclusions.length ||
-        exclusions.length !== evidence.fetchLosses.length || rawCount !== expectedOutputs.size + exclusions.length) return undefined;
+        counts.validCount !== expectedOutputs.size || counts.validationDiscardCount !== exclusions.length+(evidence.jobQuarantines?.length??0) ||
+        exclusions.length+(evidence.jobQuarantines?.length??0) !== evidence.fetchLosses.length || rawCount !== expectedOutputs.size + exclusions.length+(evidence.jobQuarantines?.length??0)) return undefined;
     if (outputJobs !== undefined) {
       if (outputJobs.length !== expectedOutputs.size || new Set(outputJobs.map(j => j.sourceJobId)).size !== outputJobs.length) return undefined;
       for (const job of outputJobs) {
@@ -224,4 +228,8 @@ function exactLocationShape(value: unknown): boolean {
   }
   return location.id === undefined || typeof location.id === "string" && location.id.trim().length > 0 ||
     typeof location.id === "number" && Number.isSafeInteger(location.id) && location.id >= 0;
+}
+
+export function isHengruiOfficialScopeExclusion(raw:unknown):boolean{
+ const locations=record(raw)?.locations;return exactWalthamLocations(locations)||Array.isArray(locations)&&locations.length>0&&locations.every(exactHongKongLocation);
 }

@@ -1,3 +1,4 @@
+import {mokaRawJobId,mokaQuarantineAt,mokaQuarantinedDetailKey} from './mokaJobQuarantine';
 import { CITY_PENDING } from "../domain/jobLocation";
 import {hasHtmlRowQuarantine,reviewHtmlJobRows,replayHtmlJobRows} from './htmlJobQuarantine';
 import {hasBeisenJobQuarantine,verifyBeisenListQuarantines} from './beisenJobQuarantine';
@@ -634,6 +635,7 @@ function strictCompletenessGate(
         const raw=JSON.parse(artifact.body as string).refineSearch.data.jobs[q.recordIndex];
         if(raw)for(const family of ['lilly','organon','roche'])workdayHeldKeys.add(`${family}-detail-${raw.reqId}`);
       }
+      if(plan.adapterId==='official-json'&&plan.moka)for(const q of evidence.jobQuarantines??[])workdayHeldKeys.add(`moka-detail-${String(q.pageSequence).padStart(4,'0')}-${String(q.recordIndex).padStart(4,'0')}`);
       const networkEvidence = novoProof ? {...evidence,artifacts:[evidence.artifacts[0]!]} : grifolsProof
         ? {...evidence,artifacts:evidence.artifacts.filter(a=>!a.logicalKey.startsWith('grifols-detail-'))} : msdAjingaProof
         ? {...evidence,artifacts:evidence.artifacts.filter(a=>!a.logicalKey.startsWith("msd-ajinga-detail-")&&!a.logicalKey.startsWith("msd-ajinga-apply-"))}
@@ -661,7 +663,7 @@ function strictCompletenessGate(
     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
     const quarantinedJobs = jobQuarantineLossesMatch(evidence)&&
-      (kelunScopeProof||!!biProof||yelloScopeProof||hasAstraZenecaDetailPlan(plan)||hasBeisenJobQuarantine(plan)||hasWorkdayJobQuarantine(plan)||hasHtmlRowQuarantine(plan)||hasPhenomJobQuarantine(plan)||profileBoundEvidenceValidated||plan.adapterId==='official-json'&&(!!plan.hotjobLegacy||['eightfold-pcsx','cnstaff'].includes(plan.officialJsonFetch?.kind??'')));
+      (plan.adapterId==='official-json'&&!!plan.moka||kelunScopeProof||!!biProof||yelloScopeProof||hasAstraZenecaDetailPlan(plan)||hasBeisenJobQuarantine(plan)||hasWorkdayJobQuarantine(plan)||hasHtmlRowQuarantine(plan)||hasPhenomJobQuarantine(plan)||profileBoundEvidenceValidated||plan.adapterId==='official-json'&&(!!plan.hotjobLegacy||['eightfold-pcsx','cnstaff'].includes(plan.officialJsonFetch?.kind??'')));
     const onlyQuarantinedLosses = quarantinedJobs && evidence.fetchLosses.every(loss=>loss.details.code==='JOB_QUARANTINED');
     if (evidence.fetchLosses.length > 0 && !onlyQuarantinedLosses && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !rocheScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
@@ -2132,6 +2134,7 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
   if (isServierTraversalPlan(plan)) return replayServierTraversal(plan, evidence) !== undefined;
   if (isBayerMedicalTraversalPlan(plan)) return replayBayerMedicalTraversal(plan, evidence) !== undefined;
   const config = plan.moka!;
+  if(evidence.jobQuarantines?.length&&!jobQuarantineLossesMatch(evidence))return false;
   const listUrl = "https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2";
   const detailUrl = "https://app.mokahr.com/api/outer/ats-apply/website/job";
   const entryArtifacts = evidence.artifacts.filter((artifact) => artifact.logicalKey === "moka-entry-0000");
@@ -2142,7 +2145,7 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
   if (!aesIv) return false;
   const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
   if (artifacts.size !== evidence.artifacts.length) return false;
-  const requiredDetails = new Map<string, string>();
+  const requiredDetails = new Map<string, string>(),heldDetails=new Set<string>();
   for (const page of evidence.pages) {
     const offset = page.sequence * 50;
     const expected = { sequence: page.sequence, requestedCursor: null, requestedOffset: offset,
@@ -2161,8 +2164,10 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
     const data = strictRecord(root?.data);
     if (!root || root.success !== true || !data || !Array.isArray(data.jobs)) return false;
     for (let recordIndex = 0; recordIndex < data.jobs.length; recordIndex += 1) {
-      const record = strictRecord(data.jobs[recordIndex]);
-      const jobId = strictMokaJobId(record);
+      const original=data.jobs[recordIndex],record = strictRecord(original);
+      const jobId = mokaRawJobId(original);
+      const q=mokaQuarantineAt(evidence,original,page.sequence,recordIndex,`${page.artifactLogicalKey}#page-${page.sequence}#record-${recordIndex}#sha256:${createHash('sha256').update(JSON.stringify(original)).digest('hex')}`);
+      if(q){const key=mokaQuarantinedDetailKey(evidence,q,jobId,config);if(key)heldDetails.add(key);continue;}
       if (!record || !jobId || !strictNonblankText(record.title)) continue;
       if (config.requisitionStatusPolicy && record.status !== "open") return false;
       if (config.hydrateMissingLocationsFromDetail && strictMokaCities(record.locations).length === 0) {
@@ -2171,7 +2176,7 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
       }
     }
   }
-  const detailArtifacts = evidence.artifacts.filter((candidate) => candidate.logicalKey.startsWith("moka-detail-"));
+  const detailArtifacts = evidence.artifacts.filter((candidate) => candidate.logicalKey.startsWith("moka-detail-")&&!heldDetails.has(candidate.logicalKey));
   if (detailArtifacts.length !== requiredDetails.size ||
     detailArtifacts.some((artifact) => !requiredDetails.has(artifact.logicalKey))) return false;
   for (const artifact of detailArtifacts) {
