@@ -5,7 +5,7 @@ const sources=Array.from({length:36},(_,i)=>`source-${i}`);
 const recovery={kind:'live',verifiedAt:'2026-10-27T10:00:00Z',checks:{wake:true,interruptedCommit:true,failedSourceKeepsLastGood:true,failedInstallKeepsLastGood:true,webRestart:true}};
 const records=['2026-10-28','2026-10-29','2026-10-30'].flatMap(day=>['00:01','12:01'].map(clock=>({
   slot:String(Date.parse(`${day}T${clock}:00+08:00`)),verifiedAt:new Date(Date.parse(`${day}T${clock}:00+08:00`)+3600_000).toISOString(),
-  kind:'live',trigger:'timer',complete:true,webReadback:true,capturedSourceIds:sources
+  kind:'live',trigger:'timer',complete:true,quarantinedJobCount:0,webReadback:true,capturedSourceIds:sources
 })));
 test('slot boundaries follow Beijing midnight/noon at minute 01',()=>{
   const midnight=Date.parse('2026-10-31T00:01:00+08:00');
@@ -29,7 +29,7 @@ test('real timer attribution survives recovery delay within its original slot',(
 });
 test('missing scope, manual/synthetic runs, failed readback and unverified recovery never lower frequency',()=>{
   const now=Date.parse('2026-10-31T00:01:00+08:00');
-  for(const change of [{capturedSourceIds:sources.slice(1)},{trigger:'manual'},{kind:'synthetic'},{webReadback:false},{complete:false},{verifiedAt:'2026-10-31T00:01:00+08:00'}]) {
+  for(const change of [{capturedSourceIds:sources.slice(1)},{trigger:'manual'},{kind:'synthetic'},{webReadback:false},{complete:false},{quarantinedJobCount:1},{quarantinedJobCount:undefined},{verifiedAt:'2026-10-31T00:01:00+08:00'}]) {
     assert.equal(stableThreeDays([{...records[0],...change},...records.slice(1)],now,sources,recovery),null);
   }
   assert.equal(stableThreeDays(records.slice(1),now,sources,recovery),null);
