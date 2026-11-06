@@ -4,6 +4,7 @@ import {candidateCompanies} from '../src/data/companyRegistry.ts';
 import {buildStagedSourceCrawlPlans} from '../src/crawler/sourcePlan.ts';
 import {acquireNovartisNativePartitions,replayNovartisNativePartitions} from '../src/crawler/novartisNativePartitions.ts';
 import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
+import {legacySortEvidence} from './novartis-legacy-fixture.mjs';
 
 const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-novartis-social');
 const ids=Array.from({length:12},(_,i)=>`REQ-${10000000+i}`);
@@ -21,18 +22,26 @@ async function capture(mode='complete'){
   let html;
   if(req.url===plan.source.officialEntryUrl)html=`<div class="view-header">Showing 11 results</div><select name="functional_area[]"><option value="FCT_RD">Research</option></select><select name="country[]"><option value="LOC_CN" selected>China</option></select><select name="field_job_posted_date"><option value="All" selected>All</option></select>`;
   else if(u.pathname.includes('/job/details/'))html=`<h1>Job ${ids[0]}</h1><article>Job ID ${ids[0]}<p>A current description for this official job.</p>${mode==='ascending-only-unknown'?'':`<a href="https://platform.moseeker.com/m/customize/page/novartis?job_number=${ids[0]}">Apply to Job</a>`}</article>`;
-  else if(field&&!reverse){const rows=p?[ids[0]]:ids.slice(0,10);html=page(req.url,rows,11,p,mode!=='no-native-reverse');}
+  else if(field&&!reverse){const rows=p?[mode==='date-complete'?ids[10]:ids[0]]:ids.slice(0,10);html=page(req.url,rows,11,p,mode!=='no-native-reverse');}
   else {const changedSlug=!field&&mode==='ascending-only-new-slug',values=changedSlug?ids:ordered;const rows=p?(mode==='reverse-changing-total'||changedSlug?ids.slice(10,12):[values[10]]):values.slice(0,10);html=page(req.url,mode==='reverse-overlap'&&p?[ordered[0]]:rows,changedSlug||reverse&&p&&mode==='reverse-changing-total'?12:11,p);if(changedSlug)html=html.replaceAll(`${ids[0].toLowerCase()}-test`,`${ids[0].toLowerCase()}-updated`);}
   if(field&&reverse&&mode==='foreign')html=html.replaceAll('>China</td>','>Japan</td>');
   return {status:field&&reverse&&mode==='blocked'?403:200,body:html,finalUrl:req.url,contentType:'text/html',capturedAt:at};
  });return {fetched,requests};
 }
 
+test('a complete date-ascending list needs no reverse or title traversal',async()=>{
+ const {fetched,requests}=await capture('date-complete');assert(fetched.ok,fetched.failureReason);
+ const partitionRequests=requests.filter(url=>new URL(url).searchParams.has('functional_area[0]'));
+ assert.equal(partitionRequests.length,2);
+ assert(partitionRequests.every(url=>{const u=new URL(url);return u.searchParams.get('order')==='发布日期'&&u.searchParams.get('sort')==='asc';}));
+ const result=await runSourceCrawl(plan,{fetch:async()=>fetched,isBaseline:false});assert.equal(result.truth.completenessVerified,true);assert.equal(result.jobs.length,11);
+});
+
 test('only an advertised, independently complete reverse traversal can replace overlapping pages',async()=>{
  const {fetched,requests}=await capture();assert(fetched.ok,fetched.failureReason);
  const evidence=fetched.fetchEvidence,projected=replayNovartisNativePartitions(plan,evidence);
- assert.equal(evidence.captureTool.version,'7');assert.equal(evidence.fetchCounts.validCount,11);
- const legacy=structuredClone(evidence);legacy.captureTool.version='6';assert.deepEqual(replayNovartisNativePartitions(plan,legacy),projected);
+ assert.equal(evidence.captureTool.version,'8');assert.equal(evidence.fetchCounts.validCount,11);
+ const legacy=legacySortEvidence(evidence,'6','站点');assert.equal(replayNovartisNativePartitions(plan,legacy).counts.validCount,projected.counts.validCount);
  assert.equal(projected.audit.partitions[0].selectedSort,'desc');assert.equal(projected.audit.partitions[0].discardedAscending.unique,10);
  assert.equal(requests.filter(url=>new URL(url).searchParams.get('sort')==='desc').length,2);
  assert(evidence.artifacts.some(a=>a.logicalKey==='novartis-partition-FCT_RD-0'));
@@ -61,7 +70,7 @@ test('ascending-only sightings keep the existing same-ID detail and UNKNOWN path
  }
 });
 
-test('an advertised title traversal can replace two incomplete location traversals without unioning them',async()=>{
+test('an advertised title traversal can replace two incomplete date traversals without unioning them',async()=>{
  for(const mode of ['complete','title-overlap','title-missing-page','no-title-link','foreign-link','title-403','title-429']){
   const at=new Date().toISOString(),requests=[];
   const fetched=await acquireNovartisNativePartitions(plan,async req=>{
@@ -83,7 +92,7 @@ test('an advertised title traversal can replace two incomplete location traversa
    continue;
   }
   assert(fetched.ok,fetched.failureReason);const evidence=fetched.fetchEvidence,projected=replayNovartisNativePartitions(plan,evidence);
-  assert.equal(evidence.captureTool.version,'7');assert.equal(projected.audit.partitions[0].selectedOrder,'职位名称');assert.equal(projected.audit.partitions[0].selectedSort,'asc');assert.equal(projected.audit.partitions[0].discardedLocationReverse.unique,10);
+  assert.equal(evidence.captureTool.version,'8');assert.equal(projected.audit.partitions[0].selectedOrder,'职位名称');assert.equal(projected.audit.partitions[0].selectedSort,'asc');assert.equal(projected.audit.partitions[0].discardedDateReverse.unique,10);
   assert.equal(evidence.pages.filter(p=>p.channelId==='novartis:FCT_RD').length,2);assert(evidence.pages.filter(p=>p.channelId==='novartis:FCT_RD').every(p=>p.artifactLogicalKey.includes('-title-')));
   const result=await runSourceCrawl(plan,{fetch:async()=>fetched,isBaseline:false});assert.equal(result.truth.completenessVerified,true);assert.equal(result.jobs.length,11);
   const legacy=structuredClone(evidence);legacy.captureTool.version='6';assert.throws(()=>replayNovartisNativePartitions(plan,legacy),'Legacy schema cannot accept unproved extra traversals');
