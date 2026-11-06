@@ -149,8 +149,12 @@ export function sanofiChineseLocation(raw:string):{locationRaw:string;cities:str
   });return {locationRaw,cities:[...new Set(cities)]};
 }
 export interface SanofiTitleConflict {chineseTitle:string;nativeTitle:string}
-export interface SanofiChineseNativeResult {titleConflict?:SanofiTitleConflict;state:"PUBLISHING"|"CLOSED";locationRaw?:string;cities?:string[];descriptionAnomaly?:SanofiDescriptionAnomaly;nativePositionId?:string;nativeDescriptionSha256?:string}
-export interface SanofiChineseDecision {titleConflict?:SanofiTitleConflict;id:string;reqId:string;sourceJobId:string;state:string;title:string;officialUrl:string;applyUrl:string;descriptionSha256:string;nativePositionId:string|null;nativeDescriptionSha256:string|null;nativeLocationRaw:string|null;nativeCities:string[]}
+export interface SanofiChineseNativeResult {titleConflict?:SanofiTitleConflict|undefined;state:"PUBLISHING"|"CLOSED";locationRaw?:string;cities?:string[];descriptionAnomaly?:SanofiDescriptionAnomaly;nativePositionId?:string;nativeDescriptionSha256?:string}
+export interface SanofiChineseDecision {titleConflict?:SanofiTitleConflict|undefined;id:string;reqId:string;sourceJobId:string;state:string;title:string;officialUrl:string;applyUrl:string;descriptionSha256:string;nativePositionId:string|null;nativeDescriptionSha256:string|null;nativeLocationRaw:string|null;nativeCities:string[]}
+/** Ordinary cross-capture identity; display content and internal application record IDs can change. */
+export function sanofiChineseDecisionIdentity(d:Pick<SanofiChineseDecision,'id'|'reqId'|'sourceJobId'|'state'|'officialUrl'|'applyUrl'>){
+ return {id:d.id,reqId:d.reqId,sourceJobId:d.sourceJobId,state:d.state,officialUrl:d.officialUrl,applyUrl:d.applyUrl};
+}
 export function sanofiChineseDecision(detail:SanofiChineseDetail,native?:SanofiChineseNativeResult):SanofiChineseDecision {
   return {id:detail.id,reqId:detail.reqId,sourceJobId:sanofiPersistentJobId(detail.reqId),state:native?.state??"OUTSIDE",title:native?.titleConflict?.nativeTitle??detail.title,...(native?.titleConflict?{titleConflict:native.titleConflict}:{}),officialUrl:detail.url,applyUrl:detail.applyUrl,descriptionSha256:sanofiHash(detail.description),
     nativePositionId:native?.nativePositionId??null,nativeDescriptionSha256:native?.nativeDescriptionSha256??null,nativeLocationRaw:native?.locationRaw??null,nativeCities:native?.cities??[]};
@@ -246,7 +250,7 @@ function loadPrimary(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,evid
   requireValue(primary.artifacts.every(a=>Date.parse(a.capturedAt)>=begin&&Date.parse(a.capturedAt)<=begin+30*60_000)&&
     trace!.capturedAt===primary.artifacts.at(-1)!.capturedAt);return primary;
 }
-function project(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,primary:PersistentSourceFetchEvidence,artifacts:SourceFetchArtifactDraft[],isBaseline:boolean){
+function project(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,primary:PersistentSourceFetchEvidence,artifacts:SourceFetchArtifactDraft[],isBaseline:boolean,independentRawIds:ReadonlySet<string>=new Set(),unboundRawIds:ReadonlySet<string>=new Set()){
   const rows=listRows(primary),map=new Map(artifacts.map(a=>[a.logicalKey,a])),start=primary.artifacts[0]!.capturedAt,used=new Set(primary.artifacts.map(a=>a.logicalKey));
   used.add(TRACE);used.add(ANOMALIES);const jobs:NormalizedJobRecord[]=[],losses:PersistentSourceFetchEvidence["fetchLosses"]=[],anomalies:Array<SanofiModuleAnomaly|SanofiDescriptionAnomaly|SanofiHeaderAnomaly>=[],seenReq=new Set<string>(),included=new Set<string>(),closedIds=new Set<string>(),excludedIds=new Set<string>();
   const decisions:SanofiChineseDecision[]=[],quarantines:JobQuarantine[]=[];
@@ -263,6 +267,7 @@ function project(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,primary:
       native=parseSanofiChineseNative(body(t!),detail);if(native.descriptionAnomaly)anomalies.push(native.descriptionAnomaly);if(native.state==="CLOSED"){excluded="SANOFI_CN_NATIVE_CLOSED";reason="Sanofi Chinese native application explicitly closes this requisition";closedIds.add(sanofiPersistentJobId(detail.reqId));}
       else location={locationRaw:native.locationRaw!,cities:native.cities!};
     }
+    if(independentRawIds.has(sanofiRawEvidenceId(row.id)))throw Error('SANOFI_INDEPENDENT_JOB_UNVERIFIED');
     const decision=sanofiChineseDecision(detail,native);decisions.push(decision);
     if(excluded){excludedIds.add(sanofiPersistentJobId(detail.reqId));losses.push({stage:"VALIDATION",reason:reason!,rawLocator:row.rawLocator,details:{code:excluded,pageSequence:row.pageSequence,recordIndex:row.recordIndex},recordedAt:a!.capturedAt});continue;}
     requireValue(location);included.add(row.id);jobs.push({companyId:plan.company.id,sourceId:plan.source.id,sourceKind:"SOCIAL",atsKind:"OFFICIAL_HTML",officialChineseCompanyName:plan.company.officialChineseName,
@@ -270,9 +275,10 @@ function project(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,primary:
       evidence:{officialEntryUrl:SANOFI_CN_ENTRY,officialChainEvidenceUrl:"https://jobs.sanofi.cn/",capturedAt:start}});
     }catch(error){
       if(error instanceof Error&&error.message==='SANOFI_CN_DUPLICATE_REQ')throw error;
+      if(detail){closedIds.delete(sanofiPersistentJobId(detail.reqId));excludedIds.delete(sanofiPersistentJobId(detail.reqId));}
       for(let i=anomalies.length-1;i>=0;i--)if(anomalies[i]!.id===row.id)anomalies.splice(i,1);
       for(let i=decisions.length-1;i>=0;i--)if(decisions[i]!.id===row.id)decisions.splice(i,1);
-      const q:JobQuarantine={pageSequence:row.pageSequence,recordIndex:row.recordIndex,rawLocator:row.rawLocator,validJobId:sanofiRawEvidenceId(row.id),code:'SANOFI_JOB_UNVERIFIED',...(detail?{sourceJobId:sanofiPersistentJobId(detail.reqId),officialUrl:sanitizeEvidenceHttpUrl(detail.applyUrl)}:{})};
+      const q:JobQuarantine={pageSequence:row.pageSequence,recordIndex:row.recordIndex,rawLocator:row.rawLocator,validJobId:sanofiRawEvidenceId(row.id),code:independentRawIds.has(sanofiRawEvidenceId(row.id))?'INDEPENDENT_JOB_UNVERIFIED':'SANOFI_JOB_UNVERIFIED',...(detail&&!unboundRawIds.has(sanofiRawEvidenceId(row.id))?{sourceJobId:sanofiPersistentJobId(detail.reqId),officialUrl:sanitizeEvidenceHttpUrl(detail.applyUrl)}:{})};
       quarantines.push(q);losses.push(jobQuarantineLoss(q,start));
     }
   }
@@ -282,7 +288,7 @@ function project(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,primary:
 }
 export function replaySanofiChineseNative(plan:SourceCrawlPlan,input:PersistentSourceFetchEvidence,isBaseline=true){
   requireValue(exactPlan(plan));const p=plan as Extract<SourceCrawlPlan,{adapterId:"html-table"}>,e=parsePersistentSourceFetchEvidence(input);requireValue(same(e.captureTool,SANOFI_CN_CAPTURE));
-  const primary=loadPrimary(p,e),result=project(p,primary,e.artifacts,isBaseline),anomaly=e.artifacts.find(a=>a.logicalKey===ANOMALIES);
+  const primary=loadPrimary(p,e),result=project(p,primary,e.artifacts,isBaseline,new Set((e.jobQuarantines??[]).filter(q=>q.code==='INDEPENDENT_JOB_UNVERIFIED').map(q=>e.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!)),new Set((e.jobQuarantines??[]).filter(q=>q.code==='INDEPENDENT_JOB_UNVERIFIED'&&!q.sourceJobId&&!q.officialUrl).map(q=>e.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!))),anomaly=e.artifacts.find(a=>a.logicalKey===ANOMALIES);
   const audit=anomaly?parseJson(body(anomaly)):undefined,independentArtifactSha256=audit?.independentArtifactSha256;
   requireValue(independentArtifactSha256===undefined||typeof independentArtifactSha256==="string"&&/^[a-f0-9]{64}$/u.test(independentArtifactSha256));
   requireValue(anomaly?.kind==="ORACLE_RESULT"&&anomaly.bodyRepresentation==="EXACT"&&anomaly.extractorLocator===ANOMALIES&&
@@ -341,4 +347,29 @@ export function createSanofiChineseSourceFetch(deps:SanofiChineseSourceFetchDeps
     } catch(error) {return {ok:false,capturedAt,failureReason:error instanceof Error&&/^SANOFI_CN_[A-Z_]+$/u.test(error.message)?error.message:"SANOFI_CN_NATIVE_CHAIN_INVALID",
       ...(transportFailure?{transportFailure}:{}),...(primary?{fetchEvidence:{...primary,artifacts}}:{}),...(base?.paginationEvaluation?{paginationEvaluation:base.paginationEvaluation}:{})};}
   };
+}
+
+/** Builds the proposed projection; the original publication path replays it before commit. */
+export function projectSanofiIndependentJobs(plan:SourceCrawlPlan,evidence:PersistentSourceFetchEvidence,rawIds:ReadonlySet<string>,unboundRawIds:ReadonlySet<string>,isBaseline:boolean){
+ requireValue(exactPlan(plan));const p=plan as Extract<SourceCrawlPlan,{adapterId:'html-table'}>,primary=loadPrimary(p,evidence);
+ const prior=new Set((evidence.jobQuarantines??[]).map(q=>evidence.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!));
+ const forced=new Set([...(evidence.jobQuarantines??[]).filter(q=>q.code==='INDEPENDENT_JOB_UNVERIFIED').map(q=>evidence.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!),...[...rawIds].filter(id=>!prior.has(id)||unboundRawIds.has(id))]);
+ const unbound=new Set([...unboundRawIds,...(evidence.jobQuarantines??[]).filter(q=>q.code==='INDEPENDENT_JOB_UNVERIFIED'&&!q.sourceJobId&&!q.officialUrl).map(q=>evidence.pages[q.pageSequence]!.rawJobIds[q.recordIndex]!)]);
+ const result=project(p,primary,evidence.artifacts,isBaseline,forced,unbound);
+ if(same(result.quarantines,evidence.jobQuarantines??[]))return {evidence,jobs:result.jobs};
+ const oracle=evidence.artifacts.find(a=>a.logicalKey===ANOMALIES)!,audit=parseJson(body(oracle));
+ const artifacts=evidence.artifacts.map(a=>a===oracle?{...a,body:JSON.stringify({schemaVersion:3,entries:result.anomalies,decisions:result.decisions,...(audit.independentArtifactSha256===undefined?{}:{independentArtifactSha256:audit.independentArtifactSha256})})}:a);
+ return {evidence:parsePersistentSourceFetchEvidence({...evidence,artifacts,pages:result.pages,fetchCounts:result.counts,fetchLosses:result.losses,jobQuarantines:result.quarantines}),jobs:result.jobs};
+}
+
+/** The existing stronger foreign-header proof, shared by isolation and admission. */
+export function assertSanofiForeignHeaderPair(anomaly:SanofiHeaderAnomaly,own:SanofiChineseDecision,foreign:SanofiChineseDecision|undefined,payload:Record<string,unknown>|undefined):void{
+ if(own.reqId!==anomaly.reqId||!foreign||foreign.id===own.id||foreign.reqId===own.reqId||own.state!=='PUBLISHING'||!own.nativePositionId||own.nativeCities.length===0||
+  own.nativeDescriptionSha256!==own.descriptionSha256||own.officialUrl!==anomaly.officialUrl||own.title!==anomaly.title||own.applyUrl!==anomaly.applyUrl||
+  own.descriptionSha256!==anomaly.chineseDescriptionSha256||foreign.reqId!==anomaly.foreignReq||(foreign.titleConflict?.chineseTitle??foreign.title)!==anomaly.foreignTitle||
+  foreign.applyUrl!==anomaly.foreignApplyUrl||foreign.descriptionSha256!==anomaly.foreignDescriptionSha256)throw Error('SANOFI_CN_FOREIGN_HEADER_INDEPENDENT_MISMATCH');
+ const native=payload?.nativeResponse as {body:string;redirect?:unknown}|undefined,detailResponse=payload?.detailResponse as {body:string}|undefined;
+ if(!payload||!native||!detailResponse||native.redirect!=='error')throw Error('SANOFI_CN_FOREIGN_HEADER_INDEPENDENT_NATIVE_UNPROVEN');
+ const detail=parseSanofiChineseDetail(detailResponse.body,payload.domRow as SanofiChineseRow);
+ parseSanofiChineseNative(native.body,{...detail,headerAnomaly:anomaly});
 }

@@ -272,7 +272,8 @@ export function selectPortableSourceSnapshots(
     if (selected) {
       const {receipt, result} = selected;
       try { bindHistoricalObservations(selected, attempts, plan); } catch { integrityHold = true; }
-      const firstSameSchema = accepted.find(entry => entry.receipt.schemaVersion === receipt.schemaVersion || plan.source.id === "source-bayer-healthcare-social" && [entry.receipt.schemaVersion, receipt.schemaVersion].every(schema => schema === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || schema === BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION))!;
+      const firstSameSchema = accepted.find(entry => entry.receipt.schemaVersion === receipt.schemaVersion ||
+        [entry.receipt.schemaVersion, receipt.schemaVersion].every(isCurrentBGradeCertificateSchema))!;
       Object.assign(base, {selected, visibilityFloor: acceptedAt(firstSameSchema), selectedSourceResultId: result.id,
         policyId: receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? A_GRADE_PUBLIC_POLICY : isCurrentBGradeCertificateSchema(receipt.schemaVersion) ? (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION ? B_GRADE_PUBLIC_POLICY : COMPACT_PUBLIC_POLICY) : receipt.policyId!,
         lastAcceptedAt: acceptedAt(selected), lastSuccessAt: observedAt(receipt, result), lastAcceptedJobCount: receipt.counts.finalUniqueJobCount,

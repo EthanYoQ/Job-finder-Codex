@@ -7,6 +7,7 @@ import { getSourceQualityPolicy } from '../web-candidate/src/crawler/sourceQuali
 import { selectPortableSourceSnapshots,verifiedMembers } from '../web-candidate/src/domain/portablePublicSnapshot.ts';
 import {hashCanonicalStringSet} from '../web-candidate/src/crawler/runtimeBatchIdentity.ts';
 import {createHash} from 'node:crypto';
+import {B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION,SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION} from '../web-candidate/src/crawler/traversalCertificate.ts';
 
 const routes = await loadDirectPlans(), reader = buildStagedSourceCrawlPlans(candidateCompanies);
 
@@ -18,6 +19,17 @@ test('all 36 writer source identities and configurations match the packaged read
     assert.equal(sourcePlanConfigSha256(plan), route.sourceConfigSha256, route.sourceId);
     if (route.route === 'PORTABLE') assert.ok(getSourceQualityPolicy(plan), route.sourceId);
   }
+});
+
+test('compact to full native B receipt keeps the prior verified visibility floor',()=>{
+ for(const [sourceId,compact] of [['source-sanofi-china-social',SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION],['source-bayer-healthcare-social',BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION]]){
+  const route=routes.find(r=>r.sourceId===sourceId),plan=reader.find(p=>p.source.id===sourceId),times=['2026-11-06T00:00:00.000Z','2026-11-06T00:10:00.000Z'];
+  const rows=times.map((at,i)=>({id:`result-${i}`,releaseCandidateId:'instabox-synthetic',batchId:`batch-${i}`,sourceId,sourceConfigHash:route.sourceConfigSha256,
+   transportState:'SUCCEEDED',adapterState:'SUCCEEDED',completenessState:'VERIFIED',atomicCommitState:'COMMITTED',startedAt:new Date(at),finishedAt:new Date(at),dedupeOutputCount:1,
+   completenessCertificateSha256:'a'.repeat(64),completenessCertificate:{schemaVersion:i?B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION:compact,counts:{finalUniqueJobCount:1,quarantinedJobCount:i}},observations:[{crawledAt:new Date(at)}],
+   batch:{id:`batch-${i}`,releaseCandidateId:'instabox-synthetic',kind:'SCHEDULED',status:'SUCCESS'}}));
+  const selection=selectPortableSourceSnapshots([plan],rows,{currentTime:new Date(times[1])})[0];assert.equal(selection.state,'PUBLISHING');assert.equal(selection.selectedSourceResultId,'result-1');assert.equal(selection.visibilityFloor,times[0]);
+ }
 });
 
 test('a committed current Merck receipt is selected by the reader; an older configuration is not relabeled', () => {

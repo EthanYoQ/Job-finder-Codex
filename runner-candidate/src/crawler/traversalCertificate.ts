@@ -1,10 +1,11 @@
+import { sanofiChineseDecisionIdentity, assertSanofiForeignHeaderPair } from './sanofiChineseNative';
 import { bindIndependentJobQuarantines, projectIndependentJobQuarantines, INDEPENDENT_JOB_ISOLATION_SOURCES, type IndependentJobQuarantine } from './independentJobQuarantine';
 import { JOB_QUARANTINE_PAGINATION } from './jobQuarantine';
 import { pfizerComparisonTraversal } from "./pfizerRenderedTraversal";
 import { load } from "cheerio";
 import { sanofiPersistentJobId } from "./sanofiLegacyIdentity";
 import { isServierTraversalPlan, replayServierTraversal } from "./servierMokaScope";
-import { sanofiRawEvidenceId, isSanofiChinesePlan, parseSanofiChineseDetail, parseSanofiChineseNative, replaySanofiChineseNative, SANOFI_CN_PAGINATION_POLICY, type SanofiChineseRow } from "./sanofiChineseNative";
+import { sanofiRawEvidenceId, isSanofiChinesePlan, replaySanofiChineseNative, SANOFI_CN_PAGINATION_POLICY, type SanofiChineseRow } from "./sanofiChineseNative";
 import { sanofiChineseIndependentObservedAt, sanofiChineseIndependentFinishedAt,replaySanofiChineseIndependent } from "./sanofiChineseRenderedTraversal";
 import { servierHybridObservedAt, servierHybridFinishedAt } from "./servierMokaRenderedTraversal";
 import { isPfizerWorkdayTraversalPlan, replayPfizerWorkdayTraversal, pfizerMainSourceJobIds, pfizerQuarantinedOfficialIds, PFIZER_PAGINATION_POLICY } from "./pfizerWorkdayTraversal";
@@ -1344,8 +1345,8 @@ export function issueBGradeTraversalCertificate(input: BGradeCertificateCandidat
         const oracle=evidence.artifacts.find(a=>a.logicalKey==="sanofi-cn-module-anomalies-v2");
         if(!oracle) throw new Error("SANOFI_CN_IDENTITY_ORACLE_REQUIRED");
         sanofiIdentityProof={oracleBody:typeof oracle.body==="string"?oracle.body:Buffer.from(oracle.body).toString("utf8")};
-        assertSanofiIdentityReplay(sanofiIdentityProof,independent,validation.pages,validation.artifactSha256,input.sanofiArchive ? evidence : undefined,jobQuarantine?.rawEvidenceIds);
-        if(!jobQuarantine && (canonicalJson(main.anomalies.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY"))!==canonicalJson(independent.descriptionAnomalies)||
+        assertSanofiIdentityReplay(sanofiIdentityProof,independent,validation.pages,validation.artifactSha256,jobQuarantine?.rawEvidenceIds);
+        if(!jobQuarantine && (canonicalJson(orderedSanofiAnomalies(main.anomalies.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY")))!==canonicalJson(orderedSanofiAnomalies(independent.descriptionAnomalies))||
           canonicalJson(mainRawMatchKeys)!==canonicalJson(replay.rawSourceJobIds)||
           canonicalJson(mainExcludedMatchKeys)!==canonicalJson(replay.excludedSourceJobIds))) blockers.add("INDEPENDENT_JOB_SET_MISMATCH");
       }catch{blockers.add("INDEPENDENT_JOB_SET_MISMATCH");}
@@ -1661,59 +1662,34 @@ function verifyCompactCertificate(input: {
   return {status:"PASS",grade:"B",sourceId:c.binding.sourceId,companyId:c.scope.companyId,certificateSha256:input.certificateSha256,finalUniqueJobCount:included.length};
 }
 
+function orderedSanofiAnomalies<T extends {id:string}>(rows:readonly T[]):T[]{return [...rows].sort((a,b)=>compareUtf8(a.id,b.id));}
+
 function assertSanofiIdentityReplay(
   proof: z.infer<typeof sanofiIdentityProofSchema>,
   independent: ReturnType<typeof replaySanofiChineseIndependent>,
   pages: Parameters<typeof replaySanofiChineseIndependent>[0],
   independentArtifactSha256: string,
-  mainEvidence?: PersistentSourceFetchEvidence,
   quarantinedRawIds:readonly string[]=[]
 ): z.infer<typeof sanofiIdentityOracleSchema> {
   if (!hasUniqueJsonObjectKeys(proof.oracleBody)) throw new Error("SANOFI_CN_IDENTITY_ORACLE_INVALID");
   const oracle=sanofiIdentityOracleSchema.parse(JSON.parse(proof.oracleBody));
   const held=new Set(quarantinedRawIds),heldIds=new Set(pages.flatMap(p=>p.rawRows).filter(r=>held.has(r.rawEvidenceId)).map(r=>(r.rawPayload.domRow as SanofiChineseRow).id));
   const comparableIndependent={decisions:independent.decisions.filter(d=>!heldIds.has(d.id)),descriptionAnomalies:independent.descriptionAnomalies.filter(a=>!heldIds.has(a.id))};
-  // Internal application records may change; the official sourcePid identifies the same ordinary job.
-  const comparableDecisions=oracle.decisions.map((decision,index)=>{
-    const other=comparableIndependent.decisions[index];
-    if(!mainEvidence||!other||decision.nativePositionId===other.nativePositionId||decision.state!=="PUBLISHING"||
-      !decision.nativePositionId||!other.nativePositionId||oracle.entries.some(a=>a.id===decision.id))return decision;
-    const artifact=mainEvidence.artifacts.find(a=>a.logicalKey===`sanofi-cn-tupu-${decision.reqId}`);
-    const native=pages.flatMap(p=>p.rawRows).find(r=>(r.rawPayload.domRow as SanofiChineseRow).id===decision.id)?.rawPayload.nativeResponse as {body:string}|undefined;
-    if(!artifact||!native)return decision;
-    const mainBody=typeof artifact.body==="string"?artifact.body:Buffer.from(artifact.body).toString("utf8");
-    const own=load(mainBody)("#sourcePid"),peer=load(native.body)("#sourcePid"),sourcePid=own.attr("value");
-    const pageIds=(body:string)=>[...body.matchAll(/\bvar\s+prevPositionId\s*=\s*["']([a-f0-9]{24})["']\s*;/gu)].map(m=>m[1]);
-    if(own.length!==1||peer.length!==1||!/^\d+$/u.test(sourcePid??"")||sourcePid!==peer.attr("value")||
-      canonicalJson(pageIds(mainBody))!==canonicalJson([decision.nativePositionId])||
-      canonicalJson(pageIds(native.body))!==canonicalJson([other.nativePositionId]))return decision;
-    return {...decision,nativePositionId:other.nativePositionId};
-  });
-  if(canonicalJson(comparableDecisions)!==canonicalJson(comparableIndependent.decisions) ||
-    canonicalJson(oracle.entries.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY"))!==canonicalJson(comparableIndependent.descriptionAnomalies))
+  const anomalous=new Set(oracle.entries.map(a=>a.id));
+  const comparable=(decision:Parameters<typeof sanofiChineseDecisionIdentity>[0])=>anomalous.has(decision.id)?decision:sanofiChineseDecisionIdentity(decision);
+  const main=oracle.decisions.map(comparable),peer=comparableIndependent.decisions.map(comparable);
+  if(new Set(main.map(d=>d.id)).size!==main.length||new Set(peer.map(d=>d.id)).size!==peer.length||
+    canonicalJson(main)!==canonicalJson(peer)||
+    canonicalJson(orderedSanofiAnomalies(oracle.entries.filter(a=>a.code==="SANOFI_CN_REPLACEMENT_CHARACTER_NATIVE_AUTHORITY")))!==canonicalJson(orderedSanofiAnomalies(comparableIndependent.descriptionAnomalies)))
     throw new Error("SANOFI_CN_INDEPENDENT_IDENTITY_MISMATCH");
   const byId=new Map(independent.decisions.map(d=>[d.id,d])),headers=new Set<string>();
   for(const anomaly of oracle.entries){
     const own=byId.get(anomaly.id);
     if(!own || own.reqId!==anomaly.reqId) throw new Error("SANOFI_CN_ANOMALY_IDENTITY_MISMATCH");
     if(anomaly.code!=="SANOFI_CN_FOREIGN_HEADER_NATIVE_AUTHORITY") continue;
-    const foreign=byId.get(anomaly.foreignId);
-    if(headers.has(anomaly.id) || !foreign || foreign.id===own.id || foreign.reqId===own.reqId ||
-      own.state!=="PUBLISHING" || !own.nativePositionId || own.nativeCities.length===0 ||
-      own.nativeDescriptionSha256!==own.descriptionSha256 ||
-      own.officialUrl!==anomaly.officialUrl || own.title!==anomaly.title || own.applyUrl!==anomaly.applyUrl ||
-      own.descriptionSha256!==anomaly.chineseDescriptionSha256 ||
-      foreign.reqId!==anomaly.foreignReq || (foreign.titleConflict?.chineseTitle??foreign.title)!==anomaly.foreignTitle ||
-      foreign.applyUrl!==anomaly.foreignApplyUrl || foreign.descriptionSha256!==anomaly.foreignDescriptionSha256)
-      throw new Error("SANOFI_CN_FOREIGN_HEADER_INDEPENDENT_MISMATCH");
-    // The fallback requires a stronger native identity than the ordinary
-    // parser's reviewed alias/tombstone rules. Recheck only this original pair.
+    if(headers.has(anomaly.id))throw Error('SANOFI_CN_FOREIGN_HEADER_INDEPENDENT_MISMATCH');
     const payload=pages.flatMap(p=>p.rawRows).find(r=>(r.rawPayload.domRow as SanofiChineseRow).id===anomaly.id)?.rawPayload;
-    const native=payload?.nativeResponse as {body:string;redirect?:unknown}|undefined;
-    const detailResponse=payload?.detailResponse as {body:string}|undefined;
-    if(!payload || !native || !detailResponse || native.redirect!=="error") throw new Error("SANOFI_CN_FOREIGN_HEADER_INDEPENDENT_NATIVE_UNPROVEN");
-    const detail=parseSanofiChineseDetail(detailResponse.body,payload.domRow as SanofiChineseRow);
-    parseSanofiChineseNative(native.body,{...detail,headerAnomaly:anomaly});
+    assertSanofiForeignHeaderPair(anomaly,own,byId.get(anomaly.foreignId),payload);
     headers.add(anomaly.id);
   }
   if(headers.size>0 && oracle.independentArtifactSha256!==independentArtifactSha256)
@@ -1806,7 +1782,7 @@ function assertCertificateValidationSetEquations(certificate: FullBGradeTraversa
         replay.matchKeys.length !== certificate.counts.finalUniqueJobCount ||
         canonicalStringSetSha256(replay.matchKeys) !== certificate.mainTraversal.canonicalMatchKeySetSha256))
       throw Error("Independent quarantined publication set does not reconcile");
-    const sanofiOracle=sanofiReplay ? assertSanofiIdentityReplay(certificate.mainTraversal.sanofiIdentityProof!,sanofiReplay,certificate.independentValidation.pages,certificate.independentValidation.artifactSha256,undefined,jobQuarantine?.rawEvidenceIds) : undefined;
+    const sanofiOracle=sanofiReplay ? assertSanofiIdentityReplay(certificate.mainTraversal.sanofiIdentityProof!,sanofiReplay,certificate.independentValidation.pages,certificate.independentValidation.artifactSha256,jobQuarantine?.rawEvidenceIds) : undefined;
     const boehringerRenderedOutputOnly = certificate.binding.sourceId ===
       "source-boehringer-ingelheim-china-social";
     if ((boehringerRenderedOutputOnly

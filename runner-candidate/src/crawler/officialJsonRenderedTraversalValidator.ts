@@ -186,7 +186,7 @@ export async function captureOfficialJsonRenderedTraversal(
     const dom = await captureLocalHybridDom(input.sourceId, input.signal);
     if (dom.schemaVersion === "sanofi-cn-cua-dom-list-v1") {
       const { captureSanofiChineseIndependent } = await import("./sanofiChineseRenderedTraversal");
-      return captureSanofiChineseIndependent({ dom });
+      return captureSanofiChineseIndependent({ dom,...(input.signal?{signal:input.signal}:{}) });
     }
     if (dom.schemaVersion === "bayer-cua-dom-list-v1") {
       const { captureBayerIndependentDetails } = await import("./bayerMokaRenderedTraversal");
