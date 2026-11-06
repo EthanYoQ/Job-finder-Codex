@@ -372,8 +372,8 @@ export function issueAGradeOfficialTotalCertificate(
       normalizationDiscardCount: 0
     },
     legalDedupeLedger: ledger.collisionGroups,
-    legalScopeExclusionLedger,
-    jobQuarantineLedger,
+    legalScopeExclusionLedger: legalScopeExclusionLedger ?? [],
+    ...(jobQuarantineLedger ? {jobQuarantineLedger} : {}),
     pagination: {
       pageCount: evidence.pages.length,
       paginationTraceSha256: independentlyEvaluated.paginationTraceSha256,

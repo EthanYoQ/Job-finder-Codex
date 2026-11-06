@@ -40,3 +40,27 @@ test('JNJ: bad list fields or individual native detail failures preserve old job
   }
  }
 });
+
+import {memoryDb} from './memory-db.mjs';
+import {identityForSource} from '../scripts/direct-round.ts';
+import {withPortableCrawlLease} from '../src/crawler/portableCrawlLease.ts';
+import {runP0CrawlBatch} from '../src/crawler/runCrawlBatch.ts';
+import {verifyAGradeCompletenessCertificateReceipt} from '../src/crawler/completenessCertificate.ts';
+
+test('JNJ native DOM atomic admission accepts good and isolated jobs with a persistable certificate',async()=>{
+ const plan=(await loadDirectPlans()).find(p=>p.sourceId==='source-johnson-innovative-medicine-social').plan;
+ const workspaceRoot=await mkdtemp(join(tmpdir(),'jnj-atomic-isolation-'));
+ try{for(const mode of ['good','bad-title','missing-detail','unbound']){
+  const memory=memoryDb(),candidate={id:`synthetic-jnj-${mode}`,commitSha:'a'.repeat(40),rosterHash:'b'.repeat(64),sourcePlanHash:'c'.repeat(64),sourceConfigHash:'d'.repeat(64),adapterBundleHash:'e'.repeat(64)};
+  const fetch=async(...args)=>{const input=fixture(3),stamp=new Date().toISOString();input.list.observedAt=stamp;for(const detail of input.details)detail.observedAt=stamp;
+   if(mode==='bad-title'){const $=load(input.list.fragment.html);$('[data-id="r-000002"] a').text('');input.list.fragment.html=$.html($('#js-job-search-results')[0]);input.list.fragment.items[1].links[0].title='';}
+   if(mode==='missing-detail')input.details.splice(1,1);
+   if(mode==='unbound'){const $=load(input.list.fragment.html);$('[data-id="r-000002"]').replaceWith('<li class="PageList-items-item card-job">Broken</li>');input.list.fragment.html=$.html($('#js-job-search-results')[0]);input.list.fragment.items[1]={text:'Broken',links:[]};input.details.splice(1,1);}
+   input.list.fragment.htmlLength=input.list.fragment.html.length;for(const detail of input.details)detail.body.htmlLength=detail.body.html.length;
+   return createJnjCareersDomSourceFetch({lists:[JSON.stringify(input.list)],details:input.details.map(d=>JSON.stringify(d))})(...args);
+  };
+  const result=await withPortableCrawlLease(memory.db,lease=>runP0CrawlBatch([plan],{db:memory.db,identity:identityForSource(candidate,plan.source.id),now:()=>new Date(),publicationPolicy:'SOURCE_ATOMIC_LAST_GOOD_V1',portableLease:lease,workspaceRoot,fetch,getPreviousJobs:async()=>[],getRecentObservations:async()=>[],isBaselineCompleted:async()=>false,getTrustedCompletenessBaseline:async()=>null,getFirstAcceptedCurrentPolicyReceipt:async()=>null}));
+  const row=memory.rows[0];assert.equal(result.status,'SUCCESS',`${mode}: ${JSON.stringify(row)}`);assert.equal(row.atomicCommitState,'COMMITTED');assert.equal(row.dedupeOutputCount,mode==='good'?3:2);
+  assert.equal(verifyAGradeCompletenessCertificateReceipt({certificate:JSON.parse(JSON.stringify(row.completenessCertificate)),certificateSha256:row.completenessCertificateSha256,expected:{releaseCandidateId:candidate.id,batchId:result.batchId,sourceResultId:row.id,sourceId:plan.source.id,sourceConfigSha256:row.sourceConfigHash}}).status,'PASS');
+ }}finally{await rm(workspaceRoot,{recursive:true,force:true});}
+});
