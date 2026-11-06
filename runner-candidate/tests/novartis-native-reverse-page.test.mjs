@@ -41,7 +41,8 @@ test('only an advertised, independently complete reverse traversal can replace o
  for(const mutate of [e=>{e.artifacts=e.artifacts.filter(a=>a.logicalKey!=='novartis-partition-FCT_RD-0')},e=>{delete e.artifacts.find(a=>a.logicalKey==='novartis-partition-FCT_RD-0').channelId},e=>{e.captureTool.version='5'},e=>{e.artifacts.find(a=>a.logicalKey==='novartis-partition-FCT_RD-reverse-0').finalUrl='https://www.novartis.com.cn/careers/career-search?country[]=LOC_JP'}]){
   const changed=structuredClone(evidence);mutate(changed);assert.throws(()=>replayNovartisNativePartitions(plan,changed));
  }
- for(const mode of ['no-native-reverse','reverse-overlap','reverse-changing-total','foreign','blocked']){
+ const foreign=await capture('foreign');assert(foreign.fetched.ok);assert.equal(foreign.fetched.fetchEvidence.fetchCounts.validCount,0);assert.equal(foreign.fetched.fetchEvidence.jobQuarantines.length,11);
+ for(const mode of ['no-native-reverse','reverse-overlap','reverse-changing-total','blocked']){
   const bad=await capture(mode);assert.equal(bad.fetched.ok,false,mode);
   if(mode==='no-native-reverse')assert(!bad.requests.some(url=>new URL(url).searchParams.get('sort')==='desc'));
  }

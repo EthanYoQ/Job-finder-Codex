@@ -1,5 +1,5 @@
 import { acquireNovartisNativePartitions } from "./novartisNativePartitions";
-import {isolateHtmlJobRows} from './htmlJobQuarantine';
+import {isolateHtmlJobRows,htmlRowObservationId} from './htmlJobQuarantine';
 import {isSanofiChinesePlan,createSanofiChineseSourceFetch} from "./sanofiChineseNative";
 import { projectKelunMainlandFetch } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,createSanofiNativeSourceFetch} from "./sanofiNativeQuality";
@@ -888,10 +888,8 @@ function attachHtmlEvidence(
     const seenRawRows = new Set<string>();
     const validIds: string[] = [];
     const ids = selectHtmlTableRows($, table).map((row, index) => {
-      const raw = $.html(row);
-      const rawHash = sha256Bytes(Buffer.from(raw, "utf8")).sha256;
-      const observationId = `html-row:sha256:${rawHash}`;
-      if (seenRawRows.has(rawHash)) {
+      const observationId = htmlRowObservationId($,row,table,pages.length,index);
+      if (seenRawRows.has(observationId)) {
         validationDiscardCount += 1;
         fetchLosses.push({
           stage: "VALIDATION", reason: "duplicate exact raw HTML row",
@@ -899,7 +897,7 @@ function attachHtmlEvidence(
           details: { code: "DUPLICATE_RAW_ROW", pageSequence: pages.length, recordIndex: index }
         });
       } else {
-        seenRawRows.add(rawHash);
+        seenRawRows.add(observationId);
         validIds.push(observationId);
       }
       return observationId;

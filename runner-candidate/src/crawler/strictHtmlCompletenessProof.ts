@@ -1,3 +1,4 @@
+import {htmlRowObservationId} from "./htmlJobQuarantine";
 import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { jobQuarantineLossesMatch, restoreQuarantinedList, type JobQuarantine } from './jobQuarantine';
 import { replayKelunMainlandScope } from "./kelunMainlandScope";
@@ -609,9 +610,7 @@ function replayPageRowsAllowingOverlap(
   page: SourceFetchPageTrace
 ): boolean {
   const $ = load(html);
-  const ids = selectHtmlTableRows($, table).map((row) =>
-    `html-row:sha256:${sha256Bytes(Buffer.from($.html(row), "utf8")).sha256}`
-  );
+  const ids = selectHtmlTableRows($, table).map((row,index) => htmlRowObservationId($,row,table,page.sequence,index));
   return new Set(ids).size === ids.length &&
     JSON.stringify(ids) === JSON.stringify(page.rawJobIds) &&
     JSON.stringify(ids) === JSON.stringify(page.validJobIds);
@@ -1175,10 +1174,7 @@ function replayRows(
   globalSeen: Set<string>
 ): boolean {
   const $ = load(html);
-  const ids = selectHtmlTableRows($, table).map((row) => {
-    const raw = $.html(row);
-    return `html-row:sha256:${sha256Bytes(Buffer.from(raw, "utf8")).sha256}`;
-  });
+  const ids = selectHtmlTableRows($, table).map((row,index) => htmlRowObservationId($,row,table,page.sequence,index));
   if (new Set(ids).size !== ids.length || ids.some((id) => globalSeen.has(id)) ||
     JSON.stringify(ids) !== JSON.stringify(page.rawJobIds) ||
     JSON.stringify(ids) !== JSON.stringify(page.validJobIds)) return false;

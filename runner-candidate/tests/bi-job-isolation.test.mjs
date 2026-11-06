@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {candidateCompanies} from '../src/data/companyRegistry.ts';
 import {buildStagedSourceCrawlPlans} from '../src/crawler/sourcePlan.ts';
 import {replayBiArchivedSourceFetch} from '../src/crawler/officialJsonSourceFetch.ts';
+import {withLocalOfficialDom} from '../src/crawler/localOfficialSourceFetch.ts';
 import {runSourceCrawl,replayStrictSourceQualityEvidence} from '../src/crawler/runSourceCrawl.ts';
 import {biJobQuarantine,biRawObservationId} from '../src/crawler/biSemanticCompleteness.ts';
 import {replayBiUiSemanticContract,BI_API_URL,BI_SCRIPT_URL} from '../src/crawler/biUiSemanticContract.ts';
@@ -28,7 +29,11 @@ test('BI: full archived API replay updates good jobs while quarantining damaged 
    {id:'51job-page-0001',logicalKey:'51job-page-0001',kind:'ATS_API_RESPONSE',requestedUrl:BI_API_URL,finalUrl:BI_API_URL,httpStatus:200,contentType:'application/javascript',capturedAt:at,body,extractorLocator:locator}];
   const fetched=replayBiArchivedSourceFetch(plan,artifacts,at);
   if(['duplicate','missing-list'].includes(mode)){assert.equal(fetched.ok,false,mode);continue;}
-  const result=await runSourceCrawl(plan,{fetch:async()=>fetched,isBaseline:false});
+  const now=new Date().toISOString(),dom={source_url:plan.source.officialEntryUrl,captured_at:now,jobs:rows.flatMap(raw=>raw&&raw.jobid?[{jobId:raw.jobid,href:`/BI/recruit_article_detail3.html?jobId=${raw.jobid}`,visible:true,title:raw.jobname,location:raw.jobareaname}]:[])};
+  // The native UI may omit an unidentified damaged row; it must still contain every verified ID.
+  if(mode==='two-invalid-ids')dom.jobs=dom.jobs.filter(r=>r.jobId!=='broken');
+  const fetch=withLocalOfficialDom(async()=>fetched,async()=>({dom}));
+  const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
   assert.equal(result.truth.completenessVerified,true,`${mode}: ${JSON.stringify(result.observation)}`);
   assert.equal(result.jobs.length,['title','foreign'].includes(mode)?1:2,mode);
   if(mode!=='good'){

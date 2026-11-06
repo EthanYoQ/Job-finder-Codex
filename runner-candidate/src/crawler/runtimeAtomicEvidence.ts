@@ -574,8 +574,8 @@ export function buildAtomicRuntimeCommit(input: {
       for(const old of input.previousJobs)if(ids.has(old.record.sourceJobId??""))unknownKeys.add(old.dedupeKey);
     }
     if(hasNovartisPartitionEvidence(evidence)){
-      const urls=replayNovartisNativePartitions(plan,evidence).unknownUrls;
-      for(const old of input.previousJobs)if(urls.has(old.record.officialUrl))unknownKeys.add(old.dedupeKey);
+      const pending=replayNovartisNativePartitions(plan,evidence);
+      for(const old of input.previousJobs)if(pending.unknownUrls.has(old.record.officialUrl)||pending.unboundUnknown&&!currentKeys.includes(old.dedupeKey))unknownKeys.add(old.dedupeKey);
     }
     if(plan.source.id==="source-roche-china-social"){
       const ids=rocheQuarantinedSourceJobIds(evidence);

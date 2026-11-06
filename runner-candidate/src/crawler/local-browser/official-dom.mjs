@@ -56,7 +56,6 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
       if (dom.source_url !== entry) throw Error('BI_DOM_SOURCE_IDENTITY');
       dom.jobs = rows.map(row => {
         const jobId = /(?:^\?|&)jobId=([^&]*)/.exec(row.search)?.[1];
-        if (row.origin !== 'https://campus.51job.com' || row.pathname !== '/BI/recruit_article_detail3.html' || !/^\d+$/.test(jobId ?? '') || !row.visible) throw Error('BI_DOM_JOB_IDENTITY');
         return { jobId, title: row.cells[1], job_number: row.cells[2], location: row.cells[3], published_at: row.cells[4], href: row.href, visible: row.visible };
       });
       if (new Set(dom.jobs.map(row => row.jobId)).size !== dom.jobs.length) throw Error('BI_DOM_DUPLICATE');

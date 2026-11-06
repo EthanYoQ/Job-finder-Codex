@@ -1,5 +1,8 @@
 import {isDeepStrictEqual} from 'node:util';
 import {load} from 'cheerio';
+import {createHash} from 'node:crypto';
+import type {AnyNode} from 'domhandler';
+import type {HtmlTableConfig} from './adapters/types';
 import {htmlTableAdapter,readField} from './adapters/htmlTable';
 import {containsSensitiveAdapterValue,isSafeAdapterUrl} from './adapters/safeAdapterValue';
 import {reconcileAdapterRows} from './adapters/reconciliation';
@@ -10,6 +13,14 @@ import {sanitizeEvidenceHttpUrl,type PersistentSourceFetchEvidence} from './sour
 import type {SourceCrawlPlan} from './sourcePlan';
 import type {SourceFetchResult} from './runSourceCrawl';
 import type {NormalizedJobRecord} from './normalizedJob';
+
+/** A damaged row without an identity is an observation at a physical position. */
+export function htmlRowObservationId($:ReturnType<typeof load>,row:AnyNode,table:HtmlTableConfig,pageSequence:number,recordIndex:number):string{
+ const fields=table.fields;
+ const known=fields.sourceJobId?readField($,row,fields.sourceJobId):fields.sourceJobIdParts?fields.sourceJobIdParts.every(field=>readField($,row,field)):readField($,row,fields.officialUrl);
+ const raw=$.html(row),value=known?raw:JSON.stringify([pageSequence,recordIndex,raw]);
+ return `html-row:sha256:${createHash('sha256').update(value).digest('hex')}`;
+}
 
 /** These list-only producers use the same HTML adapter in capture and replay.
  * Detail/PDF/partition producers keep their owning source-specific projections. */

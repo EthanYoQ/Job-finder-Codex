@@ -1,5 +1,6 @@
 import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
 import { load } from "cheerio";
+import {htmlRowObservationId} from "./htmlJobQuarantine";
 import {isDeepStrictEqual} from "node:util";
 import {jobQuarantineLoss,jobQuarantineLossesMatch,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from "./jobQuarantine";
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from "./sourcePlan";
@@ -85,7 +86,7 @@ export function inspectKelunScopeRows(plan: SourceCrawlPlan, evidence: Persisten
       const decision = !validIdentity||location.length!==1||!clean(link.text())||visible && visible !== full && !clipped ? "UNKNOWN" : classifyKelunLocation(locationRaw);
       return { pageSequence: page.sequence, recordIndex, artifactLogicalKey: artifact.logicalKey,
         sourceJobId: validIdentity?match[1]!:"", officialUrl: validIdentity?url!.toString():"", title: clean(link.text()), locationRaw,
-        rawHtml, rawId: `html-row:sha256:${sha256Bytes(Buffer.from(rawHtml)).sha256}`, decision };
+        rawHtml, rawId: htmlRowObservationId($,element,(plan as Extract<SourceCrawlPlan,{adapterId:"html-table"}>).table,page.sequence,recordIndex), decision };
     });
     if (JSON.stringify(pageRows.map(row => row.rawId)) !== JSON.stringify(page.rawJobIds)) throw Error("KELUN_SCOPE_RAW_ROWS_MISMATCH");
     rows.push(...pageRows);
