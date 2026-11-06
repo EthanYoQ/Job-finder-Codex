@@ -90,6 +90,13 @@ function optionalDetail(plan:SourceCrawlPlan,row:ReturnType<typeof rows>[number]
   try{
     const data=json(artifact.body).Data as Record<string,unknown>|undefined;
     if(artifact.httpStatus===200&&data?.Id===row.Id&&(typeof data.Kind==='string'&&/(?:校园|校招|campus)/iu.test(data.Kind)||data.Category!==undefined&&data.Category!=='社会招聘'||data.CategoryId!==undefined&&data.CategoryId!=='1'||data.Status!==undefined&&data.Status!==1))return {quarantine:true};
+    if(artifact.httpStatus===200&&data?.Id===row.Id){
+      const country=data.Country??data.CountryName,locations=data.LocNames;
+      if(typeof country==='string'||Array.isArray(locations)&&locations.length>0&&locations.every(v=>typeof v==='string'&&v.trim())){
+        const parts=Array.isArray(locations)&&locations.every(v=>typeof v==='string')?locations as string[]:row.LocNames;
+        if(beisenDomesticRecordScopeReview(typeof country==='string'?country:undefined,parts,parts.join(' / '),'DOMESTIC_OFFICIAL_TENANT').scope!=='CHINA')return {quarantine:true};
+      }
+    }
     const date=verifyDetail(plan,row,artifact,capturedAt);
     return {quarantine:false,...(date?{date}:{})};
   }catch{return {quarantine:false};}
