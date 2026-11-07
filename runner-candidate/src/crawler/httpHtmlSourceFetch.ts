@@ -34,6 +34,7 @@ export interface HttpHtmlRequest {
   headers: Record<string, string>;
   body?: string;
   evidenceChannelId?: string;
+  captureCacheDiagnostics?: true;
   /** Explicitly prohibit redirects for a narrowly bound authority request. */
   redirect?: "error";
 }
@@ -44,6 +45,14 @@ export interface HttpHtmlResponse {
   finalUrl?: string;
   contentType?: string;
   capturedAt?: string;
+  cacheDiagnostics?: HtmlCacheDiagnostics;
+}
+
+interface HtmlCacheDiagnostics {
+  ageSeconds?: number;
+  cacheStatus?: string[];
+  drupalCache?: string;
+  drupalDynamicCache?: string;
 }
 
 export type HttpHtmlClient = (request: HttpHtmlRequest) => Promise<HttpHtmlResponse>;
@@ -820,8 +829,30 @@ async function fetchHtml(request: HttpHtmlRequest): Promise<HttpHtmlResponse> {
     body,
     finalUrl: response.url,
     contentType: response.headers.get("content-type") ?? "application/octet-stream",
-    capturedAt: new Date().toISOString()
+    capturedAt: new Date().toISOString(),
+    ...(request.captureCacheDiagnostics ? { cacheDiagnostics: readCacheDiagnostics(response.headers) } : {})
   };
+}
+
+function readCacheDiagnostics(headers: Headers): HtmlCacheDiagnostics {
+  const diagnostics: HtmlCacheDiagnostics = {};
+  const age = headers.get("age");
+  if (age && /^\d+$/u.test(age) && Number.isSafeInteger(Number(age))) diagnostics.ageSeconds = Number(age);
+
+  const status = headers.get("cache-status");
+  if (status) {
+    // Discard quoted values before reading standard parameters. Cache keys and
+    // implementation details may contain private data.
+    diagnostics.cacheStatus = status.replace(/"(?:\\.|[^"\\])*"/gu, '""').split(",").map(member => {
+      const match = /;\s*(hit(?:=\?1)?|fwd=(?:bypass|method|uri-miss|vary-miss|miss|request|stale|partial))\s*(?=;|$)/u.exec(member);
+      return match?.[1] ?? "unclassified";
+    });
+  }
+  const drupal = headers.get("x-drupal-cache");
+  const dynamic = headers.get("x-drupal-dynamic-cache");
+  if (drupal && /^(?:HIT|MISS|UNCACHEABLE)$/u.test(drupal)) diagnostics.drupalCache = drupal;
+  if (dynamic && /^(?:HIT|MISS|UNCACHEABLE)$/u.test(dynamic)) diagnostics.drupalDynamicCache = dynamic;
+  return diagnostics;
 }
 
 function attachHtmlEvidence(
