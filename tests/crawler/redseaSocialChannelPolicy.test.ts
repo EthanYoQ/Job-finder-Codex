@@ -143,12 +143,12 @@ describe("Redsea social channel policy", () => {
     });
   });
 
-  it("passes the independent crawl truth gate only for the canonical staged social plan", async () => {
+  it.each([{}, { hasNext: 0 }])("verifies the staged social plan with terminal fields %j", async (signal) => {
     const staged = getPlanBySourceId(buildStagedSourceCrawlPlans(candidateCompanies), "source-cspc-social");
     if (!staged) throw new Error("Expected staged CSPC plan");
     const fetched = await createOfficialJsonSourceFetch({
       now: () => new Date(NOW),
-      http: client([])
+      http: client([], signal)
     })(staged);
     const result = await runSourceCrawl(staged, { fetch: async () => fetched });
     expect(result).toMatchObject({
