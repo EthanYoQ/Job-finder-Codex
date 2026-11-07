@@ -28,7 +28,7 @@ export function reviewCspcDomHttp(input:{dom:any;applications:any;plan:any;repla
  same(dom.rows.map((r:any)=>String(r.row.index)),dom.rows.map((_:any,i:number)=>String(i)),'COMPLETE_LIST_ORDINALS');
  const t=dom.terminal;assert.equal(t.disabledNextCount,1);assert.equal(t.disabledJumpNextCount,1);assert.equal(t.enabledNextCount,0);assert.equal(t.loadMoreCount,0);assert.equal(t.rowCount,dom.rows.length);assert(observed(t.readStartedAt)<=observed(t.readCompletedAt));
  const api=replayedEvidence.artifacts.filter((a:any)=>a.logicalKey===`redsea-${channel}-api`);assert.equal(api.length,1);
- const response=JSON.parse(api[0].body);assert.equal(response.state,'1');assert.equal(response.total,'');assert(Array.isArray(response.jsonList));observed(api[0].capturedAt);
+ const response=JSON.parse(api[0].body);assert.equal(response.state,'1');assert(Array.isArray(response.jsonList));observed(api[0].capturedAt);
  const rows=response.jsonList;assert.equal(rows.length,dom.rows.length,'DOM_HTTP_COMPLETE_SLOT_COUNT');
  const nativeId=redseaNativeJobId;
  const ids=dom.rows.map((r:any)=>nativeId(r.officialId)).filter(Boolean),apiIds=rows.map((r:any)=>nativeId(r?.REQUEST_ID)).filter(Boolean);

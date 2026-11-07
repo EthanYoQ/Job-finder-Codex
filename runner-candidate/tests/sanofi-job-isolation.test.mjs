@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
 import {loadDirectPlans} from '../scripts/direct-round.ts';
 import {createSanofiChineseSourceFetch,SANOFI_CN_ENTRY,replaySanofiChineseNative} from '../src/crawler/sanofiChineseNative.ts';
 import {captureSanofiChineseIndependent} from '../src/crawler/sanofiChineseRenderedTraversal.ts';
@@ -16,13 +17,14 @@ const at='2026-11-06T04:00:00.000Z',title=n=>`中文岗位${n}`,url=n=>new URL(`
 const detail=n=>`<meta name="job-ats-req-id" content="${req(n)}"><script type="application/ld+json">${JSON.stringify({'@type':'JobPosting',identifier:{value:req(n)},title:title(n),url:url(n),hiringOrganization:{name:'General Medicines'},description:'中文职责和要求',jobLocation:[{address:{addressCountry:'China'}}]})}</script><main id="content"><div class="job-description section7-title"><h1>${title(n)}</h1><a data-job-id="${100+n}" data-selector-name="job-apply-link" href="${apply(n)}">立即申请</a></div><div class="job-description section7-details" data-job-id="${100+n}"><div class="ats-description">中文职责和要求</div><a data-job-id="${100+n}" data-selector-name="job-apply-link" href="${apply(n)}">立即申请</a></div></main>`;
 const native=n=>`<meta name="description" content="赛诺菲（中国）投资有限公司上海分公司"><input id="positionStatus" value="PUBLISHING"><input id="positionName" value="${title(n)}"><input id="positionId" value="${String(n).padStart(24,'0')}"><input id="recruitmentType" value="SOCIALRECRUITMENT"><div class="position-extend"><span class="city">广西壮族自治区-南宁</span></div><div class="position-description">中文职责和要求</div>`;
 
-test('Sanofi follows the official next-button query and replays each complete request contract consistently',async()=>{
+test('Sanofi reuses the archived nested homepage and follows the official next-button query',async()=>{
  const plan=structuredClone((await loadDirectPlans()).find(p=>p.sourceId==='source-sanofi-china-social').plan);
  for(const key of ['sanofiNativePolicy','sanofiChineseEntryUrl','sanofiLegacyIdentitySha256'])delete plan.table[key];
  plan.table.rowSelector='#search-results-list > li, #search-results-list > ul > li';
- const filter='<section id="search-filters" data-radius-unit-type="0" data-search-filters-module-name="Search Filters" data-ajax-char-limit="4096"><input class="filter-checkbox"></section>';
+ const archived=JSON.parse(await readFile(new URL('./fixtures/sanofi-entry-first-page.json',import.meta.url),'utf8'));
+ const at=archived.capturedAt,filter=archived.filtersHtml;
  const root=page=>`<section id="search-results" data-ajax-url="/search-jobs/results" data-location="中国" data-keywords="" data-distance="50" data-latitude="35" data-longitude="105" data-show-radius="False" data-total-job-results="252" data-total-pages="17" data-current-page="${page}" data-records-per-page="15" data-active-facet-id="0" data-facet-type="0" data-search-results-module-name="Search Results" data-sort-criteria="0" data-sort-direction="0" data-search-type="1" data-keyword-type="" data-location-type="2" data-location-path="1814991" data-organization-ids="2649" data-results-type="0">`;
- const body=page=>`${root(page)}<div id="search-results-list"><meta><ul>${Array.from({length:page===17?12:15},(_,index)=>{
+ const body=page=>page===1?archived.resultsHtml:`${root(page)}<div id="search-results-list"><meta><ul>${Array.from({length:page===17?12:15},(_,index)=>{
   const id=(page-1)*15+index+101;return `<li><a data-job-id="${id}" href="/job/synthetic/3036/${id}"><h2>岗位${id}</h2><span class="job-location">中国</span></a></li>`;
  }).join('')}</ul><nav>Pagination</nav></div></section>`;
  // Captured official search.js mapping and tb-corepack serializer, with the archived China entry attributes.
