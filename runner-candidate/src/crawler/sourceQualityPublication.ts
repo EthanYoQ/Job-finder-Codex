@@ -60,7 +60,7 @@ export function buildSourceQualityJobCommands(input:SourceQualityPublicationInpu
     ?organonClosedSourceJobIds(input.result.fetchEvidence):new Set<string>();
   const closedUrls=hasNovartisOfficialPresencePlan(input.plan)
     ?replayNovartisOfficialPresence(input.plan,input.result.fetchEvidence!).closedUrls:new Set<string>();
-  const previous=input.previousJobs.filter(job=>!closedUrls.has(job.record.officialUrl)&&!novoExclusions.closed.has(job.record.sourceJobId??"")&&!lillyClosed.has(job.record.sourceJobId??"")&&!organonClosed.has(job.record.sourceJobId??"")&&(currentKeys.has(job.dedupeKey)||
+  const previous=input.previousJobs.filter(job=>!novoExclusions.closed.has(job.record.sourceJobId??"")&&!lillyClosed.has(job.record.sourceJobId??"")&&!organonClosed.has(job.record.sourceJobId??"")&&(currentKeys.has(job.dedupeKey)||
     priorReceipt!==null&&Date.parse(job.lastSeenAt)>=floor));
   const pending=input.result.fetchEvidence&&hasNovartisPartitionEvidence(input.result.fetchEvidence)
     ?replayNovartisNativePartitions(input.plan,input.result.fetchEvidence):undefined;
@@ -70,6 +70,7 @@ export function buildSourceQualityJobCommands(input:SourceQualityPublicationInpu
     observation:{disposition:"TRUSTED_COMPLETE",atomicCommitEligible:true},observedAt:receipt.issuedAt,
     baselineCompletedBeforeCrawl:input.baselineCompletedBeforeCrawl
   }).map(decision=>{
+    if([...closedUrls].some(url=>url===decision.record.officialUrl||sameNovartisRequisition(url,decision.record.officialUrl)))return decision;
     if(!quarantinedKeys.has(decision.dedupeKey)&&!(pending?.unboundUnknown&&!currentKeys.has(decision.dedupeKey))&&![...unknownUrls].some(url=>url===decision.record.officialUrl||sameNovartisRequisition(url,decision.record.officialUrl))&&!novoExclusions.insufficient.has(decision.record.sourceJobId??""))return decision;
     const old=previous.find(job=>job.dedupeKey===decision.dedupeKey);
     if(!old||currentKeys.has(decision.dedupeKey))throw Error("NOVARTIS_UNKNOWN_CURRENT_CONTRADICTION");
