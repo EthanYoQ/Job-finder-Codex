@@ -4,6 +4,7 @@ import { parse as parseJavaScript } from "@babel/parser";
 import type { ObjectExpression } from "@babel/types";
 import { htmlTableAdapter } from "./adapters/htmlTable";
 import { officialJsonAdapter } from "./adapters/officialJson";
+import { parseRedseaQueryPostList } from "./officialJsonSourceFetch";
 import type { CrawlAdapterResult } from "./adapters/types";
 import type { CompletenessEvidence } from "../domain/company";
 import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
@@ -898,10 +899,9 @@ function strictRedseaRequestContracts(
     page.artifactLogicalKey !== apiArtifact.logicalKey || page.termination !== "NEXT_ABSENT" ||
     page.nextPageSignalBefore !== null || page.nextPageSignalAfter !== null) return false;
 
-  const root = strictUniqueJsonRecord(apiArtifact.body);
-  if (!root || root.state !== "1" || !Array.isArray(root.jsonList) ||
-    strictRedseaHasUnsafePaginationSignal(root, root.jsonList.length) ||
-    page.rawJobIds.length !== root.jsonList.length) return false;
+  const parsed = parseRedseaQueryPostList(typeof apiArtifact.body === "string"
+    ? apiArtifact.body : Buffer.from(apiArtifact.body).toString("utf8"));
+  if (!parsed.ok || page.rawJobIds.length !== parsed.jobs.length) return false;
   const sortName = config.sortName ?? "zri.ext_rankNum";
   const requestForm = {
     channelQrId,
@@ -926,41 +926,6 @@ function strictRedseaRequestContracts(
     declaration.scope === "CHANNEL" && declaration.channelId === channelQrId &&
     declaration.artifactLogicalKey === apiArtifact.logicalKey &&
     declaration.extractorLocator === apiArtifact.extractorLocator;
-}
-
-function strictRedseaHasUnsafePaginationSignal(root: Record<string, unknown>, rowCount: number): boolean {
-  const falseLike = (value: unknown) => value === undefined || value === null || value === false ||
-    value === "" || (typeof value === "string" && /^(?:false|0|null)$/iu.test(value.trim()));
-  for (const key of ["hasNext", "hasMore", "more", "next", "nextPage", "next_page", "nextCursor", "next_cursor"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) return true;
-  }
-  if (Object.prototype.hasOwnProperty.call(root, "page") && strictRecord(root.page)) return true;
-  const safeInteger = (value: unknown): number | undefined => {
-    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
-    if (typeof value === "string" && /^(?:0|[1-9][0-9]*)$/u.test(value.trim())) return Number(value.trim());
-    return undefined;
-  };
-  if (Object.prototype.hasOwnProperty.call(root, "total") && root.total !== "" && root.total !== null &&
-    root.total !== undefined && safeInteger(root.total) !== rowCount) return true;
-  for (const key of ["totalPages", "totalPage", "pageCount"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key]) && safeInteger(root[key]) !== 1) return true;
-  }
-  for (const key of ["currentPage", "pageNo", "pageNum", "pageIndex"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) {
-      const value = safeInteger(root[key]);
-      if (value !== 0 && value !== 1) return true;
-    }
-  }
-  for (const key of ["offset", "start"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key]) && safeInteger(root[key]) !== 0) return true;
-  }
-  for (const key of ["pageSize", "limit"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) {
-      const value = safeInteger(root[key]);
-      if (value === undefined || value < rowCount) return true;
-    }
-  }
-  return false;
 }
 
 function strictWorkdayRequestContracts(
