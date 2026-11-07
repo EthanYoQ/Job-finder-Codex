@@ -24,6 +24,7 @@ async function capture(mode='complete'){
   else if(u.pathname.includes('/job/details/'))html=`<h1>Job ${ids[0]}</h1><article>Job ID ${ids[0]}<p>A current description for this official job.</p>${mode==='ascending-only-unknown'?'':`<a href="https://platform.moseeker.com/m/customize/page/novartis?job_number=${ids[0]}">Apply to Job</a>`}</article>`;
   else if(field&&!reverse){const rows=p?[mode==='date-complete'?ids[10]:ids[0]]:ids.slice(0,10);html=page(req.url,rows,11,p,mode!=='no-native-reverse');}
   else {const changedSlug=!field&&mode==='ascending-only-new-slug',values=changedSlug?ids:ordered;const rows=p?(mode==='reverse-changing-total'||changedSlug?ids.slice(10,12):[values[10]]):values.slice(0,10);html=page(req.url,mode==='reverse-overlap'&&p?[ordered[0]]:rows,changedSlug||reverse&&p&&mode==='reverse-changing-total'?12:11,p);if(changedSlug)html=html.replaceAll(`${ids[0].toLowerCase()}-test`,`${ids[0].toLowerCase()}-updated`);}
+  if(!field&&p&&mode==='default-known-slug')html=page(req.url,[ids[0]],11,p).replace(detail(ids[0]),detail(ids[0]).replace('-test','-updated'));
   if(field&&reverse&&mode==='foreign')html=html.replaceAll('>China</td>','>Japan</td>');
   return {status:field&&reverse&&mode==='blocked'?403:200,body:html,finalUrl:req.url,contentType:'text/html',capturedAt:at};
  });return {fetched,requests};
@@ -56,6 +57,13 @@ test('only an advertised, independently complete reverse traversal can replace o
   const bad=await capture(mode);assert.equal(bad.fetched.ok,false,mode);
   if(mode==='no-native-reverse')assert(!bad.requests.some(url=>new URL(url).searchParams.get('sort')==='desc'));
  }
+});
+
+test('discovery pages cannot veto an already verified REQ for a changed slug',async()=>{
+ const {fetched,requests}=await capture('default-known-slug');assert(fetched.ok,fetched.failureReason);
+ const result=await runSourceCrawl(plan,{fetch:async()=>fetched,isBaseline:false});
+ assert.equal(result.truth.completenessVerified,true);assert.equal(result.jobs.length,11);
+ assert.equal(requests.some(url=>url.includes('/job/details/')),false);
 });
 
 test('ascending-only sightings keep the existing same-ID detail and UNKNOWN paths',async()=>{
