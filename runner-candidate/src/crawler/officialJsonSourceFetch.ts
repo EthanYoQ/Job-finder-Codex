@@ -6962,7 +6962,7 @@ function redseaArtifact(channel: string, suffix: "entry" | "list" | "api",
   if (suffix === "api" && !credentialRedaction.redacted) {
     try {
       const root = JSON.parse(response.body);
-      upstreamError = isStrictRecord(root) && hasOwn(root, "meg") && stringValue(root.state) !== "1";
+      upstreamError = isStrictRecord(root) && hasOwn(root, "meg") && root.state !== "1";
     } catch { /* malformed bodies remain exact evidence */ }
   }
   const redaction = upstreamError
@@ -7024,12 +7024,12 @@ function recordRedseaLoss(losses: PersistentSourceFetchEvidence["fetchLosses"],
     details: { code, ...(field ? { field } : {}), pageSequence, recordIndex, ...(noteCode ? { noteCode } : {}) } });
 }
 
-function parseRedseaQueryPostList(
+export function parseRedseaQueryPostList(
   body: string
 ): { ok: true; jobs: unknown[] } | { ok: false; failureReason: string } {
   let parsed: unknown;
   try { parsed = JSON.parse(body); } catch { return { ok: false, failureReason: "Redsea API response is not valid JSON" }; }
-  if (!hasUniqueJsonObjectKeys(body) || !isStrictRecord(parsed) || stringValue(parsed.state) !== "1" || !Array.isArray(parsed.jsonList)) {
+  if (!hasUniqueJsonObjectKeys(body) || !isStrictRecord(parsed) || parsed.state !== "1" || !Array.isArray(parsed.jsonList)) {
     return { ok: false, failureReason: stringValue(isStrictRecord(parsed) ? parsed.state : undefined) === "0"
       ? "Redsea API state is unsuccessful" : "Redsea API response schema is invalid" };
   }

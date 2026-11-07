@@ -32,7 +32,7 @@ import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaB
 import { NOVO_CHINA_LOCATION_POLICY, exactNovoChinaQualityPlan, replayNovoChinaRows } from "./novoChinaQuality";
 import { bmsOfficialPostedDate, exactBmsPostedDatePlan } from "./bmsOfficialPostedDate";
 import { replayBiogenListGeography } from "./biogenListGeographyGuard";
-import { projectEightfoldPcsxPosition,eightfoldJobQuarantine,cnstaffJobQuarantine } from "./officialJsonSourceFetch";
+import { projectEightfoldPcsxPosition,eightfoldJobQuarantine,cnstaffJobQuarantine,parseRedseaQueryPostList } from "./officialJsonSourceFetch";
 import { ucbOfficialCities, exactUcbPostedDatePlan, exactUcbPostedDateBootstrap, requiresUcbPostedDate, ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
 import { isDeepStrictEqual } from "node:util";
 import { hasAstellasPdfCityPlan, replayAstellasPdfCities } from "./astellasPdfCityAcquisition";
@@ -1168,12 +1168,10 @@ function strictRedseaRequestContracts(
     page.artifactLogicalKey !== apiArtifact.logicalKey || page.termination !== "NEXT_ABSENT" ||
     page.nextPageSignalBefore !== null || page.nextPageSignalAfter !== null) return false;
 
-  const root = strictUniqueJsonRecord(apiArtifact.body);
-  if (!root || root.state !== "1" || !Array.isArray(root.jsonList) ||
-    strictRedseaHasUnsafePaginationSignal(root, root.jsonList.length) ||
-    page.rawJobIds.length !== root.jsonList.length) return false;
   if (typeof listArtifact.body !== "string" || typeof apiArtifact.body !== "string") return false;
-  const candidateScope = auditRedseaCandidateScope(listArtifact.body, root.jsonList);
+  const parsed = parseRedseaQueryPostList(apiArtifact.body);
+  if (!parsed.ok || page.rawJobIds.length !== parsed.jobs.length) return false;
+  const candidateScope = auditRedseaCandidateScope(listArtifact.body, parsed.jobs);
   if (!candidateScope.complete) return false;
   const hasAbsentCandidates = candidateScope.unexplainedCandidateIds.length > 0;
   if (artifacts.size !== (hasAbsentCandidates ? 4 : 3)) return false;
@@ -1211,41 +1209,6 @@ function strictRedseaRequestContracts(
     declaration.scope === "CHANNEL" && declaration.channelId === channelQrId &&
     declaration.artifactLogicalKey === apiArtifact.logicalKey &&
     declaration.extractorLocator === apiArtifact.extractorLocator;
-}
-
-function strictRedseaHasUnsafePaginationSignal(root: Record<string, unknown>, rowCount: number): boolean {
-  const falseLike = (value: unknown) => value === undefined || value === null || value === false ||
-    value === "" || (typeof value === "string" && /^(?:false|0|null)$/iu.test(value.trim()));
-  for (const key of ["hasNext", "hasMore", "more", "next", "nextPage", "next_page", "nextCursor", "next_cursor"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) return true;
-  }
-  if (Object.prototype.hasOwnProperty.call(root, "page") && strictRecord(root.page)) return true;
-  const safeInteger = (value: unknown): number | undefined => {
-    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
-    if (typeof value === "string" && /^(?:0|[1-9][0-9]*)$/u.test(value.trim())) return Number(value.trim());
-    return undefined;
-  };
-  if (Object.prototype.hasOwnProperty.call(root, "total") && root.total !== "" && root.total !== null &&
-    root.total !== undefined && safeInteger(root.total) !== rowCount) return true;
-  for (const key of ["totalPages", "totalPage", "pageCount"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key]) && safeInteger(root[key]) !== 1) return true;
-  }
-  for (const key of ["currentPage", "pageNo", "pageNum", "pageIndex"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) {
-      const value = safeInteger(root[key]);
-      if (value !== 0 && value !== 1) return true;
-    }
-  }
-  for (const key of ["offset", "start"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key]) && safeInteger(root[key]) !== 0) return true;
-  }
-  for (const key of ["pageSize", "limit"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) {
-      const value = safeInteger(root[key]);
-      if (value === undefined || value < rowCount) return true;
-    }
-  }
-  return false;
 }
 
 function strictWorkdayRequestContracts(
