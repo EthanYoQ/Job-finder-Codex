@@ -71,6 +71,8 @@ export function buildSourceQualityJobCommands(input:SourceQualityPublicationInpu
     baselineCompletedBeforeCrawl:input.baselineCompletedBeforeCrawl
   }).map(decision=>{
     if([...closedUrls].some(url=>url===decision.record.officialUrl||sameNovartisRequisition(url,decision.record.officialUrl)))return decision;
+    if(hasNovartisOfficialPresencePlan(input.plan)&&!currentKeys.has(decision.dedupeKey)&&
+      input.result.jobs.some(job=>sameNovartisRequisition(job.officialUrl,decision.record.officialUrl)))return decision;
     if(!quarantinedKeys.has(decision.dedupeKey)&&!(pending?.unboundUnknown&&!currentKeys.has(decision.dedupeKey))&&![...unknownUrls].some(url=>url===decision.record.officialUrl||sameNovartisRequisition(url,decision.record.officialUrl))&&!novoExclusions.insufficient.has(decision.record.sourceJobId??""))return decision;
     const old=previous.find(job=>job.dedupeKey===decision.dedupeKey);
     if(!old||currentKeys.has(decision.dedupeKey))throw Error("NOVARTIS_UNKNOWN_CURRENT_CONTRADICTION");

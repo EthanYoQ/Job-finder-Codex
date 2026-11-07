@@ -1,0 +1,19 @@
+{
+  "batchId": "d279b680-5a9d-47c5-a1fc-ea0c2987884e",
+  "sourceDirectory": "diagnostics/nov06-1157-official-originals",
+  "projection": "Two actual REQ-10091713 rows. Retain title/link, country and primary location cells; omit other cells, attributes and whitespace. Synthetic test supplies page totals, controls and other rows. These fragments alone do not prove a complete production traversal.",
+  "rows": [
+    {
+      "sourceFile": "5cc8500da021b4ec1b3e34b75accee7f63ddab076f0a4bdf4649d1f529ae39a4--novartis-partition-FCT_SA-19.html",
+      "sourceSha256": "955772892609a1d4947fb242b1938ccc061d0e987d7aaa9028174396b31c7ec4",
+      "originalRowSha256": "b24a680fc6bf98521aa83abf38452e9576fff18a1cc34c78d8553439f5e59840",
+      "html": "<tr><td class=\"views-field views-field-field-job-title\"><a href=\"/careers/career-search/job/details/req-10091713-district-manager\">District Manager</a> Regular (Sales Manager), Full time </td><td class=\"views-field views-field-field-job-country\">China <span class=\"alternative-locations\"></span></td><td class=\"views-field views-field-field-job-work-location\">Shijiazhuang (Hebei Province)</td></tr>"
+    },
+    {
+      "sourceFile": "2540815878c2d6c376913d0cffd0b379148bca34e90bd78926c907c3530bc6b9--novartis-partition-FCT_SA-20.html",
+      "sourceSha256": "4069dc9f39010845b0980f35c024e7879f47619b0c1784df97ecdd1d8b798429",
+      "originalRowSha256": "c72a73deed08d3e9e2f3d51eda097d1686f368cb19b79f1e2e033c5e86e9cd07",
+      "html": "<tr><td class=\"views-field views-field-field-job-title\"><a href=\"/careers/career-search/job/details/req-10091713-district-manager\">District Manager</a> Regular (Sales Manager), Full time </td><td class=\"views-field views-field-field-job-country\">China <span class=\"alternative-locations\"></span></td><td class=\"views-field views-field-field-job-work-location\">Shijiazhuang (Hebei Province)</td></tr>"
+    }
+  ]
+}
