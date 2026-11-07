@@ -145,7 +145,7 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],or
   // Default is discovery only. Its varying totals and repeated rows never certify a missing job.
   for(let p=0;p<100;p++){const a=take(`novartis-partitions-default-${p}`,url,"novartis-partition-default-discovery-v1");
     const parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1");defaultTotals.push(parsed.count);
-    for(const row of parsed.rows){const prev=defaults.get(row.id);requireValue(!prev||prev.url===row.url);defaults.set(row.id,row);}
+    for(const row of parsed.rows){const prev=defaults.get(row.id);requireValue(!prev||primaryIds.has(row.id)||prev.url===row.url);defaults.set(row.id,row);}
     if(!parsed.next){terminal=true;break;}url=parsed.next;}
   requireValue(terminal);const defaultObservedUniqueCount=defaults.size;
   for(const row of ascendingDiscoveries.values())if(!primaryIds.has(row.id)&&!defaults.has(row.id))defaults.set(row.id,row);
