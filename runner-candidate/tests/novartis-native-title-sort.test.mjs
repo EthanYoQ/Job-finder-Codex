@@ -30,7 +30,7 @@ async function capture(mode='present',location='Shanghai (Shanghai)',alternative
 }
 const c=await capture();if(!c.fetched.ok)console.log(c.fetched.failureReason,c.fetched.fetchEvidence?.artifacts.map(a=>a.logicalKey));assert(c.fetched.ok);assert.equal(c.fetched.fetchEvidence.fetchCounts.validCount,3);
 const e=c.fetched.fetchEvidence;const audit=replayNovartisNativePartitions(plan,e).audit;assert.equal(audit.indexDeclaredTotal,2);assert.equal(audit.observedUniqueCount,3);assert(!c.requests.some(u=>u.includes('moseeker')));
-assert.equal(e.captureTool.version,'8');
+assert.equal(e.captureTool.version,'9');
 const siteLegacy=legacySortEvidence(e,'5','站点');
 assert.equal(replayNovartisNativePartitions(plan,siteLegacy).audit.observedUniqueCount,3);
 assert.equal(replayNovartisNativePartitions(plan,legacySortEvidence(e,'7','站点')).audit.observedUniqueCount,3);
