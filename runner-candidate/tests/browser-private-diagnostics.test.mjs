@@ -19,6 +19,7 @@ for(const stage of ['SANOFI_PAGE_READ','SANOFI_PAGE_NEXT'])test(`${stage} keeps 
   const failureDirectory=await mkdtemp(join(tmpdir(),'sanofi-private-'));
   const error=stage==='SANOFI_PAGE_READ'?new ReferenceError(marker):Object.assign(Error('locator.click: Timeout 30000ms exceeded.'),{name:'TimeoutError'});
   const tab={async getAXState(){},async close(){},async url(){return 'https://jobs.sanofi.cn/synthetic';},playwright:{
+    async addLocatorHandler(){},
     locator:()=>({async isVisible(){return false;},async waitFor(){if(stage==='SANOFI_PAGE_READ')throw error;},async evaluate(){return {nextDisabled:false,searchResultsHtml:'synthetic'};},async click(){throw error;}}),
     async waitForLoadState(){},async evaluate(){return {html:'<html>'+marker+'</html>',nextLinks:[{display:'none'}]};}}};
   const runtime=createSanofiDomRuntime({async createBrowserTab(){return tab;}},{failureDirectory});await runtime.start();

@@ -1,0 +1,25 @@
+# Publication regression inputs
+
+Run `npm run test:publication` from `runner-candidate`. CI runs the same offline command on Node 24, using `tsx` from the runner lockfile. A root `node_modules` link lets the sibling web reader use those same installed dependencies. It needs no browser, database service, source-site access or production credentials. This workflow does not deploy or add a publication gate.
+
+| Behavior | Test | Input |
+| --- | --- | --- |
+| Unfamiliar China city remains eligible without an invented city | `abbvie-province-location.test.mjs` | Synthetic |
+| One bad job does not reject all other jobs | `cspc-job-isolation.test.mjs` | Synthetic HTTP and DOM |
+| Duplicate or missing pages cannot establish completeness | `cspc-job-isolation.test.mjs`, `novartis-native-title-sort.test.mjs` | Synthetic HTTP and evidence mutations |
+| A source with insufficient independent list evidence does not replace its jobs or stop another source's commit | `publication-boundaries.test.mjs` | Synthetic CSPC HTTP/empty DOM and healthy-source response; existing in-memory database and real archive/admission/commit paths |
+| CSPC capture and replay agree on a matching declared count; conflicting count or continuation stays incomplete | `cspc-job-isolation.test.mjs` | Synthetic matching/mismatching totals and pagination signals |
+| Explicit closure reaches lifecycle publication | `novartis-closed-lifecycle.test.mjs` | Synthetic three-round capture |
+| An observed repeated Novartis REQ cannot count as a second job | `novartis-archived-duplicate.test.mjs` | Two real row projections in a synthetic page envelope |
+| BMS numeric job IDs survive capture and strict replay across a short last page | `bms-pagination-contract.test.mjs` | Three archived responses, projected without changing the numeric ID type |
+| Sanofi reuses the entry page when the list rows are nested in a UL | `sanofi-job-isolation.test.mjs` | Archived entry-page projection; responses after page 1 remain synthetic |
+
+`novartis-duplicate-rows.json` contains the two `REQ-10091713` occurrences from the archived November 6 batch `d279b680-5a9d-47c5-a1fc-ea0c2987884e`, site-ascending (`order=站点&sort=asc`) pages 20 and 21 (zero-based filenames 19 and 20). The archived request's order hash is `a59fe62777ff25aec42c337fccbf5929af9c9b45bc42ee17131f5900889f4534`, which matches `站点`, not `发布日期`. Original files were read locally from `diagnostics/nov06-1157-official-originals`; they were not fetched again. Each entry records the original file SHA-256 and the Cheerio-serialized row SHA-256. The filename prefix is an artifact ID, not the content hash.
+
+The projection retains public title/link, country and primary-location cells. Other cells, nonessential attributes and whitespace are removed. No cookie, token, script or personal field is included. The test supplies synthetic totals, navigation controls and nine additional rows. It tests the observed repeated identity; it is not a replay of the full production batch and does not establish that every production duplicate represents a missing job.
+
+`bms-numeric-id-pages.json` projects the three real Eightfold responses from batch `abec7e97-a444-4c53-987c-56feecdcb534`, source run `2026-11-06T16:07:35.030Z`–`16:07:36.074Z`. The archived bodies were checked against their original SHA-256, in page order: `4b1718924153b06f6cff395dfdedab524c26551a0381c001e18bd8fd43a36462`, `8026425313ac4be4d9307a6c6aaedc8f82179cb8a7f5a9ae504d07d2960d47ae`, `8cc5f2da02590b0d56784482988ed3dc5046931c28637c7ab8236c31860de208`. The projection retains status, count, page order and the public ID, title, link, location and posting-time fields; it omits remaining payload fields and transport metadata. All 27 IDs remain JSON numbers. Test clocks and replay responses do not reproduce transport timing.
+
+`sanofi-entry-first-page.json` projects the real entry response from batch `b8cc1765-8cbc-41fa-a67f-35ed04d156b5`, captured `2026-11-06T21:43:58.896Z`, original SHA-256 `da4884e7922eb2a02095d1bdcac05072d77a212ba93ebba2f4bffc86740939b2`. It retains the actual nested list, 15 public rows, relevant count/query attributes and first-page pagination controls. The rest of the document, unrelated controls and transport metadata are omitted. The test does not replay the entire batch: pages 2–17 and the alternate historical envelope are synthetic.
+
+The November 7 CSPC failure for the 12:01 slot has request-scope/count diagnostics but no saved 31-job response body. Older failures `nov03noon-cspc-dom-095274f5-8702-461f-b2b1-9b2a59c7119e.json` and `nov06-after-deploy-cspc-dom-521a63b0-3128-40b1-a4df-6625d949f372.json` are real DOM diagnostics, not the November 7 response pair. The batch regression asserts a write outcome for its insufficient-evidence input; it does not require a particular error or declare that an empty DOM invalidates all HTTP evidence.

@@ -1,3 +1,7 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import {isDeepStrictEqual} from 'node:util';
+import {quarantineCompleteList,jobQuarantineLossesMatch,type JobQuarantine} from './jobQuarantine';
+import { CITY_PENDING } from "../domain/jobLocation";
 import { GRIFOLS_POSTED_DATE_POLICY, grifolsOfficialPostedDate } from "./grifolsOfficialPostedDate";
 import { load } from "cheerio";
 import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
@@ -72,11 +76,17 @@ export interface GrifolsChinaSourceFetchDeps {
 }
 
 interface GrifolsListJob {
+  listRowInvalid?:true;
   postedDateLabels: string[];
   officialId: string;
   title: string;
   officialUrl: string;
   locationRaw: string;
+}
+function quarantineRow(job:GrifolsListJob,index:number):JobQuarantine{
+  const pageSequence=Math.floor(index/PAGE_SIZE),recordIndex=index%PAGE_SIZE;
+  return {...(/^\d+$/u.test(job.officialId)?{sourceJobId:job.officialId}:{}),...(job.officialUrl?{officialUrl:job.officialUrl}:{}),pageSequence,recordIndex,validJobId:evidenceId(job.officialId),
+    rawLocator:`grifols-list-${String(pageSequence).padStart(4,'0')}#row:${recordIndex}`,code:job.listRowInvalid?'JOB_LIST_ROW_INVALID':'JOB_DETAIL_UNAVAILABLE'};
 }
 
 interface GrifolsListPage {
@@ -114,7 +124,7 @@ export function createGrifolsChinaSourceFetch(
     const artifacts: SourceFetchArtifactDraft[] = [];
     const pages: SourceFetchPageTrace[] = [];
     const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
-    const jobs: Array<GrifolsListJob & { sourceJobId: string; cities: string[]; officialPublishedAt: string }> = [];
+    const jobs: Array<GrifolsListJob & { sourceJobId: string; cities: string[]; officialPublishedAt?: string }> = [];
     let declaredTotal: number | undefined;
     let declaredPages: number | undefined;
     let previousCapturedAt = Date.parse(capturedAt);
@@ -156,17 +166,23 @@ export function createGrifolsChinaSourceFetch(
       return fail("GRIFOLS_PAGINATION_DRIFT");
     }
 
-    const acceptedIds = new Set<string>();
+    const acceptedIds = new Set<string>(),quarantines:JobQuarantine[]=[];let blocked=false;
     for (let index = 0; index < rawJobs.length; index += 1) {
       const job = rawJobs[index]!;
+      const hold=()=>{quarantines.push(quarantineRow(job,index));acceptedIds.add(job.officialId);};
+      if(blocked||job.listRowInvalid){hold();continue;}
       const detailResponse = await requestGrifols(http, job.officialUrl, capturedAt, previousCapturedAt);
-      if (!detailResponse.ok) return fail("GRIFOLS_DETAIL_FETCH_FAILED");
-      previousCapturedAt = Date.parse(detailResponse.value.capturedAt!);
       const logicalKey = `grifols-detail-${String(index).padStart(4, "0")}`;
+      if (!detailResponse.ok) {
+        blocked=detailResponse.blocked===true;
+        if(detailResponse.value?.finalUrl&&detailResponse.value.contentType&&detailResponse.value.capturedAt)
+          artifacts.push(networkArtifact(logicalKey,'ATS_PAGE',job.officialUrl,detailResponse.value,DETAIL_LOCATOR));
+        hold();continue;
+      }
+      previousCapturedAt = Date.parse(detailResponse.value.capturedAt!);
       artifacts.push(networkArtifact(logicalKey, "ATS_PAGE", job.officialUrl, detailResponse.value, DETAIL_LOCATOR));
       const review = reviewGrifolsDetail(detailResponse.value.body, job);
-      if (!review) return fail("GRIFOLS_DETAIL_INVALID");
-      if (review.scope === "AMBIGUOUS") return fail("GRIFOLS_DETAIL_SCOPE_AMBIGUOUS");
+      if (!review||review.scope === "AMBIGUOUS") {hold();continue;}
       if (review.scope === "OUT_OF_SCOPE") {
         losses.push({
           stage: "VALIDATION",
@@ -177,16 +193,8 @@ export function createGrifolsChinaSourceFetch(
         continue;
       }
       const officialPublishedAt = grifolsOfficialPostedDate(job.postedDateLabels, detailResponse.value.body);
-      if (officialPublishedAt === undefined) {
-        const pageSequence = listPages.findIndex(page => page.jobs.includes(job));
-        losses.push({ stage: "VALIDATION", reason: "Grifols official posted-date validation failed",
-          rawLocator: `${logicalKey}#html:.jobDisplayShell meta[itemprop=datePosted]@content`,
-          details: { code: "GRIFOLS_POSTED_DATE_INVALID", pageSequence,
-            recordIndex: listPages[pageSequence]!.jobs.indexOf(job), field: "jobDate-datePosted" } });
-        continue;
-      }
       acceptedIds.add(job.officialId);
-      jobs.push({ ...job, sourceJobId: job.officialId, cities: review.cities, officialPublishedAt });
+      jobs.push({ ...job, sourceJobId: job.officialId, cities: review.cities, ...(officialPublishedAt === undefined ? {} : {officialPublishedAt}) });
     }
 
     for (let sequence = 0; sequence < listPages.length; sequence += 1) {
@@ -232,7 +240,7 @@ export function createGrifolsChinaSourceFetch(
       fetchCounts: {
         rawCount: rawJobs.length,
         parsedCount: rawJobs.length,
-        validCount: jobs.length,
+        validCount: jobs.length+quarantines.length,
         parseDiscardCount: 0,
         validationDiscardCount: losses.length
       },
@@ -247,7 +255,7 @@ export function createGrifolsChinaSourceFetch(
       allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
       allowIndependentlyVerifiedProfileBoundExclusions: true
     };
-    const evidence = deriveCanonicalPaginationEvidence({ evidence: evidence0, ...paginationOptions });
+    const evidence = deriveCanonicalPaginationEvidence({ evidence: quarantineCompleteList(evidence0,quarantines), ...paginationOptions });
     const paginationEvaluation = evaluatePaginationEvidence({ evidence, ...paginationOptions });
     if (!paginationEvaluation.safeCompleteness) {
       return fail("GRIFOLS_PAGINATION_DRIFT", evidence, paginationEvaluation);
@@ -303,34 +311,34 @@ export function validateStrictGrifolsChinaEvidence(
     }
     if (total === undefined || totalPages !== listArtifacts.length || listed.length !== total ||
       new Set(listed.map(job => job.officialId)).size !== listed.length ||
-      detailArtifacts.length !== listed.length || evidence.artifacts.length !== listArtifacts.length + detailArtifacts.length) {
+      evidence.artifacts.length !== listArtifacts.length + detailArtifacts.length || new Set(evidence.artifacts.map(a=>a.logicalKey)).size!==evidence.artifacts.length) {
       return false;
     }
-    const expectedJobs: Array<GrifolsListJob & { sourceJobId: string; cities: string[]; officialPublishedAt: string }> = [];
-    const expectedLossIndexes: number[] = [];
+    const expectedJobs: Array<GrifolsListJob & { sourceJobId: string; cities: string[]; officialPublishedAt?: string }> = [];
+    const expectedLossIndexes: number[] = [],quarantines:JobQuarantine[]=[];
     for (let index = 0; index < listed.length; index += 1) {
-      const artifact = detailArtifacts[index]!;
+      const artifact = detailArtifacts.find(a=>a.logicalKey===`grifols-detail-${String(index).padStart(4, "0")}`);
       const listedJob = listed[index]!;
-      if (!artifact || artifact.logicalKey !== `grifols-detail-${String(index).padStart(4, "0")}` ||
-        !exactNetworkArtifact(artifact, "ATS_PAGE", listedJob.officialUrl, DETAIL_LOCATOR)) return false;
-      const review = reviewGrifolsDetail(artifact.body as string, listedJob);
-      if (!review || review.scope === "AMBIGUOUS") return false;
+      if(listedJob.listRowInvalid){if(artifact)return false;quarantines.push(quarantineRow(listedJob,index));continue;}
+      if(artifact&&(artifact.requestedUrl!==sanitizeEvidenceHttpUrl(listedJob.officialUrl)||artifact.extractorLocator!==DETAIL_LOCATOR))return false;
+      const review=artifact&&exactNetworkArtifact(artifact,'ATS_PAGE',listedJob.officialUrl,DETAIL_LOCATOR)?reviewGrifolsDetail(artifact.body as string,listedJob):undefined;
+      if(!review||review.scope==='AMBIGUOUS'){quarantines.push(quarantineRow(listedJob,index));continue;}
       if (review.scope === "OUT_OF_SCOPE") {
         expectedLossIndexes.push(index);
         continue;
       }
-      const officialPublishedAt = grifolsOfficialPostedDate(listedJob.postedDateLabels, artifact.body as string);
-      if (officialPublishedAt === undefined) return false;
-      expectedJobs.push({ ...listedJob, sourceJobId: listedJob.officialId, cities: review.cities, officialPublishedAt });
+      const officialPublishedAt = grifolsOfficialPostedDate(listedJob.postedDateLabels, artifact!.body as string);
+      expectedJobs.push({ ...listedJob, sourceJobId: listedJob.officialId, cities: review.cities, ...(officialPublishedAt === undefined ? {} : {officialPublishedAt}) });
     }
-    const losses = evidence.fetchLosses;
+    if(!isDeepStrictEqual(evidence.jobQuarantines??[],quarantines)||quarantines.length>0&&!jobQuarantineLossesMatch(evidence)||detailArtifacts.some(a=>!listed.some((_row,index)=>a.logicalKey===`grifols-detail-${String(index).padStart(4,'0')}`)))return false;
+    const losses = evidence.fetchLosses.filter(loss=>loss.details.code!=='JOB_QUARANTINED');
     if (losses.length !== expectedLossIndexes.length || losses.some((loss, index) =>
       loss.stage !== "VALIDATION" || loss.reason !== "official detail places the job outside mainland China" ||
       loss.details.code !== "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE" ||
       loss.details.recordIndex !== expectedLossIndexes[index])) return false;
     if (evidence.fetchCounts.rawCount !== total || evidence.fetchCounts.parsedCount !== total ||
       evidence.fetchCounts.validCount !== expectedJobs.length ||
-      evidence.fetchCounts.validationDiscardCount !== expectedLossIndexes.length) return false;
+      evidence.fetchCounts.validationDiscardCount !== expectedLossIndexes.length+quarantines.length) return false;
     const declaration = evidence.declaredCompleteness;
     if (declaration?.kind !== "OFFICIAL_TOTAL_COUNT" || declaration.scope !== "SOURCE" ||
       declaration.value !== total || declaration.artifactLogicalKey !== listArtifacts[0]!.logicalKey ||
@@ -417,9 +425,9 @@ export function parseGrifolsListPage(html: string): GrifolsListPage | undefined 
       .replace(/\s+/gu, " ").trim();
     const officialUrl = href ? safeGrifolsJobUrl(href) : undefined;
     const officialId = officialUrl ? /\/(\d+)\/$/u.exec(new URL(officialUrl).pathname)?.[1] : undefined;
-    if (!officialId || !title || !locationRaw || !officialUrl) return;
     const postedDateLabels = $(row).find(".jobDate").toArray().map(element => $(element).text().replace(/\s+/gu, " ").trim());
-    jobs.push({ officialId, title, officialUrl, locationRaw, postedDateLabels });
+    jobs.push({ officialId:officialId??`unidentified:${page}:${_index}`, title, officialUrl:officialUrl??'', locationRaw, postedDateLabels,
+      ...(!officialId||!title||!locationRaw||!officialUrl?{listRowInvalid:true as const}:{}) });
   });
   if (jobs.length !== last - first + 1) return undefined;
   return { page, totalPages, total, jobs };
@@ -471,9 +479,10 @@ function reviewGrifolsDetail(html: string, listed: GrifolsListJob): DetailReview
   const ambiguous: DetailReview = { scope: "AMBIGUOUS", officialLocation, cities: [] };
   if (locations.length !== 1) return ambiguous;
 
-  // Semantic reconstruction from the surviving, reviewed examples. Unknown cities
-  // or path tails require fresh source review; a China prefix is not sufficient.
-  if (officialLocation === "Location:Open to candidates across China, not limited to Shanghai.") {
+  // A bounded nationwide China statement need not repeat a historical city or punctuation.
+  const nationwide = /^Location:(?:Open to candidates\s+)?(?:across|throughout)\s+(?:mainland\s+)?China(?:,\s*not limited to\s+([^.;]+))?\.?$/iu.exec(officialLocation);
+  if (nationwide && !explicitlyForeignOrNonMainlandLocation(officialLocation) &&
+    !explicitlyForeignOrNonMainlandLocation(nationwide[1] ?? "")) {
     return listed.locationRaw === "Home Office, CN"
       ? { scope: "CHINA", officialLocation, cities: ["全国"] }
       : ambiguous;
@@ -481,6 +490,10 @@ function reviewGrifolsDetail(html: string, listed: GrifolsListJob): DetailReview
   if (listed.locationRaw === "Shanghai, CN" &&
     /^Location:APAC:China:Shanghai:(?:Shanghai|Shangai)$/iu.test(officialLocation)) {
     return { scope: "CHINA", officialLocation, cities: ["上海"] };
+  }
+  if (/^Location:APAC:China:[^:]+(?::[^:]+)*$/iu.test(officialLocation) && /, CN$/u.test(listed.locationRaw) &&
+    !explicitlyForeignOrNonMainlandLocation(officialLocation.replaceAll(":", ",")) && !explicitlyForeignOrNonMainlandLocation(listed.locationRaw)) {
+    return { scope: "CHINA", officialLocation, cities: [CITY_PENDING] };
   }
   if (listed.locationRaw === "Home Office, CN" &&
     /^Location:APAC:(Hong Kong|香港|Macao|Macau|澳门|Taiwan|台湾):Home Office:\1$/iu.test(officialLocation)) {
@@ -551,7 +564,7 @@ async function requestGrifols(
   url: string,
   crawlStartedAt: string,
   previousCapturedAt: number
-): Promise<{ ok: true; value: GrifolsChinaHttpResponse } | { ok: false }> {
+): Promise<{ ok: true; value: GrifolsChinaHttpResponse } | { ok: false;value?:GrifolsChinaHttpResponse;blocked?:boolean }> {
   try {
     const response = await http({
       url,
@@ -562,7 +575,7 @@ async function requestGrifols(
     if (response.status !== 200 || response.finalUrl !== url ||
       !/^text\/html(?:\s*;|$)/iu.test(response.contentType ?? "") ||
       !Number.isFinite(captured) || captured < Date.parse(crawlStartedAt) || captured < previousCapturedAt) {
-      return { ok: false };
+      return { ok: false,value:response,blocked:response.status===403||response.status===429 };
     }
     return { ok: true, value: response };
   } catch {

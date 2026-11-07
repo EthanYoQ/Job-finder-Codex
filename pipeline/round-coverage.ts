@@ -8,9 +8,10 @@ export async function readRoundCoverage(db:Pick<PrismaClient,"crawlBatchSourceRe
     atomicCommitState:"COMMITTED",completenessState:"VERIFIED",
     finishedAt:{gte:new Date(Number(slot)),lt:new Date(Number(slot)+12*3600_000)},
     batch:{is:{kind:"SCHEDULED",ownerId:"direct-scheduler"}}
-  },select:{sourceId:true,batchId:true},orderBy:{finishedAt:"asc"}}):[];
-  const captured=new Map(accepted.map(row=>[row.sourceId,row.batchId]));
+  },select:{sourceId:true,batchId:true,_count:{select:{lossLedgerEntries:{where:{details:{path:['code'],equals:'JOB_QUARANTINED'}}}}}},orderBy:{finishedAt:"asc"}}):[];
+  const captured=new Map(accepted.map(row=>[row.sourceId,row]));
   const complete=sourceIds.every(id=>captured.has(id))&&results.every(row=>row.status!=="FAILED"&&
     (!("failedSourceCount" in row)||row.failedSourceCount===0&&row.blockedSourceCount===0));
-  return {complete,capturedSources:[...captured].map(([sourceId,batchId])=>({sourceId,batchId}))};
+  const quarantinedJobCount=[...captured.values()].reduce((sum,row)=>sum+row._count.lossLedgerEntries,0);
+  return {complete,quarantinedJobCount,capturedSources:[...captured.values()].map(({sourceId,batchId})=>({sourceId,batchId}))};
 }

@@ -1,26 +1,25 @@
+import { hasExactFosunMainlandGeography } from "./fosunScopeGeography";
 import { z } from "zod";
 import { manualCaptureError, manualCaptureSha256, parseManualCaptureJson } from "./manualChromeCaptureEvidence";
 
-// Positively reviewed values observed in the retained October 1 Qilu capture.
-// This diagnostic dictionary is intentionally narrow: new/compound values remain
-// unresolved and are never dropped or promoted by a province-prefix heuristic.
-const reviewedMainlandLocations = new Set([
-  "上海市", "北京市", "山东省", "山东省·德州市", "山东省·德州市·临邑县", "山东省·德州市·乐陵市",
-  "山东省·济南市", "山东省·济南市·历城区", "山东省·济南市·济南高新区", "海南省·海口市"
-]);
 const reviewedNationwideLocations = new Set(["全国", "中国", "中国大陆"]);
 const reviewedForeignLocations = new Set(["美国", "香港", "香港特别行政区", "united states", "usa", "hong kong"]);
 
-/** Closed-label scope review, including alternate-field contradiction checks. */
+export function qiluOfficialLocationParts(raw:Record<string,unknown>):string[]{
+ if(Array.isArray(raw.LocNames)&&raw.LocNames.length)return raw.LocNames.filter((v):v is string=>typeof v==='string').map(v=>v.trim());
+ const fallback=[raw.LocName,raw.LocationName,raw.City].find(v=>typeof v==='string'&&v.trim());return typeof fallback==='string'?[fallback.trim()]:[];
+}
+/** Country and mainland geography bind scope; display aliases need no exact text equality. */
 export function qiluReviewedRowGeography(raw: unknown): "EXPLICIT_MAINLAND" | "NATIONWIDE_ONLY" | "AUDITED_FOREIGN_ONLY" | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const row = raw as Record<string, unknown>;
-  if (!Array.isArray(row.LocNames) || row.LocNames.length === 0 || row.LocNames.some(value => typeof value !== "string")) return undefined;
-  const locations = (row.LocNames as string[]).map(value => value.normalize("NFKC").trim());
+  if(Array.isArray(row.LocNames)&&row.LocNames.some(value=>typeof value!=='string'))return undefined;
+  const locations=qiluOfficialLocationParts(row).map(value=>value.normalize('NFKC').trim());if(!locations.length)return undefined;
   const foreignGroup = (value:string):string|undefined => /^(?:美国|united states|usa)$/iu.test(value) ? "US" : /^(?:香港|香港特别行政区|hong kong)$/iu.test(value) ? "HK" : undefined;
-  const mainland = locations.every(value => reviewedMainlandLocations.has(value) || reviewedNationwideLocations.has(value));
+  const mainland = hasExactFosunMainlandGeography({...row,LocNames:locations});
+  if(mainland)return locations.every(value=>reviewedNationwideLocations.has(value))?"NATIONWIDE_ONLY":"EXPLICIT_MAINLAND";
   const foreign = locations.every(value => reviewedForeignLocations.has(value.toLowerCase()));
-  if (locations.some(value => !value) || (!mainland && !foreign)) return undefined;
+  if (locations.some(value => !value) || !foreign) return undefined;
   for (const field of ["Country", "CountryName", "LocName", "LocationName", "City"] as const) {
     const value = row[field];
     if (value === undefined || value === null) continue;
@@ -28,17 +27,16 @@ export function qiluReviewedRowGeography(raw: unknown): "EXPLICIT_MAINLAND" | "N
     const normalized = value.normalize("NFKC").trim();
     if (!normalized) continue;
     if (field === "Country" || field === "CountryName") {
-      const china = /^(?:china|prc|mainland china|china mainland|people'?s republic of china|中国|中国大陆|中华人民共和国)$/iu.test(normalized);
-      if (mainland ? !china : !foreignGroup(normalized) || locations.some(location => foreignGroup(location) !== foreignGroup(normalized))) return undefined;
+      if (!foreignGroup(normalized)||locations.some(location=>foreignGroup(location)!==foreignGroup(normalized)))return undefined;
     } else {
       // A city may repeat an exact component of an already-reviewed full label.
       // No province prefix, foreign substring, or guessed location is accepted.
       const exactPrimaryPart = locations.some(location => location === normalized || location.split("·").includes(normalized));
-      const sameForeign = foreign && foreignGroup(normalized) !== undefined && locations.every(location => foreignGroup(location) === foreignGroup(normalized));
+      const sameForeign = foreignGroup(normalized) !== undefined && locations.every(location => foreignGroup(location) === foreignGroup(normalized));
       if (!exactPrimaryPart && !sameForeign) return undefined;
     }
   }
-  return foreign ? "AUDITED_FOREIGN_ONLY" : locations.every(value => reviewedNationwideLocations.has(value)) ? "NATIONWIDE_ONLY" : "EXPLICIT_MAINLAND";
+  return "AUDITED_FOREIGN_ONLY";
 }
 
 const sha = z.string().regex(/^[a-f0-9]{64}$/u);

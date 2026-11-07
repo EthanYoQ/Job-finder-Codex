@@ -1,3 +1,6 @@
+import {htmlRowObservationId} from "./htmlJobQuarantine";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { jobQuarantineLossesMatch, restoreQuarantinedList, type JobQuarantine } from './jobQuarantine';
 import { replayKelunMainlandScope } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,validateSanofiNativeQuality} from "./sanofiNativeQuality";
 import type {NormalizedJobRecord} from "./normalizedJob";
@@ -43,11 +46,16 @@ export function validateStrictHtmlCompletenessProof(
     const replay = replayKelunMainlandScope(plan, evidence, jobs);
     return !!replay && validateBaseStrictHtmlCompletenessProof(plan, replay.rawEvidence, jobs);
   }
-  return validateBaseStrictHtmlCompletenessProof(plan, evidence, jobs);
+  const quarantines=evidence.jobQuarantines??[];
+  if(quarantines.length){
+    if(!jobQuarantineLossesMatch(evidence))return false;
+    evidence=restoreQuarantinedList(evidence);
+  }
+  return validateBaseStrictHtmlCompletenessProof(plan, evidence, jobs,quarantines);
 }
 
 function validateBaseStrictHtmlCompletenessProof(
-  plan: HtmlPlan, evidence: PersistentSourceFetchEvidence, jobs?: readonly NormalizedJobRecord[]
+  plan: HtmlPlan, evidence: PersistentSourceFetchEvidence, jobs?: readonly NormalizedJobRecord[],quarantines:readonly JobQuarantine[]=[]
 ): boolean {
   try {
     if (hasSanofiNativePolicy(plan)) return validateSanofiNativeQuality(plan,evidence,jobs);
@@ -71,7 +79,11 @@ function validateBaseStrictHtmlCompletenessProof(
     const exact = artifacts as ExactArtifact[];
     if (plan.source.id === "source-abbvie-china-social" && (
       sourcePlanConfigSha256(plan) !== "4bc13113d0ea829b7df6935081d009ac389f24c97340390f09bbb7ad5234e5a9" ||
-      !exact.every(artifact => validateAbbvieChinaRowScope(artifact.body))
+      !exact.every(artifact => {
+        const pageSequence=evidence.pages.findIndex(page=>page.artifactLogicalKey===artifact.logicalKey),$=load(artifact.body);
+        return $('.attrax-vacancy-tile').toArray().every((row,recordIndex)=>validateAbbvieChinaRowScope($.html(row))||
+          quarantines.some(q=>q.pageSequence===pageSequence&&q.recordIndex===recordIndex));
+      })
     )) return htmlProofTrace(plan, "ABBVIE_ROW_SCOPE_UNREVIEWED");
     if (new Set(exact.map((artifact) => artifact.logicalKey)).size !== exact.length) return htmlProofTrace(plan, "ARTIFACT_KEYS");
 
@@ -89,7 +101,7 @@ function validateBaseStrictHtmlCompletenessProof(
           : false;
     }
     if (policy.kind === "STATIC_PUBLIC_LIST") {
-      return validateStaticPublicList(plan, evidence, exact);
+      return validateStaticPublicList(plan, evidence, exact,quarantines);
     }
     return htmlProofTrace(plan, "UNSUPPORTED_POLICY");
   } catch {
@@ -455,8 +467,11 @@ function strictNovartisRows(
     const url = rawUrl ? strictSameOriginUrl(rawUrl, plan.source.officialEntryUrl) : undefined;
     const title = normalizedText(titleLink.text());
     const location = normalizedText($(row).find("td.views-field-field-job-work-location").text());
-    if (titleLink.length !== 1 || !url || !title || !location ||
-      !strictNovartisMainlandChinaLocation(location, plan.table.strictLocationScope) ||
+    const country=$(row).find("td.views-field-field-job-country").clone();
+    country.find(".alternative-locations").remove();
+    const explicitChina=country.length===1 && normalizedText(country.text())==="China";
+    if (titleLink.length !== 1 || !url || !title || !location || NOVARTIS_NON_MAINLAND_LOCATION.test(location) || explicitlyForeignOrNonMainlandLocation(location) ||
+      !explicitChina && !strictNovartisMainlandChinaLocation(location, plan.table.strictLocationScope) ||
       !url.pathname.startsWith("/careers/career-search/job/details/") || url.search || url.hash) {
       htmlProofTrace(plan, "NOVARTIS_INVALID_ROW");
       return undefined;
@@ -595,9 +610,7 @@ function replayPageRowsAllowingOverlap(
   page: SourceFetchPageTrace
 ): boolean {
   const $ = load(html);
-  const ids = selectHtmlTableRows($, table).map((row) =>
-    `html-row:sha256:${sha256Bytes(Buffer.from($.html(row), "utf8")).sha256}`
-  );
+  const ids = selectHtmlTableRows($, table).map((row,index) => htmlRowObservationId($,row,table,page.sequence,index));
   return new Set(ids).size === ids.length &&
     JSON.stringify(ids) === JSON.stringify(page.rawJobIds) &&
     JSON.stringify(ids) === JSON.stringify(page.validJobIds);
@@ -796,9 +809,11 @@ function validateUnpartitionedTalentbrewOfficialTotal(
 ): boolean {
   const pagination = plan.table.pagination;
   const declaration = evidence.declaredCompleteness!;
+  const sanofiChinese = plan.source.id === "source-sanofi-china-social" && new URL(plan.source.officialEntryUrl).hostname === "jobs.sanofi.cn";
+  const entryFirstPage = sanofiChinese && evidence.pages[0]?.artifactLogicalKey === artifacts[0]?.logicalKey;
   if (!pagination || pagination.ajaxMode !== "talentbrew" || pagination.talentbrewScope !== undefined ||
     declaration.kind !== "OFFICIAL_TOTAL_COUNT" || declaration.value !== evidence.fetchCounts.rawCount ||
-    artifacts.length !== evidence.pages.length + 1 || evidence.pages.some((page) => page.channelId !== undefined)) {
+    artifacts.length !== evidence.pages.length + (entryFirstPage ? 0 : 1) || evidence.pages.some((page) => page.channelId !== undefined)) {
     return htmlProofTrace(plan, "TALENTBREW_TOTAL_ENVELOPE");
   }
 
@@ -823,6 +838,10 @@ function validateUnpartitionedTalentbrewOfficialTotal(
   const staticFilters = talentbrewStaticFilters(entryDom);
   if (!staticFilters) return htmlProofTrace(plan, "TALENTBREW_TOTAL_STATIC_FILTERS");
 
+  // Select one request contract for the entire traversal; historical archives keep their original URLs.
+  const firstArtifact = artifactForPage(evidence.pages[0]!, artifacts);
+  const normalNext = entryFirstPage || sanofiChinese && firstArtifact !== undefined &&
+    sameUrl(firstArtifact, evidenceUrl(talentbrewRequestUrl(entryDom, ajaxUrl, staticFilters, undefined, 1, true)));
   const seen = new Set<string>();
   let declaredTotal: number | undefined;
   let declaredPages: number | undefined;
@@ -832,18 +851,20 @@ function validateUnpartitionedTalentbrewOfficialTotal(
     const page = evidence.pages[index]!;
     const pageNumber = index + 1;
     const artifact = artifactForPage(page, artifacts);
-    const rawExpectedUrl = talentbrewRequestUrl(entryDom, ajaxUrl, staticFilters, undefined, pageNumber);
-    const expectedUrl = evidenceUrl(rawExpectedUrl);
+    const isEntryPage = entryFirstPage && index === 0;
+    const requestSequence = index + (entryFirstPage ? 0 : 1);
+    const rawExpectedUrl = talentbrewRequestUrl(entryDom, ajaxUrl, staticFilters, undefined, pageNumber, normalNext);
+    const expectedUrl = isEntryPage ? entryUrl : evidenceUrl(rawExpectedUrl);
     const expectedPageSize = queryPositiveInt(rawExpectedUrl, "RecordsPerPage") ?? null;
     if (!artifact || artifact.channelId !== undefined || !sameUrl(artifact, expectedUrl) ||
       page.sequence !== index || page.requestedPage !== pageNumber || page.returnedPage !== pageNumber ||
       page.requestedPageSize !== expectedPageSize ||
-      !matchesRequestContract(artifact, plan.table.rowSelector, "talentbrew-page", index + 1, "GET", expectedUrl, null, {
-        sequence: index + 1, channelId: null, requestedPage: null, requestedPageSize: null
+      !isEntryPage && !matchesRequestContract(artifact, plan.table.rowSelector, "talentbrew-page", requestSequence, "GET", expectedUrl, null, {
+        sequence: requestSequence, channelId: null, requestedPage: null, requestedPageSize: null
       }) || !validTermination(page, index, evidence.pages.length)) {
       return htmlProofTrace(plan, `TALENTBREW_TOTAL_PAGE_CONTRACT:${pageNumber}`);
     }
-    const html = strictTalentbrewResults(artifact.body, plan.table.rowSelector);
+    const html = isEntryPage ? artifact.body : strictTalentbrewResults(artifact.body, plan.table.rowSelector);
     const returned = load(html)("#search-results");
     const current = strictInt(returned.first().attr("data-current-page"), true);
     const totalPages = strictInt(returned.first().attr("data-total-pages"), true);
@@ -915,7 +936,7 @@ function validateTupuTraversal(
 function validateStaticPublicList(
   plan: HtmlPlan,
   evidence: PersistentSourceFetchEvidence,
-  artifacts: readonly ExactArtifact[]
+  artifacts: readonly ExactArtifact[],quarantines:readonly JobQuarantine[]=[]
 ): boolean {
   const config = plan.table.staticPublicList;
   const declaration = evidence.declaredCompleteness!;
@@ -956,7 +977,7 @@ function validateStaticPublicList(
     return validateApeloaStaticPlan(plan, $, rows);
   }
   if (policy.sourcePolicy === "ASTELLAS_CHINA_PDF_ACCORDION_V1") {
-    return validateAstellasStaticPlan(plan, $, rows);
+    return validateAstellasStaticPlan(plan, $, rows,quarantines);
   }
   // Retired zero-only policy names intentionally fall through to rejection.
   // Do not downgrade them to the generic static-list policy.
@@ -1001,7 +1022,7 @@ function validateApeloaStaticPlan(
 function validateAstellasStaticPlan(
   plan: HtmlPlan,
   $: ReturnType<typeof load>,
-  rows: readonly AnyNode[]
+  rows: readonly AnyNode[],quarantines:readonly JobQuarantine[]=[]
 ): boolean {
   const config = plan.table.staticPublicList;
   if (plan.source.id !== "source-astellas-china-social" ||
@@ -1017,7 +1038,8 @@ function validateAstellasStaticPlan(
   if (accordions.length !== 1 || allPdfs.length !== rows.length ||
     rows.some((row) => !allPdfs.includes(row))) return false;
   const seenUrls = new Set<string>();
-  for (const row of rows) {
+  for (const [index,row] of rows.entries()) {
+    if(quarantines.some(q=>q.pageSequence===0&&q.recordIndex===index))continue;
     const element = $(row);
     const rawUrl = element.attr("href");
     const url = rawUrl ? strictSameOriginUrl(rawUrl, plan.source.officialEntryUrl) : undefined;
@@ -1160,10 +1182,7 @@ function replayRows(
   globalSeen: Set<string>
 ): boolean {
   const $ = load(html);
-  const ids = selectHtmlTableRows($, table).map((row) => {
-    const raw = $.html(row);
-    return `html-row:sha256:${sha256Bytes(Buffer.from(raw, "utf8")).sha256}`;
-  });
+  const ids = selectHtmlTableRows($, table).map((row,index) => htmlRowObservationId($,row,table,page.sequence,index));
   if (new Set(ids).size !== ids.length || ids.some((id) => globalSeen.has(id)) ||
     JSON.stringify(ids) !== JSON.stringify(page.rawJobIds) ||
     JSON.stringify(ids) !== JSON.stringify(page.validJobIds)) return false;
@@ -1407,7 +1426,8 @@ function talentbrewRequestUrl(
   endpoint: URL,
   staticFilters: TalentValue[],
   partition: TalentbrewPartition | undefined,
-  page: number
+  page: number,
+  normalNext = false
 ): string {
   const results = $("#search-results").first();
   const filters = $("#search-filters").first();
@@ -1415,13 +1435,14 @@ function talentbrewRequestUrl(
     strictInt(element.attr(attr), false) ?? fallback;
   const criteria: Record<string, TalentValue> = {
     ActiveFacetID: numberOr(results, "data-active-facet-id", 0),
+    ...(normalNext ? { CurrentPage: page } : {}),
     RecordsPerPage: numberOr(results, "data-records-per-page", 20),
     TotalContentResults: numberOr(results, "data-total-content-results", 0),
     Distance: numberOr(results, "data-distance", 50),
     RadiusUnitType: numberOr(filters, "data-radius-unit-type", 2),
     Keywords: results.attr("data-keywords") ?? "", Location: results.attr("data-location") ?? "",
     Latitude: results.attr("data-latitude") ?? "", Longitude: results.attr("data-longitude") ?? "",
-    ShowRadius: results.attr("data-show-radius") ?? "False", IsPagination: page > 1 ? "True" : "False",
+    ShowRadius: results.attr("data-show-radius") ?? "False", IsPagination: !normalNext && page > 1 ? "True" : "False",
     CustomFacetName: results.attr("data-custom-facet-name") ?? "",
     FacetTerm: results.attr("data-facet-term") ?? "",
     FacetType: strictInt(results.attr("data-facet-type"), false) ?? null,
@@ -1446,6 +1467,20 @@ function talentbrewRequestUrl(
     afl: filters.attr("data-filtered-advanced-locations") ?? "", afcf: filters.attr("data-filtered-advanced-custom-facet") ?? "",
     CurrentPage: page
   };
+  if (normalNext) {
+    const contentTotal = Number.parseInt(results.attr("data-total-content-results") ?? "");
+    criteria.TotalContentResults = Number.isNaN(contentTotal) ? "" : contentTotal;
+    criteria.TotalContentPages = Math.ceil(contentTotal / Number(criteria.RecordsPerPage));
+    for (const key of ["Latitude", "Longitude"]) {
+      const value = Number.parseFloat(String(criteria[key]));
+      if (Number.isNaN(value)) delete criteria[key];
+      else criteria[key] = value.toFixed(5);
+    }
+    for (const key of Object.keys(criteria)) {
+      if (criteria[key] === null || criteria[key] === "" &&
+          ["CategoryFacetTerm", "CategoryFacetType", "LocationFacetTerm", "LocationFacetType", "KeywordType"].includes(key)) delete criteria[key];
+    }
+  }
   endpoint.search = encodeTalentbrew(criteria);
   return endpoint.toString();
 }

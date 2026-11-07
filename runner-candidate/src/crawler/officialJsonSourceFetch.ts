@@ -1,16 +1,24 @@
-import { hasBiSemanticPlan } from "./biSemanticCompleteness";
+import {isolateRedseaJobs,redseaRawObservationId} from './redseaJobQuarantine';
+import {qiluReviewedRowGeography} from './manualChromeQiluReplay';
+import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
+import { hasBiSemanticPlan, biJobId, biJobQuarantine, biRawObservationId, hasBiMainlandGeography, biDisplayCities } from "./biSemanticCompleteness";
 import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
 import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFailureArtifact, novoNativeGatewayRetryStart, novoNativeGatewayRetryArtifact, delayNovoNativeRetry } from "./novoNativeGatewayRetry";
 import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
 import { acquireBeisenDetailDates } from "./beisenDetailDates";
+import {isolateBeisenJobRows,beisenRawObservationId} from './beisenJobQuarantine';
+import {quarantineFetchLosses,quarantineCompleteList,jobQuarantineLoss,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
+import {sanitizeEvidenceHttpUrl,parsePersistentSourceFetchEvidence} from './sourceFetchEvidence';
+import {phenomJobQuarantine} from './phenomJobQuarantine';
+import {exactFosunHongKongOnlyScope,exactQiluUnitedStatesOrHongKongScope} from './strictSourceScopeExclusionProof';
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
-import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss } from "./novoChinaQuality";
+import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoJobQuarantine, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoIncompleteDetailIsBound, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss } from "./novoChinaQuality";
 import { BMS_GEOGRAPHY_POLICY, bmsMainlandCities } from "./bmsMainlandGeography";
 import { bmsOfficialPostedDate, exactBmsPostedDatePlan, requiresBmsPostedDate } from "./bmsOfficialPostedDate";
 import { ucbOfficialCities, exactUcbPostedDatePlan, exactUcbPostedDateBootstrap, requiresUcbPostedDate, ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
@@ -73,15 +81,14 @@ import {
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
-import { auditRedseaCandidateScope } from "./redseaCandidateScope";
+import { auditRedseaCandidateScope,redseaNativeJobId } from "./redseaCandidateScope";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import { exactGileadPublicAgePlan } from "./gileadPublicAge";
 import {
   parseYelloJobBoardResponse,
   yelloJobBoardBinding,
   yelloScopeExclusionLoss,
-  YelloPublicAgeError,
-  YelloScopeReviewError,
+  yelloJobQuarantine,
   type YelloJobBoardConfig
 } from "./yelloJobBoardEvidence";
 
@@ -398,13 +405,13 @@ export function createOfficialJsonSourceFetch(
       }
 
       if (plan.officialJsonFetch.kind === "beisen-zhiye-2022") {
-        return finish(await acquireBeisenDetailDates(plan, await fetchBeisenZhiye2022({
+        return finish(await acquireBeisenDetailDates(plan, isolateBeisenJobRows(plan,await fetchBeisenZhiye2022({
           http,
           config: plan.officialJsonFetch,
           entryUrl: plan.source.officialEntryUrl,
           capturedAt,
           now
-        }), deps.http, now));
+        }),plan.source.id==='source-fosun-pharma-social'?exactFosunHongKongOnlyScope:plan.source.id==='source-qilu-social'?exactQiluUnitedStatesOrHongKongScope:()=>false), deps.http, now));
       }
 
       if (plan.officialJsonFetch.kind === "cnstaff") {
@@ -473,13 +480,13 @@ export function createOfficialJsonSourceFetch(
       }
 
       if (plan.officialJsonFetch.kind === "redsea-zp-channel") {
-        return finish(await fetchRedseaZpChannel({
+        return finish(isolateRedseaJobs(plan,await fetchRedseaZpChannel({
           http,
           config: plan.officialJsonFetch,
           entryUrl: plan.source.officialEntryUrl,
           capturedAt,
           now
-        }));
+        })));
       }
 
       if (plan.officialJsonFetch.kind === "xiuzheng-job-list") {
@@ -584,26 +591,6 @@ async function fetchYelloJobBoard({
   try {
     parsed = parseYelloJobBoardResponse(response.body, config);
   } catch (error) {
-    if (error instanceof YelloPublicAgeError || error instanceof YelloScopeReviewError) {
-      // Hold the whole partition atomically. Unresolved rows are diagnostic losses,
-      // never proven scope/age exclusions or authority to advance missing jobs.
-      failureState.rawCount = error.rawRows.length;
-      failureState.parsedCount = error.rawRows.length;
-      failureState.validationDiscardCount = error.rawRows.length;
-      failureState.page.declaredTotal = error.rawRows.length;
-      failureState.page.declaredCount = error.rawRows.length;
-      for (const [index, row] of error.rawRows.entries()) {
-        failureState.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([index, row]));
-        const scopeReview = error instanceof YelloScopeReviewError;
-        const code = scopeReview
-          ? index === error.rowIndex ? "GILEAD_SCOPE_REVIEW_REQUIRED" : "GILEAD_SCOPE_SOURCE_HELD"
-          : index === error.rowIndex ? "GILEAD_PUBLIC_AGE_INVALID" : "GILEAD_PUBLIC_AGE_SOURCE_HELD";
-        failureState.fetchLosses.push({stage: "VALIDATION", reason: code,
-          rawLocator: officialJsonRawLocator(row, index), details: {code, field: scopeReview ? "location" : "publicAge", pageSequence: 0, recordIndex: index},
-          recordedAt: artifact.capturedAt});
-      }
-      return failedWithEvidence(capturedAt, error.message, finalizeOfficialJsonFailureEvidence(failureState));
-    }
     return failedWithEvidence(capturedAt, "Yello response failed strict China partition replay",
       finalizeOfficialJsonFailureEvidence(failureState));
   }
@@ -611,10 +598,16 @@ async function fetchYelloJobBoard({
   const state = initialOfficialJsonEvidenceState({ artifact, declaredTotal: count, termination: "ABORTED" });
   state.page.declaredCount = count;
   const jobs: NormalizedOfficialJsonJob[] = [];
+  const quarantines:JobQuarantine[]=[];
   for (const row of parsed.rows) {
     state.rawCount += 1;
     state.page.rawJobIds.push(irreversibleOfficialJsonEvidenceId([row.rowIndex, row.rawHtml]));
     state.parsedCount += 1;
+    if(row.scopeDecision==='QUARANTINED'){
+      const quarantine=yelloJobQuarantine(row);quarantines.push(quarantine);
+      state.validationDiscardCount++;state.fetchLosses.push(jobQuarantineLoss(quarantine,artifact.capturedAt));
+      continue;
+    }
     if (row.scopeDecision === "EXCLUDED_HONG_KONG") {
       state.validationDiscardCount += 1;
       state.fetchLosses.push(yelloScopeExclusionLoss(row, artifact));
@@ -632,6 +625,7 @@ async function fetchYelloJobBoard({
     declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: count,
       artifactLogicalKey: artifact.logicalKey, extractorLocator, scope: "SOURCE" }
   });
+  const enriched=quarantines.length?{...evidence,jobQuarantines:quarantines}:evidence;
   return {
     ok: true,
     capturedAt,
@@ -644,7 +638,7 @@ async function fetchYelloJobBoard({
       completenessBlockerReason: "Yello official China total remains manual until downstream adapter accounting is complete",
       pagesVisited: 1
     },
-    fetchEvidence: evidence,
+    fetchEvidence: enriched,
     paginationEvaluation: evaluation
   };
 }
@@ -816,7 +810,7 @@ async function fetchSingleResponseOfficialJson({
     const transportFailure = config.kind === "novo-nordisk"
       ? (novoHttpRetryAllowed(response, endpoint, false)
         ? retryableHttpTransportFailure(response.status, response.retryAfter) : undefined)
-      : retryableHttpTransportFailure(response.status);
+      : retryableHttpTransportFailure(response.status, response.retryAfter);
     return failedWithEvidence(
       capturedAt,
       transportFailure
@@ -919,6 +913,7 @@ async function fetchSingleResponseOfficialJson({
     termination: "ABORTED"
   });
   if (novoNestedResponse) {
+    const quarantines:JobQuarantine[]=[];let accessStopped=false;
     const artifacts: SourceFetchArtifactDraft[] = [artifact];
     const jobs: NormalizedOfficialJsonJob[] = [];
     const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
@@ -964,6 +959,7 @@ async function fetchSingleResponseOfficialJson({
           }
           throw error;
         }
+        if(response.status===403||response.status===429)accessStopped=true;
         assertOfficialJsonEvidenceResponse(response, { requestedUrl: allowApplicationRedirect ? response.finalUrl! : url,
           crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime() });
         const deadline = currentOfficialSourceAttemptDeadlineAtMs();
@@ -1004,24 +1000,31 @@ async function fetchSingleResponseOfficialJson({
       const entry = await html(entryUrl, "novo-native-entry"), base = novoNativeDetailBase(entry.body);
       if (!base || novoNestedResponse.total > 500) throw new Error("Novo native entry or bounded listing is unresolved");
       for (let i = 0; i < novoNestedResponse.total; i++) {
-        const raw = novoNestedResponse.rawJobs[i]!, projection = novoNestedResponse.jobs[i]!;
+        const raw=novoNestedResponse.rawJobs[i] as Record<string,unknown>,projection=novoNestedResponse.jobs[i];
+        try {
+        if(!projection||accessStopped||remaining()<=0)throw Error('NOVO_JOB_UNVERIFIED');
         const detailUrl = `${base}.${raw.jobId}.html`;
         const detail = await html(detailUrl, `novo-detail-${raw.jobId}`);
         const applyUrl = novoNativeApplicationUrl(detail.body, detailUrl, String(raw.jobId));
-        if (!applyUrl) throw new Error("Novo native detail/application identity is UNKNOWN");
         if (!novoNativeDetailHasSubstantiveDescription(detail.body)) {
+          if (!applyUrl&&!novoIncompleteDetailIsBound(detail.body,detailUrl)) throw new Error("Novo native detail/application identity is UNKNOWN");
           losses.push(novoInsufficientDetailLoss(raw, i, detail.capturedAt!));
           continue;
         }
+        if (!applyUrl) throw new Error("Novo native detail/application identity is UNKNOWN");
         const application = await html(applyUrl, `novo-application-${raw.jobId}`, true);
         const status = novoApplicationStatus(application.body, application.finalUrl!, String((raw.jobCity as { value: string }).value), String((raw.jobState as { value: string }).value));
         if (!status) throw new Error("Novo official application status is UNKNOWN");
         if (status.status === "CLOSED") losses.push(novoClosedLoss(raw, i, application.capturedAt!));
         else jobs.push({ ...projection, ...(status.cityUncertain ? {cities: [CITY_PENDING]} : {}), officialUrl: detailUrl, title: status.title! });
+        }catch(error){
+          currentOfficialSourceAttemptSignal()?.throwIfAborted();
+          const q=novoJobQuarantine(raw,i);quarantines.push(q);losses.push(jobQuarantineLoss(q,capturedAt));
+        }
       }
     } catch (error) {
       // Preserve failure classification, but do not restart a begun native traversal.
-      // Unbound pages, application uncertainty, access blocks and cancellation still fail closed.
+      // Failure of the shared entry or cancellation still holds the company.
       const transportFailure = nativeHttpFailure ?? retryableTransportFailureFromError(error);
       const code = "NOVO_APPLICATION_STATUS_UNKNOWN";
       return { ...failedWithEvidence(capturedAt, transportFailure
@@ -1039,7 +1042,7 @@ async function fetchSingleResponseOfficialJson({
       declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", value: novoNestedResponse.total,
         artifactLogicalKey: artifact.logicalKey, extractorLocator, scope: "SOURCE" },
       allowPositiveOfficialTotalCountAfterAdapterReconciliation: true, allowIndependentlyVerifiedProfileBoundExclusions: true });
-    return { ok: true, capturedAt, payload: { jobs }, fetchEvidence: evidence, paginationEvaluation: evaluation,
+    return { ok: true, capturedAt, payload: { jobs }, fetchEvidence: parsePersistentSourceFetchEvidence({...evidence,...(quarantines.length?{jobQuarantines:quarantines}:{})}), paginationEvaluation: evaluation,
       completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: novoNestedResponse.total,
         completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT", completenessEvidenceUrl,
         completenessBlockerReason: "Native raw total and explicit application closures require downstream replay", pagesVisited: 1 } };
@@ -1456,8 +1459,7 @@ async function fetchRedseaZpChannel({
     const validIds: string[] = [];
     for (let recordIndex = 0; recordIndex < parsed.jobs.length; recordIndex += 1) {
       const raw = parsed.jobs[recordIndex]; counts.rawCount += 1;
-      const rawId = isStrictRecord(raw) ? stringValue(raw.REQUEST_ID) : undefined;
-      const evidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? raw);
+      const evidenceId = redseaRawObservationId(raw,channelIndex,recordIndex);
       if (!rawIds.includes(evidenceId)) rawIds.push(evidenceId);
       const locator = `${apiArtifactResult.artifact.logicalKey}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId([recordIndex, raw])}`;
       if (!isStrictRecord(raw)) { recordRedseaLoss(losses, counts, "PARSE", "NON_OBJECT_RECORD", locator, channelIndex, recordIndex); continue; }
@@ -2348,18 +2350,17 @@ function replay51jobArtifacts(
     validationDiscardCount: 0
   };
   const seen = new Set<string>();
+  const quarantines:JobQuarantine[]=[];
   for (let index = 0; index < envelope.jobs.length; index += 1) {
     const raw = envelope.jobs[index]!;
-    const rawId = stringValue(raw.jobid);
-    rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? raw));
-    const title = stringValue(raw.jobname);
-    const locationRaw = stringValue(raw.jobareaname);
-    if (!rawId || !title || !locationRaw || seen.has(rawId)) {
-      counts.validationDiscardCount += 1;
-      losses.push({ stage: "VALIDATION", reason: "51job record rejected: INVALID_REQUIRED_FIELD",
-        rawLocator: officialJsonRawLocator(0, index), details: { code: "INVALID_REQUIRED_FIELD", recordIndex: index } });
-      continue;
-    }
+    const rawId=biJobId(raw);
+    if(rawId){if(seen.has(rawId))return failed(capturedAt,'51job duplicate official ID');seen.add(rawId);}
+    rawIds.push(biRawObservationId(raw,index));
+    const quarantine=biJobQuarantine(raw,index);
+    if(quarantine){quarantines.push(quarantine);counts.validationDiscardCount++;losses.push(jobQuarantineLoss(quarantine,apiArtifact.capturedAt));continue;}
+    if(!isStrictRecord(raw))return failed(capturedAt,'51job invalid row');
+    const title = stringValue(raw.jobname)!;
+    const locationRaw = stringValue(raw.jobareaname)!;
     if (ui.exclusions.some((rule) => title.includes(rule.code) && locationRaw.includes(rule.jobareaname))) {
       counts.validationDiscardCount += 1;
       losses.push({ stage: "VALIDATION", reason: "51job record excluded by official recruitment UI",
@@ -2367,11 +2368,10 @@ function replay51jobArtifacts(
       continue;
     }
     const officialUrl = new URL(detailBase);
-    officialUrl.searchParams.set("jobId", rawId);
-    const sourceJobId = persistentOfficialJsonJobId(rawId);
+    officialUrl.searchParams.set("jobId", rawId!);
+    const sourceJobId = persistentOfficialJsonJobId(rawId!);
     jobs.push({ sourceJobId, title, officialUrl: officialUrl.toString(), locationRaw,
-      cities: citiesWithFallback(locationRaw, locationRaw) });
-    seen.add(rawId);
+      cities: biDisplayCities(raw) });
     counts.validCount += 1;
     validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
   }
@@ -2425,7 +2425,7 @@ function replay51jobArtifacts(
     payload: { jobs },
     completeness: {
       completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-      expectedJobCount: counts.validCount,
+      expectedJobCount: envelope.total,
       completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT",
       completenessEvidenceUrl: safeEntryUrl,
       completenessBlockerReason: "51job UI exclusions await independent strict replay",
@@ -2433,12 +2433,12 @@ function replay51jobArtifacts(
       pageSize: Number(params.pagesize),
       pagesVisited: 1
     },
-    fetchEvidence: finalized.evidence,
+    fetchEvidence: quarantines.length?{...finalized.evidence,jobQuarantines:quarantines}:finalized.evidence,
     paginationEvaluation: finalized.evaluation
   };
 }
 
-function parse51jobJsonp(body: string): { total: number; jobs: Record<string, unknown>[] } | undefined {
+function parse51jobJsonp(body: string): { total: number; jobs: unknown[] } | undefined {
   const match = /^\s*jsoncallback\((\{[\s\S]*\})\)\s*;?\s*$/u.exec(body);
   if (!match || !hasUniqueJsonObjectKeys(match[1]!)) return undefined;
   try {
@@ -2447,8 +2447,8 @@ function parse51jobJsonp(body: string): { total: number; jobs: Record<string, un
       !Array.isArray(root.resultbody.joblist)) return undefined;
     const totalRaw = root.resultbody.totalnum;
     const total = typeof totalRaw === "string" && /^\d+$/u.test(totalRaw) ? Number(totalRaw) : totalRaw;
-    if (!isNonnegativeInteger(total) || root.resultbody.joblist.some((row) => !isStrictRecord(row))) return undefined;
-    return { total, jobs: root.resultbody.joblist as Record<string, unknown>[] };
+    if (!isNonnegativeInteger(total)) return undefined;
+    return { total, jobs: root.resultbody.joblist };
   } catch {
     return undefined;
   }
@@ -2498,8 +2498,8 @@ async function fetchEightfoldPcsx({
   let declaredArtifactKey: string | undefined;
   let declaredLocator: string | undefined;
 
-  const fail = (reason: string): SourceFetchResult => {
-    if (!preservePostedDate || artifacts.length === 0) return failed(capturedAt, reason);
+  const fail = (reason: string, transportFailure?: SourceTransportFailure): SourceFetchResult => {
+    if (!preservePostedDate || artifacts.length === 0) return failed(capturedAt, reason, transportFailure);
     // A later transport/schema failure must not erase already captured date evidence.
     // Retain counted complete pages when possible; unparsed envelopes are supporting bytes only.
     const counted = pages.length > 0 &&
@@ -2515,7 +2515,7 @@ async function fetchEightfoldPcsx({
       : finalizeOfficialJsonSupportingFailureEvidence({
         artifacts: artifacts.map(artifact => ({ ...artifact, kind: "ATS_API_RESPONSE" })),
         code: "BMS_POSTED_DATE_SOURCE_FAILURE"
-      }));
+      }), transportFailure);
   };
 
   for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
@@ -2543,7 +2543,8 @@ async function fetchEightfoldPcsx({
         observedNowMs: now().getTime()
       });
     } catch (error) {
-      return fail(safeOfficialJsonFailure(error, "Eightfold PCSx transport or metadata failed"));
+      return fail(safeOfficialJsonFailure(error, "Eightfold PCSx transport or metadata failed"),
+        retryableTransportFailureFromError(error));
     }
     const artifact = officialJsonNetworkArtifact({
       id: `eightfold-page-${String(pageIndex).padStart(4, "0")}`,
@@ -2555,7 +2556,8 @@ async function fetchEightfoldPcsx({
     });
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
-      return fail(`Eightfold PCSx returned HTTP ${response.status}`);
+      return fail(`Eightfold PCSx returned HTTP ${response.status}`, response.status >= 500
+        ? retryableHttpTransportFailure(response.status, response.retryAfter) : undefined);
     }
     try { assertOfficialJsonMime(response); } catch {
       return fail("Eightfold PCSx response has an invalid Content-Type");
@@ -2583,9 +2585,10 @@ async function fetchEightfoldPcsx({
       const raw = root.data.positions[recordIndex];
       counts.rawCount += 1;
       const rawId = isStrictRecord(raw) ? stringValue(raw.id) : undefined;
-      rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? raw));
+      rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? [pageIndex,recordIndex,raw]));
       if (!isStrictRecord(raw)) {
         counts.parseDiscardCount += 1;
+        losses.push({stage:'PARSE',reason:'Invalid Eightfold job row',rawLocator:`${artifact.logicalKey}#record:${recordIndex}`,details:{code:'NON_OBJECT_RECORD',pageSequence:pageIndex,recordIndex}});
         continue;
       }
       counts.parsedCount += 1;
@@ -2599,18 +2602,12 @@ async function fetchEightfoldPcsx({
       const projection = projectEightfoldPcsxPosition(raw, detailBase, config.cityScopePolicy);
       if (!projection || seen.has(projection.rawId)) {
         counts.validationDiscardCount += 1;
+        losses.push({stage:'VALIDATION',reason:'Invalid Eightfold job row',rawLocator:`${artifact.logicalKey}#record:${recordIndex}`,details:{code:projection?'DUPLICATE_OFFICIAL_ID':'BMS_JOB_INVALID',pageSequence:pageIndex,recordIndex}});
         continue;
       }
       const { rawId: id, ...job } = projection;
       seen.add(id);
       const officialPublishedAt = preservePostedDate ? bmsOfficialPostedDate(raw.postedTs) : undefined;
-      if (preservePostedDate && officialPublishedAt === undefined) {
-        counts.validationDiscardCount += 1;
-        losses.push({ stage: "VALIDATION", reason: "BMS official posted-date validation failed",
-          rawLocator: `${artifact.logicalKey}#record:${recordIndex}`,
-          details: { code: "BMS_POSTED_DATE_INVALID", field: "postedTs", pageSequence: pageIndex, recordIndex } });
-        continue;
-      }
       const sourceJobId = job.sourceJobId;
       jobs.push({ ...job, ...(officialPublishedAt === undefined ? {} : { officialPublishedAt }) });
       counts.validCount += 1;
@@ -2623,7 +2620,7 @@ async function fetchEightfoldPcsx({
       requestedCursor: null, returnedCursor: null,
       requestedOffset: start, returnedOffset: start,
       requestedPage: null, returnedPage: null,
-      requestedPageSize: pageSize, returnedPageSize: root.data.positions.length,
+      requestedPageSize: pageSize, returnedPageSize: null,
       rawJobIds: [...new Set(rawIds)], validJobIds: validIds,
       declaredTotal: total, declaredCount: null, declaredPages: null,
       nextPageSignalBefore: pageIndex === 0 ? null : `start:${start}`,
@@ -2634,21 +2631,22 @@ async function fetchEightfoldPcsx({
     });
     if (!hasNext || atMax) break;
   }
-  if (losses.some(loss => loss.details.code === "BMS_GEOGRAPHY_INVALID")) {
-    return fail("BMS official mainland geography validation failed");
-  }
-  if (losses.some(loss => loss.details.code === "BMS_POSTED_DATE_INVALID")) {
-    return fail("BMS official posted-date validation failed");
-  }
   if (declaredTotal === undefined || !declaredArtifactKey || !declaredLocator || counts.rawCount !== declaredTotal ||
-    counts.validCount !== declaredTotal || counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== 0) {
+    losses.some(loss=>loss.details.code==='DUPLICATE_OFFICIAL_ID')) {
     return fail("Eightfold PCSx traversal did not close the declared total");
   }
   const declaredCompleteness = { kind: "OFFICIAL_TOTAL_COUNT" as const, value: declaredTotal,
     artifactLogicalKey: declaredArtifactKey, extractorLocator: declaredLocator, scope: "SOURCE" as const };
-  const finalized = finalizeOfficialJsonEvidenceBundle({
+  const rawFinalized = finalizeOfficialJsonEvidenceBundle({
     artifacts, pages, fetchCounts: counts, fetchLosses: losses, declaredCompleteness
   });
+  const isolated=quarantineFetchLosses(rawFinalized.evidence,loss=>{
+    const sequence=loss.details.pageSequence,index=loss.details.recordIndex;if(sequence===undefined||index===undefined)return undefined;
+    const page=pages[sequence]!,artifact=artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
+    const raw=JSON.parse(artifact.body as string).data.positions[index];return eightfoldJobQuarantine(raw,detailBase,sequence,index,page.artifactLogicalKey,loss.details.code);
+  });
+  const evidence=deriveCanonicalPaginationEvidence({evidence:isolated,expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION});
+  const finalized={evidence,evaluation:evaluatePaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION})};
   return {
     ok: true, capturedAt, payload: { jobs },
     completeness: {
@@ -2665,6 +2663,13 @@ async function fetchEightfoldPcsx({
 }
 
 /** Eightfold identity projection; the BMS option requires its reviewed raw geography pair. */
+export function eightfoldJobQuarantine(raw:unknown,detailBase:URL,pageSequence:number,recordIndex:number,pageKey:string,code:string):JobQuarantine{
+  const id=isStrictRecord(raw)?stringValue(raw.id):undefined,known=id&&safeOfficialJsonId(id)?id:undefined;
+  let officialUrl:string|undefined;
+  try{const path=isStrictRecord(raw)&&stringValue(raw.positionUrl),url=path?new URL(path,detailBase.origin):undefined;if(url?.origin===detailBase.origin&&url.pathname.startsWith(`${detailBase.pathname}/`))officialUrl=sanitizeEvidenceHttpUrl(url.href);}catch{/* Unknown identity is retained without inventing a URL. */}
+  return {pageSequence,recordIndex,rawLocator:`${pageKey}#record:${recordIndex}`,code,validJobId:known?irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId(known)):`unidentified:${pageSequence}:${recordIndex}`,
+    ...(known?{sourceJobId:persistentOfficialJsonJobId(known)}:{}),...(officialUrl?{officialUrl}:{})};
+}
 export function projectEightfoldPcsxPosition(raw: Record<string, unknown>, detailBase: URL, geographyPolicy?: typeof BMS_GEOGRAPHY_POLICY):
   (NormalizedOfficialJsonJob & { rawId: string }) | undefined {
   const id = stringValue(raw.id);
@@ -2763,7 +2768,7 @@ async function fetchJobsynSolr({
     }
     previousCapturedAtMs = artifactCapturedAtMs;
     if (response.status < 200 || response.status >= 300) {
-      const transportFailure = retryableHttpTransportFailure(response.status);
+      const transportFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
       pages.push(jobsynPageTrace({ artifact, sequence: page - 1, requestedPage: page, termination: "FAILED" }));
       return jobsynFailure(capturedAt, transportFailure
         ? safeSourceTransportFailureReason(transportFailure)
@@ -3093,7 +3098,7 @@ async function fetchCnstaff({
       const rawOfficialId = isStrictRecord(raw)
         ? stringValue(raw.job_publish_id) ?? stringValue(raw.job_id)
         : undefined;
-      const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawOfficialId ?? raw);
+      const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawOfficialId ?? [page-1,recordIndex,raw]);
       if (!rawIds.includes(rawEvidenceId)) rawIds.push(rawEvidenceId);
       const rawLocator = `${artifact.logicalKey}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId([recordIndex, raw])}`;
       if (!isStrictRecord(raw)) {
@@ -3211,6 +3216,13 @@ async function fetchCnstaff({
     return cnstaffFailure(capturedAt, safeOfficialJsonFailure(error, "CNStaff pagination evidence is invalid"),
       artifacts, pages, counts, losses, declaredCompleteness);
   }
+  const isolated=quarantineFetchLosses(finalized.evidence,loss=>{
+    const sequence=loss.details.pageSequence,index=loss.details.recordIndex;if(sequence===undefined||index===undefined||loss.details.code.startsWith('DUPLICATE_'))return undefined;
+    const page=pages[sequence]!,artifact=artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
+    return cnstaffJobQuarantine(JSON.parse(artifact.body as string).list[index],safeEntryUrl,sequence,index,page.artifactLogicalKey,loss.details.code);
+  });
+  const evidence=deriveCanonicalPaginationEvidence({evidence:isolated,expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION});
+  finalized={evidence,evaluation:evaluatePaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION})};
   const anomalyText = finalized.evaluation.derivedAnomalyCodes.join(", ");
   const blockerReason = anomalyText
     ? `CNStaff pagination evidence requires manual review: ${anomalyText}`
@@ -3376,7 +3388,7 @@ async function fetchBeisenZhiye2022({
     });
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
-      const transportFailure = retryableHttpTransportFailure(response.status);
+      const transportFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
       pages.push(beisenPageTrace({ artifact, sequence: pageIndex, requestedPage: pageIndex, termination: "FAILED" }));
       return beisenFailure(capturedAt, transportFailure
         ? safeSourceTransportFailureReason(transportFailure)
@@ -3466,12 +3478,7 @@ async function fetchBeisenZhiye2022({
     }
 
     const rawJobs = root.Data as unknown[];
-    const rawIds: string[] = rawJobs.map((raw) => {
-      const rawOfficialId = isStrictRecord(raw) && typeof raw.Id === "string"
-        ? raw.Id
-        : undefined;
-      return irreversibleOfficialJsonEvidenceId(rawOfficialId ?? raw);
-    }).filter((id, index, ids) => ids.indexOf(id) === index);
+    const rawIds: string[] = rawJobs.map((raw,recordIndex)=>beisenRawObservationId(raw,pageIndex,recordIndex)).filter((id,index,ids)=>ids.indexOf(id)===index);
     const validIds: string[] = [];
     for (let recordIndex = 0; recordIndex < rawJobs.length; recordIndex += 1) {
       const raw = rawJobs[recordIndex];
@@ -3486,21 +3493,7 @@ async function fetchBeisenZhiye2022({
       if (socialMismatch) {
         recordBeisenLoss(losses, counts, "VALIDATION", "SOCIAL_CHANNEL_MISMATCH",
           rawLocator, pageIndex, recordIndex, socialMismatch);
-        pages.push(beisenPageTrace({
-          artifact,
-          sequence: pageIndex,
-          requestedPage: pageIndex,
-          returnedPage,
-          rawJobIds: rawIds,
-          validJobIds: validIds,
-          ...(pageTotal === undefined ? {} : { declaredTotal: pageTotal }),
-          nextPageSignalBefore: pageIndex === 0 ? null : `page:${pageIndex}`,
-          nextPageSignalAfter: null,
-          termination: "FAILED"
-        }));
-        return beisenFailure(capturedAt, "Beisen Zhiye social channel binding failed",
-          artifacts, pages, counts, losses,
-          beisenDeclaredCompleteness(declaredTotal, declaredArtifactKey, declaredLocator));
+        continue;
       }
       const officialId = beisenCanonicalOriginalUuid(raw.Id);
       const detailId = officialId;
@@ -3569,6 +3562,9 @@ async function fetchBeisenZhiye2022({
           scope === "AMBIGUOUS" ? "AMBIGUOUS_SCOPE" : "OUT_OF_SCOPE",
           rawLocator, pageIndex, recordIndex);
         continue;
+      }
+      if(config.scopeExclusionProof==='QILU_EXPLICIT_US_OR_HONG_KONG_ONLY_V2'&&(raw.Status!==1||!['EXPLICIT_MAINLAND','NATIONWIDE_ONLY'].includes(qiluReviewedRowGeography(raw)??''))){
+        recordBeisenLoss(losses,counts,'VALIDATION','AMBIGUOUS_SCOPE',rawLocator,pageIndex,recordIndex);continue;
       }
       let officialUrl: string;
       try {
@@ -3782,7 +3778,7 @@ async function fetchPhenomWidgets({
   });
   if (entry.status < 200 || entry.status >= 300) {
     const transportFailure = withPhenomTransportStage(
-      retryableHttpTransportFailure(entry.status),
+      retryableHttpTransportFailure(entry.status, entry.retryAfter),
       "ENTRY"
     );
     return failedWithEvidence(
@@ -3880,7 +3876,7 @@ async function fetchPhenomWidgets({
   const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   const jobs: NormalizedOfficialJsonJob[] = [];
   const seenOfficialIds = new Set<string>();
-  const firstRawByOfficialId = new Map<string, { pageIndex: number; serialized: string }>();
+  const firstRawByOfficialId = new Map<string, { pageIndex: number; recordIndex:number; serialized: string }>();
   let pageSize = Math.max(1, Math.min(exactRocheRequestBoundOmittedOffset ? 250 : 100, config.pageSize ?? 50));
   const maxPages = Math.max(1, config.maxPages ?? 20);
   const countryFilter = config.countryFilter ?? "China";
@@ -3967,7 +3963,7 @@ async function fetchPhenomWidgets({
       );
     }
     artifacts.push(countryPreflight.artifact);
-    if (countryPreflight.envelope.totalHits !== countryCount ||
+    if (countryPreflight.envelope.totalHits !== countryCount ||!(preserveOrganonQuality||preserveLillyQuality||preserveMerckQuality||preserveUcbPostedDate||preserveRocheQuality)&&
       countryPreflight.envelope.jobs.some((raw) =>
         !isStrictRecord(raw) || !phenomRecordMatchesCountryFacet(
           raw,
@@ -4179,7 +4175,7 @@ async function fetchPhenomWidgets({
     artifacts.push(artifact);
     if (response.status < 200 || response.status >= 300) {
       const transportFailure = withPhenomTransportStage(
-        retryableHttpTransportFailure(response.status),
+        retryableHttpTransportFailure(response.status, response.retryAfter),
         "PAGE"
       );
       pages.push(phenomPageTrace({ artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, termination: "FAILED" }));
@@ -4312,7 +4308,7 @@ async function fetchPhenomWidgets({
       const rawOfficialId = isStrictRecord(raw)
         ? stringValue(raw.jobSeqNo) ?? stringValue(raw.reqId) ?? stringValue(raw.jobId)
         : undefined;
-      const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawOfficialId ?? raw);
+      const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawOfficialId ?? [pageIndex,recordIndex,raw]);
       if (!rawIds.includes(rawEvidenceId)) rawIds.push(rawEvidenceId);
       const rawLocator = `${artifact.logicalKey}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId([recordIndex, raw])}`;
       if (!isStrictRecord(raw)) {
@@ -4358,6 +4354,7 @@ async function fetchPhenomWidgets({
       if ((facetScope || sourceScopedChinaRequest) && phenomCountryIsMainlandChina(locationSelection.country) &&
         locationScopeInvalid) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
+        if(preserveMerckQuality||preserveUcbPostedDate||preserveLillyQuality||preserveOrganonQuality||preserveRocheQuality)continue;
         pages.push(phenomPageTrace({
           artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, returnedOffset,
           rawJobIds: rawIds, validJobIds: validIds,
@@ -4390,6 +4387,7 @@ async function fetchPhenomWidgets({
       );
       if (structuredScopeDrift) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
+        if(preserveMerckQuality||preserveUcbPostedDate||preserveLillyQuality||preserveOrganonQuality||preserveRocheQuality)continue;
         pages.push(phenomPageTrace({
           artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, returnedOffset,
           rawJobIds: rawIds, validJobIds: validIds,
@@ -4445,24 +4443,8 @@ async function fetchPhenomWidgets({
       const officialPublishedAt = preserveOrganonQuality ? phenomOfficialPostedDate(raw.postedDate) :
         preserveLillyQuality ? lillyOfficialPostedDate(raw.postedDate) : preserveMerckQuality ? merckOfficialPostedDate(raw.postedDate) :
         preserveUcbPostedDate ? ucbOfficialPostedDate(raw.postedDate) : undefined;
-      if (preserveOrganonQuality && officialPublishedAt === undefined) {
-        recordPhenomLoss(losses, counts, "VALIDATION", "ORGANON_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
-        continue;
-      }
-      if (preserveLillyQuality && officialPublishedAt === undefined) {
-        recordPhenomLoss(losses, counts, "VALIDATION", "LILLY_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
-        continue;
-      }
-      if (preserveMerckQuality && officialPublishedAt === undefined) {
-        recordPhenomLoss(losses, counts, "VALIDATION", "MERCK_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
-        continue;
-      }
-      if (preserveUcbPostedDate && officialPublishedAt === undefined) {
-        recordPhenomLoss(losses, counts, "VALIDATION", "UCB_POSTED_DATE_INVALID", rawLocator, pageIndex, recordIndex, "postedDate");
-        continue;
-      }
       seenOfficialIds.add(id!);
-      if (!firstRaw) firstRawByOfficialId.set(id!, { pageIndex, serialized: JSON.stringify(raw) });
+      if (!firstRaw) firstRawByOfficialId.set(id!, { pageIndex, recordIndex, serialized: JSON.stringify(raw) });
       const sourceJobId = persistentOfficialJsonJobId(id!);
       jobs.push({
         sourceJobId, title: title!, officialUrl, locationRaw: locationRaw!,
@@ -4507,121 +4489,53 @@ async function fetchPhenomWidgets({
         artifactLogicalKey: declaredArtifactKey, extractorLocator: declaredLocator, scope: "SOURCE" as const
       }
     : undefined;
-  if (preserveOrganonQuality && losses.length > 0) {
-    return phenomFailure(capturedAt, "Organon official field validation failed",
-      artifacts, pages, counts, losses, declaredCompleteness);
-  }
-  if (preserveLillyQuality && losses.length > 0) {
-    return phenomFailure(capturedAt, "Lilly China official field validation failed",
-      artifacts, pages, counts, losses, declaredCompleteness);
-  }
-  if (preserveMerckQuality && losses.length > 0) {
-    return phenomFailure(capturedAt, "Merck China official field validation failed",
-      artifacts, pages, counts, losses, declaredCompleteness);
-  }
-  if (preserveUcbPostedDate && losses.some(loss => loss.details?.code === "UCB_CITY_LOCATION_INVALID")) {
-    return phenomFailure(capturedAt, "UCB official city conflicts with the reviewed primary locality",
-      artifacts, pages, counts, losses, declaredCompleteness);
-  }
-  if (preserveUcbPostedDate && losses.some(loss => loss.details?.code === "UCB_POSTED_DATE_INVALID")) {
-    return phenomFailure(capturedAt, "UCB official posted-date validation failed",
-      artifacts, pages, counts, losses, declaredCompleteness);
-  }
-  if (preserveOrganonQuality) {
-    const rows = [...firstRawByOfficialId.values()].map(value => JSON.parse(value.serialized) as Record<string, unknown>);
-    if (!organonKeywordCountryEquivalent(entry.body, rows)) return phenomFailure(capturedAt,
-      "ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD", artifacts, pages, counts, losses, declaredCompleteness);
-    try {
-      // The original listed native URLs use the same public Workday HTML proof as Lilly.
-      for (const [rowIndex, raw] of rows.entries()) {
-        const requestedUrl = raw.applyUrl as string;
-        const response = await http({url: requestedUrl, method: "GET", headers: {Accept: "text/html", "User-Agent": "job-search-crawler/0.1"}});
-        assertOfficialJsonEvidenceResponse(response, {requestedUrl, crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime()});
-        assertOfficialHtmlMime(response);
-        const detail = phenomArtifact({id: `organon-detail-${raw.reqId}`, kind: "OFFICIAL_COMPANY_PAGE",
-          requestedUrl, response, extractorLocator: "organon-workday-jobposting-v1"});
-        artifacts.push(detail);
-        const native = organonNativeDetail(raw, detail, capturedAt);
-        if (!native) throw Error("ORGANON_NATIVE_DETAIL_UNKNOWN");
-        if (native === "CLOSED") {
-          const pageSequence = Math.floor(rowIndex / pageSize), sourceJobId = persistentOfficialJsonJobId(raw.jobSeqNo as string);
-          losses.push(organonClosedLoss(raw, pageSequence, rowIndex % pageSize, detail.capturedAt));
-          counts.validCount -= 1;
-          counts.validationDiscardCount += 1;
-          jobs.splice(jobs.findIndex(job => job.sourceJobId === sourceJobId), 1);
-          pages[pageSequence]!.validJobIds = pages[pageSequence]!.validJobIds.filter(id => id !== irreversibleOfficialJsonEvidenceId(sourceJobId));
-        }
-      }
-    } catch {
-      return phenomFailure(capturedAt, "ORGANON_NATIVE_DETAIL_UNKNOWN_PRESERVE_LAST_GOOD", artifacts, pages, counts, losses, declaredCompleteness);
-    }
-  }
-  if (preserveRocheQuality) {
-    for (const artifact of artifacts) artifact.bodyRepresentation = "EXACT";
-    if (losses.length || seenOfficialIds.size !== declaredTotal) return phenomFailure(capturedAt,
-      "Roche official identity set does not close its declared total", artifacts, pages, counts, losses, declaredCompleteness);
-    const rows = [...firstRawByOfficialId.values()].map(value => JSON.parse(value.serialized) as Record<string, unknown>);
-    try {
-      for (let offset = 0; offset < rows.length; offset += 6) {
-        const details = await Promise.all(rows.slice(offset, offset + 6).map(async raw => {
-          const requestedUrl = rocheNativeDetailUrl(raw);
-          if (!requestedUrl) throw Error("ROCHE_NATIVE_IDENTITY_INVALID");
-          const response = await http({url: requestedUrl, method: "GET", headers: {Accept: "application/json", "User-Agent": "job-search-crawler/0.1"}});
-          assertOfficialJsonEvidenceResponse(response, {requestedUrl, crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime()});
-          assertOfficialJsonMime(response);
-          const detail = phenomArtifact({id: `roche-detail-${raw.reqId}`, kind: "ATS_API_RESPONSE", requestedUrl, response, extractorLocator: "roche-workday-jobposting-v1"});
-          detail.bodyRepresentation = "EXACT";
-          return {raw, detail, denied: rocheDeniedDetail(raw, detail, capturedAt), native: rocheNativeDetail(raw, detail, capturedAt), sourceJobId: persistentOfficialJsonJobId(raw.jobSeqNo as string)};
-        }));
-        artifacts.push(...details.map(value => value.detail));
-        if (details.some(value => !value.native && !value.denied)) throw Error("ROCHE_NATIVE_DETAIL_INVALID");
-        for (const [index,{raw,detail,denied,native,sourceJobId}] of details.entries()) {
-          if (denied) {
-            const rowIndex=offset+index, pageSequence=Math.floor(rowIndex/pageSize);
-            losses.push(rocheDeniedLoss(raw,pageSequence,rowIndex%pageSize,detail.capturedAt));
-            counts.validCount--; counts.validationDiscardCount++;
-            jobs.splice(jobs.findIndex(job=>job.sourceJobId===sourceJobId),1);
-            pages[pageSequence]!.validJobIds=pages[pageSequence]!.validJobIds.filter(id=>id!==irreversibleOfficialJsonEvidenceId(sourceJobId));
-          } else Object.assign(jobs.find(job=>job.sourceJobId===sourceJobId)!,native);
-        }
-      }
-    } catch {
-      return phenomFailure(capturedAt, "Roche native job detail or application validation failed", artifacts, pages, counts, losses, declaredCompleteness);
-    }
-  }
-  if (preserveLillyQuality) {
-    // Reuse the listed native apply URLs; retain one exact response per identity.
-    const rows = [...firstRawByOfficialId.values()].map(value => JSON.parse(value.serialized) as Record<string, unknown>);
-    try {
-      for (let offset = 0; offset < rows.length; offset += 6) {
-        const details = await Promise.all(rows.slice(offset, offset + 6).map(async raw => {
-          const requestedUrl = raw.applyUrl as string;
-          const response = await http({url: requestedUrl, method: "GET", headers: {Accept: "text/html", "User-Agent": "job-search-crawler/0.1"}});
-          assertOfficialJsonEvidenceResponse(response, {requestedUrl, crawlStartedAtMs: Date.parse(capturedAt), observedNowMs: now().getTime()});
-          assertOfficialHtmlMime(response);
-          const detail = phenomArtifact({id: `lilly-detail-${raw.reqId}`, kind: "OFFICIAL_COMPANY_PAGE",
-            requestedUrl, response, extractorLocator: "lilly-workday-jobposting-v1"});
-          return {detail, native: lillyNativeDetail(raw, detail, capturedAt), sourceJobId: persistentOfficialJsonJobId(raw.jobSeqNo as string)};
-        }));
-        artifacts.push(...details.map(value => value.detail));
-        if (details.some(value => !value.native)) throw Error("LILLY_NATIVE_DETAIL_INVALID");
-        for (const [index, {detail, native, sourceJobId}] of details.entries()) {
-          if (native!.status === "CLOSED") {
-            const rowIndex = offset + index, pageSequence = Math.floor(rowIndex / pageSize);
-            losses.push(lillyClosedLoss(rows[rowIndex]!, pageSequence, rowIndex % pageSize, detail.capturedAt));
-            counts.validCount -= 1;
-            counts.validationDiscardCount += 1;
-            jobs.splice(jobs.findIndex(job => job.sourceJobId === sourceJobId), 1);
-            pages[pageSequence]!.validJobIds = pages[pageSequence]!.validJobIds.filter(id => id !== irreversibleOfficialJsonEvidenceId(sourceJobId));
-          } else if (native?.status === "ACTIVE") {
-            Object.assign(jobs.find(job => job.sourceJobId === sourceJobId)!, {cities: native.cities, locationRaw: native.locationRaw});
+  const nativeQuarantines:JobQuarantine[]=[];
+  if(losses.some(loss=>loss.details.code==='DUPLICATE_OFFICIAL_ID'))return phenomFailure(capturedAt,'Phenom duplicate identity prevents a complete list',artifacts,pages,counts,losses,declaredCompleteness);
+  if(preserveOrganonQuality||preserveRocheQuality||preserveLillyQuality){
+    const rows=[...firstRawByOfficialId.values()].map(value=>({...value,raw:JSON.parse(value.serialized) as Record<string,unknown>}));
+    const listed=pages.flatMap(page=>JSON.parse(artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!.body as string).refineSearch.data.jobs);
+    if(preserveOrganonQuality&&!organonKeywordCountryEquivalent(entry.body,listed))return phenomFailure(capturedAt,'ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD',artifacts,pages,counts,losses,declaredCompleteness);
+    if(preserveRocheQuality)for(const artifact of artifacts)artifact.bodyRepresentation='EXACT';
+    let blocked=false;
+    const concurrency=preserveOrganonQuality?1:6;
+    for(let offset=0;offset<rows.length;offset+=concurrency){
+      await Promise.all(rows.slice(offset,offset+concurrency).map(async({raw,pageIndex,recordIndex})=>{
+        const sourceJobId=persistentOfficialJsonJobId(raw.jobSeqNo as string);
+        const family=preserveOrganonQuality?'organon':preserveLillyQuality?'lilly':'roche';
+        try{
+          if(blocked)throw Error('PHENOM_NATIVE_ACCESS_BLOCKED');
+          const requestedUrl=preserveRocheQuality?rocheNativeDetailUrl(raw):raw.applyUrl as string;
+          if(!requestedUrl)throw Error('PHENOM_NATIVE_IDENTITY_INVALID');
+          const response=await http({url:requestedUrl,method:'GET',headers:{Accept:preserveRocheQuality?'application/json':'text/html','User-Agent':'job-search-crawler/0.1'}});
+          if(response.status===403||response.status===429)blocked=true;
+          assertOfficialJsonEvidenceResponse(response,{requestedUrl,crawlStartedAtMs:Date.parse(capturedAt),observedNowMs:now().getTime()});
+          const detail=phenomArtifact({id:family+'-detail-'+raw.reqId,kind:preserveRocheQuality?'ATS_API_RESPONSE':'OFFICIAL_COMPANY_PAGE',requestedUrl,response,extractorLocator:family+'-workday-jobposting-v1'});
+          detail.bodyRepresentation='EXACT';artifacts.push(detail);
+          if(preserveRocheQuality&&rocheDeniedDetail(raw,detail,capturedAt)){
+            losses.push(rocheDeniedLoss(raw,pageIndex,recordIndex,detail.capturedAt));
+            counts.validCount--;counts.validationDiscardCount++;jobs.splice(jobs.findIndex(job=>job.sourceJobId===sourceJobId),1);
+            pages[pageIndex]!.validJobIds=pages[pageIndex]!.validJobIds.filter(id=>id!==irreversibleOfficialJsonEvidenceId(sourceJobId));return;
           }
+          if(response.status!==200)throw Error('PHENOM_NATIVE_RESPONSE_FAILED');
+          if(preserveRocheQuality)assertOfficialJsonMime(response);else assertOfficialHtmlMime(response);
+          const native=preserveOrganonQuality?organonNativeDetail(raw,detail,capturedAt):preserveLillyQuality?lillyNativeDetail(raw,detail,capturedAt):rocheNativeDetail(raw,detail,capturedAt);
+          if(!native)throw Error('PHENOM_NATIVE_DETAIL_UNVERIFIED');
+          if(native==='CLOSED'||typeof native==='object'&&'status'in native&&native.status==='CLOSED'){
+            losses.push(preserveOrganonQuality?organonClosedLoss(raw,pageIndex,recordIndex,detail.capturedAt):lillyClosedLoss(raw,pageIndex,recordIndex,detail.capturedAt));
+            counts.validCount--;counts.validationDiscardCount++;jobs.splice(jobs.findIndex(job=>job.sourceJobId===sourceJobId),1);
+            pages[pageIndex]!.validJobIds=pages[pageIndex]!.validJobIds.filter(id=>id!==irreversibleOfficialJsonEvidenceId(sourceJobId));
+          }else if(typeof native==='object'){
+            const update=preserveLillyQuality?{cities:native.cities,locationRaw:native.locationRaw}:native;
+            Object.assign(jobs.find(job=>job.sourceJobId===sourceJobId)!,update);
+          }
+        }catch{
+          nativeQuarantines.push(phenomJobQuarantine(raw,pageIndex,recordIndex,pages[pageIndex]!.artifactLogicalKey,'PHENOM_NATIVE_JOB_UNVERIFIED'));
+          const index=jobs.findIndex(job=>job.sourceJobId===sourceJobId);if(index>=0)jobs.splice(index,1);
         }
-      }
-    } catch {
-      return phenomFailure(capturedAt, "Lilly native job detail or application validation failed", artifacts, pages, counts, losses, declaredCompleteness);
+      }));
     }
   }
+  losses.sort((a,b)=>(a.details.pageSequence??0)-(b.details.pageSequence??0)||(a.details.recordIndex??0)-(b.details.recordIndex??0));
   let finalized: ReturnType<typeof finalizeOfficialJsonEvidenceBundle>;
   try {
     finalized = finalizeOfficialJsonEvidenceBundle({
@@ -4637,6 +4551,17 @@ async function fetchPhenomWidgets({
   } catch (error) {
     return phenomFailure(capturedAt, safeOfficialJsonFailure(error, "Phenom pagination evidence is invalid"),
       artifacts, pages, counts, losses, declaredCompleteness);
+  }
+  if(preserveMerckQuality||preserveUcbPostedDate||preserveLillyQuality||preserveOrganonQuality||preserveRocheQuality){
+    const listIsolated=quarantineFetchLosses(finalized.evidence,loss=>{
+      if(['ROCHE_DETAIL_DENIED','LILLY_OFFICIAL_APPLICATION_CLOSED','ORGANON_OFFICIAL_APPLICATION_CLOSED'].includes(loss.details.code))return undefined;
+      const sequence=loss.details.pageSequence,index=loss.details.recordIndex;if(sequence===undefined||index===undefined)return undefined;
+      const page=pages[sequence]!,artifact=artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
+      const raw=JSON.parse(artifact.body as string).refineSearch.data.jobs[index];return phenomJobQuarantine(raw,sequence,index,page.artifactLogicalKey,loss.details.code);
+    });
+    const isolated=quarantineCompleteList(listIsolated,nativeQuarantines);
+    const evidence=deriveCanonicalPaginationEvidence({evidence:isolated,expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION});
+    finalized={evidence,evaluation:evaluatePaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION})};
   }
   const expectedNoncertifyingNoTotal = declaredTotal === undefined &&
     finalized.evaluation.derivedAnomalyCodes.length === 0;
@@ -4964,7 +4889,7 @@ async function fetchPhenomFacetPreflight(input: {
   });
   if (response.status < 200 || response.status >= 300) {
     const transportFailure = withPhenomTransportStage(
-      retryableHttpTransportFailure(response.status),
+      retryableHttpTransportFailure(response.status, response.retryAfter),
       failureStage
     );
     return {
@@ -5583,7 +5508,7 @@ async function fetchHcmCloudWithPost({
   }
   artifacts.push(countArtifact!);
   if (countResponse.status < 200 || countResponse.status >= 300) {
-    const transportFailure = retryableHttpTransportFailure(countResponse.status);
+    const transportFailure = retryableHttpTransportFailure(countResponse.status, countResponse.retryAfter);
     return hcmCloudFailure(capturedAt, transportFailure
       ? safeSourceTransportFailureReason(transportFailure)
       : `HCMCloud count API returned HTTP ${countResponse.status}`,
@@ -5663,7 +5588,7 @@ async function fetchHcmCloudWithPost({
     if (response.status < 200 || response.status >= 300) {
       pages.push(hcmCloudPageTrace({ artifact, sequence: pages.length, requestedPage: page,
         ...(expectedJobCount !== undefined ? { declaredTotal: expectedJobCount } : {}), termination: "FAILED" }));
-      const transportFailure = retryableHttpTransportFailure(response.status);
+      const transportFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
       return hcmCloudFailure(capturedAt, transportFailure
         ? safeSourceTransportFailureReason(transportFailure)
         : `HCMCloud list API returned HTTP ${response.status}`,
@@ -7037,7 +6962,7 @@ function redseaArtifact(channel: string, suffix: "entry" | "list" | "api",
   if (suffix === "api" && !credentialRedaction.redacted) {
     try {
       const root = JSON.parse(response.body);
-      upstreamError = isStrictRecord(root) && hasOwn(root, "meg") && stringValue(root.state) !== "1";
+      upstreamError = isStrictRecord(root) && hasOwn(root, "meg") && root.state !== "1";
     } catch { /* malformed bodies remain exact evidence */ }
   }
   const redaction = upstreamError
@@ -7099,12 +7024,12 @@ function recordRedseaLoss(losses: PersistentSourceFetchEvidence["fetchLosses"],
     details: { code, ...(field ? { field } : {}), pageSequence, recordIndex, ...(noteCode ? { noteCode } : {}) } });
 }
 
-function parseRedseaQueryPostList(
+export function parseRedseaQueryPostList(
   body: string
 ): { ok: true; jobs: unknown[] } | { ok: false; failureReason: string } {
   let parsed: unknown;
   try { parsed = JSON.parse(body); } catch { return { ok: false, failureReason: "Redsea API response is not valid JSON" }; }
-  if (!hasUniqueJsonObjectKeys(body) || !isStrictRecord(parsed) || stringValue(parsed.state) !== "1" || !Array.isArray(parsed.jsonList)) {
+  if (!hasUniqueJsonObjectKeys(body) || !isStrictRecord(parsed) || parsed.state !== "1" || !Array.isArray(parsed.jsonList)) {
     return { ok: false, failureReason: stringValue(isStrictRecord(parsed) ? parsed.state : undefined) === "0"
       ? "Redsea API state is unsuccessful" : "Redsea API response schema is invalid" };
   }
@@ -7153,7 +7078,7 @@ function redseaHasUnsafePaginationSignal(root: Record<string, unknown>, rowCount
   return false;
 }
 
-function normalizeRedseaJob({
+export function normalizeRedseaJob({
   origin,
   channelQrId,
   rootId,
@@ -7178,7 +7103,7 @@ function normalizeRedseaJob({
   if (!requestId || !title || !locationRaw) {
     return { ok: false, code: "MISSING_REQUIRED_FIELD" };
   }
-  if (!safeOfficialJsonId(requestId)) return { ok: false, code: "UNSAFE_OFFICIAL_ID", field: "REQUEST_ID" };
+  if (!safeOfficialJsonId(requestId)||rootId==='cspc'&&!redseaNativeJobId(requestId)) return { ok: false, code: "UNSAFE_OFFICIAL_ID", field: "REQUEST_ID" };
   if (sensitiveOfficialJsonField({ requestId, title, locationRaw })) return { ok: false, code: "SENSITIVE_OUTPUT" };
   const normalizedLocation = locationRaw.normalize("NFKC");
   const locationScope = cnstaffGeographyScope(normalizedLocation);
@@ -8022,6 +7947,14 @@ function cnstaffPageTrace(input: {
   };
 }
 
+export function cnstaffJobQuarantine(raw:unknown,entryUrl:string,pageSequence:number,recordIndex:number,pageKey:string,code:string):JobQuarantine{
+  const id=isStrictRecord(raw)?stringValue(raw.job_publish_id)??stringValue(raw.job_id):undefined,detailId=isStrictRecord(raw)?stringValue(raw.job_id)??id:undefined;
+  const known=id&&safeOfficialJsonId(id)?id:undefined;
+  const base=`${pageKey}#record:${recordIndex}#${irreversibleOfficialJsonEvidenceId([recordIndex,raw])}`;
+  const countries=isStrictRecord(raw)&&['OUT_OF_SCOPE','AMBIGUOUS_SCOPE'].includes(code)?cnstaffCountryCoordinates(raw).map(c=>c.field):[];
+  return {pageSequence,recordIndex,code,rawLocator:base+(countries.length?`#countryFields:${countries.join('+')}`:''),validJobId:known?irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId(known)):`unidentified:${pageSequence}:${recordIndex}`,
+    ...(known?{sourceJobId:persistentOfficialJsonJobId(known)}:{}),...(detailId&&safeOfficialJsonId(detailId)?{officialUrl:sanitizeEvidenceHttpUrl(cnstaffDetailUrl(entryUrl,detailId))}:{})};
+}
 function cnstaffDeclaredCompleteness(
   total: number | undefined,
   artifactLogicalKey: string | undefined,
@@ -8287,6 +8220,9 @@ export function beisenDomesticRecordScopeReview(
       };
     }
     if (segments.length === 0) return { scope: "AMBIGUOUS", mainlandLocationParts };
+    if (hasExactFosunMainlandGeography({Country: country, LocNames: locationParts.length ? locationParts : [locationRaw]})) {
+      return {scope: "CHINA", mainlandLocationParts: locationParts.length ? [...locationParts] : [locationRaw]};
+    }
 
     const japanSegments = segments.filter(beisenIsExplicitJapanLocationSegment);
     const invalidSegments = segments.filter((segment) =>
@@ -8481,26 +8417,7 @@ export function beisenZhiyeDetailUrl(
 }
 
 export function citiesFromBeisenLocation(locationParts: readonly string[]): string[] {
-  const cities = locationParts.flatMap((location) => {
-    const segments = location
-      .split(/[/,，;；、]/u)
-      .map((segment) => segment.trim())
-      .filter(Boolean);
-
-    return segments.flatMap((segment) => {
-      const hierarchy = segment
-        .split("·")
-        .map((part) => part.trim())
-        .filter(Boolean);
-      return hierarchy.at(-1) ?? segment;
-    });
-  });
-
-  if (cities.length > 0) {
-    return [...new Set(cities)];
-  }
-
-  return [...new Set(locationParts.flatMap(citiesFromLocation))];
+  return mainlandDisplayCities(locationParts);
 }
 
 function normalizePhenomWidgetJob(

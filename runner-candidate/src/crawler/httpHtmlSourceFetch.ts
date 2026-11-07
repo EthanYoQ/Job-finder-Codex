@@ -1,5 +1,6 @@
 import { acquireNovartisNativePartitions } from "./novartisNativePartitions";
-import {isSanofiChinesePlan,createSanofiChineseSourceFetch} from "./sanofiChineseNative";
+import {isolateHtmlJobRows,htmlRowObservationId} from './htmlJobQuarantine';
+import {isSanofiChinesePlan,createSanofiChineseSourceFetch,SANOFI_CN_ENTRY} from "./sanofiChineseNative";
 import { projectKelunMainlandFetch } from "./kelunMainlandScope";
 import {hasSanofiNativePolicy,createSanofiNativeSourceFetch} from "./sanofiNativeQuality";
 import { hasNovartisOfficialPresencePlan, NOVARTIS_PRESENCE_UNKNOWN } from "./novartisOfficialPresence";
@@ -9,7 +10,7 @@ import { getCACertificates, setDefaultCACertificates } from "node:tls";
 import type { CompletenessEvidence } from "../domain/company";
 import type { HtmlTableConfig } from "./adapters/types";
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
-import { fetchWithOfficialTimeout } from "./officialHttpRuntimeLimits";
+import { fetchWithOfficialTimeout, currentOfficialSourceAttemptSignal, currentOfficialSourceAttemptRemainingMs, sourceAttemptTimeoutMs } from "./officialHttpRuntimeLimits";
 import {
   parsePersistentSourceFetchEvidence,
   sanitizeEvidenceHttpUrl,
@@ -33,6 +34,7 @@ export interface HttpHtmlRequest {
   headers: Record<string, string>;
   body?: string;
   evidenceChannelId?: string;
+  captureCacheDiagnostics?: true;
   /** Explicitly prohibit redirects for a narrowly bound authority request. */
   redirect?: "error";
 }
@@ -43,6 +45,14 @@ export interface HttpHtmlResponse {
   finalUrl?: string;
   contentType?: string;
   capturedAt?: string;
+  cacheDiagnostics?: HtmlCacheDiagnostics;
+}
+
+interface HtmlCacheDiagnostics {
+  ageSeconds?: number;
+  cacheStatus?: string[];
+  drupalCache?: string;
+  drupalDynamicCache?: string;
 }
 
 export type HttpHtmlClient = (request: HttpHtmlRequest) => Promise<HttpHtmlResponse>;
@@ -68,7 +78,7 @@ export function createHttpHtmlSourceFetch(
   deps: HttpHtmlSourceFetchDeps = {}
 ): SourceFetchFunction {
   const fetch = createUnpartitionedHttpHtmlSourceFetch(deps);
-  return async (plan, tracker) => projectKelunMainlandFetch(plan, await fetch(plan, tracker));
+  return async (plan, tracker) => isolateHtmlJobRows(plan,projectKelunMainlandFetch(plan, await fetch(plan, tracker)));
 }
 
 function createUnpartitionedHttpHtmlSourceFetch(
@@ -78,6 +88,7 @@ function createUnpartitionedHttpHtmlSourceFetch(
     if (isSanofiChinesePlan(plan)) return createSanofiChineseSourceFetch(deps)(plan);
     if (hasSanofiNativePolicy(plan)) return createSanofiNativeSourceFetch(deps)(plan);
     const capturedAt = (deps.now ?? (() => new Date()))().toISOString();
+    const traversalDeadlineAt = Date.now() + (currentOfficialSourceAttemptRemainingMs() ?? sourceAttemptTimeoutMs());
     const interactions: Array<{ request: HttpHtmlRequest; response: HttpHtmlResponse }> = [];
 
     if (plan.adapterId !== "html-table") {
@@ -88,6 +99,8 @@ function createUnpartitionedHttpHtmlSourceFetch(
       const rawHttp = deps.http ?? defaultHttpHtmlClient;
       let lastResponseAt = new Date(capturedAt).getTime();
       const http: HttpHtmlClient = async (request) => {
+        currentOfficialSourceAttemptSignal()?.throwIfAborted();
+        if (Date.now() >= traversalDeadlineAt) throw Error("HTML_TRAVERSAL_BUDGET_EXHAUSTED");
         assertSafeHtmlRequest(request, plan.source.officialEntryUrl);
         const response = await rawHttp(request);
         const retained = canRetainHtmlResponse(request, response);
@@ -132,6 +145,10 @@ function createUnpartitionedHttpHtmlSourceFetch(
       }
 
       const pagination = readPaginationEvidence(response.body, plan.table.pagination);
+      // Follow the official total; the existing source attempt budget bounds dispatch.
+      if (pagination.declaredTotalPages !== undefined && Number.isSafeInteger(pagination.declaredTotalPages)) {
+        pagination.pagesToVisit = pagination.declaredTotalPages;
+      }
       if (pagination.pagesToVisit <= 1) {
         return attachHtmlEvidence({
           ok: true,
@@ -296,7 +313,8 @@ async function fetchTalentbrewAjaxPages({
     return failed(capturedAt, "TalentBrew search results did not expose total pages or total jobs");
   }
 
-  const criteria = talentbrewCriteria($);
+  const normalNext = entryUrl === SANOFI_CN_ENTRY;
+  const criteria = talentbrewCriteria($, normalNext);
   const partitions = scope
     ? strictTalentbrewPartitions($, searchResults, scope)
     : [{ channelId: undefined, filter: undefined }];
@@ -311,31 +329,35 @@ async function fetchTalentbrewAjaxPages({
     let declaredPageSize: number | undefined;
     let page = 1;
     do {
-      const url = new URL(ajaxUrl, entryUrl);
-      url.search = bindQueryParams({
-        ...criteria,
-        FacetFilters: [
-          ...talentbrewStaticFacetFilters($),
-          ...(partition.filter ? [partition.filter] : [])
-        ],
-        IsPagination: page > 1 ? "True" : "False",
-        CurrentPage: page
-      });
-      const pageResponse = await http({
-        url: url.toString(),
-        headers: {
-          Accept: "application/json, text/javascript, */*; q=0.01",
-          Referer: entryUrl,
-          "X-Requested-With": "XMLHttpRequest",
-          "User-Agent": "job-search-crawler/0.1"
-        },
-        ...(partition.channelId ? { evidenceChannelId: partition.channelId } : {})
-      });
-      const validation = validateResponse(pageResponse);
-      if (!validation.ok) return failed(capturedAt, `TalentBrew page ${page}: ${validation.failureReason}`);
-      const parsed = parseTalentbrewAjaxResponse(pageResponse.body);
-      if (!parsed.ok) return failed(capturedAt, parsed.failureReason);
-      const pageDom = load(parsed.results);
+      let pageHtml = html;
+      if (!normalNext || scope !== undefined || page > 1) {
+        const url = new URL(ajaxUrl, entryUrl);
+        url.search = bindQueryParams({
+          ...criteria,
+          FacetFilters: [
+            ...talentbrewStaticFacetFilters($),
+            ...(partition.filter ? [partition.filter] : [])
+          ],
+          IsPagination: !normalNext && page > 1 ? "True" : "False",
+          CurrentPage: page
+        });
+        const pageResponse = await http({
+          url: url.toString(),
+          headers: {
+            Accept: "application/json, text/javascript, */*; q=0.01",
+            Referer: entryUrl,
+            "X-Requested-With": "XMLHttpRequest",
+            "User-Agent": "job-search-crawler/0.1"
+          },
+          ...(partition.channelId ? { evidenceChannelId: partition.channelId } : {})
+        });
+        const validation = validateResponse(pageResponse);
+        if (!validation.ok) return failed(capturedAt, `TalentBrew page ${page}: ${validation.failureReason}`);
+        const parsed = parseTalentbrewAjaxResponse(pageResponse.body);
+        if (!parsed.ok) return failed(capturedAt, parsed.failureReason);
+        pageHtml = parsed.results;
+      }
+      const pageDom = load(pageHtml);
       const returned = pageDom("#search-results").first();
       if (hasInvalidTalentbrewDeclarations(returned)) return failed(capturedAt, "HTML_DECLARATION_INVALID");
       const returnedPage = numberAttr(returned, "data-current-page");
@@ -355,7 +377,7 @@ async function fetchTalentbrewAjaxPages({
       if (scope && (returnedPages !== declaredPages || returnedJobs !== declaredJobs || returnedPageSize !== declaredPageSize)) {
         return failed(capturedAt, "TALENTBREW_SCOPE_INVALID");
       }
-      pages.push(parsed.results);
+      pages.push(pageHtml);
       const effectiveDeclaredPages = declaredPages ?? initialTotalPages ?? 1;
       const pagesToVisit = Math.min(effectiveDeclaredPages, Math.max(1, maxPages));
       page += 1;
@@ -473,11 +495,12 @@ type TalentbrewCriteriaValue =
   | TalentbrewCriteriaValue[]
   | { readonly [key: string]: TalentbrewCriteriaValue };
 
-function talentbrewCriteria($: ReturnType<typeof load>): Record<string, TalentbrewCriteriaValue> {
+function talentbrewCriteria($: ReturnType<typeof load>, normalNext = false): Record<string, TalentbrewCriteriaValue> {
   const results = $("#search-results").first();
   const filters = $("#search-filters").first();
-  return {
+  const criteria: Record<string, TalentbrewCriteriaValue> = {
     ActiveFacetID: numberAttr(results, "data-active-facet-id") ?? 0,
+    ...(normalNext ? { CurrentPage: 1 } : {}),
     RecordsPerPage: numberAttr(results, "data-records-per-page") ?? 20,
     TotalContentResults: numberAttr(results, "data-total-content-results") ?? 0,
     Distance: numberAttr(results, "data-distance") ?? 50,
@@ -514,6 +537,22 @@ function talentbrewCriteria($: ReturnType<typeof load>): Record<string, Talentbr
     afl: filters.attr("data-filtered-advanced-locations") ?? "",
     afcf: filters.attr("data-filtered-advanced-custom-facet") ?? ""
   };
+  if (normalNext) {
+    // Match the official next-button mapping and its null-omitting query serializer.
+    const contentTotal = Number.parseInt(results.attr("data-total-content-results") ?? "");
+    criteria.TotalContentResults = Number.isNaN(contentTotal) ? "" : contentTotal;
+    criteria.TotalContentPages = Math.ceil(contentTotal / Number(criteria.RecordsPerPage));
+    for (const key of ["Latitude", "Longitude"]) {
+      const value = Number.parseFloat(String(criteria[key]));
+      if (Number.isNaN(value)) delete criteria[key];
+      else criteria[key] = value.toFixed(5);
+    }
+    for (const key of Object.keys(criteria)) {
+      if (criteria[key] === null || criteria[key] === "" &&
+          ["CategoryFacetTerm", "CategoryFacetType", "LocationFacetTerm", "LocationFacetType", "KeywordType"].includes(key)) delete criteria[key];
+    }
+  }
+  return criteria;
 }
 
 function talentbrewStaticFacetFilters($: ReturnType<typeof load>): TalentbrewCriteriaValue[] {
@@ -790,8 +829,30 @@ async function fetchHtml(request: HttpHtmlRequest): Promise<HttpHtmlResponse> {
     body,
     finalUrl: response.url,
     contentType: response.headers.get("content-type") ?? "application/octet-stream",
-    capturedAt: new Date().toISOString()
+    capturedAt: new Date().toISOString(),
+    ...(request.captureCacheDiagnostics ? { cacheDiagnostics: readCacheDiagnostics(response.headers) } : {})
   };
+}
+
+function readCacheDiagnostics(headers: Headers): HtmlCacheDiagnostics {
+  const diagnostics: HtmlCacheDiagnostics = {};
+  const age = headers.get("age");
+  if (age && /^\d+$/u.test(age) && Number.isSafeInteger(Number(age))) diagnostics.ageSeconds = Number(age);
+
+  const status = headers.get("cache-status");
+  if (status) {
+    // Discard quoted values before reading standard parameters. Cache keys and
+    // implementation details may contain private data.
+    diagnostics.cacheStatus = status.replace(/"(?:\\.|[^"\\])*"/gu, '""').split(",").map(member => {
+      const match = /;\s*(hit(?:=\?1)?|fwd=(?:bypass|method|uri-miss|vary-miss|miss|request|stale|partial))\s*(?=;|$)/u.exec(member);
+      return match?.[1] ?? "unclassified";
+    });
+  }
+  const drupal = headers.get("x-drupal-cache");
+  const dynamic = headers.get("x-drupal-dynamic-cache");
+  if (drupal && /^(?:HIT|MISS|UNCACHEABLE)$/u.test(drupal)) diagnostics.drupalCache = drupal;
+  if (dynamic && /^(?:HIT|MISS|UNCACHEABLE)$/u.test(dynamic)) diagnostics.drupalDynamicCache = dynamic;
+  return diagnostics;
 }
 
 function attachHtmlEvidence(
@@ -835,6 +896,8 @@ function attachHtmlEvidence(
     ? Math.max(...interactions.map(({ response }) =>
         readPaginationEvidence(response.body, table.pagination).declaredTotalPages ?? 0)) || undefined
     : undefined;
+  const entryFirstPage = mode === "talentbrew" && interactions[0]!.request.url === SANOFI_CN_ENTRY &&
+    table.pagination?.talentbrewScope === undefined;
   interactions.forEach(({ request, response }, sequence) => {
     const logicalKey = `official-html-page-${String(sequence).padStart(4, "0")}`;
     const isTalentEntry = mode === "talentbrew" && sequence === 0;
@@ -864,9 +927,9 @@ function attachHtmlEvidence(
         ? "#search-results[data-ajax-url]"
         : strictExtractorLocator ?? table.rowSelector, mode, request, sequence, table.pagination)
     });
-    if (isTalentEntry) return;
+    if (isTalentEntry && !entryFirstPage) return;
     let html = response.body;
-    if (mode === "talentbrew") {
+    if (mode === "talentbrew" && !isTalentEntry) {
       try { html = strictTalentbrewResults(response.body); } catch { html = ""; }
     }
     const $ = load(html);
@@ -880,10 +943,8 @@ function attachHtmlEvidence(
     const seenRawRows = new Set<string>();
     const validIds: string[] = [];
     const ids = selectHtmlTableRows($, table).map((row, index) => {
-      const raw = $.html(row);
-      const rawHash = sha256Bytes(Buffer.from(raw, "utf8")).sha256;
-      const observationId = `html-row:sha256:${rawHash}`;
-      if (seenRawRows.has(rawHash)) {
+      const observationId = htmlRowObservationId($,row,table,pages.length,index);
+      if (seenRawRows.has(observationId)) {
         validationDiscardCount += 1;
         fetchLosses.push({
           stage: "VALIDATION", reason: "duplicate exact raw HTML row",
@@ -891,7 +952,7 @@ function attachHtmlEvidence(
           details: { code: "DUPLICATE_RAW_ROW", pageSequence: pages.length, recordIndex: index }
         });
       } else {
-        seenRawRows.add(rawHash);
+        seenRawRows.add(observationId);
         validIds.push(observationId);
       }
       return observationId;
@@ -902,7 +963,7 @@ function attachHtmlEvidence(
       ? ordinaryRequestCoordinate(request.url, table.pagination, sequence)
       : {};
     const requestedPage = mode === "talentbrew"
-      ? strictOptionalPositiveInt(url.searchParams.get("CurrentPage")) ?? null
+      ? isTalentEntry ? 1 : strictOptionalPositiveInt(url.searchParams.get("CurrentPage")) ?? null
       : ordinaryCoordinate.requestedPage ?? null;
     const requestedOffset = mode === "tupu360"
       ? strictOptionalNonnegativeInt(new URLSearchParams(request.body ?? "").get("offset")) ?? null
@@ -910,7 +971,7 @@ function attachHtmlEvidence(
     const requestedPageSize = mode === "tupu360"
       ? strictOptionalPositiveInt(new URLSearchParams(request.body ?? "").get("max"))
       : mode === "talentbrew"
-        ? strictOptionalPositiveInt(url.searchParams.get("RecordsPerPage"))
+        ? strictOptionalPositiveInt(isTalentEntry ? $("#search-results").first().attr("data-records-per-page") ?? null : url.searchParams.get("RecordsPerPage"))
         : table.pagination?.pageSize ?? null;
     const ordinaryDeclaration = mode === "ordinary" ? readPaginationEvidence(html, table.pagination) : undefined;
     const returnedPage = mode === "talentbrew"
@@ -1436,6 +1497,7 @@ function safeHtmlFailureCode(error: unknown): string {
 }
 
 const SAFE_HTML_FAILURE_CODES = new Set([
+  "HTML_TRAVERSAL_BUDGET_EXHAUSTED",
   NOVARTIS_PRESENCE_UNKNOWN,
   "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE",
   "HTML_FETCH_FAILED", "HTML_RESPONSE_METADATA_MISSING", "HTML_RESPONSE_REDIRECT_MISMATCH",

@@ -84,7 +84,7 @@ export async function runDirectRound(input: { db: PrismaClient; leaseDb: Portabl
         const result = await runP0CrawlBatch([row.plan], {
           db: input.db as never, ...runtime, identity: identityForSource(candidate, row.sourceId), now: () => new Date(),
           publicationPolicy: "SOURCE_ATOMIC_LAST_GOOD_V1", portableLease: lease,
-          ...(["source-pfizer-china-social", "source-johnson-innovative-medicine-social"].includes(row.sourceId) ? { sourceAttemptTimeoutMs: 30 * 60 * 1_000 } : {}),
+          ...(["source-pfizer-china-social", "source-johnson-innovative-medicine-social", "source-sanofi-china-social"].includes(row.sourceId) ? { sourceAttemptTimeoutMs: 30 * 60 * 1_000 } : {}),
           ...(portable ? { sourceAdmissionPolicy: SOURCE_QUALITY_POLICY_ID } : {}),
           workspaceRoot: resolve(input.workspaceRoot), evidenceSubdirectory: "runtime-evidence",
           fetch: portable ? portableFetch : certifiedFetch

@@ -1,0 +1,31 @@
+name: Publication regressions
+
+on:
+  pull_request:
+    branches: [fix/novartis-native-title-sort-20261103]
+  push:
+    branches: [fix/novartis-native-title-sort-20261103]
+
+permissions:
+  contents: read
+
+jobs:
+  offline-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: runner-candidate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: runner-candidate/package-lock.json
+      - run: npm ci
+      - name: Resolve shared runner and web dependencies
+        working-directory: .
+        run: ln -s runner-candidate/node_modules node_modules
+      - run: npm exec -- prisma generate
+      - run: npm run test:publication

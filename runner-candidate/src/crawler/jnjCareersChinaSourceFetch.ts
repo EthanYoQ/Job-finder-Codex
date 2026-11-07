@@ -1,3 +1,5 @@
+import { CITY_PENDING } from "../domain/jobLocation";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { load } from "cheerio";
 import { reviewedMainlandCityLabel } from "./reviewedMainlandCity";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
@@ -578,13 +580,14 @@ const JNJ_CITY_NAMES: ReadonlyArray<readonly [string, string]> = [
 ];
 
 function citiesFromJnjLocation(locationRaw: string, countryScope?: "China"): string[] {
-  const labels = locationRaw.split(" / ").map(value => value.trim());
-  const retained = JNJ_CITY_NAMES.flatMap(([english, chinese]) =>
-    labels.some(label => label.toLowerCase() === english.toLowerCase() || label === chinese) ? [chinese] : []);
-  const shared = countryScope === "China" ? labels.flatMap(label => {
-    const city = reviewedMainlandCityLabel(label, countryScope); return city ? [city] : [];
-  }) : [];
-  return [...new Set([...retained, ...shared])];
+  const labels = locationRaw.split("/").map(value => value.trim()).filter(Boolean);
+  // The China-filtered board also lists global roles. Project each location separately.
+  const cities = labels.filter(label => !explicitlyForeignOrNonMainlandLocation(label)).map(label => JNJ_CITY_NAMES.find(([english, chinese]) =>
+    label.toLowerCase() === english.toLowerCase() || label === chinese)?.[1] ??
+    (countryScope === "China" ? reviewedMainlandCityLabel(label, countryScope) : undefined))
+    .filter((city): city is string => city !== undefined);
+  if (cities.length) return [...new Set(cities)];
+  return labels.some(label => /^(?:China|中国)$/iu.test(label)) ? [CITY_PENDING] : [];
 }
 
 function evidenceId(officialId: string): string {

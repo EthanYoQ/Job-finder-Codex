@@ -9,7 +9,8 @@
     "crawl": "tsx scripts/direct-round.ts --run",
     "check:routes": "tsx scripts/direct-round.ts --check",
     "test:offline": "node --import ./scripts/local-check-loader.mjs --test tests/direct-round.test.mjs tests/direct-recovery.test.mjs",
-    "test:browser": "node --import ./scripts/local-check-loader.mjs --test tests/hybrid-browser.test.mjs tests/official-dom-browser.test.mjs"
+    "test:browser": "node --import ./scripts/local-check-loader.mjs --test tests/hybrid-browser.test.mjs tests/official-dom-browser.test.mjs",
+    "test:publication": "node --import tsx --test tests/abbvie-province-location.test.mjs tests/cspc-job-isolation.test.mjs tests/novartis-native-title-sort.test.mjs tests/novartis-native-reverse-page.test.mjs tests/novartis-closed-lifecycle.test.mjs tests/novartis-archived-duplicate.test.mjs tests/publication-boundaries.test.mjs tests/bms-pagination-contract.test.mjs tests/sanofi-job-isolation.test.mjs"
   },
   "dependencies": {
     "@babel/parser": "^7.29.7",

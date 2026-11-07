@@ -1,8 +1,7 @@
+import { currentOfficialSourceAttemptSignal } from './officialHttpRuntimeLimits';
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { load } from "cheerio";
-import { join } from "node:path";
-import { savePrivateDomFailure } from "./local-browser/private-dom-failure.mjs";
 import type { OfficialJsonRenderedPageCapture, OfficialJsonRenderedReplay } from "./officialJsonRenderedTraversalValidator";
 import { createDefaultMokaHttpClient, type MokaHttpClient } from "./mokaSourceFetch";
 import { bayerIndependentDetailScope, BAYER_MOKA_DETAIL, BAYER_MOKA_ENTRY, decryptBayerArtifact } from "./bayerMokaScope";
@@ -19,9 +18,8 @@ interface HttpReceipt { method: "GET" | "POST"; url: string; requestBody?: Recor
 
 /** The DOM enumerates the set. Fresh, separately requested HTTP details establish status; no main capture is accepted. */
 export async function captureBayerIndependentDetails(input: {
-  dom: BayerDomCapture; http?: MokaHttpClient; now?: () => Date;
+  dom: BayerDomCapture; http?: MokaHttpClient; now?: () => Date; signal?:AbortSignal;
   onReceipt?: (receipt: HttpReceipt, sequence: number) => Promise<void>;
-  failureDirectory?: string;
 }): Promise<{ observedAt: string; pages: OfficialJsonRenderedPageCapture[] }> {
   const now = input.now ?? (() => new Date()), http = input.http ?? createDefaultMokaHttpClient(now);
   const total = validateDomCapture(input.dom);
@@ -30,44 +28,39 @@ export async function captureBayerIndependentDetails(input: {
   }
   let sequence = 0;
   const request = async (url: string, body?: Record<string, unknown>): Promise<HttpReceipt> => {
+    input.signal?.throwIfAborted();currentOfficialSourceAttemptSignal()?.throwIfAborted();
     const method = body ? "POST" : "GET";
-    const response = await http({ url, method, ...(body ? { body, headers: { "Content-Type": "application/json;charset=UTF-8",
-      Origin: "https://app.mokahr.com", Referer: BAYER_MOKA_ENTRY.split("#")[0]! } } : {}) });
+    let response;
+    try{response=await http({ url, method, ...(body ? { body, headers: { "Content-Type": "application/json;charset=UTF-8",
+      Origin: "https://app.mokahr.com", Referer: BAYER_MOKA_ENTRY.split("#")[0]! } } : {}) });}catch(error){throw Object.assign(error instanceof Error?error:Error("Independent HTTP transport failed"),{independentTransportFailure:true});}
+    input.signal?.throwIfAborted();currentOfficialSourceAttemptSignal()?.throwIfAborted();
     const receipt: HttpReceipt = { method, url, ...(body ? { requestBody: body } : {}), status: response.status,
-      finalUrl: response.finalUrl ?? "", body: response.body, bodySha256: hash(response.body), capturedAt: response.capturedAt ?? "" };
+      finalUrl: response.finalUrl ?? "", body: response.body, bodySha256: hash(response.body), capturedAt: response.capturedAt ?? now().toISOString() };
     await input.onReceipt?.(receipt, sequence++);
-    validateReceipt(receipt, url, input.dom.observedAt, body);
+    input.signal?.throwIfAborted();currentOfficialSourceAttemptSignal()?.throwIfAborted();
     return receipt;
   };
   const entry = await request(BAYER_MOKA_ENTRY.split("#")[0]!);
-  const iv = entryIv(entry);
+  validateReceipt(entry,BAYER_MOKA_ENTRY.split("#")[0]!,input.dom.observedAt);
+  const iv=entryIv(entry);
   const pages: OfficialJsonRenderedPageCapture[] = [];
   let first = true;
   for (const captured of input.dom.pages) {
     const { rows, ...domPage } = captured;
     const rawRows: OfficialJsonRenderedPageCapture["rawRows"][number][] = [];
     for (let recordIndex = 0; recordIndex < rows.length; recordIndex++) {
-      const domRow = rows[recordIndex]!, identity = domIdentity(domRow);
-      const detailResponse = await request(BAYER_MOKA_DETAIL, { orgId: "bayer", siteId: "148387", jobId: identity.id, locale: "zh-CN" });
-      const root = decryptBayerArtifact(detailResponse, iv), detail = record(root.data);
-      if (root.success !== true || !detail) throw new Error("Bayer independent HTTP detail failed");
-      let scope: ReturnType<typeof bayerIndependentDetailScope>;
-      try { scope = bayerIndependentDetailScope(identity, detail); }
-      catch (error) {
-        const cause = error instanceof Error ? error : Error("Bayer detail scope failed");
-        try { Object.assign(cause, {privateCapture: await savePrivateDomFailure({
-          directory: input.failureDirectory ?? join(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder", "diagnostics", "bayer"),
-          filePrefix: "bayer-detail", context: {kind: "BAYER_FAILURE_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE"},
-          observe: async () => ({entry, detailResponse, domRow})
-        })}); } catch { Object.assign(cause, {privateCaptureUnavailable: true}); }
-        throw cause;
-      }
-      const sourceJobId = evidenceId(identity.id);
-      if (String(detail.publishedAt).slice(0, 10) !== identity.publishedDate) throw new Error("Bayer independent DOM/detail date mismatch");
-      rawRows.push({ sourceJobId, rawEvidenceId: sourceJobId, recordIndex, scopeMarker: String(detail.status),
-        scopeDecision: scope.paused ? "EXCLUDED_AUDITED" : "INCLUDED_MAINLAND",
-        rawPayload: { captureMethod: BAYER_HYBRID_RETRIEVAL_PATH, domPage, domRow, detailResponse,
-          ...(first ? { entry } : {}), entrySha256: entry.bodySha256 } });
+      const domRow = rows[recordIndex]!, identity = domIdentity(domRow,captured.pageNumber-1,recordIndex);
+      let detailResponse:HttpReceipt|undefined,detailUnavailable:{code:'CAPTURE_FAILED';capturedAt:string}|undefined;
+      try{if(identity.known)detailResponse=await request(BAYER_MOKA_DETAIL,{ orgId: "bayer", siteId: "148387", jobId: identity.id, locale: "zh-CN" });}
+      catch(error){input.signal?.throwIfAborted();currentOfficialSourceAttemptSignal()?.throwIfAborted();if(!(error as {independentTransportFailure?:boolean})?.independentTransportFailure)throw error;detailUnavailable={code:'CAPTURE_FAILED',capturedAt:now().toISOString()};}
+      if(!identity.known)detailUnavailable={code:'CAPTURE_FAILED',capturedAt:now().toISOString()};
+      // A website access restriction stops this source; do not send the next request.
+      if(detailResponse&&[403,429].includes(detailResponse.status))throw Error('Bayer independent access restricted');
+      const outcome=projectDetail(identity,detailResponse,detailUnavailable,iv,input.dom.observedAt);
+      const sourceJobId=evidenceId(identity.id);
+      rawRows.push({sourceJobId,rawEvidenceId:sourceJobId,recordIndex,scopeMarker:outcome.marker,scopeDecision:outcome.decision,
+        rawPayload:{captureMethod:BAYER_HYBRID_RETRIEVAL_PATH,domPage,domRow,...(detailResponse?{detailResponse}:{detailUnavailable}),
+          ...(first?{entry}:{}),entrySha256:entry.bodySha256}});
       first = false;
     }
     pages.push({ channelId: "source:source-bayer-healthcare-social:default", pageNumber: captured.pageNumber,
@@ -83,7 +76,9 @@ export function replayBayerHybridTraversal(pages: readonly OfficialJsonRenderedP
   if (!entry || pages.length < 1 || pages.length > 100) throw new Error("Bayer independent entry or pages are missing");
   const domPages: BayerDomPage[] = [];
   const rawSourceJobIds: string[] = [], matchKeys: string[] = [], excludedSourceJobIds: string[] = [];
-  let observedAt: string | undefined;
+  const observedAt=bayerHybridObservedAt(pages);
+  validateReceipt(entry,BAYER_MOKA_ENTRY.split("#")[0]!,observedAt);
+  const iv=entryIv(entry);
   for (let index = 0; index < pages.length; index++) {
     const page = pages[index]!;
     const first = page.rawRows[0]?.rawPayload.domPage as Omit<BayerDomPage, "rows"> | undefined;
@@ -91,26 +86,18 @@ export function replayBayerHybridTraversal(pages: readonly OfficialJsonRenderedP
         page.nextControlPresent !== (index < pages.length - 1) || page.channelId !== "source:source-bayer-healthcare-social:default") {
       throw new Error("Bayer independent page contract mismatch");
     }
-    observedAt ??= first.capturedAt;
     const rows: BayerDomRow[] = [];
     for (let recordIndex = 0; recordIndex < page.rawRows.length; recordIndex++) {
       const row = page.rawRows[recordIndex]!, payload = row.rawPayload;
       if (payload.captureMethod !== BAYER_HYBRID_RETRIEVAL_PATH || payload.entrySha256 !== entry.bodySha256 ||
           row.recordIndex !== recordIndex || !isDeepStrictEqual(payload.domPage, first) ||
           (index !== 0 || recordIndex !== 0) && payload.entry !== undefined) throw new Error("Bayer independent row provenance mismatch");
-      const domRow = payload.domRow as BayerDomRow, identity = domIdentity(domRow), receipt = payload.detailResponse as HttpReceipt;
-      validateReceipt(entry, BAYER_MOKA_ENTRY.split("#")[0]!, observedAt);
-      validateReceipt(receipt, BAYER_MOKA_DETAIL, entry.capturedAt,
-        { orgId: "bayer", siteId: "148387", jobId: identity.id, locale: "zh-CN" });
-      const root = decryptBayerArtifact(receipt, entryIv(entry)), detail = record(root.data);
-      if (root.success !== true || !detail) throw new Error("Bayer independent detail envelope mismatch");
-      const scope = bayerIndependentDetailScope(identity, detail), id = evidenceId(identity.id);
-      if (String(detail.publishedAt).slice(0, 10) !== identity.publishedDate || row.sourceJobId !== id || row.rawEvidenceId !== id ||
-          row.scopeMarker !== detail.status || row.scopeDecision !== (scope.paused ? "EXCLUDED_AUDITED" : "INCLUDED_MAINLAND")) {
-        throw new Error("Bayer independent raw/status/date commitment mismatch");
-      }
-      rows.push(domRow); rawSourceJobIds.push(id);
-      (scope.paused ? excludedSourceJobIds : matchKeys).push(id);
+      const domRow=payload.domRow as BayerDomRow,identity=domIdentity(domRow,index,recordIndex),id=evidenceId(identity.id);
+      const outcome=projectDetail(identity,payload.detailResponse as HttpReceipt|undefined,payload.detailUnavailable as {code:string;capturedAt:string}|undefined,iv,observedAt!);
+      if(row.sourceJobId!==id||row.rawEvidenceId!==id||row.scopeMarker!==outcome.marker||row.scopeDecision!==outcome.decision)
+        throw Error('Bayer independent row outcome mismatch');
+      rows.push(domRow);rawSourceJobIds.push(id);
+      (outcome.decision==='INCLUDED_MAINLAND'?matchKeys:excludedSourceJobIds).push(id);
     }
     domPages.push({ ...first, rows });
   }
@@ -130,7 +117,7 @@ export function bayerHybridObservedAt(pages: readonly OfficialJsonRenderedPageCa
   return time;
 }
 export function bayerHybridFinishedAt(pages: readonly OfficialJsonRenderedPageCapture[]): string {
-  const times = pages.flatMap(p => p.rawRows.map(r => (r.rawPayload.detailResponse as HttpReceipt)?.capturedAt));
+  const times = pages.flatMap(p => p.rawRows.map(r => (r.rawPayload.detailResponse as HttpReceipt)?.capturedAt ?? (r.rawPayload.detailUnavailable as {capturedAt?:string}|undefined)?.capturedAt));
   if (!times.length || times.some(t => !validTime(t))) throw new Error("Bayer independent completion time is missing");
   return times.sort().at(-1)!;
 }
@@ -158,17 +145,24 @@ export function validateDomCapture(capture: BayerDomCapture): number {
     if (next.length !== 1 || next.is("[disabled]") !== p.nextDisabled || active.length !== 1 || active.text().trim() !== String(p.pageNumber)) {
       throw new Error("Bayer independent DOM terminal control mismatch");
     }
-    for (const row of p.rows) { const id = domIdentity(row).id; if (ids.has(id)) throw new Error("Bayer independent DOM duplicate ID"); ids.add(id); }
+    for (const [recordIndex,row] of p.rows.entries()) { const id = domIdentity(row,index,recordIndex).id; if (ids.has(id)) throw new Error("Bayer independent DOM duplicate ID"); ids.add(id); }
   }
   if (ids.size !== total || capture.pages.length !== Math.ceil(total! / 30)) throw new Error("Bayer independent DOM total mismatch");
   return total!;
 }
-function domIdentity(row: BayerDomRow): { id: string; title: string; publishedDate: string } {
-  if (!row || typeof row.href !== "string" || typeof row.titleHtml !== "string" || typeof row.publishedHtml !== "string") throw new Error("Bayer DOM row is missing");
-  const id = /^#\/job\/([0-9a-f-]{36})$/u.exec(row.href)?.[1], title = load(row.titleHtml).text().replace(/\s+/gu, " ").trim();
-  const publishedDate = /^发布于\s*(\d{4}-\d{2}-\d{2})$/u.exec(load(row.publishedHtml).text().trim())?.[1];
-  if (!id || !title || !publishedDate) throw new Error("Bayer DOM row identity/date is invalid");
-  return { id, title, publishedDate };
+function domIdentity(row:BayerDomRow,pageSequence:number,recordIndex:number):{id:string;known:boolean}{
+ const id=typeof row?.href==='string'?/^#\/job\/([0-9a-f-]{36})$/u.exec(row.href)?.[1]:undefined;
+ return {id:id??`unidentified:${hash(JSON.stringify([pageSequence,recordIndex,row]))}`,known:!!id};
+}
+function projectDetail(identity:{id:string;known:boolean},receipt:HttpReceipt|undefined,unavailable:{code:string;capturedAt:string}|undefined,iv:string,observedAt:string):{marker:string;decision:'INCLUDED_MAINLAND'|'EXCLUDED_AUDITED'}{
+ if(!receipt){if(unavailable?.code!=='CAPTURE_FAILED'||!validTime(unavailable.capturedAt)||Date.parse(unavailable.capturedAt)<Date.parse(observedAt))throw Error('Bayer independent unavailable capture invalid');return {marker:identity.known?'UNKNOWN_JOB':'UNKNOWN_IDENTITY',decision:'EXCLUDED_AUDITED'};}
+ if(unavailable)throw Error('Bayer independent duplicate detail outcome');
+ try{
+  validateReceipt(receipt,BAYER_MOKA_DETAIL,observedAt,{orgId:'bayer',siteId:'148387',jobId:identity.id,locale:'zh-CN'});
+  const root=decryptBayerArtifact(receipt,iv),detail=record(root.data);if(root.success!==true||!detail||typeof detail.title!=='string'||!detail.title.trim())throw Error('Bayer independent detail unavailable');
+  const scope=bayerIndependentDetailScope({id:identity.id,title:detail.title},detail);
+  return {marker:String(detail.status),decision:scope.paused?'EXCLUDED_AUDITED':'INCLUDED_MAINLAND'};
+ }catch{return {marker:'UNKNOWN_JOB',decision:'EXCLUDED_AUDITED'};}
 }
 function entryIv(entry: HttpReceipt): string {
   const init = JSON.parse(load(entry.body)("#init-data").attr("value") ?? "null");

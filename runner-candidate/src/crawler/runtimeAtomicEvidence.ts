@@ -1,4 +1,5 @@
 import { rocheQuarantinedSourceJobIds } from "./rocheChinaQuality";
+import { quarantinedPriorJobKeys,sameNovartisRequisition } from "./jobQuarantine";
 import { exactNovoChinaQualityPlan, novoSourceJobExclusions } from "./novoChinaQuality";
 import { isDeepStrictEqual } from "node:util";
 import { isPfizerWorkdayTraversalPlan, pfizerQuarantinedOfficialIds, pfizerSourceJobId, PFIZER_ENTRY } from "./pfizerWorkdayTraversal";
@@ -566,15 +567,15 @@ export function buildAtomicRuntimeCommit(input: {
   const manualPreview = identity.batchKind === "MANUAL_SOURCE";
   if (completenessVerified && !manualPreview && hasNovartisOfficialPresencePlan(plan)) replayNovartisOfficialPresence(plan,evidence);
   if (completenessVerified && !manualPreview) assertServierUnknownLifecyclePreserved(plan, evidence, input.previousJobs.map(job => job.record));
-  const unknownKeys=new Set<string>();
+  const unknownKeys=completenessVerified&&!manualPreview?quarantinedPriorJobKeys(evidence,input.previousJobs,new Set(currentKeys)):new Set<string>();
   if(completenessVerified&&!manualPreview){
     if(exactNovoChinaQualityPlan(plan)){
       const ids=novoSourceJobExclusions(evidence).insufficient;
       for(const old of input.previousJobs)if(ids.has(old.record.sourceJobId??""))unknownKeys.add(old.dedupeKey);
     }
     if(hasNovartisPartitionEvidence(evidence)){
-      const urls=replayNovartisNativePartitions(plan,evidence).unknownUrls;
-      for(const old of input.previousJobs)if(urls.has(old.record.officialUrl))unknownKeys.add(old.dedupeKey);
+      const pending=replayNovartisNativePartitions(plan,evidence);
+      for(const old of input.previousJobs)if([...pending.unknownUrls].some(url=>url===old.record.officialUrl||sameNovartisRequisition(url,old.record.officialUrl))||pending.unboundUnknown&&!currentKeys.includes(old.dedupeKey))unknownKeys.add(old.dedupeKey);
     }
     if(plan.source.id==="source-roche-china-social"){
       const ids=rocheQuarantinedSourceJobIds(evidence);
@@ -620,7 +621,7 @@ export function buildAtomicRuntimeCommit(input: {
       ? []
       : reducedLifecycle.filter(({ dedupeKey }) => currentKeySet.has(dedupeKey)));
   // Only source-replayed UNKNOWN identities may retain old ACTIVE membership.
-  for(const held of lifecycle.filter(x=>["source-novartis-social","source-pfizer-china-social","source-roche-china-social","source-novo-nordisk-china-social"].includes(plan.source.id)&&x.lifecycleStatus==="ACTIVE"&&x.missingSuccessfulCrawlCount===1)){
+  for(const held of lifecycle.filter(x=>(evidence.jobQuarantines?.length&&unknownKeys.has(x.dedupeKey)||["source-novartis-social","source-pfizer-china-social","source-roche-china-social","source-novo-nordisk-china-social"].includes(plan.source.id))&&x.lifecycleStatus==="ACTIVE"&&x.missingSuccessfulCrawlCount===1)){
     const old=input.previousJobs.find(job=>job.dedupeKey===held.dedupeKey);
     if(!unknownKeys.has(held.dedupeKey)||!old||old.lifecycleStatus!=="ACTIVE"||held.lastSeenAt!==old.lastSeenAt||
       !isDeepStrictEqual(held.record,old.record))throw Error("UNKNOWN_GRACE_REQUIRES_PRIOR_ACTIVE_IDENTITY");
