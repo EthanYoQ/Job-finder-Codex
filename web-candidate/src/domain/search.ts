@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ALL_PROVINCES, CITY_PENDING } from "./jobLocation";
+import { JOB_SUBCATEGORIES } from "./jobClassification";
 
 export const JOB_CATEGORIES = [
   "销售",
@@ -48,7 +49,8 @@ export const SearchRequestSchema = z.object({
 export const PORTABLE_SEARCH_CITIES = [...SEARCH_CITIES, CITY_PENDING] as const;
 export const PortableSearchRequestSchema = SearchRequestSchema.extend({
   city: z.string().trim().min(1).max(80),
-  province: z.string().trim().min(1).max(80).default(ALL_PROVINCES)
+  province: z.string().trim().min(1).max(80).default(ALL_PROVINCES),
+  categories: z.array(z.enum([...JOB_CATEGORIES, ...JOB_SUBCATEGORIES])).default([])
 });
 
 export const COMPANY_EXPANSION_PAGE_SIZE = 10;
