@@ -481,7 +481,7 @@ td:first-child { font-weight: 500; }
   .pop { position: fixed; left: 8px; right: 8px; top: auto; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 72vh; }
   .scrim { background: rgba(4, 6, 40, 0.5); }
   .pop-open .dock { display: none; }
-  .pop-close { display: grid; }
+  .pop-close { display: grid; width: 44px; }
   .drawer-wrap { align-items: flex-end; }
   .drawer { width: 100%; height: auto; max-height: 90%; border-radius: 18px 18px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
   .dialog-top { padding: 24px 20px 20px; }

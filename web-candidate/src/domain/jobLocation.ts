@@ -202,12 +202,30 @@ function explicitPublishedProvince(raw: string): string | null {
   return provinceLabel(workdayProvince ?? raw) ?? (/^guangdong,gd$/u.test(key(raw)) ? "广东" : null);
 }
 
+function publishedLocationParts(label: string): string[] {
+  const qualified = label.match(/^(.+?)\s*\(([^()]+)\)$/u);
+  return (qualified ? [qualified[1]!, qualified[2]!] : label.split(/\s*[,，·]\s*|\s+-\s+/u))
+    .map(part => part.trim()).filter(part => part && !CHINA.test(part));
+}
+
+function pendingLocationProvince(raw: string): string | null {
+  const standalone = explicitPublishedProvince(raw);
+  if (standalone) return standalone;
+  const parts = publishedLocationParts(raw.normalize("NFKC").trim());
+  if (parts.length !== 2) return null;
+  const leading = provinceLabel(parts[0]!);
+  const trailing = provinceLabel(parts[1]!);
+  if (leading && trailing && leading !== trailing) return null;
+  const province = leading ?? trailing;
+  if (!province) return null;
+  const locality = knownPublishedCity(leading ? parts[1]! : parts[0]!, province);
+  return !locality || publishedCityProvince(locality) === province ? province : null;
+}
+
 function explicitPublishedCity(raw: string): string | undefined {
   const label = raw.normalize("NFKC").trim().replace(/^CN:\s*/iu, "");
   if (Object.hasOwn(PFIZER_OFFICIAL_LOCALITIES, label)) return PFIZER_OFFICIAL_LOCALITIES[label];
-  const qualified = label.match(/^(.+?)\s*\(([^()]+)\)$/u);
-  const parts = (qualified ? [qualified[1]!, qualified[2]!] : label.split(/\s*[,，·]\s*|\s+-\s+/u))
-    .map(part => part.trim()).filter(part => part && !CHINA.test(part));
+  const parts = publishedLocationParts(label);
   if (!parts.length) return undefined;
   const provinceAndCity = parts.length === 1 ? /^(.+?省)(.+?市)/u.exec(parts[0]!) : null;
   if (provinceAndCity) {
@@ -253,12 +271,12 @@ function titleWorkCities(title: string, province: string | null): string[] {
   return [];
 }
 
-function rawPublishedCities(raw: string, separator: RegExp, keepKnownLocations = false): string[] {
+function rawPublishedCities(raw: string, separator: RegExp): string[] {
   const parts = raw.split(separator).map(part => part.trim()).filter(part => part && !CHINA.test(part));
   const cities = parts.map(explicitPublishedCity);
   const resolved = cities.flatMap(city => city ?? []);
   const provinces = new Set(resolved.map(publishedCityProvince));
-  if (!keepKnownLocations && cities.some((city, index) => !city && !provinces.has(explicitPublishedProvince(parts[index]!)))) return [];
+  if (cities.some((city, index) => !city && !provinces.has(explicitPublishedProvince(parts[index]!)))) return [];
   return [...new Set(resolved)];
 }
 
@@ -313,7 +331,7 @@ export function resolvedPublishedJobCities(job: PublishedJobLocation): string[] 
   if (sourceId === "source-roche-china-social") {
     // The owner confirmed the Fujian label is Fuzhou despite the official typo.
     const reviewed = raw.split("|").map(part => part.trim().replace(/^抚州, 福建, 中国大陆$/u, "福州, 福建, 中国大陆")).join(" | ");
-    return rawPublishedCities(reviewed, /\s*\|\s*/u, true);
+    return rawPublishedCities(reviewed, /\s*\|\s*/u);
   }
   return rawPublishedCities(raw, /\s*\|\s*/u);
 }
@@ -337,8 +355,8 @@ export function publicSearchCityProvince(job:JobLocation,city:string):string|nul
 export function publicSearchProvinces(job:JobLocation):string[] {
   const locations=structuredLocations(job);
   if (locations.includes(CITY_PENDING)) {
-    const province = explicitPublishedProvince(job.locationRaw ?? "");
-    return province ? [province] : [];
+    return [...new Set((job.locationRaw ?? "").split(/\s*\|\s*/u)
+      .flatMap(part => pendingLocationProvince(part) ?? []))];
   }
   return [...new Set([
     ...publicSearchCities(job).flatMap(city=>publicSearchCityProvince(job,city)??[]),
