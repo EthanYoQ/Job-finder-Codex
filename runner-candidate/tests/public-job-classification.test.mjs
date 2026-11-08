@@ -24,7 +24,12 @@ const oldJobs = cases.map(([sourceId, officialTitle], index) => ({
   id: String(index), sourceId, officialTitle, title: officialTitle, category: "其他",
   city: "上海", cities: ["上海"], locationRaw: "上海", officialPublishedAt: null,
 }));
-const jobs = [...oldJobs, { ...oldJobs[0], id: "manual", category: "医学事务" }, { ...oldJobs[0], id: "manual-other", categoryManuallyCorrected: true }];
+const jobs = [
+  ...oldJobs,
+  { ...oldJobs[0], id: "manual", category: "医学事务", categoryManuallyCorrected: true },
+  { ...oldJobs[0], id: "manual-quality", category: "质量", categoryManuallyCorrected: true },
+  { ...oldJobs[0], id: "manual-other", categoryManuallyCorrected: true },
+];
 const snapshot = {
   lastUpdatedAt: null, sources: [],
   coverage: { requiredCompanyCount: 1, excludedCompanyCount: 0 },
@@ -43,10 +48,13 @@ test("saved snapshots expose evidence-backed parent and child filters without ch
   }
   assert.equal(byId.get("manual").category, "医学事务");
   assert.equal(byId.get("manual").subcategory ?? undefined, undefined);
+  assert.equal(byId.get("manual-quality").category, "质量");
+  assert.equal(byId.get("manual-quality").subcategory, "临床质量");
+  assert.equal(byId.get("manual-quality").categoryManuallyCorrected, undefined);
   assert.equal(byId.get("manual-other").category, "其他");
   assert.equal(byId.get("manual-other").categoryManuallyCorrected, undefined);
   assert.equal(query({ categories: ["销售"] }).totalJobs, 2);
-  assert.equal(query({ categories: ["临床质量"] }).totalJobs, 1);
+  assert.equal(query({ categories: ["临床质量"] }).totalJobs, 2);
   assert.equal(query({ keyword: "临床供应链" }).totalJobs, 3);
   assert(oldJobs.every((job) => job.category === "其他"));
 });

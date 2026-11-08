@@ -45,7 +45,10 @@ export function searchPortableSnapshot(request:unknown,snapshot:PortablePublicSn
   const q=PortableSearchRequestSchema.parse(request),keyword=q.keyword?.toLocaleLowerCase("zh-CN")??"";
   const date=(s:string|null)=>s===null?Number.NEGATIVE_INFINITY:Date.parse(s);
   const seenJobIds=new Set<string>();
-  const publishedCompanies=snapshot.companies.filter(c=>c.required&&c.publishingSourceIds.length>0).map(c=>({...c,jobs:c.jobs.filter(j=>{if(seenJobIds.has(j.id))return false;seenJobIds.add(j.id);return true;}).map(({categoryManuallyCorrected,...job})=>categoryManuallyCorrected?job:{...job,...classifyJob(job)})}));
+  const publishedCompanies=snapshot.companies.filter(c=>c.required&&c.publishingSourceIds.length>0).map(c=>({...c,jobs:c.jobs.filter(j=>{if(seenJobIds.has(j.id))return false;seenJobIds.add(j.id);return true;}).map(({categoryManuallyCorrected,...job})=>{
+    const classification=classifyJob(job);
+    return categoryManuallyCorrected&&classification.category!==job.category?job:{...job,...classification};
+  })}));
   const publishedJobs=publishedCompanies.flatMap(c=>c.jobs);
   const cityCounts=new Map<string,{province:string|null;jobCount:number}>();
   const provinceCounts=new Map<string,{jobCount:number;cityPendingJobs:number}>();
