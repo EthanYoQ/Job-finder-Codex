@@ -1,17 +1,18 @@
 import type { JobCategory } from "./search";
+import { findJobClassificationEvidence, resolveJobClassificationEvidence } from "./jobClassificationEvidence";
 
 export const JOB_CATEGORY_GROUPS = {
-  "销售": ["肿瘤销售", "罕见病销售", "基层医疗销售", "医药销售", "销售管理"],
+  "销售": ["肿瘤销售", "罕见病销售", "基层医疗销售", "医药销售", "零售销售", "销售管理", "培训与赋能"],
   "市场": ["品牌市场", "市场洞察"],
   "商务": ["业务拓展", "商业运营"],
   "渠道": ["渠道管理"],
-  "KA": ["大客户管理"],
+  "KA": ["大客户管理", "医院准入"],
   "医学事务": ["医学联络", "医学顾问", "医学写作", "医学信息", "医学策略与合作"],
   "临床运营": ["临床研究监察", "临床研究执行", "临床数据管理"],
   "注册": ["注册事务"],
   "药物警戒/安全": ["药物安全"],
-  "研发/科学": ["药物发现", "临床药理", "临床科学", "转化医学", "研发科学"],
-  "生产/工程": ["生产制造", "工程技术"],
+  "研发/科学": ["药物发现", "临床药理", "临床科学", "生物统计", "质量研究", "转化医学", "研发科学"],
+  "生产/工程": ["生产制造", "工程技术", "MSAT 技术转移"],
   "质量": ["质量保证", "质量控制", "临床质量"],
   "市场准入/政府事务": ["准入与定价", "卫生经济与真实世界研究", "政府事务"],
   "数据/IT": ["数据科学", "信息技术"],
@@ -32,6 +33,7 @@ interface ClassificationInput {
   officialTitle: string;
   category: JobCategory;
   sourceId?: string;
+  officialUrl?: string;
 }
 
 type ClassificationRule = {
@@ -47,13 +49,16 @@ type ClassificationRule = {
 
 const SALES_TITLE = /医药代表|药品销售|临床销售|销售代表|\b(?:sales|medical represent(?:ative|ive)|(?:bio)?pharmaceutical rep(?:resentative)?|product representative)\b/i;
 const COMMUNICATION_SALES_TITLE = /医学信息沟通(?:代表|专员)|\bmedical information communication (?:representative|repres|specialist)\b/i;
-const COMMUNICATION_SALES_SOURCES = ["source-sanofi-china-social", "source-pfizer-china-social"];
+const COMMUNICATION_SALES_SOURCES = ["source-pfizer-china-social"];
+const AMBIGUOUS_COMMUNICATION_TITLE = /医学信息沟通|\b(?:medical information communication|s?mics?)\b/i;
 
 const RULES: readonly ClassificationRule[] = [
   { category: "职能", subcategory: "人力资源", title: /\bsales recruit(?:er|ing|ment)\b/i },
   { category: "质量", subcategory: "临床质量", title: /临床质量|\bclinical quality\b/i },
   { category: "供应链/采购", subcategory: "临床供应链", title: /临床供应|\bclinical (?:trials? )?suppl(?:y|ies)\b/i },
   { category: "研发/科学", subcategory: "临床药理", title: /临床药理|药代动力学|\bclinical pharmacolog\w*\b|\bpharmacokinetic\w*\b/i },
+  { category: "研发/科学", subcategory: "生物统计", title: /临床统计|生物统计|\b(?:clinical statistic\w*|biostatistic\w*)\b/i },
+  { category: "研发/科学", subcategory: "质量研究", title: /质量研究/, excludes: /注册|\bregulatory\b/i },
   { category: "药物警戒/安全", subcategory: "药物安全", title: /药物警戒|药物安全|患者安全|\b(?:pharmacovigilance|drug safety|patient\s*safety|safety physician)\b/i },
   { category: "注册", subcategory: "注册事务", title: /注册|药政|\bregulatory\b/i },
   { category: "医学事务", subcategory: "医学联络", title: /医学(?:科学)?联络|\b(?:medical (?:science|scientific) liaison|msl)\b/i },
@@ -70,9 +75,11 @@ const RULES: readonly ClassificationRule[] = [
   { category: "质量", subcategory: "质量控制", title: /质量控制|质量检验|质量分析|\b(?:qc|quality control)\b/i },
   { category: "市场准入/政府事务", subcategory: "卫生经济与真实世界研究", title: /卫生经济|药物经济|真实世界|\b(?:heor|hta|health econom\w*|real[- ]world (?:evidence|research|data))\b/i },
   { category: "市场准入/政府事务", subcategory: "政府事务", title: /政府事务|政府关系|公共事务|\b(?:government|public) (?:affairs|relations|policy)\b/i },
+  { category: "KA", subcategory: "医院准入", title: /医院准入|\bhospital access\b/i, excludes: /政策|政府|\bpolicy\b/i },
   { category: "市场准入/政府事务", subcategory: "准入与定价", title: /市场准入|医保准入|准入策略|定价|\b(?:market access|pricing|reimbursement|pipeline access)\b/i },
   { category: "商务", subcategory: "业务拓展", title: /商务拓展|业务拓展|业务发展|\b(?:business development|corporate development|search (?:and|&) evaluation|scouting (?:and|&) (?:partnering|transaction)|ecosystem partnership,? bd)\b/i },
   { category: "商务", subcategory: "商业运营", title: /商业运营|商务运营|销售运营|销售效能|\b(?:commercial|business|sales) (?:operations|excellence|effectiveness|strategy)\b/i },
+  { category: "销售", subcategory: "零售销售", title: /零售(?:(?:关键|大)?客户|商务|销售)|\bretail (?:key account|commercial|sales)\b/i },
   { category: "渠道", subcategory: "渠道管理", title: /渠道|分销|\b(?:channel|distribution) (?:manager|management|director|sales)\b/i },
   { category: "KA", subcategory: "大客户管理", title: /大客户|\b(?:key account|ka|kam)\b/i },
   { category: "销售", subcategory: "肿瘤销售", title: /肿瘤|肺癌|乳腺癌|\b(?:oncology|onco|tumou?r)\b/i, requires: SALES_TITLE },
@@ -103,7 +110,14 @@ const RULES: readonly ClassificationRule[] = [
 ];
 
 export function classifyJob(job: ClassificationInput): JobClassification {
+  const evidence = findJobClassificationEvidence(job);
+  const verified = evidence && resolveJobClassificationEvidence(evidence);
+  if (verified) return verified;
   const title = job.officialTitle.normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (job.category === "其他" && job.sourceId === "source-hengrui-social" &&
+    /生物统计与编程部\s*[-–—]\s*中央医学事务部$/.test(title)) return { category: "医学事务" };
+  if (["source-sanofi-china-social", "source-bms-china-social"].includes(job.sourceId ?? "") &&
+    AMBIGUOUS_COMMUNICATION_TITLE.test(title)) return { category: job.category };
   const rule = RULES.find((candidate) =>
     (job.category === "其他" || candidate.category === job.category) &&
     (!candidate.sourceIds || job.sourceId !== undefined && candidate.sourceIds.includes(job.sourceId)) &&
