@@ -215,6 +215,7 @@ test("reviewed work cities override ATS office locations without duplicating a r
     {sourceId:"source-servier-china-social", locationRaw:"朝阳区", cities:["城市待核"], title:"Data Governance Manager 数据治理经理"},
     {sourceId:"source-astrazeneca-social", locationRaw:"Multiple locations", cities:["上海","成都"], title:"MR-CVRM-成都"},
     {sourceId:"source-roche-china-social", locationRaw:"武汉, 湖北, 中国大陆 | 新城, 福建, 中国大陆", cities:["城市待核"], title:"市场经理"},
+    {sourceId:"source-hengrui-social", locationRaw:"深圳、未知", cities:["城市待核"], title:"医药代表"},
   ];
   const jobs = samples.map(({title, ...location}, id) => ({...oldJobs[0], id:String(id), ...location,
     city:location.cities[0], officialTitle:title}));
@@ -232,6 +233,8 @@ test("reviewed work cities override ATS office locations without duplicating a r
   assert.deepEqual(byId.get("5").cities, ["城市待核"]);
   assert.deepEqual(byId.get("6").cities, ["上海", "成都"]);
   assert.equal(byId.get("7").cityPending, true);
+  assert.equal(query("广东", "城市待核").companies[0].jobs[0].id, "8");
+  assert.equal(query("广东", "深圳").totalJobs, 0);
   assert(query("福建", "城市待核").companies[0].jobs.some(job => job.id === "7"));
   assert(query("上海", "多城市").companies[0].jobs.some(job => job.id === "6"));
   assert(query("四川", "成都").companies[0].jobs.some(job => job.id === "6"));

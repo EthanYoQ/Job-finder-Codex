@@ -355,8 +355,14 @@ export function publicSearchCityProvince(job:JobLocation,city:string):string|nul
 export function publicSearchProvinces(job:JobLocation):string[] {
   const locations=structuredLocations(job);
   if (locations.includes(CITY_PENDING)) {
-    return [...new Set((job.locationRaw ?? "").split(/\s*\|\s*/u)
-      .flatMap(part => pendingLocationProvince(part) ?? []))];
+    const raw = job.locationRaw ?? "";
+    const enumeratesCities = raw.includes("、");
+    return [...new Set(raw.split(/\s*[|、]\s*/u).flatMap(part => {
+      const province = pendingLocationProvince(part);
+      if (province) return [province];
+      const city = enumeratesCities ? explicitPublishedCity(part) : undefined;
+      return city ? publishedCityProvince(city) ?? [] : [];
+    }))];
   }
   return [...new Set([
     ...publicSearchCities(job).flatMap(city=>publicSearchCityProvince(job,city)??[]),
