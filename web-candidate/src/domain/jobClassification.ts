@@ -2,7 +2,7 @@ import type { JobCategory } from "./search";
 import { findJobClassificationEvidence, resolveJobClassificationEvidence } from "./jobClassificationEvidence";
 
 export const JOB_CATEGORY_GROUPS = {
-  "销售": ["肿瘤销售", "罕见病销售", "基层医疗销售", "医药销售", "零售销售", "销售管理", "培训与赋能"],
+  "销售": ["医药销售", "零售销售", "销售管理", "培训与赋能"],
   "市场": ["品牌市场", "市场洞察"],
   "商务": ["业务拓展", "商业运营"],
   "渠道": ["渠道管理"],
@@ -41,7 +41,6 @@ type ClassificationRule = {
     category: Category;
     subcategory: (typeof JOB_CATEGORY_GROUPS)[Category][number];
     title: RegExp;
-    requires?: RegExp;
     excludes?: RegExp;
     sourceIds?: readonly string[];
   }
@@ -82,12 +81,6 @@ const RULES: readonly ClassificationRule[] = [
   { category: "销售", subcategory: "零售销售", title: /零售(?:(?:关键|大)?客户|商务|销售)|\bretail (?:key account|commercial|sales)\b/i },
   { category: "渠道", subcategory: "渠道管理", title: /渠道|分销|\b(?:channel|distribution) (?:manager|management|director|sales)\b/i },
   { category: "KA", subcategory: "大客户管理", title: /大客户|\b(?:key account|ka|kam)\b/i },
-  { category: "销售", subcategory: "肿瘤销售", title: /肿瘤|肺癌|乳腺癌|\b(?:oncology|onco|tumou?r)\b/i, requires: SALES_TITLE },
-  { category: "销售", subcategory: "罕见病销售", title: /罕见病|\brare disease\b/i, requires: SALES_TITLE },
-  { category: "销售", subcategory: "基层医疗销售", title: /基层医疗|基层|\bprimary care\b/i, requires: SALES_TITLE },
-  { category: "销售", subcategory: "肿瘤销售", title: /肿瘤|肺癌|乳腺癌|\b(?:oncology|onco|tumou?r)\b/i, requires: COMMUNICATION_SALES_TITLE, sourceIds: COMMUNICATION_SALES_SOURCES },
-  { category: "销售", subcategory: "罕见病销售", title: /罕见病|\brare disease\b/i, requires: COMMUNICATION_SALES_TITLE, sourceIds: COMMUNICATION_SALES_SOURCES },
-  { category: "销售", subcategory: "基层医疗销售", title: /基层医疗|基层|\bprimary care\b/i, requires: COMMUNICATION_SALES_TITLE, sourceIds: COMMUNICATION_SALES_SOURCES },
   { category: "销售", subcategory: "销售管理", title: /销售(?:经理|管理|总监|主管)|\bsales (?:manager|director|head|lead)\b/i },
   { category: "销售", subcategory: "销售管理", title: /地区经理|\bdistrict manager\b/i, sourceIds: ["source-sanofi-china-social", "source-novartis-social"] },
   { category: "销售", subcategory: "医药销售", title: SALES_TITLE },
@@ -121,7 +114,7 @@ export function classifyJob(job: ClassificationInput): JobClassification {
   const rule = RULES.find((candidate) =>
     (job.category === "其他" || candidate.category === job.category) &&
     (!candidate.sourceIds || job.sourceId !== undefined && candidate.sourceIds.includes(job.sourceId)) &&
-    candidate.title.test(title) && (!candidate.requires || candidate.requires.test(title)) &&
+    candidate.title.test(title) &&
     (!candidate.excludes || !candidate.excludes.test(title))
   );
   return rule ? { category: rule.category, subcategory: rule.subcategory } : { category: job.category };

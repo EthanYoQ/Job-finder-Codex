@@ -85,7 +85,7 @@ export function projectPfizerDetail(raw: unknown, detailBody: string) {
     const locations: string[] = [info.location, ...(info.additionalLocations ?? [])];
     if (new Set(locations).size !== locations.length)
         throw Error("Pfizer duplicate detail locations");
-    const mainland = locations.filter(v => /^(?:China|CHN) - [A-Za-z][A-Za-z '\-]+(?: - [A-Za-z][A-Za-z '\-]+)?$/u.test(v) && !/Hong Kong|Macau|Macao|Taiwan/iu.test(v));
+    const mainland = locations.filter(v => Object.hasOwn(PFIZER_OFFICIAL_LOCALITIES, v) || /^(?:China|CHN) - [A-Za-z][A-Za-z '\-]+(?: - [A-Za-z][A-Za-z '\-]+)?$/u.test(v) && !/Hong Kong|Macau|Macao|Taiwan/iu.test(v));
     const included = country.descriptor === "China" && country.id === PFIZER_CHINA && requisition.descriptor === "China" && requisition.alpha2Code === "CN" && mainland.length > 0;
     const excluded = country.descriptor === "India" && country.id === "c4f78be1a8f14da0ab49ce1162348a5e" && requisition.descriptor === "India" && requisition.alpha2Code === "IN" &&
         /^India - /u.test(info.location) && locations.every(v => /^India - [A-Za-z ]+$/u.test(v) || ["APAC - Any Pfizer Site", "Europe - Any Pfizer Site", "IDM - Any Pfizer Site"].includes(v));

@@ -22,6 +22,7 @@ export interface SearchJob {
   officialTitle: string;
   officialPublishedAt: string | null;
   city: string;
+  cities?: string[];
   locationRaw: string;
   cityPending?: boolean;
   category: string;
@@ -46,8 +47,8 @@ export interface SearchResult {
   lastUpdatedAt: string | null;
   /** Entire verified published set, before any search filters. */
   publishedJobSummary?: { totalJobs: number; cityPendingJobs: number };
-  /** Entire published set; concrete-city counts exclude nationwide and pending jobs. */
-  provinceFacets?: Array<{ province: string; jobCount: number; cityPendingJobs: number }>;
+  /** Province totals include nationwide jobs. Named city counts include their confirmed locations. */
+  provinceFacets?: Array<{ province: string; jobCount: number; cityPendingJobs: number; multiCityJobs?: number }>;
   cityFacets?: Array<{ city: string; province: string | null; jobCount: number }>;
   coverageSummary?: {requiredCompanyCount:number;publishingCompanyCount:number;excludedCompanyCount:number;degradedCompanyCount:number};
 }

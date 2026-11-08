@@ -119,7 +119,7 @@ export function CompanyPlate({ companies, result, ready, hotId, onHot, onChoose,
         <span key={state}><i className={`dot ${STATE_CLASSES[state]}`} />{state === "NO_PUBLIC_OFFICIAL_CAREERS_LINK_AT_CAPTURE_TIME" ? "无公开入口" : state === "USER_AUTHORIZED_PHASE1_EXCLUSION" ? "一期排除" : PUBLICATION_STATE_LABELS[state]} <b className="num">{companies.filter(c => c.state === state).length}</b></span>)}
     </> : <span><i className="dot" />完成确认后显示企业状态</span>}</div>
     {ready && result ? <dl className="plate-meta">
-      <div><dt>已发布职位（不随筛选变化）</dt><dd className="num">{result.publishedJobSummary?.totalJobs ?? "—"}{result.publishedJobSummary ? <small>其中城市待核 {result.publishedJobSummary.cityPendingJobs}</small> : null}</dd></div>
+      <div><dt>已发布职位</dt><dd className="num">{result.publishedJobSummary?.totalJobs ?? "—"}</dd></div>
       {result.snapshotStorage === "SAVED" ? <div><dt>数据状态</dt><dd>已保存的公开快照</dd></div> : null}
       <div><dt>最后更新</dt><dd className="num plate-date">{formatTimestamp(result.lastUpdatedAt)}{result.lastUpdatedAt ? <small>UTC</small> : null}</dd></div>
     </dl> : <p className="plate-lock">{ready ? <Info className="ic" /> : <LockKeyhole className="ic" />}{ready ? "数据加载后显示职位统计。" : "完成使用前确认后显示。"}</p>}
@@ -135,7 +135,7 @@ export function LocationPicker({ label, value, options, open, onOpen, onClose, o
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const filtered = options.filter(option => `${option.value} ${option.group ?? ""}`.includes(query.trim()));
-  useEffect(() => { if (open) { setQuery(""); setActive(0); inputRef.current?.focus(); } }, [open]);
+  useEffect(() => { if (open) { setQuery(""); setActive(0); if (!window.matchMedia("(pointer: coarse)").matches) inputRef.current?.focus(); } }, [open]);
   function close() { onClose(); buttonRef.current?.focus(); }
   function select(next: string) { onSelect(next); buttonRef.current?.focus(); }
   return <div className={`field combo${open ? " is-open" : ""}`} onKeyDown={event => {

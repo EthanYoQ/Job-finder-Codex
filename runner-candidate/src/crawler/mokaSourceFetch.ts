@@ -2,7 +2,7 @@ import {mokaRawJobId as mokaJobId,mokaRawObservationId,mokaJobQuarantine,mokaRaw
 import {quarantineFetchLosses,JOB_QUARANTINE_PAGINATION} from './jobQuarantine';
 import { CITY_PENDING } from "../domain/jobLocation";
 import { mokaDisplayCities,hasMainlandCountryLocation } from "./hengruiMainlandGeography";
-import { isServierTraversalPlan, replayServierTraversal, servierDetailScope, SERVIER_SCOPE_POLICY, SERVIER_UNKNOWN_CODE } from "./servierMokaScope";
+import { isServierTraversalPlan, replayServierTraversal, servierDetailScope, servierDisplayCities, SERVIER_SCOPE_POLICY, SERVIER_UNKNOWN_CODE } from "./servierMokaScope";
 import { isBayerMedicalTraversalPlan, bayerNativeDivisionScope, bayerDetailScope, replayBayerMedicalTraversal } from "./bayerMokaScope";
 import { createDecipheriv } from "node:crypto";
 import { hasHengruiScopeExclusionPolicy, replayHengruiScopeExclusionProof, isHengruiOfficialScopeExclusion } from "./strictMokaScopeExclusionProof";
@@ -529,6 +529,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
           }
           const enriched = enrichMokaJob(candidate, campaignBinding.campaignUrl);
           if (!isObject(enriched)) throw new Error("Moka validated record did not enrich to an object");
+          if (servierPortal) enriched.cities = servierDisplayCities(candidate.locations);
           if (bayerMedical && enriched.officialPublishedAt!==undefined) enriched.officialPublishedAt = new Date(String(enriched.officialPublishedAt)).toISOString();
           pageJobs.push(enriched);
           validCount += 1;

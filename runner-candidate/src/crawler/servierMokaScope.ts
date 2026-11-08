@@ -77,14 +77,32 @@ export function servierIndependentDetailScope(identity: { id: string; title: str
   if (!locations.every(candidate => {
     const location = record(candidate);
     if (!location || location.country !== "中国" || location.countryDescription !== undefined && location.countryDescription !== "中国") return false;
-    // Two official district tuples are still mainland locations. Preserve their original labels.
-    const district = location.cityName === "朝阳区" && location.cityId === 110105 && location.provinceName === "北京市" &&
-      (location.provinceId === undefined || location.provinceId === 110000) ||
-      location.cityName === "下城区（旧）" && location.cityId === 330103 && location.provinceName === "浙江" &&
-      (location.provinceId === undefined || location.provinceId === 330000);
-    return hasMainlandCountryLocation(location) || district;
+    return hasMainlandCountryLocation(location) || servierDistrictCity(location) !== undefined;
   })) throw Error("Servier detail has unreviewed or conflicting mainland geography");
   return { locations: locations as Record<string, unknown>[], unknownGeography: false };
+}
+
+function servierDistrictCity(location: Record<string, unknown>): string | undefined {
+  if (location.country !== "中国" || location.countryDescription !== undefined && location.countryDescription !== "中国") return undefined;
+  const districts = [
+    ["朝阳区", 110105, "北京市", 110000, "北京"],
+    ["下城区（旧）", 330103, "浙江", 330000, "杭州"]
+  ] as const;
+  return districts.find(([district, cityId, province, provinceId]) =>
+    location.cityName === district && location.cityId === cityId &&
+    (location.provinceName === province || location.provinceName === undefined && location.provinceId === provinceId) &&
+    (location.provinceId === undefined || location.provinceId === provinceId)
+  )?.[4];
+}
+
+export function servierDisplayCities(locations: unknown): string[] {
+  if (!Array.isArray(locations)) return [];
+  return mokaDisplayCities(locations.map(candidate => {
+    const location = record(candidate);
+    if (!location) return candidate;
+    const city = servierDistrictCity(location);
+    return city ? { ...location, cityName: city } : location;
+  }));
 }
 
 export function decodeServierArtifact(artifact: Pick<SourceFetchArtifactDraft, "body">, iv: string): Record<string, unknown> {
@@ -184,7 +202,7 @@ export function replayServierTraversal(
         if (job.companyId !== plan.company.id || job.sourceId !== plan.source.id || job.sourceKind !== "SOCIAL" || job.atsKind !== "MOKA" ||
             job.officialChineseCompanyName !== plan.company.officialChineseName || job.category !== "其他" || job.auxiliaryChineseTitle !== undefined ||
             job.officialTitle !== String(item.raw.title).replace(/\s+/gu, " ").trim() || job.officialUrl !== `${SERVIER_MOKA_CAMPAIGN}#/job/${encodeURIComponent(String(item.raw.id))}` ||
-            job.locationRaw !== cities.join("、") || !isDeepStrictEqual(job.cities, mokaDisplayCities(item.locations)) || job.officialPublishedAt !== undefined ||
+            job.locationRaw !== cities.join("、") || !isDeepStrictEqual(job.cities, servierDisplayCities(item.locations)) || job.officialPublishedAt !== undefined ||
             job.listUrl !== SERVIER_MOKA_CAMPAIGN) return undefined;
       }
     }

@@ -162,6 +162,7 @@ a { color: inherit; }
 .dot.s-excl { background: linear-gradient(135deg, transparent 42%, #fff 42% 58%, transparent 58%); }
 .plate-meta { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--hero-line); border: 1px solid var(--hero-line); border-radius: 4px; overflow: hidden; }
 .plate-meta div { background: color-mix(in srgb, var(--hero) 82%, #000); padding: 8px 14px; min-width: 0; }
+.plate-meta div:last-child { grid-column: 1 / -1; }
 .plate-meta dt { font-size: 12px; color: var(--on-hero-3); }
 .plate-meta dd { margin-top: 2px; font: 700 22px/1.2 var(--f-display); letter-spacing: -0.02em; }
 .plate-meta dd small { font: 400 12px/1.4 var(--f-body); color: var(--on-hero-3); margin-left: 4px; letter-spacing: 0; }
@@ -441,6 +442,8 @@ td:first-child { font-weight: 500; }
   .board { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .filters { position: static; display: none; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
   .filters[data-open="true"] { display: grid; }
+  .filters .category-filters { max-height: min(50dvh, 440px); overscroll-behavior: contain; }
+  .filters .category-subfilters summary, .opt, .pop-close { min-height: 44px; }
   .filter-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 50px; padding-inline: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; font-weight: 700; width: 100%; }
   .plate-m { margin-top: 20px; padding: 14px; background: var(--hero); border-radius: 18px; position: relative; isolation: isolate; overflow: hidden; }
   .plate-m::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(70% 90% at 90% 0%, rgba(130, 148, 255, 0.5), transparent 65%); }

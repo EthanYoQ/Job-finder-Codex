@@ -21,6 +21,7 @@ import {beisenDomesticRecordScopeReview} from '../src/crawler/officialJsonSource
 import {hasMainlandCountryLocation,mokaDisplayCities} from '../src/crawler/hengruiMainlandGeography.ts';
 import {classifyGileadPublicAge,gileadPublicAgeEvidenceSchema,GILEAD_YELLO_BOARD,GILEAD_PUBLIC_AGE_POLICY} from '../src/crawler/gileadPublicAge.ts';
 import {parseYelloJobBoardResponse} from '../src/crawler/yelloJobBoardEvidence.ts';
+import {PFIZER_CHINA, PFIZER_ENTRY, projectPfizerDetail} from '../src/crawler/pfizerWorkdayTraversal.ts';
 const pending=[CITY_PENDING],fixture=name=>JSON.parse(readFileSync(new URL(`./fixtures/${name}-location-change.json`,import.meta.url)));
 
 test('BI requires mainland evidence while preserving unrecognized city labels',()=>{
@@ -63,6 +64,19 @@ test('country-qualified new cities survive without inventing a canonical city',(
  for(const bulletFields of [['China','R-123'],['Sales','China','Part time','R-123','New badge']])assert(parseWorkdayMainlandRow({source:{id:'source-csl-china-social'}},{...csl,bulletFields}));
  for(const bulletFields of [['Sales','R-123'],['China'],['China','R-123','R-456'],['China','R-456'],['China','China','R-123']])assert.equal(parseWorkdayMainlandRow({source:{id:'source-csl-china-social'}},{...csl,bulletFields}),undefined);
  assert.equal(parseWorkdayMainlandRow({source:{id:'source-csl-china-social'}},{...csl,bulletFields:['Temporary','R-123','Sales','Japan']}),undefined);
+});
+
+test('Amgen resolves reviewed city labels while preserving location conflicts',()=>{
+ for(const [title,label,city] of [
+  ['Account Executive','Harbin','哈尔滨'],
+  ['Biopharmaceutical Rep-Nanchong','Nanchong','南充'],
+  ['Biopharmaceutical Rep-Xinxiang','Xinxiang','新乡'],
+  ['Sr Biopharmaceutical Rep-Neijiang','Neijiang','内江']
+ ]){
+  const location=`China - ${label}`;
+  assert.deepEqual(projectAmgenNativeCities(title,[location],location),[city]);
+ }
+ assert.deepEqual(projectAmgenNativeCities('Biopharmaceutical Rep-Nanchong',['China - Nanchong'],'China - Beijing'),pending);
 });
 
 test('Phenom optional presentation, coordinates and addresses do not control admission',()=>{
@@ -173,4 +187,16 @@ test('Gilead Hong Kong exclusion holds additional location evidence without rest
   ...['alternate-location-details','location-details','details-location','alternate_location_details','ALTERNATE-LOCATION-DETAILS'].map(name=>`<div class="${name}">Shanghai</div>`)]){
   assert.equal(parseYelloJobBoardResponse(body(extra),config).quarantinedJobs.length,1,extra);
  }
+});
+
+
+test('Pfizer keeps the reviewed Beijing office as an alternate city', () => {
+ const id='4966466',path='/job/China---Shanghai---STIT/Clinical-Assay-Lead_'+id;
+ const title='Clinical Assay Lead, Manager (Contractor) - Shanghai or Beijing';
+ const row={title,bulletFields:[id],externalPath:path};
+ const info={jobReqId:id,title,jobPostingSiteId:'PfizerCareers',externalUrl:PFIZER_ENTRY+path,
+  posted:true,canApply:true,jobDescription:'<p>Role description</p>',location:'China - Shanghai - STIT',
+  additionalLocations:['CHN - BJ - Beijing R&D Center'],
+  country:{descriptor:'China',id:PFIZER_CHINA},jobRequisitionLocation:{country:{descriptor:'China',alpha2Code:'CN'}}};
+ assert.deepEqual(projectPfizerDetail(row,JSON.stringify({jobPostingInfo:info})).job.cities,['上海','北京']);
 });
