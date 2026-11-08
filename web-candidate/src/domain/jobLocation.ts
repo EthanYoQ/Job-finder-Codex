@@ -154,10 +154,7 @@ function provinceLabel(value:string):string|null {
   const english = key(value).replace(/(?:province|municipality|zhuangautonomousregion|autonomousregion)$/u, "");
   return Object.hasOwn(ENGLISH_PROVINCES, english) ? ENGLISH_PROVINCES[english]! : null;
 }
-const SOURCES_WITH_UNPUBLISHED_LOCATION_CHECKS = new Set([
-  "source-amgen-china-social", "source-astrazeneca-social", "source-merck-china-social",
-  "source-organon-china-social"
-]);
+
 const VERIFIED_DETAIL_LOCATIONS: Readonly<Record<string, readonly string[]>> = {
   "source-takeda-china-social|https://jobs.takeda.com/job/shanghai/china-biomarker-lead/1113/101034777968": ["上海", "北京"],
   "source-merck-china-social|https://careers.emdgroup.com/us/en/job/299857": ["上海", "北京"],
@@ -272,8 +269,12 @@ export function resolvedPublishedJobCities(job: PublishedJobLocation): string[] 
   const pending = isCityPendingJob(job);
   const province = explicitPublishedProvince(raw);
   if (sourceId === "source-astrazeneca-social" || sourceId === "source-amgen-china-social") {
-    const cities = titleWorkCities(officialTitle, province);
-    if (cities.length) return cities;
+    const titleCities = titleWorkCities(officialTitle, province);
+    if (titleCities.length) {
+      const verifiedCities = publicSearchCities(job);
+      if (verifiedCities.length > 1 && titleCities.every(city => verifiedCities.includes(city))) return [];
+      return titleCities;
+    }
   }
   if (sourceId === "source-cspc-social" && raw === "中华人民共和国" || sourceId === "source-hengrui-social" && raw === "中国") {
     return [NATIONWIDE];
@@ -302,16 +303,11 @@ export function resolvedPublishedJobCities(job: PublishedJobLocation): string[] 
   }
   if (province && titleCities.length && titleCities.every(city => publishedCityProvince(city) === province)) return titleCities;
   if (sourceId === "source-novo-nordisk-china-social" && /^China,\s*Longnan$/iu.test(raw) && titleCities.includes("陇南")) return ["陇南"];
-  if (sourceId === "source-amgen-china-social") {
-    const cities = rawPublishedCities(raw, /\s*\|\s*/u);
-    if (cities.length && titleCities.length && titleCities.every(city => cities.includes(city))) return cities;
-    if (raw === "China - Harbin" && !titleCities.length) return ["哈尔滨"];
-    return [];
-  }
+  if (sourceId === "source-amgen-china-social") return raw === "China - Harbin" ? ["哈尔滨"] : [];
   if (sourceId === "source-organon-china-social" && /^(?:Taiyuan, Shanxi|Zhengzhou, Henan), China$/iu.test(raw)) {
     return rawPublishedCities(raw, /\s*\|\s*/u);
   }
-  if (SOURCES_WITH_UNPUBLISHED_LOCATION_CHECKS.has(sourceId)) return [];
+  if (sourceId === "source-astrazeneca-social" || sourceId === "source-organon-china-social") return [];
   if (sourceId === "source-abbvie-china-social" && !/^(?:deyang,\s*sichuan|puyang,\s*henan)$/iu.test(raw)) return [];
   if (sourceId === "source-viatris-social" && raw === "大连-沙河口区" && titleCities.includes("大连")) return ["大连"];
   if (sourceId === "source-roche-china-social") {
