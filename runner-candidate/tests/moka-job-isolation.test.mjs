@@ -5,6 +5,7 @@ import {candidateCompanies} from '../src/data/companyRegistry.ts';
 import {buildStagedSourceCrawlPlans} from '../src/crawler/sourcePlan.ts';
 import {createMokaSourceFetch} from '../src/crawler/mokaSourceFetch.ts';
 import {runSourceCrawl,replayStrictSourceQualityEvidence} from '../src/crawler/runSourceCrawl.ts';
+import {CITY_PENDING} from '../src/domain/jobLocation.ts';
 
 const iv='0123456789abcdef',at='2026-11-06T00:00:00.000Z';
 const encrypt=data=>{const cipher=createCipheriv('aes-128-cbc',Buffer.from(iv),Buffer.from(iv));return JSON.stringify({necromancer:iv,data:Buffer.concat([cipher.update(JSON.stringify(data)),cipher.final()]).toString('base64')});};
@@ -40,4 +41,34 @@ for(const sourceId of ['source-bayer-healthcare-social','source-gsk-china-social
    evidence.jobQuarantines[0].sourceJobId='wrong';assert.equal(replayStrictSourceQualityEvidence({plan,evidence,paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs:result.jobs,capturedAt:at}),false);
   }
  }
+});
+
+test('Servier preserves corroborated district cities through live fetch and evidence replay',async()=>{
+ const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-servier-china-social');
+ const places=[
+  {country:'中国',cityName:'朝阳区',cityId:110105,provinceName:'北京市',provinceId:110000},
+  {country:'中国',cityName:'朝阳区',cityId:110105,provinceId:110000},
+  {country:'中国',cityName:'朝阳区'},
+  {country:'中国',cityName:'朝阳区',cityId:110105,provinceName:'辽宁',provinceId:210000},
+  {country:'中国',cityName:'下城区（旧）',cityId:330103,provinceName:'浙江',provinceId:330000}
+ ];
+ const rows=places.map((_,index)=>({id:`00000000-0000-0000-0000-${String(index+1).padStart(12,'0')}`,orgId:'shiweiya',siteId:'47734',title:`Role ${index+1}`,status:'open',showIsCampus:false,publishedAt:'2026-11-06T08:00:00',locations:[]}));
+ const fetch=createMokaSourceFetch({now:()=>new Date(at),http:async request=>{
+  let body;
+  if(request.method==='GET')body=`<input id="init-data" value='${JSON.stringify({org:{id:'shiweiya'},siteId:'47734',mode:'social',aesIv:iv})}'>`;
+  else if(request.url.endsWith('/jobs/v2'))body=encrypt({success:true,data:{offset:0,jobs:rows,jobStats:{total:rows.length,orgId:'shiweiya'}}});
+  else {
+   const index=rows.findIndex(row=>row.id===request.body.jobId);assert(index>=0);
+   body=encrypt({success:true,data:{...rows[index],locations:[places[index]],jobDescription:'A substantive current official job description.'}});
+  }
+  return {status:200,body,finalUrl:request.url,contentType:request.method==='GET'?'text/html':'application/json',capturedAt:at};
+ }});
+ const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
+ assert.equal(result.truth.completenessVerified,true,JSON.stringify(result.observation));
+ assert.equal(result.jobs.length,places.length);
+ assert.deepEqual(result.jobs.map(job=>job.cities),[['北京'],['北京'],[CITY_PENDING],[CITY_PENDING],['杭州']]);
+ assert.deepEqual(result.jobs.map(job=>job.locationRaw),places.map(place=>place.cityName));
+ const replay=jobs=>replayStrictSourceQualityEvidence({plan,evidence:result.fetchEvidence,paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs,capturedAt:at});
+ assert.equal(replay(result.jobs),true);
+ assert.equal(replay(result.jobs.map((job,index)=>index===0?{...job,cities:['朝阳区']}:job)),false);
 });

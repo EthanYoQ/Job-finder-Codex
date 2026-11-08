@@ -46,7 +46,7 @@ test('unproven and foreign locations remain outside the accepted scope',()=>{
   assert.equal(validateAbbvieChinaRowScope(row(location,option)),false,location+' / '+option);
 });
 test('optional display labels and domestic disagreement do not invalidate China scope',()=>{
- for(const location of ['Puyang, Henan','Beijing, Guangdong Province','Newtown, Unknown']){
+ for(const location of ['Beijing, Guangdong Province','Newtown, Unknown']){
   const html=row(location,'China').replace('Full-time','Part-time').replace('01/01/0001','Tomorrow').replace('attrax-vacancy-tile__option-location--china','attrax-vacancy-tile__option-location--new');
   assert(validateAbbvieChinaRowScope(html));assert.deepEqual(extract(html).jobs[0].cities,[CITY_PENDING]);
  }
@@ -56,10 +56,10 @@ test('optional display labels and domestic disagreement do not invalidate China 
  assert.equal(validateAbbvieChinaRowScope(row('Shanghai, Shanghai','China').replace('class="attrax-vacancy-tile"','class="attrax-vacancy-tile" data-location="Singapore"')),false);
 });
 test('official mainland province admits new city labels without inventing a city',()=>{
- for(const [location,option] of [['Puyang, Henan','China'],['Deyang, Sichuan','Sichuan'],['Tongren, Guizhou','China'],['Sanya, Hainan','China']]){
+ for(const [location,option,city] of [['Puyang, Henan','China','濮阳'],['Deyang, Sichuan','Sichuan','德阳'],['Tongren, Guizhou','China',CITY_PENDING],['Sanya, Hainan','China',CITY_PENDING]]){
   const html=row(location,option);assert.equal(validateAbbvieChinaRowScope(html),true);
   const result=extract(html);assert.equal(result.jobs.length,1);assert.equal(result.jobs[0].locationRaw,location);
-  assert.deepEqual(result.jobs[0].cities,[CITY_PENDING]);
+  assert.deepEqual(result.jobs[0].cities,[city]);
  }
 });
 test('AbbVie follows eleven declared official pages and still rejects a duplicate row',async()=>{

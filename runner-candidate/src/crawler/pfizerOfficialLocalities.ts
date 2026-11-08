@@ -4,6 +4,7 @@ export const PFIZER_OFFICIAL_LOCALITIES: Readonly<Record<string, string>> = {
   "China - Shanghai - STIT": "上海",
   "China - Hubei - YiChang": "宜昌",
   "CHN - BJ - Beijing Office": "北京",
+  "CHN - BJ - Beijing R&D Center": "北京",
   "CHN - BJ - Beijing": "北京",
   "CHN - CQ - Chongqing": "重庆",
   "CHN - SH - Shanghai": "上海",

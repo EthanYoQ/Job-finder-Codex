@@ -1,5 +1,5 @@
 import { PortableSearchRequestSchema } from "../domain/search";
-import { isCityPendingJob, matchesPortableSearchCity, publicSearchCities, publicSearchCityProvince, publicSearchProvinces, CITY_PENDING, NATIONWIDE } from "../domain/jobLocation";
+import { isCityPendingJob, resolvedPublishedJobCities, matchesPortableSearchCity, publicSearchCities, publicSearchCityProvince, publicSearchProvinces, CITY_PENDING, MULTI_CITY, NATIONWIDE, PROVINCE_PENDING } from "../domain/jobLocation";
 import type { PortablePublicSnapshot } from "../db/portablePublicSnapshotRepository";
 import type { DatabaseSearchResult } from "./jobSearchService";
 import type { CoverageRequest, CoverageResult, CoverageCompany } from "./coverageService";
@@ -41,31 +41,44 @@ export interface PublishedJobSummary {
 
 /** Filter only the reader's already verified, membership-bound projection. Never
  * re-query mutable Job flags or fall back to legacy rows when the snapshot is empty. */
-export function searchPortableSnapshot(request:unknown,snapshot:PortablePublicSnapshot):DatabaseSearchResult & {coverageSummary:PortableCoverageSummary;publishedJobSummary:PublishedJobSummary;cityFacets:Array<{city:string;province:string|null;jobCount:number}>;provinceFacets:Array<{province:string;jobCount:number;cityPendingJobs:number}>} {
+export function searchPortableSnapshot(request:unknown,snapshot:PortablePublicSnapshot):DatabaseSearchResult & {coverageSummary:PortableCoverageSummary;publishedJobSummary:PublishedJobSummary;cityFacets:Array<{city:string;province:string|null;jobCount:number}>;provinceFacets:Array<{province:string;jobCount:number;cityPendingJobs:number;multiCityJobs:number}>} {
   const q=PortableSearchRequestSchema.parse(request),keyword=q.keyword?.toLocaleLowerCase("zh-CN")??"";
   const date=(s:string|null)=>s===null?Number.NEGATIVE_INFINITY:Date.parse(s);
   const seenJobIds=new Set<string>();
   const publishedCompanies=snapshot.companies.filter(c=>c.required&&c.publishingSourceIds.length>0).map(c=>({...c,jobs:c.jobs.filter(j=>{if(seenJobIds.has(j.id))return false;seenJobIds.add(j.id);return true;}).map(({categoryManuallyCorrected,...job})=>{
+    const cities = resolvedPublishedJobCities(job);
+    const located = cities.length ? { ...job, city: cities[0]!, cities } : job;
     const classification=classifyJob(job);
-    return categoryManuallyCorrected&&classification.category!==job.category?job:{...job,...classification};
+    return categoryManuallyCorrected&&classification.category!==job.category?located:{...located,...classification};
   })}));
   const publishedJobs=publishedCompanies.flatMap(c=>c.jobs);
   const cityCounts=new Map<string,{province:string|null;jobCount:number}>();
-  const provinceCounts=new Map<string,{jobCount:number;cityPendingJobs:number}>();
+  const provinceCounts=new Map<string,{jobCount:number;cityPendingJobs:number;multiCityJobs:number}>();
+  let nationwideJobs = 0, multiCityJobs = 0, cityPendingJobs = 0, provincePendingJobs = 0;
   for(const job of publishedJobs){
-    for(const city of publicSearchCities(job)){
+    const nationwide = matchesPortableSearchCity(job, NATIONWIDE);
+    if (nationwide) nationwideJobs++;
+    const cities = publicSearchCities(job);
+    const provinces = publicSearchProvinces(job);
+    const pending = isCityPendingJob(job);
+    const multi = cities.length > 1;
+    if (multi) multiCityJobs++;
+    if (pending) { cityPendingJobs++; if (provinces.length === 0) provincePendingJobs++; }
+    for(const city of cities){
       const province=publicSearchCityProvince(job,city), previous=cityCounts.get(city);
       cityCounts.set(city,{province:previous&&previous.province!==province?null:province,jobCount:(previous?.jobCount??0)+1});
     }
-    for(const province of publicSearchProvinces(job)){
+    for(const province of provinces){
       const previous=provinceCounts.get(province);
-      provinceCounts.set(province,{jobCount:(previous?.jobCount??0)+1,cityPendingJobs:(previous?.cityPendingJobs??0)+(isCityPendingJob(job)?1:0)});
+      provinceCounts.set(province,{jobCount:(previous?.jobCount??0)+Number(!nationwide),cityPendingJobs:(previous?.cityPendingJobs??0)+Number(pending),
+        multiCityJobs:(previous?.multiCityJobs??0)+Number(multi)});
     }
   }
   const cityFacets=[...cityCounts].map(([city,data])=>({city,...data})).sort((a,b)=>a.city.localeCompare(b.city,"zh-CN"));
-  cityFacets.push({city:NATIONWIDE,province:null,jobCount:publishedJobs.filter(j=>matchesPortableSearchCity(j,NATIONWIDE)).length},{city:CITY_PENDING,province:null,jobCount:publishedJobs.filter(isCityPendingJob).length});
-  const provinceFacets=[...provinceCounts].map(([province,data])=>({province,...data})).sort((a,b)=>a.province.localeCompare(b.province,"zh-CN"));
-  const publishedJobSummary={totalJobs:publishedJobs.length,cityPendingJobs:publishedJobs.filter(isCityPendingJob).length};
+  cityFacets.push({city:NATIONWIDE,province:null,jobCount:nationwideJobs},{city:CITY_PENDING,province:null,jobCount:cityPendingJobs},
+    {city:MULTI_CITY,province:null,jobCount:multiCityJobs},{city:PROVINCE_PENDING,province:null,jobCount:provincePendingJobs});
+  const provinceFacets=[...provinceCounts].map(([province,data])=>({province,...data,jobCount:data.jobCount+nationwideJobs})).sort((a,b)=>a.province.localeCompare(b.province,"zh-CN"));
+  const publishedJobSummary={totalJobs:publishedJobs.length,cityPendingJobs};
   const companies=publishedCompanies.filter(c=>!q.companyIds.length||q.companyIds.includes(c.id)).map(c=>({
     id:c.id,companyName:c.companyName,pinyin:c.pinyin,...sourceScopeNote(c.publishingSourceIds,snapshot),jobs:c.jobs.filter(j=>
       matchesPortableSearchCity(j,q.city,q.province)&&

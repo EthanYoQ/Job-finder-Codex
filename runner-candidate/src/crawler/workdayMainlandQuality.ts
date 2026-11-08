@@ -59,10 +59,11 @@ const CITIES: Readonly<Record<string, string>> = {
   Shenyang: "沈阳", Changsha: "长沙", Xuzhou: "徐州", Nanning: "南宁", Nanchang: "南昌", Kunming: "昆明", Guiyang: "贵阳", Yuxi: "玉溪", Jieyang: "揭阳",
   Lianyungang: "连云港", Ordos: "鄂尔多斯", Dali: "大理", Yueyang: "岳阳", Qinhuangdao: "秦皇岛", "Yulin (Shaanxi)": "榆林",
   Yichang: "宜昌", Jiaozuo: "焦作", Kaifeng: "开封", Zhumadian: "驻马店", Zhoukou: "周口", Liuzhou: "柳州", Wuhu: "芜湖",
-  Shantou: "汕头", "Xi'an": "西安", Xiamen: "厦门", Urumqi: "乌鲁木齐"
+  Shantou: "汕头", "Xi'an": "西安", Xiamen: "厦门", Urumqi: "乌鲁木齐",
+  Harbin: "哈尔滨", Nanchong: "南充", Xinxiang: "新乡", Neijiang: "内江"
 };
 const CSL_FIELD_SALES = "APAC, CN, Field Sales, CSL Behring";
-const PENDING_NAMES = new Set(["Taizhou", "JTaizhou", "Longnan", "Fuyang", "Field/Remote", "Xing'an Meng", "Zhaoqing", "Xinxiang", "Jingmen", "Neijiang", "Nanchong"]);
+const PENDING_NAMES = new Set(["Taizhou", "JTaizhou", "Longnan", "Fuyang", "Field/Remote", "Xing'an Meng", "Zhaoqing", "Jingmen"]);
 function descriptorCity(p: Profile, descriptor: unknown): string | undefined {
   if (!text(descriptor) || explicitlyForeignOrNonMainlandLocation(descriptor)) return undefined;
   if (p.tenant === "csl" && descriptor === CSL_FIELD_SALES) return CITY_PENDING;
