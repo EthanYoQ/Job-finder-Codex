@@ -5,6 +5,7 @@ import { confirmedCompanyRosterV3Members } from "../data/confirmedCompanyRosterV
 import type { PublicationHealth, PublicationState } from "../domain/publicationEligibility";
 import type { PublicSnapshotRefresh } from "../domain/publicSnapshotRefresh";
 import { getStaticDocument } from "../server/staticDocuments";
+import type { JobSubcategory } from "../domain/jobClassification";
 
 export interface SearchRequest {
   province?: string;
@@ -24,6 +25,7 @@ export interface SearchJob {
   locationRaw: string;
   cityPending?: boolean;
   category: string;
+  subcategory?: JobSubcategory;
   isNew: boolean;
   officialUrl: string;
 }
@@ -166,6 +168,7 @@ export function createDemoAppDataProvider(): AppDataProvider {
           city: job.city,
           locationRaw: job.city,
           category: job.category,
+          ...(job.subcategory ? { subcategory: job.subcategory } : {}),
           isNew: job.isNew,
           officialUrl: job.officialUrl
         }))

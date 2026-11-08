@@ -5,6 +5,7 @@ import {
   type PublicationEligibilityDb
 } from "../db/publicationEligibilityRepository";
 import type { CompanyPublicationSnapshot } from "../domain/publicationEligibility";
+import type { JobSubcategory } from "../domain/jobClassification";
 
 export interface PrismaJobSearchTransactionDb extends PublicationEligibilityDb {
   job: {
@@ -90,6 +91,7 @@ export interface DatabaseSearchJobResult {
   /** Present on portable results; derived only from verified structured locations. */
   cityPending?: boolean;
   category: JobCategory;
+  subcategory?: JobSubcategory;
   isNew: boolean;
   officialUrl: string;
 }

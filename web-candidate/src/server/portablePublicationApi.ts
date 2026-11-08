@@ -4,6 +4,7 @@ import type { PortablePublicSnapshot } from "../db/portablePublicSnapshotReposit
 import type { DatabaseSearchResult } from "./jobSearchService";
 import type { CoverageRequest, CoverageResult, CoverageCompany } from "./coverageService";
 import { candidateCompanies } from "../data/companyRegistry";
+import { classifyJob, matchesJobCategory } from "../domain/jobClassification";
 
 // Scope labels describe the reviewed entry, never a live count or publication
 // decision. Counts and visibility still come only from the verified snapshot.
@@ -44,7 +45,10 @@ export function searchPortableSnapshot(request:unknown,snapshot:PortablePublicSn
   const q=PortableSearchRequestSchema.parse(request),keyword=q.keyword?.toLocaleLowerCase("zh-CN")??"";
   const date=(s:string|null)=>s===null?Number.NEGATIVE_INFINITY:Date.parse(s);
   const seenJobIds=new Set<string>();
-  const publishedCompanies=snapshot.companies.filter(c=>c.required&&c.publishingSourceIds.length>0).map(c=>({...c,jobs:c.jobs.filter(j=>{if(seenJobIds.has(j.id))return false;seenJobIds.add(j.id);return true;})}));
+  const publishedCompanies=snapshot.companies.filter(c=>c.required&&c.publishingSourceIds.length>0).map(c=>({...c,jobs:c.jobs.filter(j=>{if(seenJobIds.has(j.id))return false;seenJobIds.add(j.id);return true;}).map(({categoryManuallyCorrected,...job})=>{
+    const classification=classifyJob(job);
+    return categoryManuallyCorrected&&classification.category!==job.category?job:{...job,...classification};
+  })}));
   const publishedJobs=publishedCompanies.flatMap(c=>c.jobs);
   const cityCounts=new Map<string,{province:string|null;jobCount:number}>();
   const provinceCounts=new Map<string,{jobCount:number;cityPendingJobs:number}>();
@@ -65,8 +69,8 @@ export function searchPortableSnapshot(request:unknown,snapshot:PortablePublicSn
   const companies=publishedCompanies.filter(c=>!q.companyIds.length||q.companyIds.includes(c.id)).map(c=>({
     id:c.id,companyName:c.companyName,pinyin:c.pinyin,...sourceScopeNote(c.publishingSourceIds,snapshot),jobs:c.jobs.filter(j=>
       matchesPortableSearchCity(j,q.city,q.province)&&
-      (!q.categories.length||q.categories.includes(j.category))&&(!q.newWithinDays||j.isNew)&&
-      (!keyword||[j.title,j.officialTitle,c.companyName,c.pinyin].some(text=>text.toLocaleLowerCase("zh-CN").includes(keyword))))
+      matchesJobCategory(j,q.categories)&&(!q.newWithinDays||j.isNew)&&
+      (!keyword||[j.title,j.officialTitle,j.category,j.subcategory??"",c.companyName,c.pinyin].some(text=>text.toLocaleLowerCase("zh-CN").includes(keyword))))
       .map(j=>({...j,cityPending:isCityPendingJob(j)}))
       .sort((a,b)=>(date(b.officialPublishedAt)-date(a.officialPublishedAt)||0)||a.title.localeCompare(b.title)||a.id.localeCompare(b.id))
   })).filter(c=>c.jobs.length>0);

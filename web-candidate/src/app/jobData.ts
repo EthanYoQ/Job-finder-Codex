@@ -1,10 +1,14 @@
+import type { JobSubcategory } from "../domain/jobClassification";
+import type { JobCategory } from "../domain/search";
+
 export interface JobResult {
   id: string;
   title: string;
   officialTitle?: string;
   officialPublishedAt: string;
   city: string;
-  category: string;
+  category: JobCategory;
+  subcategory?: JobSubcategory;
   isNew: boolean;
   officialUrl: string;
 }

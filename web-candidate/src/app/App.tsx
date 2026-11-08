@@ -34,7 +34,8 @@ import {
   type StaticDocumentResult
 } from "./appDataProvider";
 import type { SortMode } from "./jobSearch";
-import { SEARCH_CITIES } from "../domain/search";
+import { JOB_CATEGORIES, SEARCH_CITIES } from "../domain/search";
+import { JOB_CATEGORY_GROUPS, matchesJobCategory } from "../domain/jobClassification";
 import { ALL_CITIES, ALL_PROVINCES, CITY_PENDING, NATIONWIDE } from "../domain/jobLocation";
 import "./App.css";
 import { CompanyLogo, CompanyPlate, coordinate, LocationPicker, Modal, type LocationOption } from "./RedesignComponents";
@@ -59,7 +60,6 @@ interface FeedbackDraft {
 }
 
 const DEFAULT_COMPANY_ROW_CAP = 3;
-const CATEGORY_OPTIONS = ["销售", "医学事务", "市场准入/政府事务", "临床运营"];
 const NOVO_SOURCE_NOTE = "指定中国站已核实职位；全球站补充职位仍在核验";
 const ORGANON_SOURCE_NOTE = "排序日期采用官网职位列表记录；地点冲突保留为城市待核";
 
@@ -142,7 +142,6 @@ function applyClientFilters(
   sort: SortMode
 ): SearchCompany[] {
   const normalizedKeyword = normalize(keyword);
-  const selectedCategories = new Set(categories);
 
   return sortCompanies(
     companies
@@ -155,9 +154,9 @@ function applyClientFilters(
             normalize(company.pinyin).includes(normalizedKeyword) ||
             normalize(job.title).includes(normalizedKeyword) ||
             normalize(job.officialTitle).includes(normalizedKeyword) ||
-            normalize(job.category).includes(normalizedKeyword);
-          const categoryMatches =
-            selectedCategories.size === 0 || selectedCategories.has(job.category);
+            normalize(job.category).includes(normalizedKeyword) ||
+            normalize(job.subcategory ?? "").includes(normalizedKeyword);
+          const categoryMatches = matchesJobCategory(job, categories);
           const newMatches = !onlyNew || job.isNew;
 
           return keywordMatches && categoryMatches && newMatches;
@@ -535,7 +534,10 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
         {activeView === "discover" ? <main className="board" aria-label="职位发现">
           <div><button className="filter-toggle" type="button" aria-expanded={filtersOpen} aria-controls="filters" onClick={() => setFiltersOpen(value => !value)}><span><SlidersHorizontal className="ic" /> 筛选条件</span><ChevronDown className="ic" /></button>
             <aside className="filters" id="filters" data-open={filtersOpen} aria-label="筛选条件"><h2><SlidersHorizontal className="ic" />筛选条件</h2>
-              <div><div className="group-title">岗位类别</div><div className="checks">{CATEGORY_OPTIONS.map(category => <label className="check" key={category}><input checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} type="checkbox" /><span className="box"><Check className="ic" /></span>{category}</label>)}</div></div>
+              <div><div className="group-title">岗位类别</div><div className="category-filters">{JOB_CATEGORIES.map(category => <div className="category-group" key={category}>
+                <label className="check"><input checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} type="checkbox" /><span className="box"><Check className="ic" /></span>{category}</label>
+                {JOB_CATEGORY_GROUPS[category].length > 0 ? <details className="category-subfilters"><summary>{category}细分<ChevronDown className="ic" /></summary><div className="checks">{JOB_CATEGORY_GROUPS[category].map(subcategory => <label className="check" key={subcategory}><input checked={selectedCategories.includes(subcategory)} onChange={() => toggleCategory(subcategory)} type="checkbox" /><span className="box"><Check className="ic" /></span>{subcategory}</label>)}</div></details> : null}
+              </div>)}</div></div>
               <label className="switch"><span><Sparkles className="ic" /> 只看新增</span><input checked={onlyNew} onChange={event => setOnlyNew(event.target.checked)} type="checkbox" /><span className="track" /></label>
               <div><div className="group-title">排序</div><div className="seg" aria-label="排序">{([["PINYIN_ASC", "拼音 A-Z"], ["LATEST", "最新发布"], ["JOB_COUNT_DESC", "职位数量"]] as const).map(([value, label]) => <button key={value} aria-pressed={sort === value} onClick={() => setSort(value)} type="button">{label}<Check className="ic" /></button>)}</div></div>
             </aside>
@@ -561,7 +563,7 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
                   <div className="co-body"><div className="co-inner" id={`jobs-${company.id}`} inert={!expanded} aria-hidden={!expanded}>{expanded ? <div className="jobs">
                     {company.jobs.slice(0, cap).map((job, index) => <div className="job" key={job.id}><span className="job-idx">{String(index + 1).padStart(2, "0")}</span>
                       <div><h3>{job.title}{job.cityPending ? <span className="badge pend">官方城市尚未核实</span> : job.city === NATIONWIDE ? <span className="badge nat">全国岗位</span> : null}{job.isNew ? <span className="badge new"><Sparkles className="ic" />新增</span> : null}</h3><p className="en">{job.officialTitle}</p></div>
-                      <div className="job-meta"><span><MapPin className="ic" />{job.cityPending ? `官方原始地点：${job.locationRaw}` : job.locationRaw}</span><span><BriefcaseBusiness className="ic" />{job.category}</span></div>
+                      <div className="job-meta"><span><MapPin className="ic" />{job.cityPending ? `官方原始地点：${job.locationRaw}` : job.locationRaw}</span><span><BriefcaseBusiness className="ic" />{job.category}{job.subcategory ? ` · ${job.subcategory}` : ""}</span></div>
                       <div className="job-actions"><a className="btn-solid" aria-label={`查看官方职位 ${job.title}`} href={job.officialUrl} rel="noreferrer" target="_blank">查看官方职位<ExternalLink className="ic" /></a><button className="btn-text" aria-label={`反馈此职位 ${job.title}`} onClick={() => openFeedback(company, job)} type="button"><Flag className="ic" />反馈此职位</button></div>
                     </div>)}
                     {company.jobs.length > cap ? <button className="more" type="button" onClick={() => setRowCaps(current => ({...current, [company.id]: company.jobs.length}))}>查看全部 {company.jobs.length} 个职位<ChevronDown className="ic" /></button> : null}
