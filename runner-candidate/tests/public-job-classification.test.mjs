@@ -146,6 +146,7 @@ test("the public projection resolves known locations without overriding source c
     ["source-pfizer-china-social", "CHN - HB - Hubei | China - Hubei - Wuhan", "武汉"],
     ["source-pfizer-china-social", "CHN - SD - Shandong", "城市待核"],
     ["source-pfizer-china-social", "China - Shanxi - Xi'an", "城市待核"],
+    ["source-pfizer-china-social", "China - Shanxi - XianYang", "城市待核"],
     ["source-roche-china-social", "抚州, 福建, 中国大陆", "福州"],
     ["source-astrazeneca-social", "上海 上海", "城市待核"],
     ["source-takeda-china-social", "Remote", "城市待核"],
@@ -156,7 +157,8 @@ test("the public projection resolves known locations without overriding source c
   const search = (request = {}) => searchPortableSnapshot({ city: "全部城市", ...request }, saved);
   const result = search();
   assert.equal(result.totalJobs, examples.length);
-  assert.equal(result.publishedJobSummary.cityPendingJobs, 4);
+  assert.equal(result.publishedJobSummary.cityPendingJobs, 5);
+  assert.equal(search({province: "山西", city: "城市待核"}).totalJobs, 0);
   for (const job of result.companies[0].jobs) assert.equal(job.city, examples[Number(job.id)][2]);
   assert.equal(search({province: "山东", city: "城市待核"}).totalJobs, 1);
   assert.equal(search({province: "山东", city: "青岛"}).totalJobs, 0);

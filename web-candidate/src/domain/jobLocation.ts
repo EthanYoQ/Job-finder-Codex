@@ -84,7 +84,7 @@ const PUBLISHED_CITY_ALIASES = new Map(Object.entries({
   yangjiang: "阳江", yining: "伊宁", zhanjiang: "湛江", zhaoqing: "肇庆",
   zhaotong: "昭通", zibo: "淄博", jincheng: "晋城", lvliang: "吕梁", dazhou: "达州",
   yibin: "宜宾", zigong: "自贡", dali: "大理", chifeng: "赤峰",
-  baoji: "宝鸡", chengde: "承德", liuzhou: "柳州", urumuqi: "乌鲁木齐", wulumuqi: "乌鲁木齐",
+  baoji: "宝鸡", xianyang: "咸阳", chengde: "承德", liuzhou: "柳州", urumuqi: "乌鲁木齐", wulumuqi: "乌鲁木齐",
   tianjing: "天津", xian: "西安", "xi'an": "西安", wenzhou: "温州", bengbu: "蚌埠",
   dongguan: "东莞", nanchong: "南充", neijiang: "内江", guangan: "广安"
 }));
