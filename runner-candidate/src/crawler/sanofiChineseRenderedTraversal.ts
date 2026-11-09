@@ -20,7 +20,7 @@ const time=(s:string)=>typeof s==="string"&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2
 /** The independent universe is read from actual rendered Chinese UI snapshots.
  * Neither main AJAX rows nor their archived HTTP receipts are accepted inputs. */
 export function validateSanofiChineseDom(capture:SanofiChineseDomCapture):{total:number;rows:SanofiChineseRow[][]} {
-  assert(capture.schemaVersion==="sanofi-cn-cua-dom-list-v1"&&time(capture.observedAt)&&capture.pages.length>0&&capture.pages.length<=25&&capture.pages[0]?.capturedAt===capture.observedAt);
+  assert(capture.schemaVersion==="sanofi-cn-cua-dom-list-v1"&&time(capture.observedAt)&&capture.pages.length>0&&capture.pages[0]?.capturedAt===capture.observedAt);
   const ids=new Set<string>(),pages:SanofiChineseRow[][]=[];let total:number|undefined,prior=capture.observedAt;
   for(const [index,page] of capture.pages.entries()){
     const u=new URL(page.url);assert(u.origin==="https://jobs.sanofi.cn"&&!u.username&&!u.password&&!u.hash&&time(page.capturedAt)&&page.capturedAt>=prior);
@@ -108,7 +108,7 @@ export async function captureSanofiChineseIndependent(input:{dom:SanofiChineseDo
  replaySanofiChineseIndependent(pages);return {observedAt:input.dom.observedAt,pages};
 }
 export function replaySanofiChineseIndependent(pages:readonly OfficialJsonRenderedPageCapture[]):OfficialJsonRenderedReplay&{decisions:SanofiChineseDecision[];descriptionAnomalies:SanofiDescriptionAnomaly[]} {
- assert(pages.length>0&&pages.length<=25);
+ assert(pages.length>0);
  const dom:SanofiChineseDomCapture={schemaVersion:'sanofi-cn-cua-dom-list-v1',observedAt:sanofiChineseIndependentObservedAt(pages),pages:pages.map(p=>p.rawRows[0]?.rawPayload.domPage as SanofiChineseDomPage)};
  const checked=validateSanofiChineseDom(dom),after=dom.pages.at(-1)!.capturedAt;
  const rawSourceJobIds:string[]=[],rawEvidenceIds:string[]=[],matchKeys:string[]=[],excludedSourceJobIds:string[]=[],decisions:SanofiChineseDecision[]=[],descriptionAnomalies:SanofiDescriptionAnomaly[]=[];

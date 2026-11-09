@@ -4,7 +4,8 @@ import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {loadDirectPlans} from '../scripts/direct-round.ts';
 import {createSanofiChineseSourceFetch,SANOFI_CN_ENTRY,replaySanofiChineseNative} from '../src/crawler/sanofiChineseNative.ts';
-import {captureSanofiChineseIndependent} from '../src/crawler/sanofiChineseRenderedTraversal.ts';
+import {captureSanofiChineseIndependent,replaySanofiChineseIndependent,validateSanofiChineseDom} from '../src/crawler/sanofiChineseRenderedTraversal.ts';
+import {captureHybridDom} from '../src/crawler/local-browser/hybrid-dom.mjs';
 import {createOfficialJsonRenderedTraversalValidation,issueBGradeTraversalCertificate,verifyBGradeTraversalCertificateReceipt} from '../src/crawler/traversalCertificate.ts';
 import {canonicalStringSetSha256,sanitizeEvidenceHttpUrl} from '../src/crawler/sourceFetchEvidence.ts';
 import {createHttpHtmlSourceFetch} from '../src/crawler/httpHtmlSourceFetch.ts';
@@ -17,6 +18,56 @@ import {replaySanofiChineseAjinga} from '../src/crawler/sanofiChineseAjinga.ts';
 const at='2026-11-06T04:00:00.000Z',title=n=>`中文岗位${n}`,url=n=>new URL(`https://jobs.sanofi.cn/工作/role/3036/${100+n}`).href,req=n=>`R900000${n}`,apply=n=>`https://careersite.tupu360.com/sanofi/position/detail?exid=${req(n)}`;
 const detail=n=>`<meta name="job-ats-req-id" content="${req(n)}"><script type="application/ld+json">${JSON.stringify({'@type':'JobPosting',identifier:{value:req(n)},title:title(n),url:url(n),hiringOrganization:{name:'General Medicines'},description:'中文职责和要求',jobLocation:[{address:{addressCountry:'China'}}]})}</script><main id="content"><div class="job-description section7-title"><h1>${title(n)}</h1><a data-job-id="${100+n}" data-selector-name="job-apply-link" href="${apply(n)}">立即申请</a></div><div class="job-description section7-details" data-job-id="${100+n}"><div class="ats-description">中文职责和要求</div><a data-job-id="${100+n}" data-selector-name="job-apply-link" href="${apply(n)}">立即申请</a></div></main>`;
 const native=n=>`<meta name="description" content="赛诺菲（中国）投资有限公司上海分公司"><input id="positionStatus" value="PUBLISHING"><input id="positionName" value="${title(n)}"><input id="positionId" value="${String(n).padStart(24,'0')}"><input id="recruitmentType" value="SOCIALRECRUITMENT"><div class="position-extend"><span class="city">广西壮族自治区-南宁</span></div><div class="position-description">中文职责和要求</div>`;
+
+test('Sanofi follows the declared 26-page list and replay still rejects incomplete or conflicting pages',async()=>{
+ // Synthetic growth boundary using the archived nested-list shape; not a current source capture.
+ const total=376,pageCount=Math.ceil(total/15);
+ async function capture(terminalEnabled=false){
+  let current=1,clicks=0,closed=false;
+  const tab={url:async()=>SANOFI_CN_ENTRY,close:async()=>{closed=true;},playwright:{
+   addLocatorHandler:async()=>{},
+   locator(selector){
+    if(selector==='#search-results a.next')return {click:async()=>{clicks++;current++;}};
+    assert.equal(selector,`#search-results[data-current-page="${current}"]`);
+    const count=Math.min(15,total-(current-1)*15),disabled=current===pageCount&&!terminalEnabled;
+    const rows=Array.from({length:count},(_,i)=>(current-1)*15+i+1);
+    const html=`<section id="search-results" data-location="中国" data-keywords="" data-location-path="1814991" data-organization-ids="2649" data-current-page="${current}" data-total-pages="${pageCount}" data-total-job-results="${total}" data-records-per-page="15"><div id="search-results-list"><meta data-show-saved="True"><ul>${rows.map(n=>`<li><a data-job-id="${100+n}" href="${url(n)}"><h2>${title(n)}</h2><span class="job-location">中国南宁</span></a></li>`).join('')}</ul><nav><input class="pagination-current" value="${current}" max="${pageCount}"><a class="next${disabled?' disabled':''}">下一页</a></nav></div></section>`;
+    return {waitFor:async()=>{},evaluate:async callback=>callback({outerHTML:html,
+     getAttribute:()=>String(total),querySelectorAll:()=>rows,
+     querySelector:()=>({classList:{contains:()=>disabled}})})};
+   }
+  }};
+  const promise=captureHybridDom('source-sanofi-china-social',{createBrowserTab:async()=>tab});
+  if(terminalEnabled){
+   await assert.rejects(promise,/HYBRID_DOM_PAGE_LIMIT/);
+   assert.equal(clicks,pageCount-1,'Do not click past the source-declared last page');
+  }else{
+   const dom=await promise;
+   assert.equal(dom.pages.length,pageCount);assert.equal(clicks,pageCount-1);
+   assert.equal(closed,true);return dom;
+  }
+  assert.equal(closed,true);
+ }
+ const dom=await capture();
+ assert.equal(validateSanofiChineseDom(dom).total,total);
+ const bodies=new Map(Array.from({length:total},(_,i)=>i+1).flatMap(n=>[[url(n),detail(n)],[apply(n),native(n)]]));
+ const captured=await captureSanofiChineseIndependent({dom,http:async request=>{
+  assert.ok(bodies.has(request.url),'Only synthetic detail requests are supported');
+  return {status:200,finalUrl:request.url,contentType:'text/html',body:bodies.get(request.url),capturedAt:new Date().toISOString()};
+ }});
+ const replay=replaySanofiChineseIndependent(captured.pages);
+ assert.equal(replay.rawCount,total);assert.equal(replay.matchKeys.length,total);
+ for(const mutate of [
+  value=>value.pages.pop(),
+  value=>{value.pages[1].searchResultsHtml=value.pages[1].searchResultsHtml.replaceAll('data-job-id="116"','data-job-id="101"').replaceAll('/3036/116','/3036/101');},
+  value=>{value.pages[1].searchResultsHtml=value.pages[1].searchResultsHtml.replace('data-total-job-results="376"','data-total-job-results="375"');},
+  value=>{value.pages.at(-1).searchResultsHtml=value.pages.at(-1).searchResultsHtml.replace('class="next disabled"','class="next"');},
+ ]){
+  const invalid=structuredClone(dom);mutate(invalid);
+  assert.throws(()=>validateSanofiChineseDom(invalid),/SANOFI_CN_INDEPENDENT_EVIDENCE_INVALID/);
+ }
+ await capture(true);
+});
 
 test('archived Sanofi application keeps the bound job across localized title and extra career-page copy',async()=>{
  const fixture=JSON.parse(await readFile(new URL('./fixtures/sanofi-ajinga-localized-job.json',import.meta.url),'utf8'));

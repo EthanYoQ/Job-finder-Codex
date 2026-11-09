@@ -54,7 +54,7 @@ export function createSanofiDomRuntime(cua, {failureDirectory=join(process.env.J
     if (captured.nextDisabled === null) throw Error('SANOFI_CN_DOM_NEXT_CONTROL_MISSING');
     const page = { url: await tab.url(), capturedAt: new Date().toISOString(), searchResultsHtml: captured.searchResultsHtml };
     checkTime();
-    return { page, nextDisabled: captured.nextDisabled };
+    return { page, nextDisabled: captured.nextDisabled, totalPages: Math.ceil(captured.total / 15) };
     } catch(error) {return failed(error,'SANOFI_PAGE_READ');}
   }
   async function advance() {
