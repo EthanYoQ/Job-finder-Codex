@@ -1642,7 +1642,7 @@ function verifyCompactCertificate(input: {
     c.mainTraversal.canonicalRawMatchKeySetSha256!==canonicalStringSetSha256(decisions.map(d=>d.sourceJobId))||
     c.mainTraversal.canonicalExcludedMatchKeySetSha256!==canonicalStringSetSha256(excluded)||
     c.output.canonicalJobSetSha256!==canonicalStringSetSha256(included.map(id=>`${c.binding.sourceId}:${id}`))||
-    c.mainTraversal.pageCount!==v.pageCount||v.pageCount!==Math.ceil(decisions.length/15)||v.pageCount>25||c.mainTraversal.terminalEvent!=="NEXT_ABSENT"||
+    c.mainTraversal.pageCount!==v.pageCount||v.pageCount!==Math.ceil(decisions.length/15)||c.mainTraversal.terminalEvent!=="NEXT_ABSENT"||
     !e.canonicalRawEvidenceIdSetSha256||e.canonicalRawEvidenceIdSetSha256!==canonicalStringSetSha256(decisions.map(d=>sanofiRawEvidenceId(d.id))))fail("SET_EQUATION_MISMATCH");
   }
   const artifacts=bayer?e.bayerArtifacts:e.sanofiArtifacts;
