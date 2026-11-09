@@ -1,5 +1,6 @@
 import { reportSourceFetchFailure } from "./sourceFetchDiagnostics";
 import { spawn, type ChildProcess } from "node:child_process";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { z } from "zod";
 import {
   parseBGradeIndependentTraversalValidation,
@@ -37,6 +38,25 @@ const RETRIABLE_VALIDATOR_FAILURE_CODES = new Set<string>([
   "B_GRADE_REQUEST_PROTOCOL_FAILED"
 ] as const);
 const VALIDATOR_RETRY_BACKOFF_MS = 10_000;
+const SANOFI_GZIP_PREFIX = "sanofi-b-grade-gzip-v1:";
+// Sanofi originals exceed the pipe budget as the list grows. The wire remains
+// bounded at 64 MiB; decoding has its own 128 MiB limit and preserves exact JSON.
+const SANOFI_DECODED_MAX_BYTES = 128 * 1024 * 1024;
+
+export function serializeBGradeValidatorSuccess(validation: BGradeIndependentTraversalValidation): string {
+  const output = JSON.stringify({ decision: "SUCCEEDED", validation });
+  if (validation.sourceId !== "source-sanofi-china-social") return output;
+  if (Buffer.byteLength(output) > SANOFI_DECODED_MAX_BYTES) throw new Error("Sanofi validator decoded output limit exceeded");
+  return SANOFI_GZIP_PREFIX + gzipSync(output, { level: 1 }).toString("base64");
+}
+
+export function decodeBGradeValidatorOutput(output: string, sourceId: string): string {
+  if (!output.startsWith(SANOFI_GZIP_PREFIX)) return output;
+  if (sourceId !== "source-sanofi-china-social") throw new Error("Compressed validator output source mismatch");
+  const encoded = output.slice(SANOFI_GZIP_PREFIX.length), compressed = Buffer.from(encoded, "base64");
+  if (compressed.toString("base64") !== encoded) throw new Error("Malformed compressed validator output");
+  return gunzipSync(compressed, { maxOutputLength: SANOFI_DECODED_MAX_BYTES }).toString("utf8");
+}
 
 type RetryDelay = (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 
@@ -60,7 +80,7 @@ export function createIsolatedBGradeTraversalValidator(
       if (signal?.aborted) {
         throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
       }
-      const response = processResponseSchema.parse(JSON.parse(output));
+      const response = processResponseSchema.parse(JSON.parse(decodeBGradeValidatorOutput(output, input.sourceId)));
       if (response.decision === "FAILED") {
         if (response.diagnostic) console.error(JSON.stringify(response.diagnostic));
         const maxAttempts = response.failureCode === "B_GRADE_BROWSER_READINESS_FAILED" ? 3 : 2;
