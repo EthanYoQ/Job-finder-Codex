@@ -212,7 +212,7 @@ async function readCspcListObservation(listTab) {
     for(const id of owned){const tab=await cua.getTab(id,{browser:'cdp'});await tab.close();}
     if(list)await list.close();
   }
-  return {start,readRow,isolateRowFailure,finish,failureState,close};
+  return {start,readRow,isolateRowFailure,finish,failureState,close,navigationInfo:()=>list?.navigationInfo?.()};
 }
 
 
