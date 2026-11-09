@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {loadDirectPlans} from '../scripts/direct-round.ts';
-import {createSanofiChineseSourceFetch,SANOFI_CN_ENTRY,replaySanofiChineseNative} from '../src/crawler/sanofiChineseNative.ts';
-import {captureSanofiChineseIndependent,replaySanofiChineseIndependent,validateSanofiChineseDom} from '../src/crawler/sanofiChineseRenderedTraversal.ts';
+import {createSanofiChineseSourceFetch,SANOFI_CN_ENTRY,replaySanofiChineseNative,bindSanofiChineseIndependentArtifact} from '../src/crawler/sanofiChineseNative.ts';
+import {captureSanofiChineseIndependent,replaySanofiChineseIndependent,validateSanofiChineseDom,sanofiChineseIndependentFinishedAt} from '../src/crawler/sanofiChineseRenderedTraversal.ts';
 import {captureHybridDom} from '../src/crawler/local-browser/hybrid-dom.mjs';
-import {createOfficialJsonRenderedTraversalValidation,issueBGradeTraversalCertificate,verifyBGradeTraversalCertificateReceipt} from '../src/crawler/traversalCertificate.ts';
+import {createOfficialJsonRenderedTraversalValidation,issueBGradeTraversalCertificate,verifyBGradeTraversalCertificateReceipt,SANOFI_INDEPENDENT_ORIGINAL_LOCATOR} from '../src/crawler/traversalCertificate.ts';
 import {canonicalStringSetSha256,sanitizeEvidenceHttpUrl} from '../src/crawler/sourceFetchEvidence.ts';
 import {createHttpHtmlSourceFetch} from '../src/crawler/httpHtmlSourceFetch.ts';
 import {validateStrictHtmlCompletenessProof} from '../src/crawler/strictHtmlCompletenessProof.ts';
@@ -19,9 +19,9 @@ const at='2026-11-06T04:00:00.000Z',title=n=>`中文岗位${n}`,url=n=>new URL(`
 const detail=n=>`<meta name="job-ats-req-id" content="${req(n)}"><script type="application/ld+json">${JSON.stringify({'@type':'JobPosting',identifier:{value:req(n)},title:title(n),url:url(n),hiringOrganization:{name:'General Medicines'},description:'中文职责和要求',jobLocation:[{address:{addressCountry:'China'}}]})}</script><main id="content"><div class="job-description section7-title"><h1>${title(n)}</h1><a data-job-id="${100+n}" data-selector-name="job-apply-link" href="${apply(n)}">立即申请</a></div><div class="job-description section7-details" data-job-id="${100+n}"><div class="ats-description">中文职责和要求</div><a data-job-id="${100+n}" data-selector-name="job-apply-link" href="${apply(n)}">立即申请</a></div></main>`;
 const native=n=>`<meta name="description" content="赛诺菲（中国）投资有限公司上海分公司"><input id="positionStatus" value="PUBLISHING"><input id="positionName" value="${title(n)}"><input id="positionId" value="${String(n).padStart(24,'0')}"><input id="recruitmentType" value="SOCIALRECRUITMENT"><div class="position-extend"><span class="city">广西壮族自治区-南宁</span></div><div class="position-description">中文职责和要求</div>`;
 
-test('Sanofi follows the declared 26-page list and replay still rejects incomplete or conflicting pages',async()=>{
+test('Sanofi follows the declared 28-page list through compact certification and rejects incomplete or conflicting pages',async()=>{
  // Synthetic growth boundary using the archived nested-list shape; not a current source capture.
- const total=376,pageCount=Math.ceil(total/15);
+ const total=406,pageCount=Math.ceil(total/15);
  async function capture(terminalEnabled=false){
   let current=1,clicks=0,closed=false;
   const tab={url:async()=>SANOFI_CN_ENTRY,close:async()=>{closed=true;},playwright:{
@@ -77,13 +77,40 @@ test('Sanofi follows the declared 26-page list and replay still rejects incomple
   }})(plan);
   assert.equal(fetched.ok,!missingLastRow,fetched.failureReason);
   assert.deepEqual(listCalls,Array.from({length:pageCount},(_,i)=>i+1));
-  if(!missingLastRow)assert.equal(replaySanofiChineseNative(plan,fetched.fetchEvidence,false).jobs.length,total);
+  if(!missingLastRow){
+   assert.equal(replaySanofiChineseNative(plan,fetched.fetchEvidence,false).jobs.length,total);
+   const binding={releaseCandidateId:'synthetic-sanofi-28-pages',batchId:'synthetic-batch',sourceResultId:'synthetic-result',sourceConfigSha256:planHash};
+   const validation=createOfficialJsonRenderedTraversalValidation({sourceId:plan.source.id,companyId:plan.company.id,sourceConfigSha256:planHash,
+    surfaceIds:[plan.source.surfaceId],channelIds:plan.expectedChannels.map(c=>c.channelId),...captured,expiresAt:new Date(Date.parse(captured.observedAt)+1800000).toISOString()});
+   const evidence=bindSanofiChineseIndependentArtifact(plan,fetched.fetchEvidence,validation.artifactSha256);
+   const result=await runSourceCrawl(plan,{fetch:async()=>({...fetched,fetchEvidence:evidence}),isBaseline:false});
+   const bytes=JSON.stringify(validation),hash=s=>createHash('sha256').update(s).digest('hex');
+   const independentOriginal={sha256:hash(bytes),byteCount:Buffer.byteLength(bytes),canonicalArtifactSha256:validation.artifactSha256};
+   const artifacts=evidence.artifacts.map(a=>({...binding,sourceId:plan.source.id,kind:a.kind,extractorLocator:a.extractorLocator,
+    sha256:hash(a.body),byteCount:Buffer.byteLength(a.body),capturedAt:a.capturedAt}));
+   artifacts.push({...binding,sourceId:plan.source.id,kind:'COMMAND_OUTPUT',extractorLocator:SANOFI_INDEPENDENT_ORIGINAL_LOCATOR,
+    sha256:independentOriginal.sha256,byteCount:independentOriginal.byteCount,capturedAt:sanofiChineseIndependentFinishedAt(captured.pages)});
+   const now=new Date(),decision=issueBGradeTraversalCertificate({binding,plan,transportSuccess:true,adapterSuccess:true,evidence,
+    paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs:result.jobs,independentValidation:validation,
+    validationExecution:'CURRENT_RUN',trigger:'INITIAL_QUALIFICATION',now,sanofiArchive:{artifacts,independentOriginal}});
+   assert.equal(decision.status,'CERTIFIED',JSON.stringify(decision));
+   assert.equal(decision.certificate.independentValidation.schemaVersion,'sanofi-cn-independent-summary-v1');
+   const expected={...binding,sourceId:plan.source.id,sanofiArtifacts:artifacts,canonicalRawEvidenceIdSetSha256:canonicalStringSetSha256(evidence.pages.flatMap(p=>p.rawJobIds))};
+   const receipt={certificate:JSON.parse(JSON.stringify(decision.certificate)),certificateSha256:decision.certificateSha256,expected,now};
+   assert.equal(verifyBGradeTraversalCertificateReceipt(receipt).finalUniqueJobCount,total);
+   const canonical=value=>value===null||typeof value!=='object'?JSON.stringify(value):Array.isArray(value)?`[${value.map(canonical).join(',')}]`:
+    `{${Object.entries(value).sort(([a],[b])=>Buffer.compare(Buffer.from(a),Buffer.from(b))).map(([key,child])=>`${JSON.stringify(key)}:${canonical(child)}`).join(',')}}`;
+   for(const mutate of [c=>{c.mainTraversal.pageCount--;},c=>{c.mainTraversal.pageCount--;c.independentValidation.pageCount--;},c=>{c.mainTraversal.terminalEvent='EMPTY_PAGE';}]){
+    const certificate=structuredClone(decision.certificate);mutate(certificate);
+    assert.throws(()=>verifyBGradeTraversalCertificateReceipt({...receipt,certificate,certificateSha256:hash(canonical(certificate))}),/SANOFI_COMPACT_SET_EQUATION_MISMATCH/);
+   }
+  }
  }
  assert.equal(sourcePlanConfigSha256(plan),planHash,'The source plan and its persisted binding remain unchanged');
  for(const mutate of [
   value=>value.pages.pop(),
   value=>{value.pages[1].searchResultsHtml=value.pages[1].searchResultsHtml.replaceAll('data-job-id="116"','data-job-id="101"').replaceAll('/3036/116','/3036/101');},
-  value=>{value.pages[1].searchResultsHtml=value.pages[1].searchResultsHtml.replace('data-total-job-results="376"','data-total-job-results="375"');},
+  value=>{value.pages[1].searchResultsHtml=value.pages[1].searchResultsHtml.replace(`data-total-job-results="${total}"`,`data-total-job-results="${total-1}"`);},
   value=>{value.pages.at(-1).searchResultsHtml=value.pages.at(-1).searchResultsHtml.replace('class="next disabled"','class="next"');},
  ]){
   const invalid=structuredClone(dom);mutate(invalid);
