@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {parseRedseaQueryPostList} from '../officialJsonSourceFetch.ts';
 import {redseaNativeJobId} from '../redseaCandidateScope.ts';
+import {cspcNativeRowQuality} from './cspc-dom-http-review.ts';
 
 const browserName = name => { if (name !== undefined && name !== 'cdp') throw Error('LOCAL_CHROMIUM_BROWSER_REQUIRED'); };
 function options(value) {
@@ -75,7 +76,10 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
           const data=JSON.parse(body),parsed=parseRedseaQueryPostList(body);
           record.result={state:data.state??null,total:data.total??null,jsonListCount:Array.isArray(data.jsonList)?data.jsonList.length:null};
           if(parsed.ok)record.nativeList={capturedAt:new Date().toISOString(),bodySha256:createHash('sha256').update(body).digest('hex'),
-            recordIds:parsed.jobs.map(row=>redseaNativeJobId(row?.REQUEST_ID)??null)};
+            recordIds:parsed.jobs.map(row=>redseaNativeJobId(row?.REQUEST_ID)??null),
+            qualityById:Object.fromEntries(parsed.jobs.flatMap(row=>{
+              const id=redseaNativeJobId(row?.REQUEST_ID);return id?[[id,cspcNativeRowQuality(row)]]:[];
+            }))};
         })
           .catch(()=>{record.resultUnavailable=true;});
       }

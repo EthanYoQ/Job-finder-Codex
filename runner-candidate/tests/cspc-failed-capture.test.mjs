@@ -34,17 +34,17 @@ for(const mode of ['present','missing','inaccessible'])test(`CSPC failure keeps 
  assert.equal(closed,1);
 });
 
-test('CSPC loading timeout exposes the same bounded native observation saved privately',async()=>{
+test('CSPC loading timeout retains a late access block in the bounded native observation saved privately',async()=>{
  const directory=await mkdtemp(join(tmpdir(),'cspc-native-')),previous=process.env.JOBFINDER_STATE_ROOT,error=Error('CSPC_DOM_LOADING_TIMEOUT');
  process.env.JOBFINDER_STATE_ROOT=directory;
  try{
-  const href='https://example.invalid',navigation={httpStatus:200,cspcListResponse:{nativeList:{recordIds:['synthetic-id']}}};let closed=0;
-  const tab={async goto(){throw error;},async close(){closed++;},async url(){return href;},async navigationInfo(){return navigation;},
-   playwright:{async evaluate(){return {};},async domSnapshot(){return 'Synthetic empty table';}}};
+  const href='https://example.invalid',navigation={httpStatus:200,cspcListResponse:{nativeList:{recordIds:['synthetic-id']}}},cspcAccessBlock={httpStatus:429,retryAfter:'120'};let closed=0,blocked=false;
+  const tab={async goto(){throw error;},async close(){closed++;},async url(){return href;},async navigationInfo(){return {...navigation,...(blocked?{cspcAccessBlock}:{})};},
+   playwright:{async evaluate(){return {};},async domSnapshot(){blocked=true;return 'Synthetic empty table';}}};
   await assert.rejects(captureOfficialDom('source-cspc-social',{async createBrowserTab(){return tab;}}),actual=>actual===error);
-  assert.deepEqual(error.cspcNativeResponse,{sourceUrl:href,navigation});assert.equal(closed,1);
+  assert.deepEqual(error.cspcNativeResponse,{sourceUrl:href,navigation:{...navigation,cspcAccessBlock}});assert.equal(closed,1);
   const saved=JSON.parse(await readFile(join(directory,'diagnostics','cspc',error.privateCapture.file),'utf8'));
-  assert.deepEqual(saved.observation.navigation,navigation);
+  assert.deepEqual(saved.observation.navigation,{...navigation,cspcAccessBlock});
  }finally{if(previous===undefined)delete process.env.JOBFINDER_STATE_ROOT;else process.env.JOBFINDER_STATE_ROOT=previous;}
 });
 

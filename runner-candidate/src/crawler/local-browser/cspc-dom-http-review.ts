@@ -1,5 +1,5 @@
 import {auditRedseaCandidateScope,redseaNativeJobId} from '../redseaCandidateScope';
-import {parseRedseaQueryPostList} from '../officialJsonSourceFetch';
+import {normalizeRedseaJob,parseRedseaQueryPostList} from '../officialJsonSourceFetch';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 const channel='0beb3022-3214-4333-a2e7-20786c4916d5';
@@ -8,6 +8,12 @@ const hash=(v:unknown)=>createHash('sha256').update(typeof v==='string'?v:JSON.s
 const same=(a:string[],b:string[],name:string)=>assert.deepEqual([...a].sort(),[...b].sort(),name);
 const unique=(a:string[],name:string)=>assert.equal(new Set(a).size,a.length,name);
 const placeholder=(raw:any)=>String(raw?.JOB_DUTY??'').trim()==='1'&&String(raw?.JOB_REQUEST??'').trim()==='1';
+/** Compare usable published fields and detail text without retaining descriptions in browser diagnostics. */
+export function cspcNativeRowQuality(raw:any):string|null {
+ const normalized=normalizeRedseaJob({origin:new URL(entry).origin,channelQrId:channel,rootId:'cspc',job:raw});
+ if(!normalized.ok||placeholder(raw)||[raw?.JOB_DUTY,raw?.JOB_REQUEST].some(value=>typeof value!=='string'||!value.trim()))return null;
+ return hash([normalized.job.title,normalized.job.locationRaw,raw.JOB_DUTY,raw.JOB_REQUEST].map(value=>String(value).normalize('NFKC').replace(/\s/gu,'')));
+}
 /** Supplemental PORTABLE review. Call only after the original exact HTTP archive replay passes.
  * DOM observations remain DOM observations; no network request or B certificate is fabricated. */
 export function reviewCspcDomHttp(input:{dom:any;applications:any;plan:any;replayedEvidence:any;
@@ -77,6 +83,10 @@ export function reviewCspcNativeHttp(input:{sourceUrl:string;navigation:any;plan
  assert.equal(native.recordIds.length,parsed.jobs.length,'CSPC_NATIVE_HTTP_SLOT_COUNT');
  // Compare concrete identities only. An unidentified row stays quarantined and cannot retire any old job.
  same(native.recordIds.filter(Boolean),parsed.jobs.flatMap((row:any)=>redseaNativeJobId(row?.REQUEST_ID)??[]),'CSPC_NATIVE_HTTP_IDENTITIES');
+ const quarantinedRecordIndices=parsed.jobs.flatMap((raw:any,index)=>{
+  const quality=cspcNativeRowQuality(raw),id=redseaNativeJobId(raw?.REQUEST_ID);
+  return quality&&id&&native.qualityById?.[id]===quality?[]:[index];
+ });
  return {retrievalPath:'BROWSER_NATIVE_RESPONSE_PLUS_INDEPENDENT_HTTP',browserBodySha256:native.bodySha256,httpBodySha256:hash(api.body),
-   rowCount:parsed.jobs.length,quarantinedRecordIndices:parsed.jobs.flatMap((raw,index)=>placeholder(raw)?[index]:[])};
+   rowCount:parsed.jobs.length,quarantinedRecordIndices};
 }
