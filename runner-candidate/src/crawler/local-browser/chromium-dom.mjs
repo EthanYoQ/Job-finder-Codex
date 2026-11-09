@@ -1,3 +1,8 @@
+import {createHash} from 'node:crypto';
+import {parseRedseaQueryPostList} from '../officialJsonSourceFetch.ts';
+import {redseaNativeJobId} from '../redseaCandidateScope.ts';
+import {cspcNativeRowQuality} from './cspc-dom-http-review.ts';
+
 const browserName = name => { if (name !== undefined && name !== 'cdp') throw Error('LOCAL_CHROMIUM_BROWSER_REQUIRED'); };
 function options(value) {
   if (!value) return value;
@@ -63,11 +68,19 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
       const url=new URL(response.url());
       if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname==='/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob'&&response.request().method()==='POST'){
         const form=new URLSearchParams(response.request().postData()??''),fields=['channelQrId','root_id','recruit_way','sortName','push_request_id','keyword','ftl_list_stru_id'];
-        // Private failure diagnostics only: no headers, cookies, personal fields or response job bodies.
+        // Keep only scope, native identities and a body hash; never credentials or job descriptions.
         const record={httpStatus:response.status(),scope:Object.fromEntries([...form].filter(([key])=>fields.includes(key))),
           otherNonEmptyFieldCount:[...form].filter(([key,value])=>value&&!fields.includes(key)).length};
         cspcListResponse=record;
-        void response.json().then(data=>{record.result={state:data.state??null,total:data.total??null,jsonListCount:Array.isArray(data.jsonList)?data.jsonList.length:null};})
+        void response.text().then(body=>{
+          const data=JSON.parse(body),parsed=parseRedseaQueryPostList(body);
+          record.result={state:data.state??null,total:data.total??null,jsonListCount:Array.isArray(data.jsonList)?data.jsonList.length:null};
+          if(parsed.ok)record.nativeList={capturedAt:new Date().toISOString(),bodySha256:createHash('sha256').update(body).digest('hex'),
+            recordIds:parsed.jobs.map(row=>redseaNativeJobId(row?.REQUEST_ID)??null),
+            qualityById:Object.fromEntries(parsed.jobs.flatMap(row=>{
+              const id=redseaNativeJobId(row?.REQUEST_ID);return id?[[id,cspcNativeRowQuality(row)]]:[];
+            }))};
+        })
           .catch(()=>{record.resultUnavailable=true;});
       }
     });

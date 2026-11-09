@@ -190,7 +190,6 @@ async function readCspcListObservation(listTab) {
   async function failureState() {
     if(!list) return {readError:'CSPC_LIST_HANDLE_UNAVAILABLE_AFTER_START_FAILURE'};
     const value={};
-    try { value.navigation=await list.navigationInfo?.(); } catch {}
     try { value.page=await list.playwright.evaluate(()=>{
       const page={url:location.href,title:document.title,readyState:document.readyState,html:document.documentElement.outerHTML};
       try {
@@ -205,13 +204,15 @@ async function readCspcListObservation(listTab) {
     }); } catch {}
     try { value.url=await list.url(); } catch(error) { value.urlReadError=String(error?.message??error); }
     try { value.domSnapshot=await list.playwright.domSnapshot(); } catch(error) { value.domReadError=String(error?.message??error); }
+    // Include an access block observed while reading the page, before the tab is torn down.
+    try { value.navigation=await list.navigationInfo?.(); } catch {}
     return value;
   }
   async function close() {
     for(const id of owned){const tab=await cua.getTab(id,{browser:'cdp'});await tab.close();}
     if(list)await list.close();
   }
-  return {start,readRow,isolateRowFailure,finish,failureState,close};
+  return {start,readRow,isolateRowFailure,finish,failureState,close,navigationInfo:()=>list?.navigationInfo?.()};
 }
 
 

@@ -10,6 +10,7 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
   const deadline = Date.parse(runStartedAt) + 30 * 60_000;
   if (sourceId === 'source-cspc-social') {
     const runtime = createCspcDomRuntime(cua);
+    let failedCapture,nativeSourceUrl;
     try {
       const { rowCount } = await runtime.start({ runStartedAt, dispatchBefore: new Date(deadline).toISOString() });
       for(let index=0;index<rowCount;index++){try{await runtime.readRow(index);}catch(error){await runtime.isolateRowFailure(index,error);}}
@@ -18,13 +19,25 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
       return { dom: { ...result.dom, ...provenance }, applications: { ...result.applications, ...provenance } };
     } catch(error) {
       const cause=error instanceof Error?error:Error('CSPC_DOM_CAPTURE_FAILED');
+      failedCapture=cause;
       cause.sourceFetchStage='CSPC_DOM_CAPTURE';
       try {cause.privateCapture=await savePrivateDomFailure({
         directory:join(process.env.JOBFINDER_STATE_ROOT??'/data/job-finder','diagnostics','cspc'),filePrefix:'cspc-dom',
-        context:{kind:'CSPC_FAILED_DOM_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE'},observe:()=>runtime.failureState()});}
+        context:{kind:'CSPC_FAILED_DOM_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE'},observe:async()=>{
+          const observation=await runtime.failureState();
+          nativeSourceUrl=observation.url;
+          return observation;
+        }});}
       catch {cause.privateCaptureUnavailable=true;}
       throw cause;
-    } finally { await runtime.close(); }
+    } finally {
+      await runtime.close();
+      if(failedCapture?.message==='CSPC_DOM_LOADING_TIMEOUT'&&nativeSourceUrl)try{
+        // Read Chromium's final in-memory status after all owned tabs close; diagnostic I/O can outlive the earlier snapshot.
+        const navigation=await runtime.navigationInfo();
+        if(navigation)failedCapture.cspcNativeResponse={sourceUrl:nativeSourceUrl,navigation};
+      }catch{ /* Keep the original failure when final browser status is unavailable. */ }
+    }
   }
   if (sourceId === 'source-johnson-innovative-medicine-social') {
     const runtime = createJnjDomRuntime(cua), lists = [], details = [];

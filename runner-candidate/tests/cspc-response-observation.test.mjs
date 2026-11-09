@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EventEmitter} from 'node:events';
+import {createHash} from 'node:crypto';
 import {createChromiumDom} from '../src/crawler/local-browser/chromium-dom.mjs';
 
 const endpoint='https://ehr.e-cspc.com:8081/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob';
@@ -15,28 +16,44 @@ async function fixture(){
  const cua=await createChromiumDom({chromium}),tab=await cua.createBrowserTab('cdp');
  await tab.goto('https://example.invalid/root');
  const emit=(json,url=endpoint,method='POST')=>page.emit('response',{url:()=>url,status:()=>200,frame:()=>frame,
-  request:()=>({isNavigationRequest:()=>false,method:()=>method,postData:()=> 'channelQrId=channel&root_id=cspc&recruit_way=4&keyword=&peopleId=PRIVATE_PERSON&access_token=PRIVATE_TOKEN'}),json});
+  request:()=>({isNavigationRequest:()=>false,method:()=>method,postData:()=> 'channelQrId=channel&root_id=cspc&recruit_way=4&keyword=&peopleId=PRIVATE_PERSON&access_token=PRIVATE_TOKEN'}),text:async()=>JSON.stringify(await json())});
  return {tab,cua,emit,closed:()=>closed};
 }
 
-test('CSPC native response result is diagnostic only and excludes personal/request/response bodies',async()=>{
+test('CSPC native response retains terminal identities without personal fields or response bodies',async()=>{
  const f=await fixture();
  try{
   let reads=0;f.emit(async()=>{reads++;throw Error('Unrelated response must not be read');},'https://other.invalid/list');
   f.emit(async()=>{reads++;throw Error('GET must not be read');},endpoint,'GET');
   assert.equal(reads,0);assert.deepEqual(await f.tab.navigationInfo(),{httpStatus:200,retryAfter:null});
-  for(const rows of [[],[{id:'job',description:'PRIVATE_BODY'}]]){
+  const nativeId='a1111111-1111-4111-8111-111111111111';
+  for(const rows of [[],[{id:'job',description:'PRIVATE_BODY'}],[{REQUEST_ID:nativeId,PUBLISH_NAME:'岗位',WORK_PLACE:'石家庄',JOB_DUTY:'PRIVATE_BODY',JOB_REQUEST:'PRIVATE_REQUIREMENT'}]]){
    let complete;const body=new Promise(resolve=>{complete=resolve;});f.emit(()=>body);
    assert.equal((await f.tab.navigationInfo()).cspcListResponse.result,undefined,'Observation never waits for a pending body');
    complete({state:'1',total:'',jsonList:rows});await tick();
    const nav=await f.tab.navigationInfo();assert.equal(nav.httpStatus,200);
-   assert.deepEqual(nav.cspcListResponse,{httpStatus:200,scope:{channelQrId:'channel',root_id:'cspc',recruit_way:'4',keyword:''},otherNonEmptyFieldCount:2,result:{state:'1',total:'',jsonListCount:rows.length}});
-   assert(!/PRIVATE_PERSON|PRIVATE_TOKEN|PRIVATE_BODY/.test(JSON.stringify(nav)));
+   const {nativeList,...diagnostic}=nav.cspcListResponse;
+   assert.deepEqual(diagnostic,{httpStatus:200,scope:{channelQrId:'channel',root_id:'cspc',recruit_way:'4',keyword:''},otherNonEmptyFieldCount:2,result:{state:'1',total:'',jsonListCount:rows.length}});
+   assert.deepEqual(nativeList.recordIds,rows.map(row=>row.REQUEST_ID??null));assert.match(nativeList.bodySha256,/^[a-f0-9]{64}$/);assert(Number.isFinite(Date.parse(nativeList.capturedAt)));
+   assert.deepEqual(nativeList.qualityById,rows[0]?.REQUEST_ID?{[nativeId]:createHash('sha256').update(JSON.stringify(['岗位','石家庄','PRIVATE_BODY','PRIVATE_REQUIREMENT'])).digest('hex')}:{});
+   assert(!/PRIVATE_PERSON|PRIVATE_TOKEN|PRIVATE_BODY|PRIVATE_REQUIREMENT/.test(JSON.stringify(nav)));
   }
   await f.tab.goto('https://example.invalid/new');
   assert.deepEqual(await f.tab.navigationInfo(),{httpStatus:200,retryAfter:null},'Navigation clears the old observation');
  }finally{await f.cua.close();}
  assert.equal(f.closed(),1);
+});
+
+test('CSPC native observation reuses the terminal parser instead of accepting count alone',async()=>{
+ const f=await fixture(),id='a1111111-1111-4111-8111-111111111111';
+ try{
+  for(const terminal of [{hasNext:0},{hasNext:true},{total:2}]){
+   f.emit(async()=>({state:'1',total:'',...terminal,jsonList:[{REQUEST_ID:id}]}));await tick();
+   const response=(await f.tab.navigationInfo()).cspcListResponse;
+   assert.equal(response.result.jsonListCount,1);
+   if(terminal.hasNext===0)assert.deepEqual(response.nativeList.recordIds,[id]);else assert.equal(response.nativeList,undefined);
+  }
+ }finally{await f.cua.close();}
 });
 
 test('CSPC unreadable JSON preserves navigation and records unavailable result',async()=>{
