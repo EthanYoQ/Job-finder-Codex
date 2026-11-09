@@ -1,6 +1,7 @@
 import { sourceFetchDiagnostic } from "../src/crawler/sourceFetchDiagnostics";
 import { runBGradeIndependentTraversalValidator } from "../src/crawler/traversalCertificate";
 import { runWithOfficialSourceCancellation } from "../src/crawler/officialHttpRuntimeLimits";
+import { serializeBGradeValidatorSuccess } from "../src/crawler/isolatedBGradeTraversalValidator";
 import {
   classifyBGradeIndependentTraversalFailure,
   safeBGradeIndependentTraversalFailureReason
@@ -19,7 +20,7 @@ try {
   sourceId = input.sourceId;
   const validation = await runWithOfficialSourceCancellation(controller.signal,
     () => runBGradeIndependentTraversalValidator({ ...input, signal: controller.signal }));
-  process.stdout.write(JSON.stringify({ decision: "SUCCEEDED", validation }));
+  process.stdout.write(serializeBGradeValidatorSuccess(validation));
 } catch (error) {
   process.stdout.write(JSON.stringify({
     decision: "FAILED",
