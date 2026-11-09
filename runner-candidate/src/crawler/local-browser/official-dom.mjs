@@ -21,7 +21,11 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
       cause.sourceFetchStage='CSPC_DOM_CAPTURE';
       try {cause.privateCapture=await savePrivateDomFailure({
         directory:join(process.env.JOBFINDER_STATE_ROOT??'/data/job-finder','diagnostics','cspc'),filePrefix:'cspc-dom',
-        context:{kind:'CSPC_FAILED_DOM_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE'},observe:()=>runtime.failureState()});}
+        context:{kind:'CSPC_FAILED_DOM_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE'},observe:async()=>{
+          const observation=await runtime.failureState();
+          if(cause.message==='CSPC_DOM_LOADING_TIMEOUT')cause.cspcNativeResponse={sourceUrl:observation.url,navigation:observation.navigation};
+          return observation;
+        }});}
       catch {cause.privateCaptureUnavailable=true;}
       throw cause;
     } finally { await runtime.close(); }

@@ -13,9 +13,31 @@ import {requestContractV2Locator} from '../src/crawler/strictPageRequestContract
 import {sourcePlanConfigSha256} from '../src/crawler/sourcePlan.ts';
 import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
 import {isolateIndependentJobs} from '../src/crawler/independentJobQuarantine.ts';
+import {replaySanofiChineseAjinga} from '../src/crawler/sanofiChineseAjinga.ts';
 const at='2026-11-06T04:00:00.000Z',title=n=>`中文岗位${n}`,url=n=>new URL(`https://jobs.sanofi.cn/工作/role/3036/${100+n}`).href,req=n=>`R900000${n}`,apply=n=>`https://careersite.tupu360.com/sanofi/position/detail?exid=${req(n)}`;
 const detail=n=>`<meta name="job-ats-req-id" content="${req(n)}"><script type="application/ld+json">${JSON.stringify({'@type':'JobPosting',identifier:{value:req(n)},title:title(n),url:url(n),hiringOrganization:{name:'General Medicines'},description:'中文职责和要求',jobLocation:[{address:{addressCountry:'China'}}]})}</script><main id="content"><div class="job-description section7-title"><h1>${title(n)}</h1><a data-job-id="${100+n}" data-selector-name="job-apply-link" href="${apply(n)}">立即申请</a></div><div class="job-description section7-details" data-job-id="${100+n}"><div class="ats-description">中文职责和要求</div><a data-job-id="${100+n}" data-selector-name="job-apply-link" href="${apply(n)}">立即申请</a></div></main>`;
 const native=n=>`<meta name="description" content="赛诺菲（中国）投资有限公司上海分公司"><input id="positionStatus" value="PUBLISHING"><input id="positionName" value="${title(n)}"><input id="positionId" value="${String(n).padStart(24,'0')}"><input id="recruitmentType" value="SOCIALRECRUITMENT"><div class="position-extend"><span class="city">广西壮族自治区-南宁</span></div><div class="position-description">中文职责和要求</div>`;
+
+test('archived Sanofi application keeps the bound job across localized title and extra career-page copy',async()=>{
+ const fixture=JSON.parse(await readFile(new URL('./fixtures/sanofi-ajinga-localized-job.json',import.meta.url),'utf8'));
+ const {detail,start,artifacts}=fixture,before=JSON.stringify({detail,artifacts});
+ const result=replaySanofiChineseAjinga(detail,start,artifacts);
+ assert.equal(result.state,'PUBLISHING');assert.equal(result.nativePositionId,'221794');
+ assert.deepEqual(result.cities,['潍坊']);assert.equal(result.titleConflict,undefined,'The Chinese career title remains authoritative');
+ assert.equal(JSON.stringify({detail,artifacts}),before,'Keep both original titles and descriptions');
+ // Synthetic negative controls change one bound identity or application fact.
+ for(const change of [
+  info=>{info.data.data.job.i18n_name='R2877923 District Manager';},
+  info=>{info.data.data.job.id=221795;},
+  info=>{info.data.data.job.root_company_id=1;},
+  info=>{info.data.data.job.job_visibility='HIDDEN';},
+ ]){
+  const changed=structuredClone(artifacts),info=JSON.parse(changed[1].body);change(info);changed[1].body=JSON.stringify(info);
+  assert.throws(()=>replaySanofiChineseAjinga(detail,start,changed),/SANOFI_CN_AJINGA_CHAIN_INVALID/);
+ }
+ const closed=structuredClone(artifacts),status=JSON.parse(closed[2].body);status.data.show_apply=0;closed[2].body=JSON.stringify(status);
+ assert.throws(()=>replaySanofiChineseAjinga(detail,start,closed),/SANOFI_CN_AJINGA_CHAIN_INVALID/);
+});
 
 test('Sanofi reuses the archived nested homepage and follows the official next-button query',async()=>{
  const plan=structuredClone((await loadDirectPlans()).find(p=>p.sourceId==='source-sanofi-china-social').plan);

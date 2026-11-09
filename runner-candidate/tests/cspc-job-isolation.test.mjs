@@ -5,6 +5,7 @@ import {loadDirectPlans} from '../scripts/direct-round.ts';
 import {createOfficialJsonSourceFetch} from '../src/crawler/officialJsonSourceFetch.ts';
 import {withLocalOfficialDom} from '../src/crawler/localOfficialSourceFetch.ts';
 import {runSourceCrawl,replayStrictSourceQualityEvidence} from '../src/crawler/runSourceCrawl.ts';
+import {createHash} from 'node:crypto';
 const channel='0beb3022-3214-4333-a2e7-20786c4916d5',id=n=>`${n}1111111-1111-4111-8111-111111111111`;
 const encode=ids=>{const alphabet='y!89(*z02BCcdD_bEeGHIJKLmnNOPQopRMSTqrUklVstWXYZafgh3ij1uvwx456A7',standard='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';const wrapped=[...Buffer.from(ids.join(',')).toString('base64').replace(/=+$/,'')].map(c=>alphabet[standard.indexOf(c)]).join('')+'yyryrtweasdasd';return wrapped.slice(0,2)+wrapped.slice(-3)+wrapped.slice(2,-3);};
 test('CSPC complete HTTP and DOM lists isolate one damaged row or native detail',async()=>{
@@ -27,5 +28,37 @@ test('CSPC complete HTTP and DOM lists isolate one damaged row or native detail'
   assert.equal(result.jobs.length,complete?3:mode==='two-unbound'?1:2,mode);
   if(mode==='unbound-dom-failure'){const q=result.fetchEvidence.jobQuarantines[0];assert.equal(q.sourceJobId,undefined);assert.equal(q.officialUrl,undefined);const old={dedupeKey:'historical',record:{sourceJobId:channel+':'+id(9),officialUrl:entry+'?historical=1'}};assert.deepEqual([...quarantinedPriorJobKeys(result.fetchEvidence,[old])],['historical']);}
   if(!complete){const e=structuredClone(result.fetchEvidence);assert.equal(e.jobQuarantines.length,mode==='two-unbound'?2:1);e.jobQuarantines[0].sourceJobId='incorrect';assert.equal(replayStrictSourceQualityEvidence({plan,evidence:e,jobs:result.jobs,capturedAt:result.observation.crawledAt.toISOString(),paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation}),false);}
+ }
+});
+
+test('CSPC empty DOM recovers only from matching current native responses and keeps single-job quarantine',async()=>{
+ // Synthetic controls for the real observed 200/state=1/empty-total versus empty-table failure.
+ // The current 31-row response body was not saved; these three rows are not that source evidence.
+ const plan=(await loadDirectPlans()).find(p=>p.sourceId==='source-cspc-social').plan,entry=plan.source.officialEntryUrl;
+ for(const mode of ['complete','placeholder','single-damaged-row','unbound-row','different-ids','wrong-scope','changed-candidates','continuation','stale','access-block','unavailable']){
+  const rows=[1,2,3].map(n=>({REQUEST_ID:id(n),PUBLISH_NAME:`岗位${n}`,WORK_PLACE:'石家庄',JOB_DUTY:'研究工作',JOB_REQUEST:'具有实验能力'}));
+  if(mode==='placeholder'){rows[1].JOB_DUTY='1';rows[1].JOB_REQUEST='1';}
+  if(mode==='single-damaged-row')rows[1].PUBLISH_NAME='';
+  if(mode==='unbound-row')rows[1].REQUEST_ID='invalid-native-id';
+  const body=JSON.stringify({state:'1',total:'',hasNext:0,jsonList:rows});let requests=0;
+  const http=createOfficialJsonSourceFetch({http:async request=>{requests++;return {status:200,body:request.method==='POST'?body:request.url===entry?'<html>Official</html>':`<script>var requestId=${JSON.stringify(encode([id(1),id(2),id(3)]))};</script>`,finalUrl:request.url,contentType:request.method==='POST'?'application/json':'text/html',capturedAt:new Date().toISOString()};}});
+  const fetch=withLocalOfficialDom(http,async()=>{
+   const error=Error('CSPC_DOM_LOADING_TIMEOUT');
+   const nativeList={capturedAt:mode==='stale'?'2020-01-01T00:00:00Z':new Date().toISOString(),bodySha256:createHash('sha256').update(body).digest('hex'),recordIds:rows.map((row,index)=>mode==='unbound-row'&&index===1?null:row.REQUEST_ID)};
+   if(mode==='different-ids')nativeList.recordIds[1]=id(4);
+   error.cspcNativeResponse={sourceUrl:entry,navigation:{httpStatus:200,...(mode==='access-block'?{cspcAccessBlock:{httpStatus:429,retryAfter:'120'}}:{}),cspcListResponse:{httpStatus:200,otherNonEmptyFieldCount:0,
+    scope:{channelQrId:channel,root_id:'cspc',sortName:'zri.ext_rankNum',keyword:mode==='wrong-scope'?'研究':'',ftl_list_stru_id:'',push_request_id:[id(1),id(2),mode==='changed-candidates'?id(4):id(3)].join(',')},
+    ...(['continuation','unavailable'].includes(mode)?{}:{nativeList})}}};
+   throw error;
+  });
+  if(!['complete','placeholder','single-damaged-row','unbound-row'].includes(mode)){await assert.rejects(fetch(plan),{message:'CSPC_DOM_LOADING_TIMEOUT'});assert.equal(requests,3,mode);continue;}
+  const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
+  assert.equal(result.truth.completenessVerified,true,mode);assert.equal(result.jobs.length,mode==='complete'?3:2,mode);
+  assert.equal(requests,3,'Recovery never issues another HTTP request');
+  if(mode!=='complete')assert.equal(result.fetchEvidence.jobQuarantines.length,1);
+  if(mode==='unbound-row'){
+   const old=[2,4].map(n=>({dedupeKey:`old-${n}`,record:{sourceJobId:`${channel}:${id(n)}`,officialUrl:entry+'?detailRequestId='+id(n)}}));
+   assert.deepEqual([...quarantinedPriorJobKeys(result.fetchEvidence,old)],['old-2','old-4'],'An unidentified slot preserves all unmatched old jobs instead of claiming unknown identities match');
+  }
  }
 });

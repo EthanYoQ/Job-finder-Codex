@@ -1,6 +1,6 @@
 import {isolateRedseaJobs} from './redseaJobQuarantine';
 import { captureLocalOfficialDom } from './local-browser/official-dom.mjs';
-import { reviewCspcDomHttp } from './local-browser/cspc-dom-http-review';
+import { reviewCspcDomHttp,reviewCspcNativeHttp } from './local-browser/cspc-dom-http-review';
 import { reviewBiDomHttp } from './local-browser/bi-dom-http-review';
 import {isolateBiDomJobs} from './biSemanticCompleteness';
 import { replayBiUiSemanticContract } from './biUiSemanticContract';
@@ -8,9 +8,9 @@ import { createJnjCareersDomSourceFetch } from './jnjCareersDomEvidence';
 import type { SourceFetchFunction } from './runSourceCrawl';
 import { currentOfficialSourceAttemptSignal } from './officialHttpRuntimeLimits';
 import {isRetryableSourceTransportFailure,safeSourceTransportFailureReason} from './sourceFetchFailure';
-import {reportSourceFetchFailure} from './sourceFetchDiagnostics';
+import {reportSourceFetchFailure,sourceFetchDiagnostic} from './sourceFetchDiagnostics';
 
-/** Fresh DOM is mandatory for these routes; a failed browser never falls back to HTTP. */
+/** Fresh browser evidence supplements HTTP; CSPC can use its matching native response when the table fails to render. */
 export function withLocalOfficialDom(http: SourceFetchFunction, captureDom = captureLocalOfficialDom): SourceFetchFunction {
   return async (plan, tracker) => {
     const sourceId = plan.source.id;
@@ -21,6 +21,13 @@ export function withLocalOfficialDom(http: SourceFetchFunction, captureDom = cap
     let capture;
     try {capture=await captureDom(sourceId, runStartedAt, currentOfficialSourceAttemptSignal());}
     catch(error) {
+      if(sourceId==='source-cspc-social'&&httpResult?.ok&&error instanceof Error&&error.message==='CSPC_DOM_LOADING_TIMEOUT'&&'cspcNativeResponse'in error){
+        let review;
+        try{review=reviewCspcNativeHttp({...error.cspcNativeResponse as any,plan,replayedEvidence:httpResult.fetchEvidence,runStartedAt,now:new Date().toISOString()});}
+        catch{throw error;} // Preserve the saved original observation when recovery cannot establish completeness.
+        console.info(JSON.stringify({event:'CSPC_NATIVE_RESPONSE_RECOVERY',...review,domFailure:sourceFetchDiagnostic(sourceId,{error})}));
+        return isolateRedseaJobs(plan,httpResult,review.quarantinedRecordIndices);
+      }
       const failure=error instanceof Error && 'transportFailure' in error?error.transportFailure:undefined;
       if(sourceId!=='source-johnson-innovative-medicine-social'||!isRetryableSourceTransportFailure(failure))throw error;
       reportSourceFetchFailure(sourceId,{error});

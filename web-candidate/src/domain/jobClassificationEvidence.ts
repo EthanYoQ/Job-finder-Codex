@@ -84,7 +84,14 @@ const VERIFIED_JOB_EVIDENCE: readonly VerifiedJobEvidence[] = [
     requisitionId: "REQ-10087785",
     department: "销售",
     responsibilities: { category: "销售", subcategory: "培训与赋能" }
-  }
+  },
+  // Official functional pages from batch 39f4c970: FCT_CM, FCT_SA and FCT_RD.
+  { sourceId: "source-novartis-social", requisitionId: "REQ-10090075", department: "职能" },
+  { sourceId: "source-novartis-social", requisitionId: "REQ-10090555", department: "销售" },
+  { sourceId: "source-novartis-social", requisitionId: "REQ-10090556", department: "销售" },
+  { sourceId: "source-novartis-social", requisitionId: "REQ-10090557", department: "销售" },
+  { sourceId: "source-novartis-social", requisitionId: "REQ-10086238", department: "研发/科学" },
+  { sourceId: "source-novartis-social", requisitionId: "REQ-10090055", department: "研发/科学" }
 ];
 
 function nativeRequisitionId(sourceId: string, officialUrl: string): string | undefined {

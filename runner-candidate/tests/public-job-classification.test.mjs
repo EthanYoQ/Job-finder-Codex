@@ -17,6 +17,9 @@ const cases = [
   ["fixture", "Quality Engineer", "质量", "质量保证"],
   ["fixture", "Sales Recruiter", "职能", "人力资源"],
   ["source-qilu-social", "质量研究国际注册总监（专业）(J10977)", "注册", "注册事务"],
+  ["source-qilu-social", "化学创新药原料药研发领军人才（CSO）（海内外招聘）(J10826)", "研发/科学", "研发科学"],
+  ["source-qilu-social", "小分子创新药分析总监或首席专家（CSO）（海内外招聘）(J10834)", "其他", undefined],
+  ["source-qilu-social", "社会招聘资深专员/高级专员(J11149)", "职能", "人力资源"],
   ["source-hengrui-social", "RWE统计师-生物统计与编程部-中央医学事务部", "医学事务", undefined],
 ];
 
@@ -44,6 +47,7 @@ test("saved snapshots expose evidence-backed parent and child filters without ch
   const byId = new Map(result.companies.flatMap((company) => company.jobs).map((job) => [job.id, job]));
   for (const [index, [, title, category, subcategory]] of cases.entries()) {
     const job = byId.get(String(index));
+    assert.equal(job.officialTitle, title);
     assert.deepEqual([job.category, job.subcategory ?? undefined], [category, subcategory], title);
   }
   assert.equal(byId.get("manual").category, "医学事务");
@@ -96,6 +100,19 @@ test("verified departments and duties apply to the matching requisition only", (
       officialUrl: "https://example.com/ats/job-detail-new/13537/R2877042/c/",
       expected: ["其他", undefined],
     },
+    ...[
+      ["10090075", "Head of GBA Strategy & Operation", "head-gba-strategy-operation", "职能"],
+      ["10090555", "Capability Building Manager - Area", "capability-building-manager-area", "销售"],
+      ["10090556", "Capability Building Manager - Area", "capability-building-manager-area", "销售"],
+      ["10090557", "Capability Building Manager - Rheum", "capability-building-manager-rheum", "销售"],
+      ["10086238", "Clinical Development Medical Manager", "clinical-development-medical-manager", "研发/科学"],
+      ["10090055", "Clinical Development Medical Manager", "clinical-development-medical-manager", "研发/科学"],
+      ["99999999", "Capability Building Manager - Area", "capability-building-manager-area", "其他"],
+    ].map(([id, officialTitle, slug, category]) => ({
+      id, officialTitle, sourceId: "source-novartis-social", category: "其他",
+      officialUrl: `https://www.novartis.com.cn/careers/career-search/job/details/req-${id}-${slug}`,
+      expected: [category, undefined],
+    })),
   ];
   const storedJobs = evidenceJobs.map(({expected, ...job}) => ({ ...oldJobs[0], ...job, title: job.officialTitle }));
   const saved = { ...snapshot, companies: [{ ...snapshot.companies[0], jobs: storedJobs }] };
@@ -107,7 +124,7 @@ test("verified departments and duties apply to the matching requisition only", (
     const job = published.get(id);
     assert.deepEqual([job.category, job.subcategory ?? undefined], expected, id);
   }
-  assert.equal(search(["销售"]).totalJobs, 8);
+  assert.equal(search(["销售"]).totalJobs, 11);
   assert.equal(search(["医药销售"]).totalJobs, 7);
   assert.equal(search(["医学事务"]).totalJobs, 0);
   assert.equal(search(["MSAT 技术转移"]).totalJobs, 1);

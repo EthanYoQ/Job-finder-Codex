@@ -106,7 +106,10 @@ export function classifyJob(job: ClassificationInput): JobClassification {
   const evidence = findJobClassificationEvidence(job);
   const verified = evidence && resolveJobClassificationEvidence(evidence);
   if (verified) return verified;
-  const title = job.officialTitle.normalize("NFKC").replace(/\s+/g, " ").trim();
+  const normalizedTitle = job.officialTitle.normalize("NFKC").replace(/\s+/g, " ").trim();
+  const title = job.sourceId === "source-qilu-social"
+    ? normalizedTitle.replace("(海内外招聘)", "")
+    : normalizedTitle;
   if (job.category === "其他" && job.sourceId === "source-hengrui-social" &&
     /生物统计与编程部\s*[-–—]\s*中央医学事务部$/.test(title)) return { category: "医学事务" };
   if (["source-sanofi-china-social", "source-bms-china-social"].includes(job.sourceId ?? "") &&

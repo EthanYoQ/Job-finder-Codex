@@ -15,11 +15,11 @@ async function fixture(){
  const cua=await createChromiumDom({chromium}),tab=await cua.createBrowserTab('cdp');
  await tab.goto('https://example.invalid/root');
  const emit=(json,url=endpoint,method='POST')=>page.emit('response',{url:()=>url,status:()=>200,frame:()=>frame,
-  request:()=>({isNavigationRequest:()=>false,method:()=>method,postData:()=> 'channelQrId=channel&root_id=cspc&recruit_way=4&keyword=&peopleId=PRIVATE_PERSON&access_token=PRIVATE_TOKEN'}),json});
+  request:()=>({isNavigationRequest:()=>false,method:()=>method,postData:()=> 'channelQrId=channel&root_id=cspc&recruit_way=4&keyword=&peopleId=PRIVATE_PERSON&access_token=PRIVATE_TOKEN'}),text:async()=>JSON.stringify(await json())});
  return {tab,cua,emit,closed:()=>closed};
 }
 
-test('CSPC native response result is diagnostic only and excludes personal/request/response bodies',async()=>{
+test('CSPC native response retains terminal identities without personal fields or response bodies',async()=>{
  const f=await fixture();
  try{
   let reads=0;f.emit(async()=>{reads++;throw Error('Unrelated response must not be read');},'https://other.invalid/list');
@@ -30,13 +30,27 @@ test('CSPC native response result is diagnostic only and excludes personal/reque
    assert.equal((await f.tab.navigationInfo()).cspcListResponse.result,undefined,'Observation never waits for a pending body');
    complete({state:'1',total:'',jsonList:rows});await tick();
    const nav=await f.tab.navigationInfo();assert.equal(nav.httpStatus,200);
-   assert.deepEqual(nav.cspcListResponse,{httpStatus:200,scope:{channelQrId:'channel',root_id:'cspc',recruit_way:'4',keyword:''},otherNonEmptyFieldCount:2,result:{state:'1',total:'',jsonListCount:rows.length}});
+   const {nativeList,...diagnostic}=nav.cspcListResponse;
+   assert.deepEqual(diagnostic,{httpStatus:200,scope:{channelQrId:'channel',root_id:'cspc',recruit_way:'4',keyword:''},otherNonEmptyFieldCount:2,result:{state:'1',total:'',jsonListCount:rows.length}});
+   assert.deepEqual(nativeList.recordIds,rows.map(()=>null));assert.match(nativeList.bodySha256,/^[a-f0-9]{64}$/);assert(Number.isFinite(Date.parse(nativeList.capturedAt)));
    assert(!/PRIVATE_PERSON|PRIVATE_TOKEN|PRIVATE_BODY/.test(JSON.stringify(nav)));
   }
   await f.tab.goto('https://example.invalid/new');
   assert.deepEqual(await f.tab.navigationInfo(),{httpStatus:200,retryAfter:null},'Navigation clears the old observation');
  }finally{await f.cua.close();}
  assert.equal(f.closed(),1);
+});
+
+test('CSPC native observation reuses the terminal parser instead of accepting count alone',async()=>{
+ const f=await fixture(),id='a1111111-1111-4111-8111-111111111111';
+ try{
+  for(const terminal of [{hasNext:0},{hasNext:true},{total:2}]){
+   f.emit(async()=>({state:'1',total:'',...terminal,jsonList:[{REQUEST_ID:id}]}));await tick();
+   const response=(await f.tab.navigationInfo()).cspcListResponse;
+   assert.equal(response.result.jsonListCount,1);
+   if(terminal.hasNext===0)assert.deepEqual(response.nativeList.recordIds,[id]);else assert.equal(response.nativeList,undefined);
+  }
+ }finally{await f.cua.close();}
 });
 
 test('CSPC unreadable JSON preserves navigation and records unavailable result',async()=>{
