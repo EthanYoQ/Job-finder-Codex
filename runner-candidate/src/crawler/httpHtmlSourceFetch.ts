@@ -379,7 +379,7 @@ async function fetchTalentbrewAjaxPages({
       }
       pages.push(pageHtml);
       const effectiveDeclaredPages = declaredPages ?? initialTotalPages ?? 1;
-      const pagesToVisit = Math.min(effectiveDeclaredPages, Math.max(1, maxPages));
+      const pagesToVisit = normalNext ? effectiveDeclaredPages : Math.min(effectiveDeclaredPages, Math.max(1, maxPages));
       page += 1;
       if (page > pagesToVisit) {
         truncated ||= pagesToVisit < effectiveDeclaredPages;

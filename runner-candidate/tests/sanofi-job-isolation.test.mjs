@@ -31,7 +31,7 @@ test('Sanofi follows the declared 26-page list and replay still rejects incomple
     assert.equal(selector,`#search-results[data-current-page="${current}"]`);
     const count=Math.min(15,total-(current-1)*15),disabled=current===pageCount&&!terminalEnabled;
     const rows=Array.from({length:count},(_,i)=>(current-1)*15+i+1);
-    const html=`<section id="search-results" data-location="中国" data-keywords="" data-location-path="1814991" data-organization-ids="2649" data-current-page="${current}" data-total-pages="${pageCount}" data-total-job-results="${total}" data-records-per-page="15"><div id="search-results-list"><meta data-show-saved="True"><ul>${rows.map(n=>`<li><a data-job-id="${100+n}" href="${url(n)}"><h2>${title(n)}</h2><span class="job-location">中国南宁</span></a></li>`).join('')}</ul><nav><input class="pagination-current" value="${current}" max="${pageCount}"><a class="next${disabled?' disabled':''}">下一页</a></nav></div></section>`;
+    const html=`<section id="search-results" data-location="中国" data-keywords="" data-location-path="1814991" data-organization-ids="2649" data-current-page="${current}" data-total-pages="${pageCount}" data-total-job-results="${total}" data-records-per-page="15"><div id="search-results-list"><meta data-show-saved="True"><ul>${rows.map(n=>`<li><button class="js-save-job-btn" data-job-id="${100+n}"></button><a data-job-id="${100+n}" href="${url(n)}"><h2>${title(n)}</h2><span class="job-location">中国南宁</span></a></li>`).join('')}</ul><nav><input class="pagination-current" value="${current}" max="${pageCount}"><a class="next${disabled?' disabled':''}">下一页</a></nav></div></section>`;
     return {waitFor:async()=>{},evaluate:async callback=>callback({outerHTML:html,
      getAttribute:()=>String(total),querySelectorAll:()=>rows,
      querySelector:()=>({classList:{contains:()=>disabled}})})};
@@ -57,6 +57,29 @@ test('Sanofi follows the declared 26-page list and replay still rejects incomple
  }});
  const replay=replaySanofiChineseIndependent(captured.pages);
  assert.equal(replay.rawCount,total);assert.equal(replay.matchKeys.length,total);
+ const plan=(await loadDirectPlans()).find(p=>p.sourceId==='source-sanofi-china-social').plan;
+ const planHash=sourcePlanConfigSha256(plan);
+ for(const missingLastRow of [false,true]){
+  const listCalls=[];
+  const fetched=await createSanofiChineseSourceFetch({http:async request=>{
+   const requestUrl=new URL(request.url),isEntry=request.url===SANOFI_CN_ENTRY;
+   let body=bodies.get(request.url),contentType='text/html';
+   if(isEntry||requestUrl.pathname==='/search-jobs/results'){
+    const page=isEntry?1:Number(requestUrl.searchParams.get('CurrentPage'));listCalls.push(page);
+    assert.ok(page>=1&&page<=pageCount,'Only source-declared list pages are requested');
+    let html=dom.pages[page-1].searchResultsHtml.replace('id="search-results"','id="search-results" data-ajax-url="/search-jobs/results" data-active-facet-id="0"');
+    if(missingLastRow&&page===pageCount)html=html.replace(/<li>[\s\S]*?<\/li>/u,'');
+    body=isEntry?html+'<div id="search-filters"></div>':JSON.stringify({results:html,filters:'<section id="search-filters"><input class="filter-checkbox"></section>',hasJobs:true,hasContent:false});
+    if(!isEntry)contentType='application/json';
+   }
+   assert.equal(typeof body,'string');
+   return {status:200,finalUrl:request.url,contentType,body,capturedAt:new Date().toISOString()};
+  }})(plan);
+  assert.equal(fetched.ok,!missingLastRow,fetched.failureReason);
+  assert.deepEqual(listCalls,Array.from({length:pageCount},(_,i)=>i+1));
+  if(!missingLastRow)assert.equal(replaySanofiChineseNative(plan,fetched.fetchEvidence,false).jobs.length,total);
+ }
+ assert.equal(sourcePlanConfigSha256(plan),planHash,'The source plan and its persisted binding remain unchanged');
  for(const mutate of [
   value=>value.pages.pop(),
   value=>{value.pages[1].searchResultsHtml=value.pages[1].searchResultsHtml.replaceAll('data-job-id="116"','data-job-id="101"').replaceAll('/3036/116','/3036/101');},
