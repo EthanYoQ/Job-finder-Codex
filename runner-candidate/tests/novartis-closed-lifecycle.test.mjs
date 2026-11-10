@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdir, mkdtemp, rm} from 'node:fs/promises';
+import {mkdir, mkdtemp, readFile, rm} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
 import {candidateCompanies} from '../src/data/companyRegistry.ts';
@@ -18,7 +18,9 @@ import {identityForSource} from '../scripts/direct-round.ts';
 import {memoryDb} from './memory-db.mjs';
 import {selectPortableSourceSnapshots, projectPortableSourceJobs} from '../../web-candidate/src/domain/portablePublicSnapshot.ts';
 
-for (const scenario of ['same', 'renamed', 'open-rename']) test(scenario === 'open-rename'
+for (const scenario of ['same', 'renamed', 'open-rename', 'exhausted']) test(scenario === 'exhausted'
+  ? 'Novartis exhausted supplemental discovery keeps previously visible absent jobs'
+  : scenario === 'open-rename'
   ? 'Novartis current renamed REQ replaces its old URL while unrelated UNKNOWN stays in grace'
   : `Novartis ${scenario} URL closure persists before later unidentified discovery`, async () => {
   const cache = fileURLToPath(new URL('../../.runtime/.cache/', import.meta.url));
@@ -26,6 +28,7 @@ for (const scenario of ['same', 'renamed', 'open-rename']) test(scenario === 'op
   const workspaceRoot = await mkdtemp(join(cache, 'novartis-closed-'));
   const originalFetch = globalThis.fetch;
   const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(p => p.source.id === 'source-novartis-social');
+  const exhausted = scenario === 'exhausted' ? JSON.parse(await readFile(new URL('./fixtures/novartis-default-exhausted-page.json', import.meta.url), 'utf8')) : null;
   const ids = ['REQ-10000001', 'REQ-10000002', 'REQ-10000003', ...(scenario === 'open-rename' ? ['REQ-10000004'] : [])];
   let mode = 'present';
   const url = id => `https://www.novartis.com.cn/careers/career-search/job/details/${id.toLowerCase()}-${scenario !== 'same' && ['closed', 'renamed'].includes(mode) && id === ids[2] ? 'renamed' : 'original'}`;
@@ -44,6 +47,11 @@ for (const scenario of ['same', 'renamed', 'open-rename']) test(scenario === 'op
       const id = ids.slice(2).find(id => target.href === url(id));
       assert.ok(id, target.href);
       body = `<h1>Job ${id}</h1><article>Job ID ${id}<p>${mode === 'closed' ? 'This job is no longer available' : 'A real substantive job description for this identity.'}</p>${['present', 'renamed'].includes(mode) ? `<a href="https://platform.moseeker.com/m/customize/page/novartis?job_number=${id}">Apply to Job</a>` : ''}</article>`;
+    } else if (mode === 'exhausted') {
+      const index = Number(target.searchParams.get('page') ?? 0), next = new URL(target);
+      next.searchParams.set('page', String(index + 1));
+      body = index === exhausted.requestedPageIndex ? exhausted.html
+        : page(ids.slice(0, 2).map(row)).replace('Showing 2 results', 'Showing 463 results') + `<nav class="pagination"><li class="active"><span class="page-link" title="page ${index + 1} 活跃 out of 47 pages"></span></li><a rel="next" href="${next.href}">Next</a></nav>`;
     } else {
       body = page([...(mode === 'unknown' ? ids.slice(0, 2) : mode === 'renamed' ? ids.slice(0, 3) : ids).map(row), ...(mode === 'present' ? [] : [unidentified])]);
     }
@@ -75,6 +83,19 @@ for (const scenario of ['same', 'renamed', 'open-rename']) test(scenario === 'op
       missingSuccessfulCrawlCount: 0, firstSeenAt: beforeFloor, lastSeenAt: beforeFloor};
     const firstAcceptedCurrentPolicyReceipt = {receipt: prior.admission.receipt, receiptSha256: prior.admission.receiptSha256,
       expectedBinding: prior.admission.receipt.binding};
+    if (scenario === 'exhausted') {
+      mode = 'exhausted';
+      const current = await capture();
+      assert.equal(replayNovartisNativePartitions(plan, current.result.fetchEvidence).unboundUnknown, true);
+      const publication = buildSourceQualityJobCommands({plan, ...current, previousJobs: [previous],
+        firstAcceptedCurrentPolicyReceipt, baselineCompletedBeforeCrawl: true});
+      const held = publication.jobCommands.find(command => command.dedupeKey === previous.dedupeKey);
+      assert.ok(held);
+      assert.equal(held.lifecycleStatus, 'ACTIVE');assert.equal(held.visibleInFrontend, true);
+      assert.equal(held.lastSeenAt, floor);assert.equal(held.record.officialUrl, record.officialUrl);
+      assert.equal(publication.jobCommands.filter(command => command.lifecycleStatus === 'ACTIVE').length, 3);
+      return;
+    }
     if (scenario === 'open-rename') {
       const unrelatedRecord = prior.result.jobs.find(job => job.officialUrl === url(ids[3]));
       assert.ok(unrelatedRecord);

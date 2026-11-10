@@ -29,3 +29,4 @@ jobs:
         run: ln -s runner-candidate/node_modules node_modules
       - run: npm exec -- prisma generate
       - run: npm run test:publication
+      - run: node --import tsx --test ../pipeline/frequency.test.mjs ../pipeline/round-scope.test.mjs

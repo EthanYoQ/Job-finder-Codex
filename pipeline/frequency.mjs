@@ -16,7 +16,7 @@ export function stableThreeDays(records, now, sourceIds, recovery) {
       const slot=Date.parse(`${day}T${clock}+08:00`);
       if(!records.some(row=>Number(row.slot)===slot && row.kind==='live' && row.trigger==='timer' &&
           Number.isFinite(Date.parse(row.verifiedAt)) && Date.parse(row.verifiedAt)>=slot && chinaDay(Date.parse(row.verifiedAt))===day &&
-          row.complete===true && row.quarantinedJobCount===0 && row.webReadback===true && row.capturedSourceIds?.length===36 &&
+          row.complete===true && row.quarantinedJobCount===0 && row.unresolvedCoverage!==true && row.webReadback===true && row.capturedSourceIds?.length===36 &&
           new Set(row.capturedSourceIds).size===36 && sourceIds.every(id=>row.capturedSourceIds.includes(id))))return null;
     }
   }
