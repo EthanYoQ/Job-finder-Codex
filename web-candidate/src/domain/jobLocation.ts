@@ -161,6 +161,9 @@ const VERIFIED_DETAIL_LOCATIONS: Readonly<Record<string, readonly string[]>> = {
   "source-merck-china-social|https://careers.emdgroup.com/us/en/job/305134": ["无锡"]
 };
 const CHINA = /^(?:中国大陆|中国|中华人民共和国|China|CN|CHN)$/iu;
+const NOVO_TITLE_CORROBORATED_CITIES = new Map([
+  ["longnan", "陇南"], ["xianning", "咸宁"], ["qiqihaer", "齐齐哈尔"]
+]);
 
 const PREFECTURE_LABELS = new Map([
   ["恩施土家族苗族自治州", "恩施"], ["黔西南布依族苗族自治州", "黔西南"],
@@ -320,12 +323,20 @@ export function resolvedPublishedJobCities(job: PublishedJobLocation): string[] 
     if (raw === "下城区（旧）" && titleCities.includes("杭州")) return ["杭州"];
   }
   if (province && titleCities.length && titleCities.every(city => publishedCityProvince(city) === province)) return titleCities;
-  if (sourceId === "source-novo-nordisk-china-social" && /^China,\s*Longnan$/iu.test(raw) && titleCities.includes("陇南")) return ["陇南"];
-  if (sourceId === "source-amgen-china-social") return raw === "China - Harbin" ? ["哈尔滨"] : [];
-  if (sourceId === "source-organon-china-social" && /^(?:Taiyuan, Shanxi|Zhengzhou, Henan), China$/iu.test(raw)) {
-    return rawPublishedCities(raw, /\s*\|\s*/u);
+  if (sourceId === "source-novo-nordisk-china-social") {
+    const alias = /^China,\s*([a-z]+)$/iu.exec(raw)?.[1]?.toLowerCase();
+    const city = alias && NOVO_TITLE_CORROBORATED_CITIES.get(alias);
+    if (city && titleCities.includes(city)) return [city];
   }
-  if (sourceId === "source-astrazeneca-social" || sourceId === "source-organon-china-social") return [];
+  if (sourceId === "source-amgen-china-social") return raw === "China - Harbin" ? ["哈尔滨"] : [];
+  if (sourceId === "source-organon-china-social") {
+    const verifiedNanchang = raw === "Nanchang, Jiangxi, China" &&
+      job.officialUrl === "https://organon.wd5.myworkdayjobs.com/SearchJobs/job/CHN---Jiangxi---Nanchang/Sr-Pharmaceutical-Info-Specialist_R543217-2/apply";
+    return verifiedNanchang || /^(?:Taiyuan, Shanxi|Zhengzhou, Henan), China$/iu.test(raw)
+      ? rawPublishedCities(raw, /\s*\|\s*/u)
+      : [];
+  }
+  if (sourceId === "source-astrazeneca-social") return [];
   if (sourceId === "source-abbvie-china-social" && !/^(?:deyang,\s*sichuan|puyang,\s*henan)$/iu.test(raw)) return [];
   if (sourceId === "source-viatris-social" && raw === "大连-沙河口区" && titleCities.includes("大连")) return ["大连"];
   if (sourceId === "source-roche-china-social") {
