@@ -63,6 +63,17 @@ const VERIFIED_JOB_EVIDENCE: readonly VerifiedJobEvidence[] = [
     department: "生产/工程",
     responsibilities: { category: "生产/工程", subcategory: "MSAT 技术转移" }
   },
+  {
+    sourceId: "source-merck-china-social",
+    requisitionId: "299857",
+    responsibilities: { category: "市场", subcategory: "品牌市场" }
+  },
+  {
+    sourceId: "source-takeda-china-social",
+    requisitionId: "101034777968",
+    department: "研发/科学",
+    responsibilities: { category: "研发/科学", subcategory: "转化医学" }
+  },
   ...SANOFI_SALES_REQUISITIONS.map((requisitionId): VerifiedJobEvidence => ({
     sourceId: "source-sanofi-china-social",
     requisitionId,
@@ -117,6 +128,12 @@ function nativeRequisitionId(sourceId: string, officialUrl: string): string | un
   }
   if (sourceId === "source-roche-china-social" && url.origin === "https://roche.wd3.myworkdayjobs.com") {
     return /^\/(?:[a-z]{2}-[A-Z]{2}\/)?roche-ext\/job\/[^/]+\/[^/]+_(\d{6}-\d+)(?:\/apply)?\/?$/.exec(url.pathname)?.[1];
+  }
+  if (sourceId === "source-merck-china-social" && url.origin === "https://careers.emdgroup.com") {
+    return /^\/us\/en\/job\/(\d+)(?:\/[^/]+)?\/?$/.exec(url.pathname)?.[1];
+  }
+  if (sourceId === "source-takeda-china-social" && url.origin === "https://jobs.takeda.com") {
+    return /^\/job\/[^/]+\/[^/]+\/1113\/(\d+)\/?$/.exec(url.pathname)?.[1];
   }
   if (sourceId === "source-novartis-social" && url.origin === "https://www.novartis.com.cn") {
     return /^\/careers\/career-search\/job\/details\/(req-\d+)-[^/]+\/?$/i.exec(url.pathname)?.[1]?.toUpperCase();

@@ -100,6 +100,18 @@ test("verified departments and duties apply to the matching requisition only", (
       officialUrl: "https://example.com/ats/job-detail-new/13537/R2877042/c/",
       expected: ["其他", undefined],
     },
+    ...["299857", "999999"].map((id) => ({
+      id, sourceId: "source-merck-china-social", category: "其他",
+      officialTitle: "(高级)产品经理",
+      officialUrl: `https://careers.emdgroup.com/us/en/job/${id}`,
+      expected: id === "299857" ? ["市场", "品牌市场"] : ["其他", undefined],
+    })),
+    ...["101034777968", "999999999999"].map((id) => ({
+      id, sourceId: "source-takeda-china-social", category: "其他",
+      officialTitle: "China Biomarker Lead",
+      officialUrl: `https://jobs.takeda.com/job/shanghai/china-biomarker-lead/1113/${id}`,
+      expected: id === "101034777968" ? ["研发/科学", "转化医学"] : ["其他", undefined],
+    })),
     ...[
       ["10090075", "Head of GBA Strategy & Operation", "head-gba-strategy-operation", "职能"],
       ["10090555", "Capability Building Manager - Area", "capability-building-manager-area", "销售"],
@@ -128,6 +140,8 @@ test("verified departments and duties apply to the matching requisition only", (
   assert.equal(search(["医药销售"]).totalJobs, 7);
   assert.equal(search(["医学事务"]).totalJobs, 0);
   assert.equal(search(["MSAT 技术转移"]).totalJobs, 1);
+  assert.equal(search(["品牌市场"]).totalJobs, 1);
+  assert.equal(search(["转化医学"]).totalJobs, 1);
 });
 
 test("province and city filters share the same geography for published AbbVie locations", () => {
@@ -257,4 +271,29 @@ test("reviewed work cities override ATS office locations without duplicating a r
   assert(query("四川", "成都").companies[0].jobs.some(job => job.id === "6"));
   assert.equal(query("福建", "福州").companies[0].jobs[0].id, "3");
   assert(query("湖北", "武汉").companies[0].jobs.some(job => job.id === "3"));
+});
+
+test("noon locations require corroborated evidence before resolving saved jobs", () => {
+  const novo = "source-novo-nordisk-china-social";
+  const organon = "source-organon-china-social";
+  const nanchangUrl = "https://organon.wd5.myworkdayjobs.com/SearchJobs/job/CHN---Jiangxi---Nanchang/Sr-Pharmaceutical-Info-Specialist_R543217-2/apply";
+  const locations = [
+    [novo, "医药代表-咸宁", "China, Xianning", "", "湖北", "咸宁"],
+    [novo, "医药代表-齐齐哈尔", "China, Qiqihaer", "", "黑龙江", "齐齐哈尔"],
+    [organon, "Sr. Pharmaceutical Info Specialist", "Nanchang, Jiangxi, China", nanchangUrl, "江西", "南昌"],
+    [novo, "医药代表-朝阳", "China, Chaoyang", "", "全部地区", "城市待核"],
+    [novo, "医药代表-齐齐哈尔", "China, Xianning", "", "全部地区", "城市待核"],
+    [organon, "Sr. Pharmaceutical Info Specialist", "Nanchang, Jiangxi, China", "", "江西", "城市待核"],
+    [organon, "Sr. Pharmaceutical Info Specialist", "Nanchang, Shanxi, China", nanchangUrl, "全部地区", "城市待核"],
+  ];
+  const jobs = locations.map(([sourceId, officialTitle, locationRaw, officialUrl], id) => ({
+    ...oldJobs[0], id: String(id), sourceId, officialTitle, locationRaw, officialUrl, city: "城市待核", cities: ["城市待核"],
+  }));
+  const saved = { ...snapshot, companies: [{ ...snapshot.companies[0], jobs }] };
+  for (const [id, [, , locationRaw, , province, city]] of locations.entries()) {
+    const result = searchPortableSnapshot({ province, city }, saved);
+    const job = result.companies.flatMap(company => company.jobs).find(job => job.id === String(id));
+    assert.deepEqual(job?.cities, [city]);
+    assert.equal(job.locationRaw, locationRaw);
+  }
 });
