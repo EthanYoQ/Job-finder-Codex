@@ -22,7 +22,7 @@ test('empty, duplicate and unknown selections fail before migration state or DB 
   }
 });
 
-function database(acceptedIds,held=0) {
+function database(acceptedIds,held=0,unresolved=false) {
   return {crawlBatchSourceResult:{findMany:async query=>{
     assert.deepEqual(query.where.sourceId.in,sourceIds);
     assert.equal(query.where.releaseCandidateId,'instabox-test');
@@ -30,7 +30,8 @@ function database(acceptedIds,held=0) {
     assert.equal(query.where.completenessState,'VERIFIED');
     assert.equal(query.where.finishedAt.gte.toISOString(),'2026-10-31T04:01:00.000Z');
     assert.equal(query.where.finishedAt.lt.toISOString(),'2026-10-31T16:01:00.000Z');
-    return acceptedIds.map((sourceId,index)=>({sourceId,batchId:`batch-${sourceId}`,_count:{lossLedgerEntries:index===0?held:0}}));
+    assert.equal(query.select._count.select.evidenceArtifacts.where.extractorLocator,'novartis-default-discovery-exhausted');
+    return acceptedIds.map((sourceId,index)=>({sourceId,batchId:`batch-${sourceId}`,_count:{lossLedgerEntries:index===0?held:0,evidenceArtifacts:Number(unresolved&&sourceId==='source-novartis-social')}}));
   }}};
 }
 
@@ -43,6 +44,10 @@ test('three successful retries never reduce the 36-source completion denominator
   const full=await readRoundCoverage(database(sourceIds),'instabox-test',slot,sourceIds,results);
   assert.equal(full.complete,true);assert.equal(full.capturedSources.length,36);
   assert.equal(full.quarantinedJobCount,0);
+  const unresolved=await readRoundCoverage(database(sourceIds,0,true),'instabox-test',slot,sourceIds,results);
+  assert.equal(unresolved.complete,true);
+  assert.equal(unresolved.unresolvedCoverage,true);
+  assert.equal(unresolved.quarantinedJobCount,0);
   const isolated=await readRoundCoverage(database(sourceIds,2),'instabox-test',slot,sourceIds,results);
   assert.equal(isolated.complete,true);assert.equal(isolated.quarantinedJobCount,2);
   assert.equal((await readRoundCoverage(database(sourceIds),'instabox-test',slot,sourceIds,[{status:'FAILED'}])).complete,false);

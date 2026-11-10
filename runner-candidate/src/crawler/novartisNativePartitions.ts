@@ -12,9 +12,10 @@ import { evaluatePaginationEvidence } from "./paginationEvidence";
 import { retryableHttpTransportFailure, retryableTransportFailureFromError, type SourceTransportFailure } from "./sourceFetchFailure";
 
 const ORIGIN = "https://www.novartis.com.cn", PATH = "/careers/career-search";
-export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"9" };
+export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"10" };
 export const NOVARTIS_PARTITION_PAGINATION = { allowCompleteTraversalOfEmptyFirstPage:true,...JOB_QUARANTINE_PAGINATION } as const;
 const FAIL = "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE", AUDIT = "novartis-partitions-audit";
+export const NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR = "novartis-default-discovery-exhausted";
 const clean = (s:string) => s.replace(/\s+/gu," ").trim();
 const body = (a:SourceFetchArtifactDraft) => typeof a.body === "string" ? a.body : Buffer.from(a.body).toString("utf8");
 const hash = (s:string) => sha256Bytes(Buffer.from(s)).sha256;
@@ -65,18 +66,24 @@ function artifactOk(a:SourceFetchArtifactDraft,url:string,role:string) {
   requireValue(a.requestedUrl&&a.finalUrl&&sameUrl(a.requestedUrl,url)&&sameUrl(a.finalUrl,url)&&a.httpStatus===200&&
     /^text\/html(?:;|$)/iu.test(a.contentType??"")&&a.extractorLocator===role&&a.bodyRepresentation!=="REDACTED"&&!a.rawBodySha256&&!a.redactionDescriptors);
 }
-function parsedPage(a:SourceFetchArtifactDraft,url:string,page:number,role:string) {
-  artifactOk(a,url,role);const html=body(a),$=load(html),rs=listRows(html,url),count=total(html);
-  requireValue(rs.length<=10&&(count===0||rs.length>0));
+function parsedPage(a:SourceFetchArtifactDraft,url:string,page:number,role:string,allowDefaultExhaustion=false) {
+  artifactOk(a,url,role);const html=body(a),$=load(html),count=total(html);
   const active=$(".pagination .active .page-link[title]"),next=$(".pagination a[rel=next]");
-  if(count<=10&&!$(".pagination").length){requireValue(page===0&&rs.length===count);return {rows:rs,count,pages:1,next:null as string|null};}
   const m=/^page\s+(\d+)\s+.*out of\s+(\d+)\s+pages$/iu.exec(clean(active.attr("title")??""));
+  const discovery=role==="novartis-partition-default-discovery-v1";
+  const disabled=next.hasClass("disabled")||next.parent().hasClass("disabled")||next.attr("aria-disabled")==="true";
+  const href=next.attr("href"),empty=$("table.views-table tbody tr");
+  if(allowDefaultExhaustion&&discovery&&empty.length===1&&empty.find('td.empty.message').length===1&&clean(empty.text())==='No content has been found.'&&count>0){
+    // A bound Next can become out of range while the supplemental default list changes.
+    requireValue(page>0&&page===Math.ceil(count/10)&&active.length===1&&m&&Number(m[1])===page&&Number(m[2])===page+1&&next.length===1&&disabled&&href==='');
+    return {rows:[] as Row[],count,pages:Number(m[2]),next:null as string|null,unboundUnknown:true};
+  }
+  const rs=listRows(html,url);requireValue(rs.length<=10&&(count===0||rs.length>0));
+  if(count<=10&&!$(".pagination").length){requireValue(page===0&&rs.length===count);return {rows:rs,count,pages:1,next:null as string|null};}
   requireValue(active.length===1&&m&&Number(m[1])===page+1&&next.length===1);
   const pages=Number(m[2]);requireValue(page<pages);
-  const discovery=role==="novartis-partition-default-discovery-v1";
   if(!discovery)requireValue(pages===Math.max(1,Math.ceil(count/10)));
-  const disabled=next.hasClass("disabled")||next.parent().hasClass("disabled")||next.attr("aria-disabled")==="true";
-  const href=next.attr("href"),target=href?new URL(href,url).href:null;
+  const target=href?new URL(href,url).href:null;
   if(!discovery)requireValue(rs.length===Math.min(10,Math.max(0,count-page*10)));
   if(page+1===pages){requireValue(disabled&&(!target||sameUrl(target,url)));return {rows:rs,count,pages,next:null as string|null};}
   requireValue(!disabled&&target);const expected=new URL(url);expected.searchParams.set("page",String(page+1));requireValue(sameUrl(target,expected.href));
@@ -108,7 +115,7 @@ function readRoot(plan:SourceCrawlPlan,root:SourceFetchArtifactDraft):{total:num
 function finalPartitionSort(field:string, siteForSales:boolean) {
   return siteForSales && field==="FCT_SA" ? {order:"站点",prefix:"site-"} : {order:"职位名称",prefix:"title-"};
 }
-function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],order:string,allowReverse=false,allowFinalSort=false,siteForSales=false) {
+function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],order:string,allowReverse=false,allowFinalSort=false,siteForSales=false,allowDefaultExhaustion=false) {
   requireValue(hasNovartisOfficialPresencePlan(plan));const approved=new URL(partitionUrl("FCT_QA"));approved.searchParams.delete("functional_area[0]");requireValue(sameUrl(plan.source.officialEntryUrl,approved.href));const used=new Set<string>();let last=-Infinity;
   const take=(key:string,url:string,role:string)=>{const found=artifacts.filter(a=>a.logicalKey===key);requireValue(found.length===1);const a=found[0]!;
     requireValue(Number.isFinite(Date.parse(a.capturedAt))&&Date.parse(a.capturedAt)>=last);last=Date.parse(a.capturedAt);used.add(key);
@@ -144,10 +151,10 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],or
     partitionAudit.push({field,declaredTotal:traversal.counts[0],uniqueCount:traversal.own.length,...(discarded?{discardedAscending:discarded,selectedSort:"desc"}:{}),...(discardedReverse?{[order==="发布日期"?"discardedDateReverse":"discardedLocationReverse"]:discardedReverse,selectedOrder:finalSort.order,selectedSort:"asc"}:{})});rows.push(...traversal.own);
   }
   requireValue(new Set(rows.map(r=>r.id)).size===rows.length);
-  const primaryIds=new Set(rows.map(r=>r.id)),defaults=new Map<string,Row>(),defaultTotals:number[]=[];let url=NOVARTIS_DEFAULT_ENTRY,terminal=false;
+  const primaryIds=new Set(rows.map(r=>r.id)),defaults=new Map<string,Row>(),defaultTotals:number[]=[];let url=NOVARTIS_DEFAULT_ENTRY,terminal=false,defaultUnboundUnknown=false;
   // Default is discovery only. Its varying totals and repeated rows never certify a missing job.
   for(let p=0;p<100;p++){const a=take(`novartis-partitions-default-${p}`,url,"novartis-partition-default-discovery-v1");
-    const parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1");defaultTotals.push(parsed.count);
+    const parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1",allowDefaultExhaustion);defaultTotals.push(parsed.count);defaultUnboundUnknown ||= parsed.unboundUnknown===true;
     for(const row of parsed.rows){const prev=defaults.get(row.id);requireValue(!prev||primaryIds.has(row.id)||prev.url===row.url);defaults.set(row.id,row);}
     if(!parsed.next){terminal=true;break;}url=parsed.next;}
   requireValue(terminal);const defaultObservedUniqueCount=defaults.size;
@@ -163,18 +170,19 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],or
   const audit={indexDeclaredTotal:indexTotal,primaryUniqueCount:primaryIds.size,partitions:partitionAudit,
     defaultObservedUniqueCount,defaultReportedTotals:defaultTotals,defaultCompletenessClaim:false,
     ...(defaults.size>defaultObservedUniqueCount?{additionalAscendingDiscoveryCount:defaults.size-defaultObservedUniqueCount}:{}),
-    differences,observedUniqueCount:rows.length,noOmissionVerified:indexTotal===primaryIds.size&&!differences.some(d=>d.status==="UNKNOWN"),
-    anomalyCodes:[...(indexTotal!==primaryIds.size?["NOVARTIS_ROOT_PARTITION_COUNT_MISMATCH"]:[]),...(differences.some(d=>d.status==="UNKNOWN")?["NOVARTIS_DEFAULT_DETAIL_UNKNOWN"]:[])]};
+    differences,observedUniqueCount:rows.length,noOmissionVerified:!defaultUnboundUnknown&&indexTotal===primaryIds.size&&!differences.some(d=>d.status==="UNKNOWN"),
+    anomalyCodes:[...(indexTotal!==primaryIds.size?["NOVARTIS_ROOT_PARTITION_COUNT_MISMATCH"]:[]),...(differences.some(d=>d.status==="UNKNOWN")?["NOVARTIS_DEFAULT_DETAIL_UNKNOWN"]:[]),...(defaultUnboundUnknown?["NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED"]:[])]};
   const losses=quarantines.map(q=>jobQuarantineLoss(q,artifacts.find(a=>a.logicalKey===pages[q.pageSequence]!.artifactLogicalKey)!.capturedAt));
-  return {unboundUnknown:differences.some(d=>d.status==='UNKNOWN'&&!d.officialUrl),html:`<table class="views-table"><tbody>${rows.filter(r=>!r.quarantined).map(r=>r.html).join("")}</tbody></table>`,pages,quarantines,losses,counts:{...counts(rows.length),validCount:rows.length-quarantines.length,validationDiscardCount:quarantines.length},audit,unknownUrls:new Set(differences.filter(d=>d.status==="UNKNOWN").map(d=>d.officialUrl)),closedUrls:new Set(differences.filter(d=>d.status==="EXPLICITLY_CLOSED").map(d=>d.officialUrl))};
+  return {unboundUnknown:defaultUnboundUnknown||differences.some(d=>d.status==='UNKNOWN'&&!d.officialUrl),html:`<table class="views-table"><tbody>${rows.filter(r=>!r.quarantined).map(r=>r.html).join("")}</tbody></table>`,pages,quarantines,losses,counts:{...counts(rows.length),validCount:rows.length-quarantines.length,validationDiscardCount:quarantines.length},audit,unknownUrls:new Set(differences.filter(d=>d.status==="UNKNOWN").map(d=>d.officialUrl)),closedUrls:new Set(differences.filter(d=>d.status==="EXPLICITLY_CLOSED").map(d=>d.officialUrl))};
 }
 export function hasNovartisPartitionEvidence(e:PersistentSourceFetchEvidence):boolean {return e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name;}
 export function replayNovartisNativePartitions(plan:SourceCrawlPlan,e:PersistentSourceFetchEvidence) {
   const version=e.captureTool.version;
-  requireValue(e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name&&["4","5","6","7","8","9"].includes(version));
-  const projected=projection(plan,e.artifacts,["8","9"].includes(version)?"发布日期":version==="4"?"职位名称":"站点",
-    ["6","7","8","9"].includes(version),["7","8","9"].includes(version),version==="9"),audit=e.artifacts.filter(a=>a.logicalKey===AUDIT);
-  requireValue(audit.length===1&&audit[0]!.kind==="COMMAND_OUTPUT"&&audit[0]!.extractorLocator===AUDIT&&same(JSON.parse(body(audit[0]!)),projected.audit)&&
+  requireValue(e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name&&["4","5","6","7","8","9","10"].includes(version));
+  const projected=projection(plan,e.artifacts,["8","9","10"].includes(version)?"发布日期":version==="4"?"职位名称":"站点",
+    ["6","7","8","9","10"].includes(version),["7","8","9","10"].includes(version),["9","10"].includes(version),version==="10"),audit=e.artifacts.filter(a=>a.logicalKey===AUDIT);
+  const locator=projected.audit.anomalyCodes.includes("NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED")?NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR:AUDIT;
+  requireValue(audit.length===1&&audit[0]!.kind==="COMMAND_OUTPUT"&&audit[0]!.extractorLocator===locator&&same(JSON.parse(body(audit[0]!)),projected.audit)&&
     same(e.pages,projected.pages)&&same(e.fetchCounts,projected.counts)&&same(e.fetchLosses,projected.losses)&&same(e.jobQuarantines??[],projected.quarantines)&&same(e.declaredCompleteness,{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,
       scope:"SOURCE",artifactLogicalKey:"novartis-partitions-root",extractorLocator:"novartis-native-partition-root-v1"}));
   return projected;
@@ -207,7 +215,7 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
       requireValue(traversal.closed);for(const row of traversal.own)primary.add(row.id);
     }
     const defaults=new Map<string,Row>();let url=NOVARTIS_DEFAULT_ENTRY;
-    for(let p=0;p<100;p++){const a=await capture(url,`novartis-partitions-default-${p}`,"novartis-partition-default-discovery-v1"),parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1");for(const row of parsed.rows)defaults.set(row.id,row);if(!parsed.next)break;url=parsed.next;}
+    for(let p=0;p<100;p++){const a=await capture(url,`novartis-partitions-default-${p}`,"novartis-partition-default-discovery-v1"),parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1",true);for(const row of parsed.rows)defaults.set(row.id,row);if(!parsed.next)break;url=parsed.next;}
     for(const row of ascendingDiscoveries.values())if(!primary.has(row.id)&&!defaults.has(row.id))defaults.set(row.id,row);
     let detailsBlocked=false;
     for(const row of [...defaults.values()].filter(r=>!primary.has(r.id)&&!r.quarantined).sort((a,b)=>a.id.localeCompare(b.id))){
@@ -216,7 +224,9 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
       catch{const prior=artifacts.find(a=>a.logicalKey===key);if(prior?.httpStatus===403||prior?.httpStatus===429)detailsBlocked=true;
         if(!prior)artifacts.push({id:key,logicalKey:key,kind:'COMMAND_OUTPUT',requestedUrl:sanitizeEvidenceHttpUrl(row.url),capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify({kind:'NOVARTIS_DETAIL_UNAVAILABLE',expectedUrl:row.url}),bodyRepresentation:'EXACT',extractorLocator:'novartis-partition-same-id-detail-v1'});}
     }
-    const projected=projection(plan,artifacts,"发布日期",true,true,true);artifacts.push({id:AUDIT,logicalKey:AUDIT,kind:"COMMAND_OUTPUT",capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify(projected.audit),bodyRepresentation:"EXACT",extractorLocator:AUDIT});
+    const projected=projection(plan,artifacts,"发布日期",true,true,true,true);
+    const locator=projected.audit.anomalyCodes.includes("NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED")?NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR:AUDIT;
+    artifacts.push({id:AUDIT,logicalKey:AUDIT,kind:"COMMAND_OUTPUT",capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify(projected.audit),bodyRepresentation:"EXACT",extractorLocator:locator});
     const evidence=parsePersistentSourceFetchEvidence({captureTool:NOVARTIS_PARTITION_CAPTURE,artifacts,pages:projected.pages,fetchCounts:projected.counts,fetchLosses:projected.losses,...(projected.quarantines.length?{jobQuarantines:projected.quarantines}:{}),declaredCompleteness:{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,scope:"SOURCE",artifactLogicalKey:"novartis-partitions-root",extractorLocator:"novartis-native-partition-root-v1"}});
     const paginationEvaluation=evaluatePaginationEvidence({evidence,expectedChannelIds:[...new Set(projected.pages.map(p=>p.channelId!))],filteredOutput:true,...NOVARTIS_PARTITION_PAGINATION});requireValue(paginationEvaluation.safeCompleteness&&paginationEvaluation.verifiedEligible);
     return {ok:true,capturedAt,html:projected.html,fetchEvidence:evidence,paginationEvaluation};

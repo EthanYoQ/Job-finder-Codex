@@ -46,8 +46,8 @@ try {
   await savePublicSnapshot(snapshotFile, snapshot);
   const slot = process.env.JOBFINDER_SLOT ?? null;
   // The DB retains accepted captures even if the worker died before writing latest.json.
-  const {complete,quarantinedJobCount,capturedSources} = await readRoundCoverage(db,candidateId,slot,sourceIds,results);
-  const receipt = {status:"SNAPSHOT_SAVED", slot, complete, quarantinedJobCount, snapshotFile, sha256, bytes:bytes.length,
+  const {complete,quarantinedJobCount,unresolvedCoverage,capturedSources} = await readRoundCoverage(db,candidateId,slot,sourceIds,results);
+  const receipt = {status:"SNAPSHOT_SAVED", slot, complete, quarantinedJobCount, unresolvedCoverage, snapshotFile, sha256, bytes:bytes.length,
     generatedAt:snapshot.generatedAt, lastUpdatedAt:snapshot.lastUpdatedAt, totalJobs:snapshot.totalJobs,
     capturedSources,
     sources:results.map(row=>({sourceId:row.sourceId,status:row.status}))};
