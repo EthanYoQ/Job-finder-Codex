@@ -9,6 +9,7 @@ import { PrismaClient } from "@prisma/client";
 import { loadDirectPlans, runDirectRound } from "../runner-candidate/scripts/direct-round";
 import { readRoundCoverage } from "./round-coverage";
 import { recoverQueuedManualPreviews } from "./recover-manual";
+import { enrichSanofiPublicationClassification } from "./sanofi-publication-classification";
 import { describePortableRuntimeError } from "../runner-candidate/src/crawler/portableRuntimeDiagnostics";
 import { readPortablePublicSnapshot } from "../web-candidate/src/db/portablePublicSnapshotRepository";
 import { validateSavedSnapshot } from "../web-candidate/src/server/savedPublicSnapshot";
@@ -38,6 +39,8 @@ try {
   // Read the original transactional public projection, even when some sources failed.
   // It retains each source's last accepted publication and original observation times.
   const snapshot = validateSavedSnapshot(await readPortablePublicSnapshot(db as never));
+  const sanofiClassified = await enrichSanofiPublicationClassification(db, stateRoot, snapshot);
+  if (sanofiClassified) console.error(JSON.stringify({status:"SANOFI_SNAPSHOT_CLASSIFIED",count:sanofiClassified}));
   const bytes = Buffer.from(JSON.stringify(snapshot));
   const sha256 = createHash("sha256").update(bytes).digest("hex");
   const snapshots = join(stateRoot, "snapshots");

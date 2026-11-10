@@ -227,7 +227,8 @@ async function removeEmptyDirectory(directory: string): Promise<void> {
 }
 
 export async function verifyArchivedSourceEvidence(
-  request: VerifyArchivedEvidenceRequest
+  request: VerifyArchivedEvidenceRequest,
+  onVerified?: (artifact: ArchivedEvidenceArtifact, bytes: Buffer) => void
 ): Promise<ArchivedEvidenceArtifact[]> {
   validateTuple(request);
   const artifacts = validateArchivedEvidenceMetadata(request);
@@ -251,9 +252,11 @@ export async function verifyArchivedSourceEvidence(
     }
     const real = await realpath(absolutePath);
     assertBelow(rcRoot, real, "artifact real path");
-    const actual = sha256Bytes(await readFile(real));
+    const bytes = await readFile(real);
+    const actual = sha256Bytes(bytes);
     if (actual.byteCount !== artifact.byteCount) throw new Error(`artifact byte count mismatch: ${artifact.path}`);
     if (actual.sha256 !== artifact.sha256) throw new Error(`artifact SHA-256 mismatch: ${artifact.path}`);
+    onVerified?.(artifact, bytes);
   }
   return artifacts;
 }
