@@ -12,7 +12,7 @@ import {enrichSanofiPublicationClassification} from './sanofi-publication-classi
 const routes=await loadDirectPlans(),sourceIds=routes.map(row=>row.sourceId);
 const retryIds=['source-novo-nordisk-china-social','source-pfizer-china-social','source-sanofi-china-social'];
 const results=retryIds.map(sourceId=>({sourceId,status:'SUCCESS',failedSourceCount:0,blockedSourceCount:0}));
-const slot=String(Date.parse('2026-10-31T04:01:00Z'));
+const slot=String(Date.parse('2026-10-31T16:01:00Z'));
 
 test('one-off selection preserves the full default and excludes unrequested sources',()=>{
   assert.equal(selectDirectRoutes(routes).length,36);
@@ -34,8 +34,8 @@ function database(acceptedIds,held=0,unresolved=false) {
     assert.equal(query.where.releaseCandidateId,'instabox-test');
     assert.equal(query.where.atomicCommitState,'COMMITTED');
     assert.equal(query.where.completenessState,'VERIFIED');
-    assert.equal(query.where.finishedAt.gte.toISOString(),'2026-10-31T04:01:00.000Z');
-    assert.equal(query.where.finishedAt.lt.toISOString(),'2026-10-31T16:01:00.000Z');
+    assert.equal(query.where.finishedAt.gte.toISOString(),'2026-10-31T16:01:00.000Z');
+    assert.equal(query.where.finishedAt.lt.toISOString(),'2026-11-01T16:01:00.000Z');
     assert.equal(query.select._count.select.evidenceArtifacts.where.extractorLocator,'novartis-default-discovery-exhausted');
     return acceptedIds.map((sourceId,index)=>({sourceId,batchId:`batch-${sourceId}`,_count:{lossLedgerEntries:index===0?held:0,evidenceArtifacts:Number(unresolved&&sourceId==='source-novartis-social')}}));
   }}};

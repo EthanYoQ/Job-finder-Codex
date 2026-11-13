@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { installSavedSnapshot, validateSavedSnapshot } from "../web-candidate/src/server/savedPublicSnapshot";
 import { searchPortableSnapshot, coverageFromPortableSnapshot } from "../web-candidate/src/server/portablePublicationApi";
-import { slotAt, timerBelongsToSlot, isNoonSlot, stableThreeDays } from "./frequency.mjs";
+import { dailySlotMs, slotAt, timerBelongsToSlot } from "./frequency.mjs";
 import { startActivityLease } from "./activity-lease.mjs";
 
 const exec = promisify(execFile);
@@ -41,23 +41,19 @@ async function latest():Promise<Receipt|null> {
 async function refresh() {
   if(!target||!process.env.INSTABOX_API_KEY||!process.env.JOBFINDER_VERIFY_BASE_URL)throw Error("SNAPSHOT_PATH_KEY_AND_VERIFY_URL_REQUIRED");
   const stateFile=process.env.JOBFINDER_SCHEDULE_STATE_FILE??resolve(target)+".schedule.json";
-  let state:{dailySince?:string;qualifyingDays?:string[];timerSlots:string[];records:unknown[]}={timerSlots:[],records:[]};
+  let state:{timerSlots:string[];records:unknown[]}={timerSlots:[],records:[]};
   try {state=JSON.parse(await readFile(stateFile,"utf8"));}
   catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error;}
   const saveState=async()=>{await writeFile(stateFile+".tmp",JSON.stringify(state)+"\n",{mode:0o600});await rename(stateFile+".tmp",stateFile);};
   if(process.env.INVOCATION_ID)try {
     const trigger=await exec("systemctl",["show","jobfinder-refresh.timer","--property=LastTriggerUSec","--value"],{timeout:5000,env:{...process.env,LC_ALL:"C",TZ:"UTC"}});
     const triggeredAt=Date.parse(trigger.stdout.trim());
-    if(timerBelongsToSlot(triggeredAt,slot)&&!state.timerSlots.includes(slot)){
+    const legacyNoonSlot = String(Number(slot) + dailySlotMs / 2);
+    const legacyNoonTrigger = state.timerSlots.includes(legacyNoonSlot) && triggeredAt >= Number(legacyNoonSlot);
+    if(!legacyNoonTrigger&&timerBelongsToSlot(triggeredAt,slot)&&!state.timerSlots.includes(slot)){
       state.timerSlots.push(slot);await saveState();
     }
-  }catch{/* A manual/unverified trigger cannot count toward stable days. */}
-  let recovery=null;
-  if(process.env.JOBFINDER_RECOVERY_EVIDENCE)try{recovery=JSON.parse(await readFile(process.env.JOBFINDER_RECOVERY_EVIDENCE,"utf8"));}catch{}
-  const sourceIds=JSON.parse(await readFile(new URL("../runner-candidate/sources.json",import.meta.url),"utf8")).rows.map((row:{sourceId:string})=>row.sourceId);
-  const days=stableThreeDays(state.records,Date.now(),sourceIds,recovery);
-  if(!state.dailySince&&days){state.dailySince=new Date().toISOString();state.qualifyingDays=days;await saveState();}
-  if(state.dailySince&&isNoonSlot(slot)){console.log(JSON.stringify({status:"NOON_SKIPPED_AFTER_THREE_STABLE_DAYS",days:state.qualifyingDays}));return;}
+  }catch{/* An unverified trigger stays unattributed. */}
   // wake respects a manual stop/pause; it does not change lifetime/security settings.
   phase = "WAKE";
   await command(["wake",machine,"--json"]);
