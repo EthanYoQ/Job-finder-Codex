@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR } from "../runner-candidate/src/crawler/novartisNativePartitions";
+import { dailySlotMs } from "./frequency.mjs";
 
 /** Coverage always uses the full catalog, even when this invocation retries a subset. */
 export async function readRoundCoverage(db:Pick<PrismaClient,"crawlBatchSourceResult">,candidateId:string,slot:string|null,
@@ -7,7 +8,7 @@ export async function readRoundCoverage(db:Pick<PrismaClient,"crawlBatchSourceRe
   const accepted=slot?await db.crawlBatchSourceResult.findMany({where:{
     releaseCandidateId:candidateId,sourceId:{in:[...sourceIds]},
     atomicCommitState:"COMMITTED",completenessState:"VERIFIED",
-    finishedAt:{gte:new Date(Number(slot)),lt:new Date(Number(slot)+12*3600_000)},
+    finishedAt:{gte:new Date(Number(slot)),lt:new Date(Number(slot)+dailySlotMs)},
     batch:{is:{kind:"SCHEDULED",ownerId:"direct-scheduler"}}
   },select:{sourceId:true,batchId:true,_count:{select:{
     lossLedgerEntries:{where:{details:{path:['code'],equals:'JOB_QUARANTINED'}}},

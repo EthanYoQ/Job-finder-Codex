@@ -1,38 +1,25 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {slotAt,timerBelongsToSlot,isNoonSlot,stableThreeDays} from './frequency.mjs';
-const sources=Array.from({length:36},(_,i)=>`source-${i}`);
-const recovery={kind:'live',verifiedAt:'2026-10-27T10:00:00Z',checks:{wake:true,interruptedCommit:true,failedSourceKeepsLastGood:true,failedInstallKeepsLastGood:true,webRestart:true}};
-const records=['2026-10-28','2026-10-29','2026-10-30'].flatMap(day=>['00:01','12:01'].map(clock=>({
-  slot:String(Date.parse(`${day}T${clock}:00+08:00`)),verifiedAt:new Date(Date.parse(`${day}T${clock}:00+08:00`)+3600_000).toISOString(),
-  kind:'live',trigger:'timer',complete:true,quarantinedJobCount:0,webReadback:true,capturedSourceIds:sources
-})));
-test('slot boundaries follow Beijing midnight/noon at minute 01',()=>{
-  const midnight=Date.parse('2026-10-31T00:01:00+08:00');
-  assert.equal(slotAt(midnight-1),midnight-12*3600_000);
-  assert.equal(slotAt(midnight),midnight);
-  assert.equal(slotAt(midnight+12*3600_000),midnight+12*3600_000);
-  assert.equal(isNoonSlot(midnight),false);
-  assert.equal(isNoonSlot(midnight+12*3600_000),true);
+import {readFileSync} from 'node:fs';
+import {slotAt,timerBelongsToSlot} from './frequency.mjs';
+
+const midnight = Date.parse('2026-11-14T00:01:00+08:00');
+const next = Date.parse('2026-11-15T00:01:00+08:00');
+
+test('the timer and retry slots both use Beijing 00:01', () => {
+  const timer = readFileSync(new URL('./jobfinder-refresh.timer', import.meta.url), 'utf8');
+  assert.deepEqual(timer.match(/^OnCalendar=.*$/gm), ['OnCalendar=*-*-* 16:01:00 UTC']);
+  assert.equal(slotAt(midnight-1), Date.parse('2026-11-13T00:01:00+08:00'));
+  assert.equal(slotAt(midnight), midnight);
+  assert.equal(slotAt(Date.parse('2026-11-14T12:01:00+08:00')), midnight);
+  assert.equal(slotAt(next-1), midnight);
+  assert.equal(slotAt(next), next);
 });
-test('three completed consecutive calendar days qualify, partial current day does not',()=>{
-  assert.deepEqual(stableThreeDays(records,Date.parse('2026-10-31T00:00:00+08:00'),sources,recovery),['2026-10-28','2026-10-29','2026-10-30']);
-  assert.equal(stableThreeDays(records,Date.parse('2026-10-30T23:59:59+08:00'),sources,recovery),null);
-});
-test('real timer attribution survives recovery delay within its original slot',()=>{
-  const triggered=Date.parse('2026-11-06T00:01:01+08:00'),slot=String(slotAt(triggered));
-  for(const delay of [0,90_000,4*60_000,10*60_000])assert(timerBelongsToSlot(triggered,slot,triggered+delay));
-  assert.equal(timerBelongsToSlot(triggered-12*3600_000,slot,triggered),false);
-  assert.equal(timerBelongsToSlot(triggered,slotAt(triggered+12*3600_000),triggered+12*3600_000),false);
-  assert.equal(timerBelongsToSlot(triggered,slot,triggered-1),false);
-  assert.equal(timerBelongsToSlot(NaN,slot,triggered),false);
-});
-test('missing scope, manual/synthetic runs, failed readback and unverified recovery never lower frequency',()=>{
-  const now=Date.parse('2026-10-31T00:01:00+08:00');
-  for(const change of [{capturedSourceIds:sources.slice(1)},{trigger:'manual'},{kind:'synthetic'},{webReadback:false},{complete:false},{unresolvedCoverage:true},{quarantinedJobCount:1},{quarantinedJobCount:undefined},{verifiedAt:'2026-10-31T00:01:00+08:00'}]) {
-    assert.equal(stableThreeDays([{...records[0],...change},...records.slice(1)],now,sources,recovery),null);
-  }
-  assert.equal(stableThreeDays(records.slice(1),now,sources,recovery),null);
-  assert.equal(stableThreeDays(records,now,sources,{...recovery,kind:'synthetic'}),null);
-  assert.equal(stableThreeDays(records,now,sources,{...recovery,checks:{}}),null);
+
+test('a delayed retry retains the same timer provenance until the next daily slot', () => {
+  const triggered = midnight + 1_000;
+  assert.equal(timerBelongsToSlot(triggered, midnight, next-1), true);
+  assert.equal(timerBelongsToSlot(triggered, next, next), false);
+  assert.equal(timerBelongsToSlot(triggered, midnight, midnight), false);
+  assert.equal(timerBelongsToSlot(NaN, midnight, midnight), false);
 });

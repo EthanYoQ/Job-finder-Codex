@@ -26,7 +26,7 @@ for(const sourceId of sourceIds)test(`${sourceId} clearly uncommitted failure ca
 test('same-slot success stays deduplicated even after failures; previous-slot success does not block retries',()=>{
   const failures=Array.from({length:3},(_,index)=>({successful:false,crawledAt:new Date(`2026-10-31T04:0${index+7}:00Z`)}));
   assert.equal(isSourceDueForScheduledRun(toSourceScheduleState('s',[...failures,{successful:true,crawledAt:new Date('2026-10-31T04:04:00Z')}]),now),false);
-  assert.equal(isSourceDueForScheduledRun(toSourceScheduleState('s',[...failures,{successful:true,crawledAt:new Date('2026-10-31T03:59:00Z')}]),now),true);
+  assert.equal(isSourceDueForScheduledRun(toSourceScheduleState('s',[...failures,{successful:true,crawledAt:new Date('2026-10-30T16:00:00Z')}]),now),true);
 });
 
 test('allowing failed captures to retry does not bypass an unresolved new-runner write',async()=>{
