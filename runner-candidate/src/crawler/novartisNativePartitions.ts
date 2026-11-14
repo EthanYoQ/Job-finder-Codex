@@ -12,7 +12,7 @@ import { evaluatePaginationEvidence } from "./paginationEvidence";
 import { retryableHttpTransportFailure, retryableTransportFailureFromError, type SourceTransportFailure } from "./sourceFetchFailure";
 
 const ORIGIN = "https://www.novartis.com.cn", PATH = "/careers/career-search";
-export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"11" };
+export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"12" };
 export const NOVARTIS_PARTITION_PAGINATION = { allowCompleteTraversalOfEmptyFirstPage:true,...JOB_QUARANTINE_PAGINATION } as const;
 const FAIL = "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE", AUDIT = "novartis-partitions-audit";
 export const NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR = "novartis-default-discovery-exhausted";
@@ -179,10 +179,10 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],or
 export function hasNovartisPartitionEvidence(e:PersistentSourceFetchEvidence):boolean {return e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name;}
 export function replayNovartisNativePartitions(plan:SourceCrawlPlan,e:PersistentSourceFetchEvidence) {
   const version=e.captureTool.version;
-  requireValue(e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name&&["4","5","6","7","8","9","10","11"].includes(version));
+  requireValue(e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name&&["4","5","6","7","8","9","10","11","12"].includes(version));
   const schema=Number(version);
   const projected=projection(plan,e.artifacts,schema>=8?"发布日期":schema===4?"职位名称":"站点",
-    schema>=6,schema>=7,schema>=9,schema>=10,schema>=11),audit=e.artifacts.filter(a=>a.logicalKey===AUDIT);
+    schema>=6,schema>=7,schema>=9&&schema<=11,schema>=10,schema>=11),audit=e.artifacts.filter(a=>a.logicalKey===AUDIT);
   const locator=projected.audit.anomalyCodes.includes("NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED")?NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR:AUDIT;
   requireValue(audit.length===1&&audit[0]!.kind==="COMMAND_OUTPUT"&&audit[0]!.extractorLocator===locator&&same(JSON.parse(body(audit[0]!)),projected.audit)&&
     same(e.pages,projected.pages)&&same(e.fetchCounts,projected.counts)&&same(e.fetchLosses,projected.losses)&&same(e.jobQuarantines??[],projected.quarantines)&&same(e.declaredCompleteness,{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,
@@ -211,7 +211,7 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
       if(!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(nativePartitionSortUrl(first,field,"发布日期"),"reverse-");}
       if(!traversal.closed&&traversal.terminal){
         for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);
-        const finalSort=finalPartitionSort(field,true,true);
+        const finalSort=finalPartitionSort(field,false,true);
         traversal=await read(nativePartitionSortUrl(first,field,finalSort.order,"asc"),finalSort.prefix);
       }
       requireValue(traversal.closed);for(const row of traversal.own)primary.add(row.id);
@@ -226,7 +226,7 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
       catch{const prior=artifacts.find(a=>a.logicalKey===key);if(prior?.httpStatus===403||prior?.httpStatus===429)detailsBlocked=true;
         if(!prior)artifacts.push({id:key,logicalKey:key,kind:'COMMAND_OUTPUT',requestedUrl:sanitizeEvidenceHttpUrl(row.url),capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify({kind:'NOVARTIS_DETAIL_UNAVAILABLE',expectedUrl:row.url}),bodyRepresentation:'EXACT',extractorLocator:'novartis-partition-same-id-detail-v1'});}
     }
-    const projected=projection(plan,artifacts,"发布日期",true,true,true,true,true);
+    const projected=projection(plan,artifacts,"发布日期",true,true,false,true,true);
     const locator=projected.audit.anomalyCodes.includes("NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED")?NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR:AUDIT;
     artifacts.push({id:AUDIT,logicalKey:AUDIT,kind:"COMMAND_OUTPUT",capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify(projected.audit),bodyRepresentation:"EXACT",extractorLocator:locator});
     const evidence=parsePersistentSourceFetchEvidence({captureTool:NOVARTIS_PARTITION_CAPTURE,artifacts,pages:projected.pages,fetchCounts:projected.counts,fetchLosses:projected.losses,...(projected.quarantines.length?{jobQuarantines:projected.quarantines}:{}),declaredCompleteness:{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,scope:"SOURCE",artifactLogicalKey:"novartis-partitions-root",extractorLocator:"novartis-native-partition-root-v1"}});
