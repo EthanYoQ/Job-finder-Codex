@@ -86,7 +86,10 @@ const PUBLISHED_CITY_ALIASES = new Map(Object.entries({
   yibin: "宜宾", zigong: "自贡", dali: "大理", chifeng: "赤峰",
   baoji: "宝鸡", xianyang: "咸阳", chengde: "承德", liuzhou: "柳州", urumuqi: "乌鲁木齐", wulumuqi: "乌鲁木齐",
   tianjing: "天津", xian: "西安", "xi'an": "西安", wenzhou: "温州", bengbu: "蚌埠",
-  dongguan: "东莞", nanchong: "南充", neijiang: "内江", guangan: "广安"
+  dongguan: "东莞", nanchong: "南充", neijiang: "内江", guangan: "广安",
+  liaoyang: "辽阳", yangquan: "阳泉", luoyang: "洛阳", zhangjiakou: "张家口",
+  zhangjiagang: "张家港", fushun: "抚顺", kunshan: "昆山", jinzhong: "晋中",
+  panjin: "盘锦", qianxinan: "黔西南"
 }));
 for (const [label, city] of Object.entries(PFIZER_OFFICIAL_LOCALITIES)) {
   const name = /^China - [^-]+ - (.+)$/u.exec(label)?.[1];
@@ -158,7 +161,9 @@ function provinceLabel(value:string):string|null {
 const VERIFIED_DETAIL_LOCATIONS: Readonly<Record<string, readonly string[]>> = {
   "source-takeda-china-social|https://jobs.takeda.com/job/shanghai/china-biomarker-lead/1113/101034777968": ["上海", "北京"],
   "source-merck-china-social|https://careers.emdgroup.com/us/en/job/299857": ["上海", "北京"],
-  "source-merck-china-social|https://careers.emdgroup.com/us/en/job/305134": ["无锡"]
+  "source-merck-china-social|https://careers.emdgroup.com/us/en/job/305134": ["无锡"],
+  // Native detail R543371, captured 2026-11-13, confirms CHN - Hangzhou.
+  "source-organon-china-social|https://organon.wd5.myworkdayjobs.com/SearchJobs/job/CHN---Hangzhou/Sr-District-Manager_R543371/apply": ["杭州"]
 };
 const CHINA = /^(?:中国大陆|中国|中华人民共和国|China|CN|CHN)$/iu;
 const NOVO_TITLE_CORROBORATED_CITIES = new Map([
@@ -173,7 +178,7 @@ const PREFECTURE_LABELS = new Map([
 
 const COUNTY_CITY_PROVINCES: Readonly<Record<string, string>> = {
   海盐: "浙江", 伊宁: "新疆", 启东: "江苏", 宜兴: "江苏", 阆中: "四川",
-  天长: "安徽", 界首: "安徽", 台山: "广东", 延吉: "吉林"
+  天长: "安徽", 界首: "安徽", 台山: "广东", 延吉: "吉林", 张家港: "江苏", 昆山: "江苏"
 };
 
 function publishedCityProvince(city: string): string | null {

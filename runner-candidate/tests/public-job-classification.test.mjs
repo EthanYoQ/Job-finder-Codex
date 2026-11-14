@@ -273,10 +273,12 @@ test("reviewed work cities override ATS office locations without duplicating a r
   assert(query("湖北", "武汉").companies[0].jobs.some(job => job.id === "3"));
 });
 
-test("noon locations require corroborated evidence before resolving saved jobs", () => {
+test("explicit official locations resolve with native evidence where list and detail may disagree", () => {
   const novo = "source-novo-nordisk-china-social";
   const organon = "source-organon-china-social";
   const nanchangUrl = "https://organon.wd5.myworkdayjobs.com/SearchJobs/job/CHN---Jiangxi---Nanchang/Sr-Pharmaceutical-Info-Specialist_R543217-2/apply";
+  const hangzhouUrl = "https://organon.wd5.myworkdayjobs.com/SearchJobs/job/CHN---Hangzhou/Sr-District-Manager_R543371/apply";
+  const wuhanUrl = "https://organon.wd5.myworkdayjobs.com/SearchJobs/job/CHN---Hubei---Wuhan/District-Manager_R543466/apply";
   const locations = [
     [novo, "医药代表-咸宁", "China, Xianning", "", "湖北", "咸宁"],
     [novo, "医药代表-齐齐哈尔", "China, Qiqihaer", "", "黑龙江", "齐齐哈尔"],
@@ -285,6 +287,31 @@ test("noon locations require corroborated evidence before resolving saved jobs",
     [novo, "医药代表-齐齐哈尔", "China, Xianning", "", "全部地区", "城市待核"],
     [organon, "Sr. Pharmaceutical Info Specialist", "Nanchang, Jiangxi, China", "", "江西", "城市待核"],
     [organon, "Sr. Pharmaceutical Info Specialist", "Nanchang, Shanxi, China", nanchangUrl, "全部地区", "城市待核"],
+    [organon, "Sr. District Manager", "Hangzhou, China", hangzhouUrl, "浙江", "杭州"],
+    [organon, "Sr. District Manager", "Hangzhou, China", "", "全部地区", "城市待核"],
+    [organon, "Sr. District Manager", "Hangzhou, China", hangzhouUrl.replace("R543371", "R999999"), "全部地区", "城市待核"],
+    // R543466 native detail says CHN - Chengdu despite the Wuhan list and URL.
+    [organon, "District Manager", "Wuhan, Hubei, China", wuhanUrl, "湖北", "城市待核"],
+    [organon, "District Manager", "Wuhan, Hubei, China", wuhanUrl.replace("CHN---Hubei---Wuhan", "CHN---Chengdu"), "湖北", "城市待核"],
+    [organon, "District Manager", "Taiyuan, Shanxi, China", "", "山西", "太原"],
+    [organon, "District Manager", "Zhengzhou, Henan, China", "", "河南", "郑州"],
+    [organon, "District Manager", "Unknown, Hubei, China", "", "湖北", "城市待核"],
+    [novo, "医药代表-辽阳", "China, Liaoyang", "", "辽宁", "辽阳"],
+    ...[
+      ["China - Shanxi - YangQuan", "山西", "阳泉"],
+      ["CHN - HA - Henan | China - Henan - Luoyang", "河南", "洛阳"],
+      ["China - Hebei - ZhangJiaKou", "河北", "张家口"],
+      ["China - Jiangsu - ZhangJiagang", "江苏", "张家港"],
+      ["China - Liaoning - FuShun", "辽宁", "抚顺"],
+      ["China - Jiangsu - Kunshan", "江苏", "昆山"],
+      ["China - Shanxi - JinZhong", "山西", "晋中"],
+      ["China - Liaoning - PanJin", "辽宁", "盘锦"],
+      ["China - Guizhou - Qianxinan", "贵州", "黔西南"],
+      ["China - Shanxi - BaoJi", "全部地区", "城市待核"],
+      ["China - Shanxi - YuLin", "全部地区", "城市待核"],
+      ["China - Shanxi - WeiNan", "全部地区", "城市待核"],
+      ["China - Jiangsu - YangQuan", "全部地区", "城市待核"],
+    ].map(([raw, province, city]) => ["source-pfizer-china-social", "医学信息沟通专员", raw, "", province, city]),
   ];
   const jobs = locations.map(([sourceId, officialTitle, locationRaw, officialUrl], id) => ({
     ...oldJobs[0], id: String(id), sourceId, officialTitle, locationRaw, officialUrl, city: "城市待核", cities: ["城市待核"],
@@ -296,4 +323,29 @@ test("noon locations require corroborated evidence before resolving saved jobs",
     assert.deepEqual(job?.cities, [city]);
     assert.equal(job.locationRaw, locationRaw);
   }
+});
+
+test("reviewed AZ and Roche role fallbacks respect source, department and manual category boundaries", () => {
+  const examples = [
+    ["source-astrazeneca-social", "Diagnosis Science Liaison-OC-Chengdu", "销售", "医药销售"],
+    ["source-roche-china-social", "Head of MSAT Technology Transfer MSAT技术转移负责人", "生产/工程", "MSAT 技术转移"],
+    ["source-roche-china-social", "MSAT Manager in Plant", "生产/工程", "生产制造"],
+    ["source-roche-china-social", "Assc MSAT Manager - Validation Expert", "生产/工程", "工程技术"],
+    ["source-roche-china-social", "MSAT Manager", "其他", undefined],
+    ["fixture", "Diagnosis Science Liaison-OC-Chengdu", "其他", undefined],
+    ["source-astrazeneca-social", "Diagnostic Specialist", "其他", undefined],
+  ];
+  const jobs = examples.map(([sourceId, officialTitle], id) => ({...oldJobs[0], id: String(id), sourceId, officialTitle}));
+  jobs.push({...jobs[0], id: "department", category: "医学事务"});
+  jobs.push({...jobs[0], id: "manual", category: "其他", categoryManuallyCorrected: true});
+  const saved = {...snapshot, companies: [{...snapshot.companies[0], jobs}]};
+  const result = searchPortableSnapshot({city: "全部城市"}, saved);
+  const byId = new Map(result.companies[0].jobs.map(job => [job.id, job]));
+  assert.equal(result.totalJobs, jobs.length);
+  for (const [id, [, , category, subcategory]] of examples.entries()) {
+    const job = byId.get(String(id));
+    assert.deepEqual([job.category, job.subcategory], [category, subcategory]);
+  }
+  assert.equal(byId.get("department").category, "医学事务");
+  assert.equal(byId.get("manual").category, "其他");
 });
