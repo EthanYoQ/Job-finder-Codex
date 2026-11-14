@@ -60,8 +60,6 @@ interface FeedbackDraft {
 }
 
 const DEFAULT_COMPANY_ROW_CAP = 3;
-const NOVO_SOURCE_NOTE = "指定中国站已核实职位；全球站补充职位仍在核验";
-const ORGANON_SOURCE_NOTE = "排序日期采用官网职位列表记录；地点冲突保留为城市待核";
 
 function normalize(value: string): string {
   return value.trim().toLocaleLowerCase("zh-CN");
@@ -89,7 +87,6 @@ const COMPANY_CATEGORY_LABELS: Record<CoverageCompany["category"], string> = {
 };
 
 function publicationNote(company: CoverageCompany): string {
-  if (company.id === "company-novo-nordisk-china" && company.state === "PUBLISHING") return NOVO_SOURCE_NOTE;
   switch (company.state) {
     case "PUBLISHING":
       return "仅展示来源可核验的官方职位，不作抓全声明。";
@@ -562,21 +559,15 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
           <div className="results">
             <section className="results-head" aria-label="职位概览">
               {hasSearch ? <><div><p className="kicker">当前筛选匹配</p><h2 className="results-title" aria-label={`${visibleJobCount} 个职位`}><b className="num">{visibleJobCount}</b><span>个职位</span></h2><p className="results-sub">{visibleCompanies.length} 家公司</p></div>
-                <div className="results-meta">{searchResult?.publishedJobSummary ? <p>全部已发布职位 {searchResult.publishedJobSummary.totalJobs} 个，其中城市待核 {searchResult.publishedJobSummary.cityPendingJobs} 个（不随筛选变化）</p> : null}
-                  {searchResult?.coverageSummary ? <p>当前已更新 {searchResult.coverageSummary.publishingCompanyCount}/{searchResult.coverageSummary.requiredCompanyCount} 家目标企业{searchResult.coverageSummary.publishingCompanyCount < searchResult.coverageSummary.requiredCompanyCount ? "，其他来源仍在核验" : ""}{searchResult.coverageSummary.degradedCompanyCount > 0 ? `；${searchResult.coverageSummary.degradedCompanyCount} 家近期更新异常` : ""}</p> : null}
-                  {searchResult?.snapshotStorage === "SAVED" ? <p role="status">已保存的公开快照；更新时间保留自原核验。</p> : null}
-                  <p>最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}{searchResult?.lastUpdatedAt ? " UTC" : ""}</p>
-                </div></> : <div><p className="kicker">职位结果</p><div className="results-title"><b className="num">—</b></div><p className="results-sub">{isLocked ? "完成使用前确认后自动加载职位。" : isSearching ? "正在加载职位，请稍候…" : searchFailed ? "暂时无法获取职位数据。" : "职位尚未加载。"}</p></div>}
+                <p className="results-meta">最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}{searchResult?.lastUpdatedAt ? " UTC" : ""}</p>
+              </> : <div><p className="kicker">职位结果</p><div className="results-title"><b className="num">—</b></div><p className="results-sub">{isLocked ? "完成使用前确认后自动加载职位。" : isSearching ? "正在加载职位，请稍候…" : searchFailed ? "暂时无法获取职位数据。" : "职位尚未加载。"}</p></div>}
             </section>
-            <p className="sort-note">排序日期采用官网职位列表记录；地点冲突保留为城市待核</p>
             {feedbackMessage ? <p className="banner"><CheckCircle2 className="ic" />{feedbackMessage}</p> : null}
             <section className="list" aria-label="公司职位列表" aria-busy={isSearching}>
               {isSearching ? <div className="empty" role="status"><Search className="ic" /><p>正在加载官方职位…</p></div> : searchFailed ? <div className="empty" role="alert"><p>职位加载失败，请重试。</p><button className="btn-primary" onClick={() => void handleSearch()} type="button">重新加载职位</button></div> : searchResult === null ? <div className="empty"><BriefcaseBusiness className="ic" /><p>完成使用前确认后，将自动展示官方职位分组结果。</p></div> : !visibleCompanies.length ? <div className="empty"><Search className="ic" /><p>当前筛选下没有匹配职位。</p><button type="button" className="btn-line" onClick={clearSearchFilters}>清除关键词与类别筛选</button></div> : visibleCompanies.map(company => {
                 const expanded = expandedCompanyId === company.id, cap = rowCaps[company.id] ?? DEFAULT_COMPANY_ROW_CAP;
                 return <article className={`co${hotId === company.id ? " is-link" : ""}`} data-open={expanded} data-testid={`company-${company.id}`} id={`row-${company.id}`} key={company.id} onMouseEnter={() => setHotId(company.id)} onMouseLeave={() => setHotId(null)}>
                   <button className="co-head" aria-expanded={expanded} aria-controls={`jobs-${company.id}`} onClick={() => toggleCompany(company.id)} type="button"><span className="coord">{companyIndex(company.id)}</span><CompanyLogo companyId={company.id} name={company.companyName} className="tk-row" /><strong className="co-name">{company.companyName}</strong><span className="co-count"><b>{company.jobs.length}</b><span>个职位</span></span><span className="co-go"><ChevronDown className="ic" /></span></button>
-                  {company.id === "company-novo-nordisk-china" ? <p className="source-scope-note">{NOVO_SOURCE_NOTE}</p> : company.id === "company-organon-china" ? <p className="source-scope-note">{ORGANON_SOURCE_NOTE}</p> : null}
-                  {company.sourceScopeNote ? <p className="source-scope-note">{company.sourceScopeNote}</p> : null}
                   <div className="co-body"><div className="co-inner" id={`jobs-${company.id}`} inert={!expanded} aria-hidden={!expanded}>{expanded ? <div className="jobs">
                     {company.jobs.slice(0, cap).map((job, index) => <div className="job" key={job.id}><span className="job-idx">{String(index + 1).padStart(2, "0")}</span>
                       <div><h3>{job.title}{job.cityPending ? <span className="badge pend">官方城市尚未核实</span> : job.city === NATIONWIDE ? <span className="badge nat">全国岗位</span> : null}{job.isNew ? <span className="badge new"><Sparkles className="ic" />新增</span> : null}</h3><p className="en">{job.officialTitle}</p></div>
@@ -594,7 +585,7 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
             const url = company.officialCareersUrl ?? company.officialWebsiteUrl;
             return <article className={`dr${hotId === company.id ? " is-link" : ""}`} id={`row-${company.id}`} key={company.id} onMouseEnter={() => setHotId(company.id)} onMouseLeave={() => setHotId(null)}><span className="coord">{companyIndex(company.id)}</span><div className="dco"><CompanyLogo companyId={company.id} name={company.companyName} className="tk-row" /><div><strong className="dname">{company.companyName}</strong><p className="dcat">{COMPANY_CATEGORY_LABELS[company.category]}</p></div></div>
               <div className="dstate"><span className="pill" data-state={company.state}>{PUBLICATION_STATE_LABELS[company.state]}</span>{company.health === "DEGRADED" ? <span className="pill health">近期更新异常</span> : null}</div>
-              <div className="dnote"><p>{publicationNote(company)}</p>{company.sourceScopeNote ? <p>{company.sourceScopeNote}</p> : null}</div><p className="dupd">{company.lastSuccessAt ? <>最近成功更新 {formatTimestamp(company.lastSuccessAt)} UTC</> : "暂无成功更新"}</p>
+              <div className="dnote"><p>{publicationNote(company)}</p></div><p className="dupd">{company.lastSuccessAt ? <>最近成功更新 {formatTimestamp(company.lastSuccessAt)} UTC</> : "暂无成功更新"}</p>
               {url ? <a className="btn-line" aria-label={company.officialCareersUrl ? `查看${company.companyName}官方招聘入口` : `访问${company.companyName}公司官网`} href={url} rel="noreferrer" target="_blank">{company.officialCareersUrl ? "官方招聘入口" : "公司官网"}<ExternalLink className="ic" /></a> : <p className="none">暂无可用公开链接。</p>}
             </article>;
           })}
