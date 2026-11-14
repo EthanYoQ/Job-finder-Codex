@@ -85,6 +85,7 @@ const RULES: readonly ClassificationRule[] = [
   { category: "销售", subcategory: "销售管理", title: /地区经理|\bdistrict manager\b/i, sourceIds: ["source-sanofi-china-social", "source-novartis-social"] },
   { category: "销售", subcategory: "医药销售", title: SALES_TITLE },
   { category: "销售", subcategory: "医药销售", title: COMMUNICATION_SALES_TITLE, sourceIds: COMMUNICATION_SALES_SOURCES },
+  { category: "销售", subcategory: "医药销售", title: /^Diagnosis Science Liaison(?:\s*[-–—]|$)/i, sourceIds: ["source-astrazeneca-social"] },
   { category: "销售", subcategory: "医药销售", title: /产品专员/, sourceIds: ["source-novartis-social"] },
   { category: "医学事务", subcategory: "医学信息", title: /医学信息|医学沟通|科学传播|\b(?:medical information|medical communication|scientific communication)s?\b/i, excludes: /医学信息沟通|\bmedical information communication\b/i },
   { category: "市场", subcategory: "市场洞察", title: /市场洞察|市场调研|商业洞察|产品洞察|\b(?:market|business|commercial|product) (?:insight|intelligence|research)\b/i },
@@ -98,6 +99,9 @@ const RULES: readonly ClassificationRule[] = [
   { category: "数据/IT", subcategory: "数据科学", title: /数据(?:科学|分析|治理|工程|智能)|生物统计|统计(?:编程|师)|\b(?:data (?:scien\w*|anal\w*|engineer\w*|governance|intelligence)|statistic\w*|biostatistic\w*|statistical programming|machine learning)\b/i },
   { category: "数据/IT", subcategory: "信息技术", title: /信息技术|信息系统|软件|人工智能|\b(?:it|software|informatics|cybersecurity|digital project|application engineer|ai)\b/i },
   { category: "研发/科学", subcategory: "研发科学", title: /科学家|研究员|研发|药理|生物分析|\b(?:scientist|research (?:associate|scientist|director)|bioanalysis|pharmacology|protein science|r&d)\b/i, excludes: /\bmedical scientist\b/i },
+  { category: "生产/工程", subcategory: "MSAT 技术转移", title: /\bMSAT (?:Technology Transfer|技术转移)|MSAT技术转移/i, sourceIds: ["source-roche-china-social"] },
+  { category: "生产/工程", subcategory: "生产制造", title: /^MSAT Manager in Plant$/i, sourceIds: ["source-roche-china-social"] },
+  { category: "生产/工程", subcategory: "工程技术", title: /^Assc MSAT Manager\s*[-–—]\s*Validation Expert$/i, sourceIds: ["source-roche-china-social"] },
   { category: "生产/工程", subcategory: "生产制造", title: /生产|制造|车间|\b(?:manufacturing|production|sterile (?:master )?operator)\b/i },
   { category: "生产/工程", subcategory: "工程技术", title: /工程师|设备|维修|设施|\b(?:engineer|engineering|maintenance|technician)\b/i }
 ];
