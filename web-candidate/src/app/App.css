@@ -258,9 +258,7 @@ a { color: inherit; }
 .results-title .num { font-weight: 800; font-size: clamp(64px, 9vw, 112px); line-height: 0.9; letter-spacing: -0.06em; }
 .results-title span { font-size: 22px; font-weight: 700; }
 .results-sub { margin-top: 10px; font-size: 15px; color: var(--muted); }
-.results-meta { display: grid; gap: 6px; font: 400 12px/1.5 var(--f-mono); color: var(--muted); text-align: right; max-width: 340px; }
-.results-meta .warn { color: var(--signal-ink); }
-.sort-note { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+.results-meta { font: 400 12px/1.5 var(--f-mono); color: var(--muted); text-align: right; }
 .banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; margin-top: 16px; background: var(--ok-bg); color: var(--ok); border-radius: 10px; font-size: 14px; font-weight: 500; }
 
 .list { margin-top: 8px; }
@@ -516,7 +514,6 @@ html { scroll-behavior: smooth; }
 .control:disabled {opacity:.6;cursor:not-allowed;}
 .job-meta {overflow-wrap:anywhere;}
 .job h3 {text-wrap:pretty;overflow-wrap:anywhere;}
-.source-scope-note {font-size:12.5px;color:var(--muted);padding:9px 8px 12px;}
 .legacy-cities {grid-column:span 2;display:flex;gap:8px;}
 .legacy-cities .check {flex:1;}
 .legacy-cities input:checked + .box {background:var(--blue);color:var(--on-blue);border-color:var(--blue);}
