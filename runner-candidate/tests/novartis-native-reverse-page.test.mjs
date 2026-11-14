@@ -77,7 +77,7 @@ test('a complete date-ascending list needs no reverse or title traversal',async(
 test('only an advertised, independently complete reverse traversal can replace overlapping pages',async()=>{
  const {fetched,requests}=await capture();assert(fetched.ok,fetched.failureReason);
  const evidence=fetched.fetchEvidence,projected=replayNovartisNativePartitions(plan,evidence);
- assert.equal(evidence.captureTool.version,'12');assert.equal(evidence.fetchCounts.validCount,11);
+ assert.equal(evidence.captureTool.version,'13');assert.equal(evidence.fetchCounts.validCount,11);
  const legacy=legacySortEvidence(evidence,'6','站点');assert.equal(replayNovartisNativePartitions(plan,legacy).counts.validCount,projected.counts.validCount);
  assert.equal(projected.audit.partitions[0].selectedSort,'desc');assert.equal(projected.audit.partitions[0].discardedAscending.unique,10);
  assert.equal(requests.filter(url=>new URL(url).searchParams.get('sort')==='desc').length,2);
@@ -114,7 +114,51 @@ test('ascending-only sightings keep the existing same-ID detail and UNKNOWN path
  }
 });
 
-for(const [fieldId,fallbackOrder,prefix] of [['FCT_RD','职位名称','title'],['FCT_SA','职位名称','title'],['FCT_MM','站点','site']])
+test('Sales starts with title and tries each native date order at most once',async()=>{
+ for(const mode of ['title-complete','date-complete','date-reverse-complete','title-only-unknown','all-overlap','title-missing-page','no-date-link','foreign-date-link','title-403','title-429','date-403','date-429']){
+  const at=new Date().toISOString(),requests=[],unknown=mode==='title-only-unknown';
+  const fetched=await acquireNovartisNativePartitions(plan,async req=>{
+   requests.push(req.url);const u=new URL(req.url),field=u.searchParams.get('functional_area[0]'),p=Number(u.searchParams.get('page')??0),title=field&&u.searchParams.get('order')==='职位名称',reverse=u.searchParams.get('sort')==='desc';
+   if(req.url===plan.source.officialEntryUrl)return {status:200,body:'<div class="view-header">Showing 11 results</div><select name="functional_area[]"><option value="FCT_SA">Sales</option></select><select name="country[]"><option value="LOC_CN" selected>China</option></select><select name="field_job_posted_date"><option value="All" selected>All</option></select>',finalUrl:req.url,contentType:'text/html',capturedAt:at};
+   if(u.pathname.includes('/job/details/'))return {status:200,body:`<h1>Job ${ids[0]}</h1><article>Job ID ${ids[0]}<p>Current description without confirmed application status.</p></article>`,finalUrl:req.url,contentType:'text/html',capturedAt:at};
+   const complete=!field||title&&mode==='title-complete'||field&&!title&&(reverse&&mode==='date-reverse-complete'||!reverse&&['date-complete','title-only-unknown'].includes(mode));
+   const values=unknown&&!title?ids.slice(1):ids.slice(0,11),rows=p?[complete?values[10]:values[0]]:values.slice(0,10);
+   let html=page(req.url,title&&p&&mode==='title-missing-page'?[]:rows,11,p);
+   if(title&&mode!=='no-date-link'){
+    const date=new URL(req.url);date.searchParams.delete('page');date.searchParams.set('order','发布日期');date.searchParams.set('sort','asc');if(mode==='foreign-date-link')date.searchParams.set('country[0]','LOC_JP');
+    html=html.replace('</tr></thead>',`<th><a href="${date.href}">日期</a></th></tr></thead>`);
+   }
+   const blocked=field&&(title?mode.startsWith('title-'):mode.startsWith('date-'))&&/-(403|429)$/u.test(mode);
+   return {status:blocked?Number(mode.slice(-3)):200,body:html,finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  });
+  const partitionRequests=requests.map(url=>new URL(url)).filter(u=>u.searchParams.get('functional_area[0]')==='FCT_SA');
+  assert.equal(partitionRequests[0].searchParams.get('order'),'职位名称');
+  assert.equal(partitionRequests[0].searchParams.get('sort'),'asc');
+  if(!['title-complete','date-complete','date-reverse-complete','title-only-unknown'].includes(mode)){
+   assert.equal(fetched.ok,false,mode);
+   const expected=mode==='all-overlap'?6:/^title-(403|429)$/u.test(mode)?1:/^date-(403|429)$/u.test(mode)?3:2;
+   assert.equal(partitionRequests.length,expected,mode);
+   continue;
+  }
+  assert.equal(fetched.ok,true,fetched.failureReason);
+  const expected=['职位名称:asc','职位名称:asc'];
+  if(mode!=='title-complete')expected.push('发布日期:asc','发布日期:asc');
+  if(mode==='date-reverse-complete')expected.push('发布日期:desc','发布日期:desc');
+  assert.deepEqual(partitionRequests.map(u=>`${u.searchParams.get('order')}:${u.searchParams.get('sort')}`),expected);
+  const evidence=fetched.fetchEvidence,projected=replayNovartisNativePartitions(plan,evidence),audit=projected.audit.partitions[0];
+  assert.equal(evidence.captureTool.version,'13');assert.equal(audit.uniqueCount,11);
+  assert.equal(audit.selectedOrder,mode==='title-complete'?'职位名称':'发布日期');
+  assert.equal(audit.selectedSort,mode==='date-reverse-complete'?'desc':'asc');
+  assert.equal(audit.discardedTitleAscending?.unique,mode==='title-complete'?undefined:10);
+  assert.equal(projected.unknownUrls.has(detail(ids[0])),unknown);
+  assert.equal(projected.audit.noOmissionVerified,!unknown);
+  assert.equal(evidence.pages.filter(p=>p.channelId==='novartis:FCT_SA').length,2);
+  const result=await runSourceCrawl(plan,{fetch:async()=>fetched,isBaseline:false});assert.equal(result.truth.completenessVerified,true);assert.equal(result.jobs.length,11);
+  const legacy=structuredClone(evidence);legacy.captureTool.version='12';assert.throws(()=>replayNovartisNativePartitions(plan,legacy));
+ }
+});
+
+for(const [fieldId,fallbackOrder,prefix] of [['FCT_RD','职位名称','title'],['FCT_MM','站点','site']])
 test(`an advertised ${fieldId} ${prefix} traversal can replace two incomplete date traversals without unioning them`,async()=>{
  for(const mode of ['complete','title-overlap','title-missing-page','no-title-link','foreign-link','title-403','title-429']){
   const at=new Date().toISOString(),requests=[];
@@ -137,7 +181,7 @@ test(`an advertised ${fieldId} ${prefix} traversal can replace two incomplete da
    continue;
   }
   assert(fetched.ok,fetched.failureReason);const evidence=fetched.fetchEvidence,projected=replayNovartisNativePartitions(plan,evidence);
-  assert.equal(evidence.captureTool.version,'12');assert.equal(projected.audit.partitions[0].selectedOrder,fallbackOrder);assert.equal(projected.audit.partitions[0].selectedSort,'asc');assert.equal(projected.audit.partitions[0].discardedDateReverse.unique,10);
+  assert.equal(evidence.captureTool.version,'13');assert.equal(projected.audit.partitions[0].selectedOrder,fallbackOrder);assert.equal(projected.audit.partitions[0].selectedSort,'asc');assert.equal(projected.audit.partitions[0].discardedDateReverse.unique,10);
   assert.equal(requests.filter(url=>new URL(url).searchParams.get('functional_area[0]')===fieldId).length,6);
   assert.equal(evidence.pages.filter(p=>p.channelId===`novartis:${fieldId}`).length,2);assert(evidence.pages.filter(p=>p.channelId===`novartis:${fieldId}`).every(p=>p.artifactLogicalKey.includes(`-${prefix}-`)));
   const result=await runSourceCrawl(plan,{fetch:async()=>fetched,isBaseline:false});assert.equal(result.truth.completenessVerified,true);assert.equal(result.jobs.length,11);
@@ -145,13 +189,19 @@ test(`an advertised ${fieldId} ${prefix} traversal can replace two incomplete da
   legacy.captureTool.version='8';
   if(prefix==='site')assert.throws(()=>replayNovartisNativePartitions(plan,legacy));
   else assert.equal(replayNovartisNativePartitions(plan,legacy).audit.partitions[0].selectedOrder,fallbackOrder);
-  for(const version of ['9','10','11']){
+  for(const version of ['9','10','11','12']){
    legacy.captureTool.version=version;
-   if(fieldId==='FCT_SA'||fieldId==='FCT_MM'&&version!=='11')assert.throws(()=>replayNovartisNativePartitions(plan,legacy));
+   if(fieldId==='FCT_MM'&&Number(version)<11)assert.throws(()=>replayNovartisNativePartitions(plan,legacy));
    else assert.equal(replayNovartisNativePartitions(plan,legacy).audit.partitions[0].selectedOrder,fallbackOrder);
   }
-  if(fieldId==='FCT_SA'){
-   const siteKeys=JSON.parse(JSON.stringify(evidence).replaceAll('FCT_SA-title-','FCT_SA-site-'));
+  if(fieldId==='FCT_RD'){
+   // The same synthetic date/date/title pages preserve the historical Sales contract.
+   const sales=legacySortEvidence(evidence,'12','FCT_SA','FCT_RD');
+   assert.equal(replayNovartisNativePartitions(plan,sales).audit.partitions[0].selectedOrder,'职位名称');
+   for(const version of ['9','10','11','13']){
+    sales.captureTool.version=version;assert.throws(()=>replayNovartisNativePartitions(plan,sales));
+   }
+   const siteKeys=JSON.parse(JSON.stringify(sales).replaceAll('FCT_SA-title-','FCT_SA-site-'));
    const historical=legacySortEvidence(siteKeys,'9','站点','职位名称');
    historical.artifacts=historical.artifacts.map((a,i)=>a.channelId==='novartis:FCT_SA'||a.logicalKey==='novartis-partitions-audit'?a:siteKeys.artifacts[i]);
    for(const version of ['9','10','11']){
