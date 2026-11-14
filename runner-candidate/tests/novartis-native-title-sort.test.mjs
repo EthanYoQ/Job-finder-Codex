@@ -10,7 +10,7 @@ import {legacySortEvidence} from './novartis-legacy-fixture.mjs';
 test('native date sorting preserves coverage, historical replay and unknown-detail accounting',async()=>{
 const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-novartis-social');
 // The live form, including a new category, owns partition discovery.
-const fields=['QA','SA','DD','NEW'].map(x=>'FCT_'+x);
+const fields=['QA','RD','DD','NEW'].map(x=>'FCT_'+x);
 const url=(id)=>`https://www.novartis.com.cn/careers/career-search/job/details/${id.toLowerCase()}-test`;
 const row=(id)=>`<tr><td class="views-field-field-job-title"><a href="${url(id)}">Job ${id}</a></td><td class="views-field-field-job-country">China</td><td class="views-field-field-job-work-location">Shanghai (Shanghai)</td></tr>`;
 const page=(ids,n=ids.length)=>`<div class="view-header">Showing ${n} results</div><table class="views-table"><tbody>${ids.length?ids.map(row).join(''):'<tr><td colspan="5" class="empty message">No content has been found.</td></tr>'}</tbody></table>`;
@@ -20,8 +20,8 @@ async function capture(mode='present',location='Shanghai (Shanghai)',alternative
  const at=new Date().toISOString();const requests=[];
  const fetched=await acquireNovartisNativePartitions(plan,async req=>{requests.push(req.url);const u=new URL(req.url),field=u.searchParams.get('functional_area[0]');
  if(field)assert.equal(u.searchParams.get('order'),'发布日期');
- let html=req.url===plan.source.officialEntryUrl?root:field?page(field==='FCT_QA'?[ids[0]]:field==='FCT_SA'?[ids[1]]:[]):page(ids);
- if(field==='FCT_SA'&&['duplicate-page','changing-total'].includes(mode)){
+ let html=req.url===plan.source.officialEntryUrl?root:field?page(field==='FCT_QA'?[ids[0]]:field==='FCT_RD'?[ids[1]]:[]):page(ids);
+ if(field==='FCT_RD'&&['duplicate-page','changing-total'].includes(mode)){
   const p=Number(u.searchParams.get('page')??0),ten=Array.from({length:10},(_,i)=>`REQ-${10000010+i}`),next=new URL(u);next.searchParams.set('page','1');
   html=page(p?(mode==='duplicate-page'?[ten[0]]:['REQ-10000020','REQ-10000021']):ten,p&&mode==='changing-total'?12:11)+
    `<div class="pagination"><span class="active"><a class="page-link" title="page ${p+1} out of 2 pages"></a></span><a rel="next" ${p?'class="disabled"':`href="${next.href}"`}></a></div>`;
@@ -31,7 +31,7 @@ async function capture(mode='present',location='Shanghai (Shanghai)',alternative
 }
 const c=await capture();if(!c.fetched.ok)console.log(c.fetched.failureReason,c.fetched.fetchEvidence?.artifacts.map(a=>a.logicalKey));assert(c.fetched.ok);assert.equal(c.fetched.fetchEvidence.fetchCounts.validCount,3);
 const e=c.fetched.fetchEvidence;const audit=replayNovartisNativePartitions(plan,e).audit;assert.equal(audit.indexDeclaredTotal,2);assert.equal(audit.observedUniqueCount,3);assert(!c.requests.some(u=>u.includes('moseeker')));
-assert.equal(e.captureTool.version,'12');
+assert.equal(e.captureTool.version,'13');
 const version9=structuredClone(e);version9.captureTool.version='9';assert.equal(replayNovartisNativePartitions(plan,version9).audit.observedUniqueCount,3);
 const siteLegacy=legacySortEvidence(e,'5','站点');
 assert.equal(replayNovartisNativePartitions(plan,siteLegacy).audit.observedUniqueCount,3);
@@ -106,7 +106,7 @@ test('archived default discovery exhaustion keeps closed partitions and marks ab
  assert.equal(fetched.ok,true,fetched.failureReason);
  assert.equal(calls.length,49,'Root, one closed primary partition and 47 existing default pages; no extra requests');
  const projected=replayNovartisNativePartitions(plan,fetched.fetchEvidence);
- assert.equal(fetched.fetchEvidence.captureTool.version,'12');
+ assert.equal(fetched.fetchEvidence.captureTool.version,'13');
  assert.equal(projected.counts.validCount,1);assert.equal(projected.unboundUnknown,true);
  assert.equal(projected.audit.noOmissionVerified,false);
  assert.ok(projected.audit.anomalyCodes.includes('NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED'));
