@@ -96,6 +96,8 @@ const VERIFIED_JOB_EVIDENCE: readonly VerifiedJobEvidence[] = [
     department: "销售",
     responsibilities: { category: "销售", subcategory: "培训与赋能" }
   },
+  { sourceId: "source-novartis-social", requisitionId: "REQ-10080456", responsibilities: { category: "数据/IT", subcategory: "信息技术" } },
+  { sourceId: "source-novartis-social", requisitionId: "REQ-10087318", responsibilities: { category: "市场", subcategory: "品牌市场" } },
   // Same-ID Novartis detail department, business unit and responsibilities, 2026-11-14.
   { sourceId: "source-novartis-social", requisitionId: "REQ-10090260", department: "销售" },
   { sourceId: "source-novartis-social", requisitionId: "REQ-10092081", department: "销售" },
@@ -184,6 +186,16 @@ function nativeRequisitionId(sourceId: string, officialUrl: string): string | un
     return /^\/careers\/career-search\/job\/details\/(req-\d+)-[^/]+\/?$/i.exec(url.pathname)?.[1]?.toUpperCase();
   }
   return undefined;
+}
+
+const NOVARTIS_INTERNS = new Set([
+  "REQ-10087296", "REQ-10088943", "REQ-10092349",
+  "REQ-10092450", "REQ-10091068", "REQ-10090456"
+]);
+
+export function isVerifiedNovartisIntern(job: { sourceId: string; officialUrl: string }): boolean {
+  return job.sourceId === "source-novartis-social" &&
+    NOVARTIS_INTERNS.has(nativeRequisitionId(job.sourceId, job.officialUrl) ?? "");
 }
 
 export function findJobClassificationEvidence(job: { sourceId?: string; officialUrl?: string }): JobClassificationEvidence | undefined {

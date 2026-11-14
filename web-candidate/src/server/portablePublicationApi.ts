@@ -5,6 +5,7 @@ import type { DatabaseSearchResult } from "./jobSearchService";
 import type { CoverageRequest, CoverageResult, CoverageCompany } from "./coverageService";
 import { candidateCompanies } from "../data/companyRegistry";
 import { classifyJob, matchesJobCategory } from "../domain/jobClassification";
+import { isVerifiedNovartisIntern } from "../domain/jobClassificationEvidence";
 
 // Scope labels describe the reviewed entry, never a live count or publication
 // decision. Counts and visibility still come only from the verified snapshot.
@@ -45,7 +46,7 @@ export function searchPortableSnapshot(request:unknown,snapshot:PortablePublicSn
   const q=PortableSearchRequestSchema.parse(request),keyword=q.keyword?.toLocaleLowerCase("zh-CN")??"";
   const date=(s:string|null)=>s===null?Number.NEGATIVE_INFINITY:Date.parse(s);
   const seenJobIds=new Set<string>();
-  const publishedCompanies=snapshot.companies.filter(c=>c.required&&c.publishingSourceIds.length>0).map(c=>({...c,jobs:c.jobs.filter(j=>{if(seenJobIds.has(j.id))return false;seenJobIds.add(j.id);return true;}).map(({categoryManuallyCorrected,...job})=>{
+  const publishedCompanies=snapshot.companies.filter(c=>c.required&&c.publishingSourceIds.length>0).map(c=>({...c,jobs:c.jobs.filter(j=>{if(seenJobIds.has(j.id) || isVerifiedNovartisIntern(j))return false;seenJobIds.add(j.id);return true;}).map(({categoryManuallyCorrected,...job})=>{
     const cities = resolvedPublishedJobCities(job);
     const located = cities.length ? { ...job, city: cities[0]!, cities } : job;
     const classification=classifyJob(job);
