@@ -31,7 +31,7 @@ async function capture(mode='present',location='Shanghai (Shanghai)',alternative
 }
 const c=await capture();if(!c.fetched.ok)console.log(c.fetched.failureReason,c.fetched.fetchEvidence?.artifacts.map(a=>a.logicalKey));assert(c.fetched.ok);assert.equal(c.fetched.fetchEvidence.fetchCounts.validCount,3);
 const e=c.fetched.fetchEvidence;const audit=replayNovartisNativePartitions(plan,e).audit;assert.equal(audit.indexDeclaredTotal,2);assert.equal(audit.observedUniqueCount,3);assert(!c.requests.some(u=>u.includes('moseeker')));
-assert.equal(e.captureTool.version,'11');
+assert.equal(e.captureTool.version,'12');
 const version9=structuredClone(e);version9.captureTool.version='9';assert.equal(replayNovartisNativePartitions(plan,version9).audit.observedUniqueCount,3);
 const siteLegacy=legacySortEvidence(e,'5','站点');
 assert.equal(replayNovartisNativePartitions(plan,siteLegacy).audit.observedUniqueCount,3);
@@ -106,7 +106,7 @@ test('archived default discovery exhaustion keeps closed partitions and marks ab
  assert.equal(fetched.ok,true,fetched.failureReason);
  assert.equal(calls.length,49,'Root, one closed primary partition and 47 existing default pages; no extra requests');
  const projected=replayNovartisNativePartitions(plan,fetched.fetchEvidence);
- assert.equal(fetched.fetchEvidence.captureTool.version,'11');
+ assert.equal(fetched.fetchEvidence.captureTool.version,'12');
  assert.equal(projected.counts.validCount,1);assert.equal(projected.unboundUnknown,true);
  assert.equal(projected.audit.noOmissionVerified,false);
  assert.ok(projected.audit.anomalyCodes.includes('NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED'));
