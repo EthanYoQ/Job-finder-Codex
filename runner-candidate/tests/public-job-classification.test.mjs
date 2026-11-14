@@ -349,3 +349,26 @@ test("reviewed AZ and Roche role fallbacks respect source, department and manual
   assert.equal(byId.get("department").category, "医学事务");
   assert.equal(byId.get("manual").category, "其他");
 });
+
+test("Novartis social search excludes confirmed internships and applies approved role categories", () => {
+  const job = (id, officialTitle, sourceId = "source-novartis-social") => ({
+    ...oldJobs[0], id, sourceId, officialTitle, title: officialTitle,
+    officialUrl: "https://www.novartis.com.cn/careers/career-search/job/details/req-" + id + "-official-role",
+  });
+  const rows = [
+    ...["10087296", "10088943", "10092349", "10092450", "10091068", "10090456"].map(id => job(id, "MR Intern")),
+    job("10080456", "Data Management & Infrastructure Lead"),
+    job("10087318", "New Products Lead"),
+    { ...job("10087296", "Another source vacancy", "fixture"), id: "other-source" },
+  ];
+  const current = { ...snapshot, companies: [{ ...snapshot.companies[0], jobs: rows }] };
+  const result = searchPortableSnapshot({ city: "全部城市" }, current);
+  assert.equal(result.publishedJobSummary.totalJobs, 3);
+  assert.deepEqual(Object.fromEntries(result.companies[0].jobs.map(j => [j.id, [j.category, j.subcategory]])), {
+    "10080456": ["数据/IT", "信息技术"],
+    "10087318": ["市场", "品牌市场"],
+    "other-source": ["其他", undefined],
+  });
+  assert.equal(searchPortableSnapshot({ city: "全部城市", keyword: "MR Intern" }, current).totalJobs, 0);
+  assert.equal(rows.length, 9);
+});
