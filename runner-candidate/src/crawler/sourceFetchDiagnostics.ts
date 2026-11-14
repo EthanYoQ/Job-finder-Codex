@@ -31,6 +31,7 @@ function reason(value: string) {
   const browserCode = /^((?:CSPC|JNJ|SANOFI_CN|LOCAL_CHROMIUM)_[A-Z_]{1,70})(?::|$)/.exec(value);
   if (browserCode) return browserCode[1];
   if (value.includes("__name is not defined")) return "BROWSER_SERIALIZED_CLOSURE_NAME_MISSING";
+  if (value.includes("Execution context was destroyed, most likely because of a navigation")) return "BROWSER_NAVIGATION_DURING_DOM_READ";
   if (/strict mode violation/.test(value)) return "BROWSER_SELECTOR_AMBIGUOUS";
   if (/InvalidSelectorError|Unknown engine.*selector|Unexpected token.*selector|is not a valid selector/.test(value)) return "BROWSER_SELECTOR_INVALID";
   if (/(?:locator|waitFor|evaluate|evaluateAll|domSnapshot|getAXState|createBrowserTab|listTabs|getTab|frameLocator)\b[^\n]{0,30}is not a function/.test(value)) return "BROWSER_METHOD_UNAVAILABLE";
@@ -59,11 +60,11 @@ export function sourceFetchDiagnostic(sourceId: string, failure: {result: Extrac
     const locations = error?.stack?.replaceAll("\\", "/").split("\n").slice(1)
       .flatMap(line => line.match(/(?:runner-candidate|web-candidate)\/(?:src|scripts)\/[A-Za-z0-9_./-]+\.[cm]?[jt]sx?:[0-9]+:[0-9]+/g) ?? []).slice(0, 6) ?? [];
     return {...common, phase: "THROWN", exceptionType: ["Error", "TypeError", "SyntaxError", "ReferenceError", "TimeoutError", "AbortError", "AssertionError"].includes(error?.name ?? "") ? error!.name : "OTHER_ERROR",
-      ...(typeof stage === "string" && ["CSPC_DOM_CAPTURE", "JNJ_LIST_NAVIGATION", "JNJ_RESULTS_READY", "JNJ_HEADING_READY", "JNJ_DETAIL_NAVIGATION", "JNJ_DETAIL_READY", "JNJ_APPLY_READY", "JNJ_DETAIL_READ", "SANOFI_PAGE_READ", "SANOFI_PAGE_NEXT", "SANOFI_AJINGA_ROUTE", "SANOFI_AJINGA_ENTRY", "SANOFI_AJINGA_INFO", "SANOFI_AJINGA_STATUS", "SANOFI_AJINGA_REPLAY", "SANOFI_AJINGA_PROJECTION", "SANOFI_AJINGA_TITLE_MATCH", "SANOFI_AJINGA_DESCRIPTION_MATCH", "PFIZER_ENTRY_NAVIGATION", "PFIZER_CARDS_READY", "PFIZER_COUNTRY_READY", "PFIZER_DETAIL_CREATE", "PFIZER_LIST_READ", "PFIZER_DETAIL_READ", "PFIZER_PAGE_ADVANCE"].includes(stage) ? {stage} : {}),
+      ...(typeof stage === "string" && ["CSPC_DOM_CAPTURE", "JNJ_LIST_NAVIGATION", "JNJ_RESULTS_READY", "JNJ_HEADING_READY", "JNJ_DETAIL_NAVIGATION", "JNJ_DETAIL_READY", "JNJ_APPLY_READY", "JNJ_DETAIL_READ", "JNJ_DOM_AUDIT", "SANOFI_PAGE_READ", "SANOFI_PAGE_NEXT", "SANOFI_AJINGA_ROUTE", "SANOFI_AJINGA_ENTRY", "SANOFI_AJINGA_INFO", "SANOFI_AJINGA_STATUS", "SANOFI_AJINGA_REPLAY", "SANOFI_AJINGA_PROJECTION", "SANOFI_AJINGA_TITLE_MATCH", "SANOFI_AJINGA_DESCRIPTION_MATCH", "PFIZER_ENTRY_NAVIGATION", "PFIZER_CARDS_READY", "PFIZER_COUNTRY_READY", "PFIZER_DETAIL_CREATE", "PFIZER_LIST_READ", "PFIZER_DETAIL_READ", "PFIZER_PAGE_ADVANCE"].includes(stage) ? {stage} : {}),
       ...(privateCaptureSource && typeof context?.sourcePage === "number" && Number.isSafeInteger(context.sourcePage) && context.sourcePage > 0 && context.sourcePage <= 10000 ? {page:context.sourcePage} : {}),
       ...(jnj && typeof context?.sourceJobId === "string" && /^r-\d{1,20}$/.test(context.sourceJobId) ? {sourceJobId:context.sourceJobId} : {}),
       ...(sourceId === "source-sanofi-china-social" && typeof context?.sourceJobId === "string" && /^R[0-9]{1,20}$/.test(context.sourceJobId) ? {sourceJobId:context.sourceJobId} : {}),
-      ...(privateCaptureSource && typeof capture?.file === "string" && /^(?:bayer-detail|cspc-dom|jnj-detail-r-\d{1,20}|jnj-list-\d{1,5}|sanofi-page-\d{1,5}|sanofi-ajinga-(?:R[0-9]{1,20}|invalid)|pfizer-(?:entry|traversal))-[0-9a-f-]{36}\.json$/.test(capture.file) &&
+      ...(privateCaptureSource && typeof capture?.file === "string" && /^(?:bayer-detail|cspc-dom|jnj-audit|jnj-detail-r-\d{1,20}|jnj-list-\d{1,5}|sanofi-page-\d{1,5}|sanofi-ajinga-(?:R[0-9]{1,20}|invalid)|pfizer-(?:entry|traversal))-[0-9a-f-]{36}\.json$/.test(capture.file) &&
         typeof capture.sha256 === "string" && /^[0-9a-f]{64}$/.test(capture.sha256) ? {privateCapture:{file:capture.file,sha256:capture.sha256}} : {}),
       ...(privateCaptureSource && context?.privateCaptureUnavailable === true ? {privateCaptureUnavailable:true} : {}),
       executionCode: sourceExecutionFailureCode(failure.error), reason: reason(message), reasonSha256: sha(message), locations};

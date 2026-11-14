@@ -1,3 +1,8 @@
+import {createHash} from 'node:crypto';
+import {parseRedseaQueryPostList} from '../officialJsonSourceFetch.ts';
+import {redseaNativeJobId} from '../redseaCandidateScope.ts';
+import {cspcNativeRowQuality} from './cspc-dom-http-review.ts';
+
 const browserName = name => { if (name !== undefined && name !== 'cdp') throw Error('LOCAL_CHROMIUM_BROWSER_REQUIRED'); };
 function options(value) {
   if (!value) return value;
@@ -37,6 +42,14 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
   let context;
   try { context = await browser.newContext(); }
   catch (error) { await browser.close(); throw error; }
+  // Context observation includes a popup's first response, before its page event.
+  let cspcAccessBlock;
+  context.on('response',response=>{
+    const url=new URL(response.url()),request=response.request();
+    if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname.startsWith('/RedseaPlatform/')&&[403,429].includes(response.status())&&
+      (request.isNavigationRequest()||['fetch','xhr'].includes(request.resourceType?.())))
+      cspcAccessBlock={httpStatus:response.status(),retryAfter:response.headers()['retry-after']??null};
+  });
   const tabs = new Map(), pages = new WeakMap();
   let sequence = 0;
   function tabFor(page) {
@@ -48,20 +61,46 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
       return ['LOCAL_CHROMIUM_ARIA_SNAPSHOT', `Page: ${page.url()}`, 'networkCapture: false',
         ...frames.map(frame => `Frame: ${frame.url}\n${frame.aria}`)].join('\n');
     };
-    let navigationInfo;
+    let navigationInfo,cspcListResponse;
     page.on('response',response=>{
       if(response.request().isNavigationRequest()&&response.frame()===page.mainFrame())
         navigationInfo={httpStatus:response.status(),retryAfter:response.headers()['retry-after']};
+      const url=new URL(response.url());
+      if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname==='/RedseaPlatform/zhaopin/zpChannelQrCode/queryPostList.mob'&&response.request().method()==='POST'){
+        const form=new URLSearchParams(response.request().postData()??''),fields=['channelQrId','root_id','recruit_way','sortName','push_request_id','keyword','ftl_list_stru_id'];
+        // Keep only scope, native identities and a body hash; never credentials or job descriptions.
+        const record={httpStatus:response.status(),scope:Object.fromEntries([...form].filter(([key])=>fields.includes(key))),
+          otherNonEmptyFieldCount:[...form].filter(([key,value])=>value&&!fields.includes(key)).length};
+        cspcListResponse=record;
+        void response.text().then(body=>{
+          const data=JSON.parse(body),parsed=parseRedseaQueryPostList(body);
+          record.result={state:data.state??null,total:data.total??null,jsonListCount:Array.isArray(data.jsonList)?data.jsonList.length:null};
+          if(parsed.ok)record.nativeList={capturedAt:new Date().toISOString(),bodySha256:createHash('sha256').update(body).digest('hex'),
+            recordIds:parsed.jobs.map(row=>redseaNativeJobId(row?.REQUEST_ID)??null),
+            qualityById:Object.fromEntries(parsed.jobs.flatMap(row=>{
+              const id=redseaNativeJobId(row?.REQUEST_ID);return id?[[id,cspcNativeRowQuality(row)]]:[];
+            }))};
+        })
+          .catch(()=>{record.resultUnavailable=true;});
+      }
     });
-    const tab = {id, url: async () => page.url(), navigationInfo: async () => navigationInfo,
+    const tab = {id, url: async () => page.url(),
+      clickAndWaitForPopup:async(click,timeoutMs)=>{
+        const deadline=Date.now()+timeoutMs;
+        const settled=await Promise.allSettled([page.waitForEvent('popup',{timeout:timeoutMs}),click()]);
+        const failure=settled.find(value=>value.status==='rejected');if(failure)throw failure.reason;
+        const popup=settled[0].value,remaining=deadline-Date.now();if(remaining<=0)throw Error('CSPC_DETAIL_POPUP_TIMEOUT');
+        await popup.waitForLoadState('domcontentloaded',{timeout:remaining});return tabFor(popup);
+      }, navigationInfo: async () => cspcAccessBlock?{...navigationInfo,...(cspcListResponse?{cspcListResponse}:{}),cspcAccessBlock}:cspcListResponse?{...navigationInfo,cspcListResponse}:navigationInfo,
       goto: async (url, config) => {
-        navigationInfo=undefined;
+        navigationInfo=undefined;cspcListResponse=undefined;
         const response=await page.goto(url, {waitUntil:'domcontentloaded',...options(config)});
         navigationInfo=response?{httpStatus:response.status(),retryAfter:await response.headerValue('retry-after')}:undefined;
         return response;
       },
       close: () => page.close(), getAXState: snapshot,
       playwright: {
+        addLocatorHandler: (selector, handler) => page.addLocatorHandler(page.locator(selector), native => handler(locator(native))),
         locator: (...args) => locator(page.locator(...args)),
         frameLocator: (...args) => locator(page.frameLocator(...args)),
         getByRole: (...args) => locator(page.getByRole(...args)),

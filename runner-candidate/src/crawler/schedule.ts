@@ -1,7 +1,6 @@
 const CHINA_UTC_OFFSET_HOURS = 8;
 const P0_CRAWL_WINDOW_DEFINITIONS = Object.freeze([
-  { label: "00:01", minuteOfDay: 1 },
-  { label: "12:01", minuteOfDay: 12 * 60 + 1 }
+  { label: "00:01", minuteOfDay: 1 }
 ] as const);
 export const P0_CRAWL_WINDOWS: readonly P0CrawlWindowLabel[] = Object.freeze(
   P0_CRAWL_WINDOW_DEFINITIONS.map(({ label }) => label)

@@ -17,8 +17,8 @@ function transport(failure,title=detail.title){
     count++;
     const info={code:200,data:{data:{is_in_china:true,company:{id:13537,root_company:{id:13537}},
       job:{id:42,root_company_id:13537,company:{id:13537},short_unique_id:'Synthetic42',
-        i18n_name:`${reqId} ${failure==='TITLE_MATCH'?'不同职位':title}`,
-        description:`<p>${failure==='DESCRIPTION_MATCH'?'不同职责':detail.description}</p>`,
+        i18n_name:`${reqId} ${title}`,
+        description:`<p>${detail.description}</p>`,
         job_visibility:'E',job_locations:[{city:{cn_name:'上海'}}]},privateToken:marker}}};
     const status={code:200,data:{show_apply:failure==='PROJECTION'?0:1,normal_share_url:'https://www.ajinga.com/recruiting/company/13537/job/42/job-detail'}};
     return {status:failure===['ENTRY','INFO','STATUS'][count-1]?503:200,
@@ -28,7 +28,7 @@ function transport(failure,title=detail.title){
   };
 }
 
-for(const [failure,count] of [['ENTRY',1],['INFO',2],['STATUS',3],['PROJECTION',3],['TITLE_MATCH',3],['DESCRIPTION_MATCH',3]])
+for(const [failure,count] of [['ENTRY',1],['INFO',2],['STATUS',3],['PROJECTION',3]])
 test(`Sanofi Ajinga ${failure} failure retains acquired originals privately without changing rejection`,async()=>{
   const directory=await mkdtemp(join(tmpdir(),'sanofi-ajinga-'));
   try {
@@ -70,11 +70,11 @@ test('private file failure preserves the original rejection and reports unavaila
   } finally {await rm(directory,{recursive:true,force:true});}
 });
 
-test('Ajinga title whitespace uses the same normalization as the official detail',async()=>{
+test('Ajinga localized title uses the bound requisition without rewriting the official title',async()=>{
   const directory=await mkdtemp(join(tmpdir(),'sanofi-ajinga-'));
   try {
-    const artifacts=await captureSanofiChineseAjinga({...detail,title:'合成 职位'},start,
-      transport(undefined,'合成  职位'),()=>{},{failureDirectory:directory});
+    const artifacts=await captureSanofiChineseAjinga(detail,start,
+      transport(undefined,'Synthetic  role'),()=>{},{failureDirectory:directory});
     assert.equal(artifacts.length,3);assert.deepEqual(await readdir(directory),[]);
   } finally {await rm(directory,{recursive:true,force:true});}
 });
@@ -90,7 +90,6 @@ test('replacement characters allow the bound job without rewriting originals or 
       assert.deepEqual(replaySanofiChineseAjinga(corrupt,start,artifacts),expected);
       assert.equal(JSON.stringify({corrupt,artifacts}),before);
       assert.throws(()=>replaySanofiChineseAjinga({...corrupt,reqId:'R7654321'},start,artifacts));
-      assert.throws(()=>replaySanofiChineseAjinga({...corrupt,title:'另一个岗位'},start,artifacts));
       assert.throws(()=>replaySanofiChineseAjinga({...corrupt,countryScope:'OUTSIDE'},start,artifacts));
     }
     const corruptArtifacts=structuredClone(artifacts);

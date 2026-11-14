@@ -65,7 +65,7 @@ export function portableDisplayDataVersion(snapshot: PortablePublicSnapshot,
           const locations = job as typeof snapshot.companies[number]["jobs"][number];
           return {id: job.id, title: job.title, officialTitle: job.officialTitle,
             officialPublishedAt: job.officialPublishedAt, city: job.city, cities: locations.cities,
-            locationRaw: job.locationRaw, cityPending: job.cityPending, category: job.category,
+            locationRaw: job.locationRaw, cityPending: job.cityPending, category: job.category, subcategory: job.subcategory,
             isNew: job.isNew, officialUrl: job.officialUrl,
             searchCities: publicSearchCities(locations).map(city => ({city, province: publicSearchCityProvince(locations, city)})),
             searchProvinces: publicSearchProvinces(locations)};

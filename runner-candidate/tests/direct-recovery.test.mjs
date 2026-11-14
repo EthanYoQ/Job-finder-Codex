@@ -6,18 +6,19 @@ import { withPortableCrawlLease } from '../src/crawler/portableCrawlLease.ts';
 import { nextP0SchedulerWindow, isSourceDueForScheduledRun } from '../src/crawler/schedule.ts';
 import { hashCanonicalJobKeySet } from '../src/crawler/runtimeBatchIdentity.ts';
 
-test('00:01/12:01 Beijing schedule deduplicates successful sources across retries and day rollover', () => {
-  for (const boundary of ['2026-10-30T16:01:00Z', '2026-10-31T04:01:00Z', '2026-10-31T16:01:00Z']) {
-    const now = new Date(boundary);
-    assert.equal(nextP0SchedulerWindow(now).startsAt, now.toISOString());
-    const prior = {sourceId:'s', consecutiveFailureCount:0, lastSuccessfulCrawlAt:new Date(+now - 12 * 3600_000)};
-    assert.equal(isSourceDueForScheduledRun(prior, new Date(+now - 60_000)), false);
-    assert.equal(isSourceDueForScheduledRun(prior, now), true);
-    const state = {sourceId:'s', consecutiveFailureCount:0, lastSuccessfulCrawlAt:now};
-    assert.equal(isSourceDueForScheduledRun(state, new Date(+now + 60_000)), false);
-    assert.equal(isSourceDueForScheduledRun(state, new Date(+now + 12 * 3600_000)), true);
-    assert.equal(isSourceDueForScheduledRun({...state, consecutiveFailureCount:3}, new Date(+now + 60_000)), false);
-  }
+test('00:01 Beijing schedule retries missing sources and keeps same-day successes', () => {
+  const start = new Date('2026-11-13T16:01:00Z');
+  const noon = new Date('2026-11-14T04:01:00Z');
+  const next = new Date('2026-11-14T16:01:00Z');
+  const prior = {sourceId:'s', consecutiveFailureCount:0, lastSuccessfulCrawlAt:new Date('2026-11-13T04:01:00Z')};
+  assert.equal(nextP0SchedulerWindow(noon).startsAt, start.toISOString());
+  assert.equal(nextP0SchedulerWindow(noon, start).startsAt, next.toISOString());
+  assert.equal(isSourceDueForScheduledRun(prior, start), true);
+  assert.equal(isSourceDueForScheduledRun(prior, noon), true);
+  const state = {...prior, lastSuccessfulCrawlAt:start};
+  assert.equal(isSourceDueForScheduledRun(state, noon), false);
+  assert.equal(isSourceDueForScheduledRun(state, next), true);
+  assert.equal(isSourceDueForScheduledRun({...state, consecutiveFailureCount:3}, noon), false);
 });
 
 function interrupted(state) {

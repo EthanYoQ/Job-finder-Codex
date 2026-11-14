@@ -5,6 +5,7 @@ import { confirmedCompanyRosterV3Members } from "../data/confirmedCompanyRosterV
 import type { PublicationHealth, PublicationState } from "../domain/publicationEligibility";
 import type { PublicSnapshotRefresh } from "../domain/publicSnapshotRefresh";
 import { getStaticDocument } from "../server/staticDocuments";
+import type { JobSubcategory } from "../domain/jobClassification";
 
 export interface SearchRequest {
   province?: string;
@@ -21,9 +22,11 @@ export interface SearchJob {
   officialTitle: string;
   officialPublishedAt: string | null;
   city: string;
+  cities?: string[];
   locationRaw: string;
   cityPending?: boolean;
   category: string;
+  subcategory?: JobSubcategory;
   isNew: boolean;
   officialUrl: string;
 }
@@ -44,8 +47,8 @@ export interface SearchResult {
   lastUpdatedAt: string | null;
   /** Entire verified published set, before any search filters. */
   publishedJobSummary?: { totalJobs: number; cityPendingJobs: number };
-  /** Entire published set; concrete-city counts exclude nationwide and pending jobs. */
-  provinceFacets?: Array<{ province: string; jobCount: number; cityPendingJobs: number }>;
+  /** Province totals include nationwide jobs. Named city counts include their confirmed locations. */
+  provinceFacets?: Array<{ province: string; jobCount: number; cityPendingJobs: number; multiCityJobs?: number }>;
   cityFacets?: Array<{ city: string; province: string | null; jobCount: number }>;
   coverageSummary?: {requiredCompanyCount:number;publishingCompanyCount:number;excludedCompanyCount:number;degradedCompanyCount:number};
 }
@@ -166,6 +169,7 @@ export function createDemoAppDataProvider(): AppDataProvider {
           city: job.city,
           locationRaw: job.city,
           category: job.category,
+          ...(job.subcategory ? { subcategory: job.subcategory } : {}),
           isNew: job.isNew,
           officialUrl: job.officialUrl
         }))

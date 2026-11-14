@@ -1,7 +1,9 @@
 import { load } from "cheerio";
+import {jobQuarantineLoss,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from "./jobQuarantine";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { isDeepStrictEqual as same } from "node:util";
 import { hasNovartisOfficialPresencePlan, NOVARTIS_DEFAULT_ENTRY } from "./novartisOfficialPresence";
-import type { HttpHtmlClient } from "./httpHtmlSourceFetch";
+import type { HttpHtmlClient, HttpHtmlResponse } from "./httpHtmlSourceFetch";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import type { SourceFetchResult } from "./runSourceCrawl";
 import { parsePersistentSourceFetchEvidence, sanitizeEvidenceHttpUrl, sha256Bytes,
@@ -10,28 +12,30 @@ import { evaluatePaginationEvidence } from "./paginationEvidence";
 import { retryableHttpTransportFailure, retryableTransportFailureFromError, type SourceTransportFailure } from "./sourceFetchFailure";
 
 const ORIGIN = "https://www.novartis.com.cn", PATH = "/careers/career-search";
-export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"2" };
-export const NOVARTIS_PARTITION_PAGINATION = { allowCompleteTraversalOfEmptyFirstPage:true } as const;
+export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"13" };
+export const NOVARTIS_PARTITION_PAGINATION = { allowCompleteTraversalOfEmptyFirstPage:true,...JOB_QUARANTINE_PAGINATION } as const;
 const FAIL = "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE", AUDIT = "novartis-partitions-audit";
-const FIELDS = ["FN","BS","CM","CA","DD","FA","HR","IT","NN","LI","MA","MM","OT","PR","QA","RD","SA","TO","EE","ZZ"].map(s=>`FCT_${s}`);
+export const NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR = "novartis-default-discovery-exhausted";
 const clean = (s:string) => s.replace(/\s+/gu," ").trim();
 const body = (a:SourceFetchArtifactDraft) => typeof a.body === "string" ? a.body : Buffer.from(a.body).toString("utf8");
 const hash = (s:string) => sha256Bytes(Buffer.from(s)).sha256;
 function requireValue(v:unknown, reason=FAIL):asserts v { if (!v) throw Error(reason); }
-interface Row { id:string; url:string; html:string; title:string }
+interface Row { id:string; url:string; html:string; title:string; quarantined?:true }
 function identity(url:string):string {
   const u=new URL(url),m=/^\/careers\/career-search\/job\/details\/(req-\d+)(?:-[^/]+)?$/iu.exec(u.pathname);
   requireValue(u.origin===ORIGIN&&!u.username&&!u.password&&!u.search&&!u.hash&&m);return m[1]!.toUpperCase();
 }
-function listRows(html:string):Row[] {
+function listRows(html:string,coordinate:string):Row[] {
   const $=load(html),out:Row[]=[];
   for(const n of $("table.views-table tbody tr").toArray()) {
     if($(n).find("td.empty.message").length===1&&clean($(n).text())==="No content has been found."){requireValue(total(html)===0&&$("table.views-table tbody tr").length===1);continue;}
-    const a=$(n).find("td.views-field-field-job-title a"),country=$(n).find("td.views-field-field-job-country");
-    requireValue(a.length===1&&clean(a.text())&&a.attr("href")&&country.length===1);
-    country.find(".alternative-locations").remove();requireValue(clean(country.text())==="China");
-    const url=new URL(a.attr("href")!,ORIGIN).href;
-    out.push({id:identity(url),url,html:$.html(n),title:clean(a.text())});
+    // Read the China primary placement without deleting alternative placements from the retained row.
+    const a=$(n).find("td.views-field-field-job-title a"),country=$(n).find("td.views-field-field-job-country").clone();
+    let url='',id='';try{url=new URL(a.attr('href')??'',ORIGIN).href;id=identity(url);}catch{url='';}
+    country.find('.alternative-locations').remove();
+    const location=$(n).find('td.views-field-field-job-work-location'),rawHtml=$.html(n),title=clean(a.text());
+    const valid=id&&a.length===1&&title&&country.length===1&&clean(country.text())==='China'&&location.length===1&&clean(location.text())&&!explicitlyForeignOrNonMainlandLocation(clean(location.text()));
+    out.push({id:id||`unidentified:${hash(JSON.stringify([coordinate,out.length,rawHtml]))}`,url,html:rawHtml,title,...(!valid?{quarantined:true as const}:{})});
   }
   requireValue(new Set(out.map(r=>r.id)).size===out.length);return out;
 }
@@ -39,10 +43,10 @@ function total(html:string):number {
   const $=load(html),t=$(".view-header").toArray().map(n=>clean($(n).text())).filter(t=>/^Showing\b/iu.test(t));
   requireValue(t.length===1&&/^Showing\s+\d+\s+results$/iu.test(t[0]!));return Number(t[0]!.match(/\d+/u)![0]);
 }
-function partitionUrl(field:string,page=0):string {
+function partitionUrl(field:string,page=0,order="职位名称",sort="asc"):string {
   const u=new URL(NOVARTIS_DEFAULT_ENTRY);u.searchParams.delete("country[]");u.searchParams.set("country[0]","LOC_CN");
-  u.searchParams.set("functional_area[0]",field);u.searchParams.set("sort","asc");
-  u.searchParams.set("order",field==="FCT_SA"?"发布日期":"职位名称");if(page)u.searchParams.set("page",String(page));return u.href;
+  u.searchParams.set("functional_area[0]",field);u.searchParams.set("sort",sort);
+  u.searchParams.set("order",order);if(page)u.searchParams.set("page",String(page));return u.href;
 }
 // Query order and [] versus [0] are equivalent native Drupal form encodings.
 function sameUrl(actual:string,expected:string):boolean {
@@ -50,28 +54,43 @@ function sameUrl(actual:string,expected:string):boolean {
     query:[...u.searchParams].map(([k,v])=>[k.replace(/\[\]/gu,"[0]"),v]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))};};
   return same(key(sanitizeEvidenceHttpUrl(actual)),key(sanitizeEvidenceHttpUrl(expected)));
 }
+function nativePartitionSortUrl(first:SourceFetchArtifactDraft,field:string,order:string,sort="desc"):string {
+  const $=load(body(first)),expected=partitionUrl(field,0,order,sort);
+  const links=$("th a[href]").toArray().map(n=>new URL($(n).attr("href")!,first.requestedUrl!).href).filter(url=>sameUrl(url,expected));
+  requireValue(links.length===1);return links[0]!;
+}
+function partitionClosed(rows:Row[],counts:number[],terminal:boolean):boolean {
+  return terminal&&counts.length>0&&counts.every(count=>count===counts[0])&&rows.length===counts[0]&&new Set(rows.map(r=>r.id)).size===counts[0];
+}
 function artifactOk(a:SourceFetchArtifactDraft,url:string,role:string) {
   requireValue(a.requestedUrl&&a.finalUrl&&sameUrl(a.requestedUrl,url)&&sameUrl(a.finalUrl,url)&&a.httpStatus===200&&
     /^text\/html(?:;|$)/iu.test(a.contentType??"")&&a.extractorLocator===role&&a.bodyRepresentation!=="REDACTED"&&!a.rawBodySha256&&!a.redactionDescriptors);
 }
-function parsedPage(a:SourceFetchArtifactDraft,url:string,page:number,role:string) {
-  artifactOk(a,url,role);const html=body(a),$=load(html),rs=listRows(html),count=total(html);
-  requireValue(rs.length<=10&&(count===0||rs.length>0));
+function parsedPage(a:SourceFetchArtifactDraft,url:string,page:number,role:string,allowDefaultExhaustion=false) {
+  artifactOk(a,url,role);const html=body(a),$=load(html),count=total(html);
   const active=$(".pagination .active .page-link[title]"),next=$(".pagination a[rel=next]");
-  if(count<=10&&!$(".pagination").length){requireValue(page===0&&rs.length===count);return {rows:rs,count,pages:1,next:null as string|null};}
   const m=/^page\s+(\d+)\s+.*out of\s+(\d+)\s+pages$/iu.exec(clean(active.attr("title")??""));
+  const discovery=role==="novartis-partition-default-discovery-v1";
+  const disabled=next.hasClass("disabled")||next.parent().hasClass("disabled")||next.attr("aria-disabled")==="true";
+  const href=next.attr("href"),empty=$("table.views-table tbody tr");
+  if(allowDefaultExhaustion&&discovery&&empty.length===1&&empty.find('td.empty.message').length===1&&clean(empty.text())==='No content has been found.'&&count>0){
+    // A bound Next can become out of range while the supplemental default list changes.
+    requireValue(page>0&&page===Math.ceil(count/10)&&active.length===1&&m&&Number(m[1])===page&&Number(m[2])===page+1&&next.length===1&&disabled&&href==='');
+    return {rows:[] as Row[],count,pages:Number(m[2]),next:null as string|null,unboundUnknown:true};
+  }
+  const rs=listRows(html,url);requireValue(rs.length<=10&&(count===0||rs.length>0));
+  if(count<=10&&!$(".pagination").length){requireValue(page===0&&rs.length===count);return {rows:rs,count,pages:1,next:null as string|null};}
   requireValue(active.length===1&&m&&Number(m[1])===page+1&&next.length===1);
   const pages=Number(m[2]);requireValue(page<pages);
-  const discovery=role==="novartis-partition-default-discovery-v1";
   if(!discovery)requireValue(pages===Math.max(1,Math.ceil(count/10)));
-  const disabled=next.hasClass("disabled")||next.parent().hasClass("disabled")||next.attr("aria-disabled")==="true";
-  const href=next.attr("href"),target=href?new URL(href,url).href:null;
+  const target=href?new URL(href,url).href:null;
   if(!discovery)requireValue(rs.length===Math.min(10,Math.max(0,count-page*10)));
   if(page+1===pages){requireValue(disabled&&(!target||sameUrl(target,url)));return {rows:rs,count,pages,next:null as string|null};}
   requireValue(!disabled&&target);const expected=new URL(url);expected.searchParams.set("page",String(page+1));requireValue(sameUrl(target,expected.href));
   return {rows:rs,count,pages,next:target};
 }
 function detailStatus(a:SourceFetchArtifactDraft,row:Row):"OBSERVED_PRESENT"|"EXPLICITLY_CLOSED"|"UNKNOWN" {
+  try{
   artifactOk(a,row.url,"novartis-partition-same-id-detail-v1");const $=load(body(a));
   $("script,style,noscript,[hidden],[aria-hidden=true],.hidden,.d-none,.sr-only").remove();
   $("[style]").filter((_i,n)=>/(?:display\s*:\s*none|visibility\s*:\s*hidden)/iu.test($(n).attr("style")??"")).remove();
@@ -83,76 +102,154 @@ function detailStatus(a:SourceFetchArtifactDraft,row:Row):"OBSERVED_PRESENT"|"EX
   if(closed)return links.length?"UNKNOWN":"EXPLICITLY_CLOSED";
   const validApply=links.length>0&&links.every(n=>{const u=new URL($(n).attr("href")!,row.url);return u.origin==="https://platform.moseeker.com"&&u.pathname==="/m/customize/page/novartis"&&!u.username&&!u.password&&!u.hash&&[...u.searchParams].length===1&&u.searchParams.get("job_number")===row.id;});
   return validApply&&h1.length===1&&clean(h1.text())===row.title&&article.find("p").toArray().some(n=>clean($(n).text()).length>0)?"OBSERVED_PRESENT":"UNKNOWN";
+  }catch{return 'UNKNOWN';}
 }
 function counts(n:number) {return {rawCount:n,parsedCount:n,validCount:n,parseDiscardCount:0,validationDiscardCount:0};}
-function readRoot(plan:SourceCrawlPlan,root:SourceFetchArtifactDraft):number {
+function readRoot(plan:SourceCrawlPlan,root:SourceFetchArtifactDraft):{total:number;fields:string[]} {
   artifactOk(root,plan.source.officialEntryUrl,"novartis-native-partition-root-v1");const $=load(body(root));
   const fields=$("select[name='functional_area[]'] option").toArray().map(n=>$(n).attr("value"));
-  requireValue(same([...fields].sort(),[...FIELDS].sort())&&$("select[name='country[]'] option[selected]").length===1&&$("select[name='country[]'] option[selected]").attr("value")==="LOC_CN"&&
+  requireValue(fields.length>0&&fields.every(field=>typeof field==="string"&&/^FCT_[A-Z0-9_]+$/u.test(field))&&new Set(fields).size===fields.length&&$("select[name='country[]'] option[selected]").length===1&&$("select[name='country[]'] option[selected]").attr("value")==="LOC_CN"&&
     $("select[name='field_job_posted_date'] option[selected]").attr("value")==="All");
-  return total(body(root));
+  return {total:total(body(root)),fields:fields as string[]};
 }
-function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[]) {
+function finalPartitionSort(field:string, siteForSales:boolean, siteForMarketing:boolean) {
+  const site = (siteForSales && field==="FCT_SA") || (siteForMarketing && field==="FCT_MM");
+  return site ? {order:"站点",prefix:"site-"} : {order:"职位名称",prefix:"title-"};
+}
+function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],order:string,allowReverse=false,allowFinalSort=false,siteForSales=false,allowDefaultExhaustion=false,siteForMarketing=false,titleFirstForSales=false) {
   requireValue(hasNovartisOfficialPresencePlan(plan));const approved=new URL(partitionUrl("FCT_QA"));approved.searchParams.delete("functional_area[0]");requireValue(sameUrl(plan.source.officialEntryUrl,approved.href));const used=new Set<string>();let last=-Infinity;
   const take=(key:string,url:string,role:string)=>{const found=artifacts.filter(a=>a.logicalKey===key);requireValue(found.length===1);const a=found[0]!;
-    requireValue(Number.isFinite(Date.parse(a.capturedAt))&&Date.parse(a.capturedAt)>=last);last=Date.parse(a.capturedAt);used.add(key);artifactOk(a,url,role);return a;};
+    requireValue(Number.isFinite(Date.parse(a.capturedAt))&&Date.parse(a.capturedAt)>=last);last=Date.parse(a.capturedAt);used.add(key);
+    if(role==='novartis-partition-same-id-detail-v1')requireValue(a.requestedUrl&&sameUrl(a.requestedUrl,url)&&a.extractorLocator===role&&a.bodyRepresentation!=='REDACTED');
+    else artifactOk(a,url,role);return a;};
   const root=take("novartis-partitions-root",plan.source.officialEntryUrl,"novartis-native-partition-root-v1");
-  const indexTotal=readRoot(plan,root),rows:Row[]=[],pages:SourceFetchPageTrace[]=[],partitionAudit:unknown[]=[];
+  const {total:indexTotal,fields}=readRoot(plan,root),rows:Row[]=[],pages:SourceFetchPageTrace[]=[],quarantines:JobQuarantine[]=[],partitionAudit:unknown[]=[],ascendingDiscoveries=new Map<string,Row>();
   const addPage=(a:SourceFetchArtifactDraft,rs:Row[],channelId:string,page:number|null,count:number|null,declaredPages:number|null,next:string|null)=>{
-    requireValue(a.channelId===channelId);pages.push({sequence:pages.length,artifactLogicalKey:a.logicalKey,channelId,requestedPage:page,returnedPage:page,
-      rawJobIds:rs.map(r=>r.id),validJobIds:rs.map(r=>r.id),declaredTotal:count===0?null:count,declaredPages,
+    requireValue(a.channelId===channelId);
+    const sequence=pages.length;
+    rs.forEach((r,recordIndex)=>{if(r.quarantined)quarantines.push({pageSequence:sequence,recordIndex,rawLocator:`${a.logicalKey}#row:${recordIndex}`,validJobId:r.id,code:'NOVARTIS_JOB_ROW_UNVERIFIED',...(r.url?{officialUrl:sanitizeEvidenceHttpUrl(r.url)}:{})});});
+    pages.push({sequence:pages.length,artifactLogicalKey:a.logicalKey,channelId,requestedPage:page,returnedPage:page,
+      rawJobIds:rs.map(r=>r.id),validJobIds:rs.filter(r=>!r.quarantined).map(r=>r.id),declaredTotal:count===0?null:count,declaredPages,
       nextPageSignalBefore:page===1?"initial":page===null?null:a.requestedUrl,nextPageSignalAfter:next?sanitizeEvidenceHttpUrl(next):null,termination:next?"CONTINUE":rs.length?"NEXT_ABSENT":"EMPTY_PAGE",
       responseFingerprintSha256:hash(body(a)),capturedAt:a.capturedAt,anomalyCodes:[]});};
-  for(const field of FIELDS){const own:Row[]=[];let url=partitionUrl(field),declared:number|undefined,terminal=false;
-    for(let p=0;p<100;p++){const a=take(`novartis-partition-${field}-${p}`,url,"novartis-native-functional-page-v1");const parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");
-      requireValue(declared===undefined||declared===parsed.count);declared=parsed.count;own.push(...parsed.rows);
-      addPage(a,parsed.rows,`novartis:${field}`,p+1,parsed.count,parsed.pages,parsed.next);
-      if(!parsed.next){terminal=true;break;}url=parsed.next;}
-    requireValue(terminal&&own.length===declared&&new Set(own.map(r=>r.id)).size===declared);
-    partitionAudit.push({field,declaredTotal:declared,uniqueCount:own.length});rows.push(...own);
+  for(const field of fields){
+    const read=(url:string,prefix="")=>{const own:Row[]=[],counts:number[]=[],traces:Array<Parameters<typeof addPage>>=[];let first:SourceFetchArtifactDraft|undefined,terminal=false;
+      for(let p=0;p<100;p++){const a=take(`novartis-partition-${field}-${prefix}${p}`,url,"novartis-native-functional-page-v1"),parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");
+        requireValue(a.channelId===`novartis:${field}`);
+        first??=a;counts.push(parsed.count);own.push(...parsed.rows);traces.push([a,parsed.rows,`novartis:${field}`,p+1,parsed.count,parsed.pages,parsed.next]);
+        if(!parsed.next){terminal=true;break;}url=parsed.next;}
+      return {own,counts,traces,first:first!,terminal,closed:partitionClosed(own,counts,terminal)};};
+    const titleFirst=titleFirstForSales&&field==="FCT_SA";
+    let traversal=read(partitionUrl(field,0,titleFirst?"职位名称":order),titleFirst?"title-":""),discardedTitle:unknown,discarded:unknown,discardedReverse:unknown;
+    if(titleFirst&&!traversal.closed&&traversal.terminal){
+      discardedTitle={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};
+      for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);
+      traversal=read(nativePartitionSortUrl(traversal.first,field,order,"asc"));
+    }
+    const first=traversal.first, finalSort=finalPartitionSort(field,siteForSales,siteForMarketing);
+    if(!traversal.closed&&allowReverse&&traversal.terminal){discarded={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=read(nativePartitionSortUrl(first,field,order),"reverse-");}
+    if(!traversal.closed&&allowFinalSort&&!titleFirst&&traversal.terminal){
+      discardedReverse={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};
+      for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);
+      traversal=read(nativePartitionSortUrl(first,field,finalSort.order,"asc"),finalSort.prefix);
+    }
+    requireValue(traversal.closed);
+    for(const trace of traversal.traces)addPage(...trace);
+    partitionAudit.push({field,declaredTotal:traversal.counts[0],uniqueCount:traversal.own.length,...(titleFirst?{selectedOrder:discardedTitle?order:"职位名称",selectedSort:"asc"}:{}),...(discardedTitle?{discardedTitleAscending:discardedTitle}:{}),...(discarded?{discardedAscending:discarded,selectedSort:"desc"}:{}),...(discardedReverse?{[order==="发布日期"?"discardedDateReverse":"discardedLocationReverse"]:discardedReverse,selectedOrder:finalSort.order,selectedSort:"asc"}:{})});rows.push(...traversal.own);
   }
   requireValue(new Set(rows.map(r=>r.id)).size===rows.length);
-  const primaryIds=new Set(rows.map(r=>r.id)),defaults=new Map<string,Row>(),defaultTotals:number[]=[];let url=NOVARTIS_DEFAULT_ENTRY,terminal=false;
+  const primaryIds=new Set(rows.map(r=>r.id)),defaults=new Map<string,Row>(),defaultTotals:number[]=[];let url=NOVARTIS_DEFAULT_ENTRY,terminal=false,defaultUnboundUnknown=false;
   // Default is discovery only. Its varying totals and repeated rows never certify a missing job.
   for(let p=0;p<100;p++){const a=take(`novartis-partitions-default-${p}`,url,"novartis-partition-default-discovery-v1");
-    const parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1");defaultTotals.push(parsed.count);
-    for(const row of parsed.rows){const prev=defaults.get(row.id);requireValue(!prev||prev.url===row.url);defaults.set(row.id,row);}
+    const parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1",allowDefaultExhaustion);defaultTotals.push(parsed.count);defaultUnboundUnknown ||= parsed.unboundUnknown===true;
+    for(const row of parsed.rows){const prev=defaults.get(row.id);requireValue(!prev||primaryIds.has(row.id)||prev.url===row.url);defaults.set(row.id,row);}
     if(!parsed.next){terminal=true;break;}url=parsed.next;}
-  requireValue(terminal);const differences:Array<{officialId:string;officialUrl:string;status:"OBSERVED_PRESENT"|"EXPLICITLY_CLOSED"|"UNKNOWN"}>=[];
+  requireValue(terminal);const defaultObservedUniqueCount=defaults.size;
+  for(const row of ascendingDiscoveries.values())if(!primaryIds.has(row.id)&&!defaults.has(row.id))defaults.set(row.id,row);
+  const differences:Array<{officialId:string;officialUrl:string;status:"OBSERVED_PRESENT"|"EXPLICITLY_CLOSED"|"UNKNOWN"}>=[];
   for(const row of [...defaults.values()].filter(r=>!primaryIds.has(r.id)).sort((a,b)=>a.id.localeCompare(b.id))){
+    if(row.quarantined){differences.push({officialId:row.id,officialUrl:row.url,status:'UNKNOWN'});continue;}
     const a=take(`novartis-partitions-detail-${row.id}`,row.url,"novartis-partition-same-id-detail-v1"),status=detailStatus(a,row);
     differences.push({officialId:row.id,officialUrl:row.url,status});
     if(status==="OBSERVED_PRESENT"){rows.push(row);addPage(a,[row],`novartis:presence:${row.id}`,null,null,null,null);}
   }
   requireValue(artifacts.every(a=>used.has(a.logicalKey)||a.logicalKey===AUDIT));
   const audit={indexDeclaredTotal:indexTotal,primaryUniqueCount:primaryIds.size,partitions:partitionAudit,
-    defaultObservedUniqueCount:defaults.size,defaultReportedTotals:defaultTotals,defaultCompletenessClaim:false,
-    differences,observedUniqueCount:rows.length,noOmissionVerified:indexTotal===primaryIds.size&&!differences.some(d=>d.status==="UNKNOWN"),
-    anomalyCodes:[...(indexTotal!==primaryIds.size?["NOVARTIS_ROOT_PARTITION_COUNT_MISMATCH"]:[]),...(differences.some(d=>d.status==="UNKNOWN")?["NOVARTIS_DEFAULT_DETAIL_UNKNOWN"]:[])]};
-  return {html:`<table class="views-table"><tbody>${rows.map(r=>r.html).join("")}</tbody></table>`,pages,counts:counts(rows.length),audit,unknownUrls:new Set(differences.filter(d=>d.status==="UNKNOWN").map(d=>d.officialUrl)),closedUrls:new Set(differences.filter(d=>d.status==="EXPLICITLY_CLOSED").map(d=>d.officialUrl))};
+    defaultObservedUniqueCount,defaultReportedTotals:defaultTotals,defaultCompletenessClaim:false,
+    ...(defaults.size>defaultObservedUniqueCount?{additionalAscendingDiscoveryCount:defaults.size-defaultObservedUniqueCount}:{}),
+    differences,observedUniqueCount:rows.length,noOmissionVerified:!defaultUnboundUnknown&&indexTotal===primaryIds.size&&!differences.some(d=>d.status==="UNKNOWN"),
+    anomalyCodes:[...(indexTotal!==primaryIds.size?["NOVARTIS_ROOT_PARTITION_COUNT_MISMATCH"]:[]),...(differences.some(d=>d.status==="UNKNOWN")?["NOVARTIS_DEFAULT_DETAIL_UNKNOWN"]:[]),...(defaultUnboundUnknown?["NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED"]:[])]};
+  const losses=quarantines.map(q=>jobQuarantineLoss(q,artifacts.find(a=>a.logicalKey===pages[q.pageSequence]!.artifactLogicalKey)!.capturedAt));
+  return {unboundUnknown:defaultUnboundUnknown||differences.some(d=>d.status==='UNKNOWN'&&!d.officialUrl),html:`<table class="views-table"><tbody>${rows.filter(r=>!r.quarantined).map(r=>r.html).join("")}</tbody></table>`,pages,quarantines,losses,counts:{...counts(rows.length),validCount:rows.length-quarantines.length,validationDiscardCount:quarantines.length},audit,unknownUrls:new Set(differences.filter(d=>d.status==="UNKNOWN").map(d=>d.officialUrl)),closedUrls:new Set(differences.filter(d=>d.status==="EXPLICITLY_CLOSED").map(d=>d.officialUrl))};
 }
 export function hasNovartisPartitionEvidence(e:PersistentSourceFetchEvidence):boolean {return e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name;}
 export function replayNovartisNativePartitions(plan:SourceCrawlPlan,e:PersistentSourceFetchEvidence) {
-  requireValue(same(e.captureTool,NOVARTIS_PARTITION_CAPTURE));const projected=projection(plan,e.artifacts),audit=e.artifacts.filter(a=>a.logicalKey===AUDIT);
-  requireValue(audit.length===1&&audit[0]!.kind==="COMMAND_OUTPUT"&&audit[0]!.extractorLocator===AUDIT&&same(JSON.parse(body(audit[0]!)),projected.audit)&&
-    same(e.pages,projected.pages)&&same(e.fetchCounts,projected.counts)&&e.fetchLosses.length===0&&same(e.declaredCompleteness,{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,
+  const version=e.captureTool.version;
+  requireValue(e.captureTool.name===NOVARTIS_PARTITION_CAPTURE.name&&["4","5","6","7","8","9","10","11","12","13"].includes(version));
+  const schema=Number(version);
+  const projected=projection(plan,e.artifacts,schema>=8?"发布日期":schema===4?"职位名称":"站点",
+    schema>=6,schema>=7,schema>=9&&schema<=11,schema>=10,schema>=11,schema>=13),audit=e.artifacts.filter(a=>a.logicalKey===AUDIT);
+  const locator=projected.audit.anomalyCodes.includes("NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED")?NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR:AUDIT;
+  requireValue(audit.length===1&&audit[0]!.kind==="COMMAND_OUTPUT"&&audit[0]!.extractorLocator===locator&&same(JSON.parse(body(audit[0]!)),projected.audit)&&
+    same(e.pages,projected.pages)&&same(e.fetchCounts,projected.counts)&&same(e.fetchLosses,projected.losses)&&same(e.jobQuarantines??[],projected.quarantines)&&same(e.declaredCompleteness,{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,
       scope:"SOURCE",artifactLogicalKey:"novartis-partitions-root",extractorLocator:"novartis-native-partition-root-v1"}));
   return projected;
 }
 export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:HttpHtmlClient):Promise<SourceFetchResult> {
   const artifacts:SourceFetchArtifactDraft[]=[];let capturedAt=new Date().toISOString(),transportFailure:SourceTransportFailure|undefined;
-  const capture=async(url:string,key:string,role:string,channelId?:string)=>{let r;try{r=await http({url,headers:{Accept:"text/html","User-Agent":"job-search-crawler/0.1"}});}catch(e){transportFailure=retryableTransportFailureFromError(e);throw e;}
+  const listCache = new Map<string, NonNullable<HttpHtmlResponse["cacheDiagnostics"]>>();
+  const capture=async(url:string,key:string,role:string,channelId?:string)=>{
+    const captureCacheDiagnostics = role !== "novartis-partition-same-id-detail-v1";
+    let r;try{r=await http({url,headers:{Accept:"text/html","User-Agent":"job-search-crawler/0.1"},...(captureCacheDiagnostics?{captureCacheDiagnostics:true}:{})});}catch(e){transportFailure=retryableTransportFailureFromError(e);throw e;}
     transportFailure=retryableHttpTransportFailure(r.status)??transportFailure;const a:SourceFetchArtifactDraft={id:key,logicalKey:key,kind:"OFFICIAL_COMPANY_PAGE",requestedUrl:sanitizeEvidenceHttpUrl(url),finalUrl:sanitizeEvidenceHttpUrl(r.finalUrl??url),httpStatus:r.status,
-      contentType:r.contentType??"application/octet-stream",capturedAt:r.capturedAt??"",body:r.body,bodyRepresentation:"EXACT",extractorLocator:role,...(channelId?{channelId}:{})};artifacts.push(a);artifactOk(a,url,role);if(artifacts.length===1)capturedAt=a.capturedAt;return a;};
-  try{requireValue(hasNovartisOfficialPresencePlan(plan));readRoot(plan,await capture(plan.source.officialEntryUrl,"novartis-partitions-root","novartis-native-partition-root-v1"));const primary=new Set<string>();
-    for(const field of FIELDS){let url=partitionUrl(field);for(let p=0;p<100;p++){const a=await capture(url,`novartis-partition-${field}-${p}`,"novartis-native-functional-page-v1",`novartis:${field}`),parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");for(const row of parsed.rows)primary.add(row.id);if(!parsed.next)break;url=parsed.next;}}
+      contentType:r.contentType??"application/octet-stream",capturedAt:r.capturedAt??"",body:r.body,bodyRepresentation:"EXACT",extractorLocator:role,...(channelId?{channelId}:{})};
+    artifacts.push(a);
+    if(captureCacheDiagnostics&&r.cacheDiagnostics)listCache.set(key,r.cacheDiagnostics);
+    artifactOk(a,url,role);if(artifacts.length===1)capturedAt=a.capturedAt;return a;};
+  try{requireValue(hasNovartisOfficialPresencePlan(plan));const {fields}=readRoot(plan,await capture(plan.source.officialEntryUrl,"novartis-partitions-root","novartis-native-partition-root-v1"));const primary=new Set<string>(),ascendingDiscoveries=new Map<string,Row>();
+    for(const field of fields){
+      const read=async(url:string,prefix="")=>{const own:Row[]=[],counts:number[]=[];let first:SourceFetchArtifactDraft|undefined,terminal=false;
+        for(let p=0;p<100;p++){const a=await capture(url,`novartis-partition-${field}-${prefix}${p}`,"novartis-native-functional-page-v1",`novartis:${field}`),parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");
+          first??=a;counts.push(parsed.count);own.push(...parsed.rows);if(!parsed.next){terminal=true;break;}url=parsed.next;}
+        return {own,first:first!,terminal,closed:partitionClosed(own,counts,terminal)};};
+      const titleFirst=field==="FCT_SA";
+      let traversal=await read(partitionUrl(field,0,titleFirst?"职位名称":"发布日期"),titleFirst?"title-":"");
+      if(titleFirst&&!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(nativePartitionSortUrl(traversal.first,field,"发布日期","asc"));}
+      const first=traversal.first;
+      // Only a separately complete traversal can replace the overlapping one; never union incomplete sets.
+      if(!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(nativePartitionSortUrl(first,field,"发布日期"),"reverse-");}
+      if(!traversal.closed&&!titleFirst&&traversal.terminal){
+        for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);
+        const finalSort=finalPartitionSort(field,false,true);
+        traversal=await read(nativePartitionSortUrl(first,field,finalSort.order,"asc"),finalSort.prefix);
+      }
+      requireValue(traversal.closed);for(const row of traversal.own)primary.add(row.id);
+    }
     const defaults=new Map<string,Row>();let url=NOVARTIS_DEFAULT_ENTRY;
-    for(let p=0;p<100;p++){const a=await capture(url,`novartis-partitions-default-${p}`,"novartis-partition-default-discovery-v1"),parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1");for(const row of parsed.rows)defaults.set(row.id,row);if(!parsed.next)break;url=parsed.next;}
-    for(const row of [...defaults.values()].filter(r=>!primary.has(r.id)).sort((a,b)=>a.id.localeCompare(b.id)))await capture(row.url,`novartis-partitions-detail-${row.id}`,"novartis-partition-same-id-detail-v1",`novartis:presence:${row.id}`);
-    const projected=projection(plan,artifacts);artifacts.push({id:AUDIT,logicalKey:AUDIT,kind:"COMMAND_OUTPUT",capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify(projected.audit),bodyRepresentation:"EXACT",extractorLocator:AUDIT});
-    const evidence=parsePersistentSourceFetchEvidence({captureTool:NOVARTIS_PARTITION_CAPTURE,artifacts,pages:projected.pages,fetchCounts:projected.counts,fetchLosses:[],declaredCompleteness:{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,scope:"SOURCE",artifactLogicalKey:"novartis-partitions-root",extractorLocator:"novartis-native-partition-root-v1"}});
+    for(let p=0;p<100;p++){const a=await capture(url,`novartis-partitions-default-${p}`,"novartis-partition-default-discovery-v1"),parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1",true);for(const row of parsed.rows)defaults.set(row.id,row);if(!parsed.next)break;url=parsed.next;}
+    for(const row of ascendingDiscoveries.values())if(!primary.has(row.id)&&!defaults.has(row.id))defaults.set(row.id,row);
+    let detailsBlocked=false;
+    for(const row of [...defaults.values()].filter(r=>!primary.has(r.id)&&!r.quarantined).sort((a,b)=>a.id.localeCompare(b.id))){
+      const key=`novartis-partitions-detail-${row.id}`;
+      try{if(detailsBlocked)throw Error('DETAIL_ACCESS_STOPPED');await capture(row.url,key,'novartis-partition-same-id-detail-v1',`novartis:presence:${row.id}`);}
+      catch{const prior=artifacts.find(a=>a.logicalKey===key);if(prior?.httpStatus===403||prior?.httpStatus===429)detailsBlocked=true;
+        if(!prior)artifacts.push({id:key,logicalKey:key,kind:'COMMAND_OUTPUT',requestedUrl:sanitizeEvidenceHttpUrl(row.url),capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify({kind:'NOVARTIS_DETAIL_UNAVAILABLE',expectedUrl:row.url}),bodyRepresentation:'EXACT',extractorLocator:'novartis-partition-same-id-detail-v1'});}
+    }
+    const projected=projection(plan,artifacts,"发布日期",true,true,false,true,true,true);
+    const locator=projected.audit.anomalyCodes.includes("NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED")?NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR:AUDIT;
+    artifacts.push({id:AUDIT,logicalKey:AUDIT,kind:"COMMAND_OUTPUT",capturedAt:artifacts.at(-1)!.capturedAt,body:JSON.stringify(projected.audit),bodyRepresentation:"EXACT",extractorLocator:locator});
+    const evidence=parsePersistentSourceFetchEvidence({captureTool:NOVARTIS_PARTITION_CAPTURE,artifacts,pages:projected.pages,fetchCounts:projected.counts,fetchLosses:projected.losses,...(projected.quarantines.length?{jobQuarantines:projected.quarantines}:{}),declaredCompleteness:{kind:"COMPLETE_PAGE_TRAVERSAL",value:projected.pages.length,scope:"SOURCE",artifactLogicalKey:"novartis-partitions-root",extractorLocator:"novartis-native-partition-root-v1"}});
     const paginationEvaluation=evaluatePaginationEvidence({evidence,expectedChannelIds:[...new Set(projected.pages.map(p=>p.channelId!))],filteredOutput:true,...NOVARTIS_PARTITION_PAGINATION});requireValue(paginationEvaluation.safeCompleteness&&paginationEvaluation.verifiedEligible);
     return {ok:true,capturedAt,html:projected.html,fetchEvidence:evidence,paginationEvaluation};
-  }catch(e){return {ok:false,capturedAt,failureReason:e instanceof Error&&/^NOVARTIS_[A-Z_]+$/u.test(e.message)?e.message:FAIL,...(transportFailure?{transportFailure}:{}),
+  }catch(e){
+    if(listCache.size){
+      const key = "novartis-list-cache-diagnostics";
+      const pages = artifacts.filter(a=>listCache.has(a.logicalKey)).map(a=>({
+        logicalKey:a.logicalKey, bodySha256:hash(body(a)), cache:listCache.get(a.logicalKey)
+      }));
+      artifacts.push({id:key,logicalKey:key,kind:"COMMAND_OUTPUT",capturedAt:artifacts.at(-1)!.capturedAt,
+        body:JSON.stringify(pages),bodyRepresentation:"EXACT",extractorLocator:key});
+    }
+    return {ok:false,capturedAt,failureReason:e instanceof Error&&/^NOVARTIS_[A-Z_]+$/u.test(e.message)?e.message:FAIL,...(transportFailure?{transportFailure}:{}),
     ...(artifacts.length?{fetchEvidence:{captureTool:NOVARTIS_PARTITION_CAPTURE,artifacts,pages:[],supportingArtifactOnlyFailure:{code:"SOURCE_FETCH_FAILED"},fetchCounts:counts(0),fetchLosses:[]}}:{})};}
 }

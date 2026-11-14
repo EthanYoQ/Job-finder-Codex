@@ -10,21 +10,34 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
   const deadline = Date.parse(runStartedAt) + 30 * 60_000;
   if (sourceId === 'source-cspc-social') {
     const runtime = createCspcDomRuntime(cua);
+    let failedCapture,nativeSourceUrl;
     try {
       const { rowCount } = await runtime.start({ runStartedAt, dispatchBefore: new Date(deadline).toISOString() });
-      for (let index = 0; index < rowCount; index++) await runtime.readRow(index);
+      for(let index=0;index<rowCount;index++){try{await runtime.readRow(index);}catch(error){await runtime.isolateRowFailure(index,error);}}
       const result = await runtime.finish(false);
       const provenance = { tool: 'playwright-core-local-chromium', browser: 'chromium', networkCapture: false };
       return { dom: { ...result.dom, ...provenance }, applications: { ...result.applications, ...provenance } };
     } catch(error) {
       const cause=error instanceof Error?error:Error('CSPC_DOM_CAPTURE_FAILED');
+      failedCapture=cause;
       cause.sourceFetchStage='CSPC_DOM_CAPTURE';
       try {cause.privateCapture=await savePrivateDomFailure({
         directory:join(process.env.JOBFINDER_STATE_ROOT??'/data/job-finder','diagnostics','cspc'),filePrefix:'cspc-dom',
-        context:{kind:'CSPC_FAILED_DOM_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE'},observe:()=>runtime.failureState()});}
+        context:{kind:'CSPC_FAILED_DOM_DIAGNOSTIC_NOT_PUBLICATION_EVIDENCE'},observe:async()=>{
+          const observation=await runtime.failureState();
+          nativeSourceUrl=observation.url;
+          return observation;
+        }});}
       catch {cause.privateCaptureUnavailable=true;}
       throw cause;
-    } finally { await runtime.close(); }
+    } finally {
+      await runtime.close();
+      if(failedCapture?.message==='CSPC_DOM_LOADING_TIMEOUT'&&nativeSourceUrl)try{
+        // Read Chromium's final in-memory status after all owned tabs close; diagnostic I/O can outlive the earlier snapshot.
+        const navigation=await runtime.navigationInfo();
+        if(navigation)failedCapture.cspcNativeResponse={sourceUrl:nativeSourceUrl,navigation};
+      }catch{ /* Keep the original failure when final browser status is unavailable. */ }
+    }
   }
   if (sourceId === 'source-johnson-innovative-medicine-social') {
     const runtime = createJnjDomRuntime(cua), lists = [], details = [];
@@ -35,7 +48,10 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
         if (value.failure) throw value.error ?? Error(value.failure);
         lists.push(value.raw);
         if (!value.next) {
-          for (let index = 0; index < value.total; index++) details.push((await runtime.readDetail(index)).raw);
+          for(let index=0;index<value.total;index++){
+            let detail;try{detail=await runtime.readDetail(index);}catch(error){detail=await runtime.isolateDetailFailure(index,error);}
+            if(detail.raw)details.push(detail.raw);
+          }
           return { lists, details };
         }
         await runtime.advance();
@@ -56,7 +72,6 @@ export async function captureOfficialDom(sourceId, cua, runStartedAt = new Date(
       if (dom.source_url !== entry) throw Error('BI_DOM_SOURCE_IDENTITY');
       dom.jobs = rows.map(row => {
         const jobId = /(?:^\?|&)jobId=([^&]*)/.exec(row.search)?.[1];
-        if (row.origin !== 'https://campus.51job.com' || row.pathname !== '/BI/recruit_article_detail3.html' || !/^\d+$/.test(jobId ?? '') || !row.visible) throw Error('BI_DOM_JOB_IDENTITY');
         return { jobId, title: row.cells[1], job_number: row.cells[2], location: row.cells[3], published_at: row.cells[4], href: row.href, visible: row.visible };
       });
       if (new Set(dom.jobs.map(row => row.jobId)).size !== dom.jobs.length) throw Error('BI_DOM_DUPLICATE');

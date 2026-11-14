@@ -36,7 +36,7 @@ interface PublicReceipt {
   policyId?: typeof SOURCE_QUALITY_POLICY_ID;
   observedAt?: string;
   observation?: {crawledAt: string};
-  counts: {finalUniqueJobCount: number; validationDiscardCount: number};
+  counts: {finalUniqueJobCount: number; validationDiscardCount: number;quarantinedJobCount?:number};
   mainTraversal?: {matchKeyKind: string; canonicalMatchKeySetSha256: string};
 }
 type CommittedDelta = Pick<JobProjectionDeltaReceipt, "binding" | "verifiedAt" | "observedAt" | "members">;
@@ -51,7 +51,8 @@ export function compactCommittedCertificate(value: unknown, includeMembers = tru
     legacyCertificate: compactCommittedCertificate(c.legacyCertificate)};
   return {schemaVersion: c.schemaVersion, policyId: c.policyId, observedAt: c.observedAt,
     observation: c.observation && {crawledAt: c.observation.crawledAt},
-    counts: c.counts && {finalUniqueJobCount: c.counts.finalUniqueJobCount, validationDiscardCount: c.counts.validationDiscardCount},
+    counts: c.counts && {finalUniqueJobCount: c.counts.finalUniqueJobCount, validationDiscardCount: c.counts.validationDiscardCount,
+      quarantinedJobCount:c.counts.quarantinedJobCount??(Array.isArray(c.jobQuarantineLedger)?c.jobQuarantineLedger.length:Array.isArray(c.mainTraversal?.jobQuarantine?.ledger)?c.mainTraversal.jobQuarantine.ledger.length:0)},
     mainTraversal: c.mainTraversal && {matchKeyKind: c.mainTraversal.matchKeyKind, canonicalMatchKeySetSha256: c.mainTraversal.canonicalMatchKeySetSha256}};
 }
 
@@ -95,6 +96,7 @@ interface AcceptedPortableSource {
   historicalObservations?: Map<string, AcceptedPortableSource>;
 }
 export interface PortablePublicJob extends DatabaseSearchJobResult {
+  categoryManuallyCorrected?: true;
   companyId: string;
   sourceId: string;
   sourceResultId: string;
@@ -271,7 +273,8 @@ export function selectPortableSourceSnapshots(
     if (selected) {
       const {receipt, result} = selected;
       try { bindHistoricalObservations(selected, attempts, plan); } catch { integrityHold = true; }
-      const firstSameSchema = accepted.find(entry => entry.receipt.schemaVersion === receipt.schemaVersion || plan.source.id === "source-bayer-healthcare-social" && [entry.receipt.schemaVersion, receipt.schemaVersion].every(schema => schema === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || schema === BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION))!;
+      const firstSameSchema = accepted.find(entry => entry.receipt.schemaVersion === receipt.schemaVersion ||
+        [entry.receipt.schemaVersion, receipt.schemaVersion].every(isCurrentBGradeCertificateSchema))!;
       Object.assign(base, {selected, visibilityFloor: acceptedAt(firstSameSchema), selectedSourceResultId: result.id,
         policyId: receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? A_GRADE_PUBLIC_POLICY : isCurrentBGradeCertificateSchema(receipt.schemaVersion) ? (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION ? B_GRADE_PUBLIC_POLICY : COMPACT_PUBLIC_POLICY) : receipt.policyId!,
         lastAcceptedAt: acceptedAt(selected), lastSuccessAt: observedAt(receipt, result), lastAcceptedJobCount: receipt.counts.finalUniqueJobCount,
@@ -330,7 +333,7 @@ export function verifiedMembers(selected: NonNullable<PortableSourceSelection["s
       key.startsWith(`${result.sourceId}:`) ? key.slice(result.sourceId.length + 1) : "");
     if (keys.some(key => !key) || hashCanonicalStringSet(keys) !== traversal.canonicalMatchKeySetSha256) throw new Error("PUBLIC_B_GRADE_FINAL_MEMBER_DRIFT");
   }
-  return selected.deltaReceipt || selected.receipt.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA ? sets.VISIBLE : sets.CURRENT;
+  return selected.deltaReceipt || selected.receipt.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA ||(selected.receipt.counts.quarantinedJobCount??0)>0 ? sets.VISIBLE : sets.CURRENT;
 }
 
 function verifiedDeltaMembers(selected: AcceptedPortableSource, members: readonly PortableLifecycleMemberRow[],
@@ -407,7 +410,8 @@ export function projectPortableSourceJobs(
       output.jobs.push({id: row.id, companyId: row.companyId, sourceId: row.sourceId, sourceResultId: selected.result.id,
         title: row.humanCorrectedTitle || row.auxiliaryChineseTitle || row.officialTitle, officialTitle: row.officialTitle,
         officialPublishedAt: row.officialPublishedAt?.toISOString() ?? null, city: row.city, cities: [...row.cities], locationRaw: row.locationRaw,
-        category: fromPrismaJobCategory(row.humanCorrectedCategory ?? row.category), isNew: row.isNew, officialUrl: row.officialUrl,
+        category: fromPrismaJobCategory(row.humanCorrectedCategory ?? row.category),
+        ...(row.humanCorrectedCategory != null ? {categoryManuallyCorrected: true as const} : {}), isNew: row.isNew, officialUrl: row.officialUrl,
         lastSeenAt, ...(deltaMember ? {lastConfirmedObservedAt: deltaMember.lastConfirmedObservedAt} : {}), inGrace: missingCount === 1});
     }
     output.jobs.sort((a, b) => compare(a.id, b.id));

@@ -1,3 +1,6 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import {verifyWorkdayJobQuarantines,workdayRawObservationId} from './workdayJobQuarantine';
+import { reviewedMainlandCityLabel } from "./reviewedMainlandCity";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -9,12 +12,6 @@ import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 export const BIOGEN_SOURCE_ID = "source-biogen-china-social";
 export const BIOGEN_LIST_GEOGRAPHY_POLICY = "BIOGEN_MAINLAND_CITY_PENDING_V1" as const;
 const CHINA_ID = "6cb77610a8a543aea2d6bc10457e35d4";
-const LOCATION_FACETS = [
-  { descriptor: "Shanghai, China", id: "c20707a4650c018390f4e48ed845efa6", city: "Shanghai", normalized: "上海" },
-  { descriptor: "Beijing, China", id: "1d1ae2cf252d013639674034b420cda4", city: "Beijing", normalized: "北京" }
-] as const;
-const MAINLAND_TITLE_CITIES = new Set(["Shanghai", "Beijing", "Wuhan", "Urumqi", "Urumqi\u200c", "Changsha"]);
-const RAW_FIELDS = new Set(["title", "externalPath", "locationsText", "postedOn", "remoteType", "bulletFields"]);
 const hash = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 const record = (value: unknown): Record<string, unknown> | undefined => value !== null && typeof value === "object" && !Array.isArray(value)
   ? value as Record<string, unknown> : undefined;
@@ -40,24 +37,41 @@ export function exactBiogenListGeographyPlan(plan: SourceCrawlPlan): boolean {
     !plan.officialJsonFetch && !plan.moka && !plan.hotjob && !plan.hotjobLegacy && !plan.profileBoundSource;
 }
 
-/** The exact list country/location establishes mainland scope. A known mainland
- * title-location disagreement preserves the job with only the pending marker;
- * it does not select either city. Foreign/unknown/opaque evidence still fails. */
+/** The list country/location establishes mainland scope. Unrecognized or conflicting
+ * domestic title locations stay pending; explicit foreign locations still fail. */
 export function biogenListCities(raw: Record<string, unknown>): string[] | undefined {
-  const location = LOCATION_FACETS.find(value => raw.locationsText === value.descriptor);
-  if (!location || Object.keys(raw).some(key => !RAW_FIELDS.has(key)) || typeof raw.title !== "string" ||
-    !raw.title.trim() || typeof raw.externalPath !== "string") return undefined;
-  const path = /^\/job\/(Shanghai|Beijing)-China\/[^/?#\s]+_(REQ[0-9]+)-[1-9][0-9]*$/u.exec(raw.externalPath);
-  if (!path || path[1] !== location.city || !same(raw.bulletFields, [path[2]])) return undefined;
-  if (/\blocations?\b|工作地点|工作地|地点/iu.test(raw.title)) {
-    const clauses = [...raw.title.matchAll(/\(Location:\s*([^()]+)\)/gu)];
-    const titleCity = clauses[0]?.[1]?.trim();
-    if (clauses.length !== 1 || !titleCity || !MAINLAND_TITLE_CITIES.has(titleCity) ||
-      /\blocations?\b|工作地点|工作地|地点/iu.test(raw.title.replace(clauses[0]![0], ""))) return undefined;
-    if (titleCity !== location.city) return [CITY_PENDING];
+  if (typeof raw.locationsText !== "string" || typeof raw.title !== "string" || !raw.title.trim() ||
+    typeof raw.externalPath !== "string" || !/^[^,]+, China$/u.test(raw.locationsText) ||
+    explicitlyForeignOrNonMainlandLocation(raw.locationsText)) return undefined;
+  const cityLabel = raw.locationsText.slice(0, -7);
+  const path = /^\/job\/([^/]+)-China\/[^/?#\s]+_(REQ[0-9]+)-[1-9][0-9]*$/u.exec(raw.externalPath);
+  if (!path || path[1] !== cityLabel.replaceAll(" ", "-") || !same(raw.bulletFields, [path[2]])) return undefined;
+  const city = reviewedMainlandCityLabel(cityLabel, "China");
+  const locationLabel = /(?:\blocations?|工作(?:地点|城市|地址)|地点)\s*[:：]\s*/giu;
+  const clauses = [...raw.title.matchAll(locationLabel)];
+  const titlePlaces: string[] = [];
+  for (const clause of clauses) {
+    let rest = raw.title.slice(clause.index! + clause[0].length);
+    while (rest) {
+      rest = rest.replace(/^[\s(（]+/u, "");
+      const boundary = rest.search(/[()（）;；\n,/，、|&和或及]|\s+(?:and|or)\s+|\s[-–—]\s/iu);
+      const place = (boundary < 0 ? rest : rest.slice(0, boundary)).trim();
+      if (place) titlePlaces.push(place);
+      if (boundary < 0) break;
+      rest = rest.slice(boundary).replace(/^[)）\s]+/u, "");
+      // A closed location may continue as a list, not as arbitrary title prose.
+      const separator = /^(?:[/,，、|&和或及]|\b(?:and|or)\b)\s*/iu.exec(rest);
+      if (!separator) break;
+      rest = rest.slice(separator[0].length);
+    }
   }
-  return [location.normalized];
+  if (titlePlaces.some(explicitlyForeignOrNonMainlandLocation)) return undefined;
+  const residual = raw.title.replace(locationLabel, "");
+  // shortcut: labelled location lists only; unstructured prose needs official field evidence, not more title inference.
+  return !city || titlePlaces.length < clauses.length || titlePlaces.some(place => place !== cityLabel) || /\blocations?\b|工作地点|地点/iu.test(residual)
+    ? [CITY_PENDING] : [city];
 }
+
 
 function facetGroups(value: unknown, parameter: string): Record<string, unknown>[] {
   if (Array.isArray(value)) return value.flatMap(child => facetGroups(child, parameter));
@@ -65,31 +79,20 @@ function facetGroups(value: unknown, parameter: string): Record<string, unknown>
   return item ? [...(item.facetParameter === parameter ? [item] : []), ...facetGroups(item.values, parameter)] : [];
 }
 
-function facetsMatch(root: Record<string, unknown>, total: number): Array<{ descriptor: string; count: number }> | undefined {
-  const countries = facetGroups(root.facets, "locationCountry"), locations = facetGroups(root.facets, "locations");
-  if (countries.length !== 1 || locations.length !== 1 || !Array.isArray(countries[0]!.values) ||
-    !Array.isArray(locations[0]!.values)) return undefined;
-  const countryValues = countries[0]!.values.map(record);
-  if (countryValues.some(value => !value || typeof value.id !== "string" || typeof value.descriptor !== "string" || !count(value.count)) ||
-    new Set(countryValues.map(value => value!.id)).size !== countryValues.length) return undefined;
-  const china = countryValues.filter(value => value!.id === CHINA_ID || value!.descriptor === "China");
-  if (china.length !== 1 || china[0]!.id !== CHINA_ID || china[0]!.descriptor !== "China" || china[0]!.count !== total) return undefined;
-  const values: Array<{ descriptor: string; count: number }> = [];
-  for (const raw of locations[0]!.values) {
-    const value = record(raw), known = LOCATION_FACETS.find(item => item.id === value?.id && item.descriptor === value?.descriptor);
-    if (!value || !known || !count(value.count) || value.count === 0 || values.some(item => item.descriptor === known.descriptor)) return undefined;
-    values.push({ descriptor: known.descriptor, count: value.count });
-  }
-  return values.reduce((sum, value) => sum + value.count, 0) === total
-    ? values.sort((a, b) => a.descriptor.localeCompare(b.descriptor)) : undefined;
+function facetsMatch(root: Record<string, unknown>, total: number): boolean {
+  const countries=facetGroups(root.facets,'locationCountry');
+  if(countries.length!==1||!Array.isArray(countries[0]!.values))return false;
+  const china=countries[0]!.values.map(record).filter(value=>value&&(value.id===CHINA_ID||value.descriptor==='China'));
+  return china.length===1&&china[0]!.id===CHINA_ID&&china[0]!.descriptor==='China'&&china[0]!.count===total;
 }
 
 type Projection = { sourceJobId: string; title: string; location: string; cities: string[]; url: string };
 function biogenListProjection(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence): Projection[] | undefined {
+  if(evidence.jobQuarantines?.length&&!verifyWorkdayJobQuarantines(plan,evidence))return undefined;
   if (!exactBiogenListGeographyPlan(plan) || evidence.pages.length === 0 || evidence.artifacts.length !== evidence.pages.length ||
-    evidence.fetchLosses.length !== 0) return undefined;
+    evidence.fetchLosses.some(loss=>loss.details.code!=='JOB_QUARANTINED')) return undefined;
   const expected: Projection[] = [], reqIds = new Set<string>();
-  let declaredTotal: number | undefined, locationCounts: Array<{ descriptor: string; count: number }> | undefined;
+  let declaredTotal: number | undefined;
   const endpoint = "https://biibhr.wd3.myworkdayjobs.com/wday/cxs/biibhr/external/jobs";
   for (const page of evidence.pages) {
     const artifact = evidence.artifacts.find(item => item.logicalKey === page.artifactLogicalKey);
@@ -101,26 +104,27 @@ function biogenListProjection(plan: SourceCrawlPlan, evidence: PersistentSourceF
     const root = record(JSON.parse(body));
     if (!root || !count(root.total) || !Array.isArray(root.jobPostings) || page.declaredTotal !== root.total ||
       (declaredTotal !== undefined && declaredTotal !== root.total)) return undefined;
-    const facets = facetsMatch(root, root.total);
-    if (!facets || (locationCounts && !same(locationCounts, facets))) return undefined;
-    declaredTotal = root.total; locationCounts = facets;
+    if(!facetsMatch(root,root.total))return undefined;
+    declaredTotal = root.total;
     const rawIds: string[] = [], validIds: string[] = [];
-    for (const candidate of root.jobPostings) {
+    for (const [recordIndex,candidate] of root.jobPostings.entries()) {
+      rawIds.push(workdayRawObservationId(plan,candidate,page.sequence,recordIndex));
+      if(evidence.jobQuarantines?.some(q=>q.pageSequence===page.sequence&&q.recordIndex===recordIndex))continue;
       const raw = record(candidate), cities = raw && biogenListCities(raw);
       if (!raw || !cities) return undefined;
       const path = raw.externalPath as string, reqId = (raw.bulletFields as string[])[0]!;
       const sourceJobId = `workday:sha256:${hash(path)}`;
       if (reqIds.has(reqId)) return undefined;
-      reqIds.add(reqId); rawIds.push(`sha256:${hash(JSON.stringify(raw))}`); validIds.push(`sha256:${hash(JSON.stringify(sourceJobId))}`);
+      reqIds.add(reqId); validIds.push(`sha256:${hash(JSON.stringify(sourceJobId))}`);
       expected.push({ sourceJobId, title: (raw.title as string).replace(/\s+/gu, " ").trim(),
         location: raw.locationsText as string, cities, url: `${plan.source.officialEntryUrl}${path}` });
     }
     if (!same(page.rawJobIds, rawIds) || !same(page.validJobIds, validIds)) return undefined;
   }
   const counts = evidence.fetchCounts;
-  if (expected.length !== declaredTotal || counts.rawCount !== declaredTotal || counts.parsedCount !== declaredTotal ||
-    counts.validCount !== declaredTotal || counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== 0 ||
-    !locationCounts?.every(value => expected.filter(job => job.location === value.descriptor).length === value.count)) return undefined;
+  const quarantined=evidence.jobQuarantines?.length??0;
+  if (expected.length+quarantined !== declaredTotal || counts.rawCount !== declaredTotal || counts.parsedCount !== declaredTotal ||
+    counts.validCount+quarantined !== declaredTotal || counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== quarantined) return undefined;
   return expected;
 }
 

@@ -1,7 +1,11 @@
-import { isServierTraversalPlan, replayServierTraversal, servierDetailScope, SERVIER_SCOPE_POLICY, SERVIER_UNKNOWN_CODE } from "./servierMokaScope";
+import {mokaRawJobId as mokaJobId,mokaRawObservationId,mokaJobQuarantine,mokaRawLocator} from './mokaJobQuarantine';
+import {quarantineFetchLosses,JOB_QUARANTINE_PAGINATION} from './jobQuarantine';
+import { CITY_PENDING } from "../domain/jobLocation";
+import { mokaDisplayCities,hasMainlandCountryLocation } from "./hengruiMainlandGeography";
+import { isServierTraversalPlan, replayServierTraversal, servierDetailScope, servierDisplayCities, SERVIER_SCOPE_POLICY, SERVIER_UNKNOWN_CODE } from "./servierMokaScope";
 import { isBayerMedicalTraversalPlan, bayerNativeDivisionScope, bayerDetailScope, replayBayerMedicalTraversal } from "./bayerMokaScope";
 import { createDecipheriv } from "node:crypto";
-import { hasHengruiScopeExclusionPolicy, replayHengruiScopeExclusionProof } from "./strictMokaScopeExclusionProof";
+import { hasHengruiScopeExclusionPolicy, replayHengruiScopeExclusionProof, isHengruiOfficialScopeExclusion } from "./strictMokaScopeExclusionProof";
 import { load } from "cheerio";
 import { recentJobCutoffChinaDateKey } from "../domain/jobRecencyPolicy";
 import type { SourceFetchFunction, SourceFetchResult } from "./runSourceCrawl";
@@ -100,6 +104,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
     let previousResponseCapturedAtMs = crawlStartedAtMs;
     let latestEvidence: PersistentSourceFetchEvidence | undefined;
     let latestEvaluation: ReturnType<typeof evaluatePaginationEvidence> | undefined;
+    const acquiredArtifacts:SourceFetchArtifactDraft[]=[];
 
     if (plan.source.atsKind !== "MOKA") {
       return failed(capturedAt, "Moka source fetch only supports MOKA sources");
@@ -138,13 +143,14 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         observedNowMs: now().getTime()
       });
 
-      const artifacts: SourceFetchArtifactDraft[] = [mokaArtifact({
+      const artifacts=acquiredArtifacts;
+      artifacts.push(mokaArtifact({
         logicalKey: "moka-entry-0000",
         kind: "OFFICIAL_COMPANY_PAGE",
         requestedUrl: credentialSafeEntryUrl(plan.source.officialEntryUrl),
         response: page,
         extractorLocator: "html:#init-data[value]"
-      })];
+      }));
 
       const initData = extractMokaInitData(page.body);
       if (!initData) {
@@ -157,7 +163,6 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
       const jobs: Record<string, unknown>[] = [];
       const pages: SourceFetchPageTrace[] = [];
       const fetchLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
-      let firstPayload: unknown;
       let expectedJobCount: number | undefined;
       let pagesVisited = 0;
       let rawCount = 0;
@@ -165,7 +170,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
       let validCount = 0;
       let parseDiscardCount = 0;
       let validationDiscardCount = 0;
-      const seenOfficialIds = new Set<string>();
+      const pending:Array<{rawPageJobs:unknown[];api:MokaHttpResponse;artifactLogicalKey:string;pageIndex:number}>=[];
       const seenRawOfficialIds = new Set<string>();
 
       for (let pageIndex = 0; pageIndex < MOKA_MAX_PAGES; pageIndex += 1) {
@@ -270,7 +275,6 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
           });
           return failed(capturedAt, "Moka decrypted response is missing the required data.jobs array", latestEvidence);
         }
-        firstPayload = firstPayload ?? decrypted;
         const totalEvidence = readMokaTotalEvidence(decrypted);
         const pageTotal = totalEvidence?.value;
         artifacts[artifacts.length - 1] = {
@@ -278,15 +282,56 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
           extractorLocator: pageRequestLocator(mokaTotalLocator(artifactLogicalKey, offset, totalEvidence?.jsonPath))
         };
         expectedJobCount = expectedJobCount ?? pageTotal;
-        const pageJobs: Record<string, unknown>[] = [];
-        const rawJobIds: string[] = [];
-        const validJobIds: string[] = [];
+        if(pageTotal!==undefined&&rawCount+rawPageJobs.length<pageTotal&&rawPageJobs.length<MOKA_PAGE_SIZE)throw Error('Moka short page before declared end');
+        const rawJobIds=rawPageJobs.map((raw,recordIndex)=>mokaRawObservationId(raw,pageIndex,recordIndex));
+        const validJobIds:string[]=[];
+        for(const raw of rawPageJobs){const id=mokaJobId(raw);if(id){if(seenRawOfficialIds.has(id))throw Error('Moka duplicate official list ID');seenRawOfficialIds.add(id);}}
+        rawCount+=rawPageJobs.length;pagesVisited++;
+        pending.push({rawPageJobs,api,artifactLogicalKey,pageIndex});
+        const hasNext = pageTotal === undefined
+          ? rawPageJobs.length === MOKA_PAGE_SIZE
+          : rawCount < pageTotal;
+        const isLastAllowedPage = pageIndex === MOKA_MAX_PAGES - 1;
+        const returnedOffset = readMokaOffset(decrypted) ?? null;
+        const termination: SourceFetchPageTrace["termination"] = hasNext
+          ? (isLastAllowedPage ? "MAX_PAGE_LIMIT" : "CONTINUE")
+          : pageTotal === 0 && rawPageJobs.length === 0
+            ? "EMPTY_PAGE"
+            : "NEXT_ABSENT";
+        pages.push({
+          sequence: pageIndex,
+          artifactLogicalKey,
+          requestedOffset: offset,
+          returnedOffset,
+          requestedPage: null,
+          returnedPage: null,
+          requestedPageSize: MOKA_PAGE_SIZE,
+          returnedPageSize: null,
+          rawJobIds,
+          validJobIds,
+          declaredTotal: pageTotal ?? null,
+          declaredCount: null,
+          declaredPages: null,
+          nextPageSignalBefore: pageIndex === 0 ? null : String(offset),
+          nextPageSignalAfter: hasNext ? String(offset + MOKA_PAGE_SIZE) : null,
+          responseFingerprintSha256: sha256Bytes(Buffer.from(api.body, "utf8")).sha256,
+          termination,
+          anomalyCodes: [],
+          capturedAt: api.capturedAt!
+        });
+
+        if (!hasNext || isLastAllowedPage) {
+          break;
+        }
+      }
+
+      if(!pages.length||pages.at(-1)!.termination==='MAX_PAGE_LIMIT'||expectedJobCount!==undefined&&(rawCount!==expectedJobCount||pages.some(page=>page.declaredTotal!==expectedJobCount)))throw Error('Moka list traversal did not close');
+      let detailsBlocked=false;
+      for(const {rawPageJobs,api,artifactLogicalKey,pageIndex} of pending){
+        const pageJobs:Record<string,unknown>[]=[],validJobIds=pages[pageIndex]!.validJobIds;
         for (let recordIndex = 0; recordIndex < rawPageJobs.length; recordIndex += 1) {
           const raw = rawPageJobs[recordIndex];
           const rawLocator = mokaRawLocator(raw, artifactLogicalKey, pageIndex, recordIndex);
-          const rawEvidenceId = irreversibleEvidenceId(mokaJobId(raw) ?? ["missing-id", recordIndex, raw]);
-          if (!rawJobIds.includes(rawEvidenceId)) rawJobIds.push(rawEvidenceId);
-          rawCount += 1;
           if (!isObject(raw) || Array.isArray(raw)) {
             parseDiscardCount += 1;
             fetchLosses.push({
@@ -300,7 +345,6 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
           }
           parsedCount += 1;
           const rawOfficialId = mokaJobId(raw);
-          if (rawOfficialId) seenRawOfficialIds.add(rawOfficialId);
           let candidate = raw;
           if (
             rawOfficialId &&
@@ -324,8 +368,10 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
                 locale: "zh-CN"
               }
             };
-            const detail = await http(detailRequest);
-            const detailTransportFailure = retryableHttpTransportFailure(detail.status);
+            if(detailsBlocked){validationDiscardCount++;fetchLosses.push({stage:'VALIDATION',reason:'Moka detail access stopped after denial',rawLocator,details:{code:'DETAIL_ACCESS_STOPPED',pageSequence:pageIndex,recordIndex},recordedAt:api.capturedAt});continue;}
+            let detail:MokaHttpResponse;
+            try{detail=await http(detailRequest);}catch{validationDiscardCount++;fetchLosses.push({stage:'VALIDATION',reason:'Moka individual detail transport failed',rawLocator,details:{code:'DETAIL_TRANSPORT_FAILURE',pageSequence:pageIndex,recordIndex},recordedAt:api.capturedAt});continue;}
+            if(detail.status===403||detail.status===429)detailsBlocked=true;
             const detailLogicalKey = `moka-detail-${String(pageIndex).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`;
             const detailExtractorLocator = requestContractV2Locator(
               `moka-detail-v2|request:jobId64=${Buffer.from(rawOfficialId, "utf8").toString("base64url")}`,
@@ -388,21 +434,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
                 },
                 recordedAt: detail.capturedAt
               });
-              latestEvidence = mokaRecordFailureEvidence({
-                artifacts, pages, fetchLosses, rawCount, parsedCount, validCount,
-                parseDiscardCount, validationDiscardCount, artifactLogicalKey,
-                pageIndex, offset, response: api, rawJobIds, validJobIds,
-                declaredTotal: pageTotal ?? null
-              });
-              return failed(
-                capturedAt,
-                detailTransportFailure
-                  ? safeSourceTransportFailureReason(detailTransportFailure)
-                  : detailEvidenceFailure?.message ?? "Moka detail hydration failed closed",
-                latestEvidence,
-                undefined,
-                detailTransportFailure
-              );
+              continue;
             }
             candidate = { ...raw, locations: detailValidation.locations };
             if (servierPortal && detailValidation.servierUnknownGeography) {
@@ -486,76 +518,29 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
               continue;
             }
           }
-          const officialId = mokaJobId(candidate)!;
-          if (seenOfficialIds.has(officialId)) {
-            validationDiscardCount += 1;
-            fetchLosses.push({
-              stage: "VALIDATION",
-              reason: "Moka record duplicates an official job ID",
-              rawLocator,
-              details: { code: "DUPLICATE_OFFICIAL_ID", field: "id", pageSequence: pageIndex, recordIndex },
-              recordedAt: api.capturedAt
-            });
-            continue;
-          }
-          seenOfficialIds.add(officialId);
           // A mixed row retains its mainland alternative; a China country label alone
           // does not make a Hong Kong location mainland evidence.
           if (hasHengruiScopeExclusionPolicy(plan) && Array.isArray(candidate.locations)) {
             candidate = { ...candidate, locations: candidate.locations.filter(location => !isHengruiHongKongLocation(location)) };
           }
+          if((hasHengruiScopeExclusionPolicy(plan)||plan.source.id==='source-gsk-china-social')&&
+            (!Array.isArray(candidate.locations)||!candidate.locations.some(hasMainlandCountryLocation)||hasHengruiScopeExclusionPolicy(plan)&&!candidate.locations.every(hasMainlandCountryLocation))){
+            validationDiscardCount++;fetchLosses.push({stage:'VALIDATION',reason:'Moka workplace country could not be verified',rawLocator,details:{code:'MAINLAND_COUNTRY_UNRESOLVED',pageSequence:pageIndex,recordIndex},recordedAt:api.capturedAt});continue;
+          }
           const enriched = enrichMokaJob(candidate, campaignBinding.campaignUrl);
           if (!isObject(enriched)) throw new Error("Moka validated record did not enrich to an object");
-          if (bayerMedical) enriched.officialPublishedAt = new Date(String(enriched.officialPublishedAt)).toISOString();
+          if (servierPortal) enriched.cities = servierDisplayCities(candidate.locations);
+          if (bayerMedical && enriched.officialPublishedAt!==undefined) enriched.officialPublishedAt = new Date(String(enriched.officialPublishedAt)).toISOString();
           pageJobs.push(enriched);
           validCount += 1;
           validJobIds.push(irreversibleEvidenceId(mokaJobId(candidate)!));
         }
-        pagesVisited += 1;
         jobs.push(...pageJobs);
-
-        const hasNext = pageTotal === undefined
-          ? rawPageJobs.length === MOKA_PAGE_SIZE
-          : rawCount < pageTotal;
-        const isLastAllowedPage = pageIndex === MOKA_MAX_PAGES - 1;
-        const returnedOffset = readMokaOffset(decrypted) ?? null;
-        const allValidIds = new Set([...pages.flatMap((candidate) => candidate.validJobIds), ...validJobIds]);
-        const termination: SourceFetchPageTrace["termination"] = hasNext
-          ? (isLastAllowedPage ? "MAX_PAGE_LIMIT" : "CONTINUE")
-          : pageTotal === 0 && rawPageJobs.length === 0
-            ? "EMPTY_PAGE"
-            : !scopedTraversal && pageTotal !== undefined && allValidIds.size === pageTotal
-              ? "DECLARED_TOTAL_REACHED"
-              : "NEXT_ABSENT";
-        pages.push({
-          sequence: pageIndex,
-          artifactLogicalKey,
-          requestedOffset: offset,
-          returnedOffset,
-          requestedPage: null,
-          returnedPage: null,
-          requestedPageSize: MOKA_PAGE_SIZE,
-          returnedPageSize: null,
-          rawJobIds,
-          validJobIds,
-          declaredTotal: pageTotal ?? null,
-          declaredCount: null,
-          declaredPages: null,
-          nextPageSignalBefore: pageIndex === 0 ? null : String(offset),
-          nextPageSignalAfter: hasNext ? String(offset + MOKA_PAGE_SIZE) : null,
-          responseFingerprintSha256: sha256Bytes(Buffer.from(api.body, "utf8")).sha256,
-          termination,
-          anomalyCodes: [],
-          capturedAt: api.capturedAt!
-        });
-
-        if (!hasNext || isLastAllowedPage) {
-          break;
-        }
       }
+      if(!scopedTraversal&&expectedJobCount!==undefined&&validCount===expectedJobCount)pages.at(-1)!.termination=expectedJobCount===0?'EMPTY_PAGE':'DECLARED_TOTAL_REACHED';
 
       const officialTotalPage = pages.find((candidate) => candidate.declaredTotal !== null && candidate.declaredTotal !== undefined);
-      const rawEvidence = parsePersistentSourceFetchEvidence({
+      let rawEvidence = parsePersistentSourceFetchEvidence({
         captureTool: { name: "moka-http", version: "1" },
         artifacts,
         pages,
@@ -575,17 +560,22 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
         fetchCounts: { rawCount, parsedCount, validCount, parseDiscardCount, validationDiscardCount },
         fetchLosses
       });
+      rawEvidence=quarantineFetchLosses(rawEvidence,loss=>{
+        if(['DUPLICATE_OFFICIAL_ID','BAYER_OFFICIAL_PAUSED','OUTSIDE_RECENT_JOB_WINDOW'].includes(loss.details.code)||loss.details.code==='OUT_OF_SCOPE'&&hasHengruiScopeExclusionPolicy(plan)&&isHengruiOfficialScopeExclusion(pending[loss.details.pageSequence!]!.rawPageJobs[loss.details.recordIndex!]))return;
+        const pageSequence=loss.details.pageSequence,recordIndex=loss.details.recordIndex;if(pageSequence===undefined||recordIndex===undefined)return;
+        const raw=pending[pageSequence]!.rawPageJobs[recordIndex];return mokaJobQuarantine(raw,pageSequence,recordIndex,loss.rawLocator,loss.details.code);
+      });
       latestEvidence = rawEvidence;
       const evidence = deriveCanonicalPaginationEvidence({
         evidence: rawEvidence,
         expectedChannelIds: [],
-        filteredOutput: true
+        filteredOutput: true,...JOB_QUARANTINE_PAGINATION
       });
       latestEvidence = evidence;
       const paginationEvaluation = evaluatePaginationEvidence({
         evidence,
         expectedChannelIds: [],
-        filteredOutput: true
+        filteredOutput: true,...JOB_QUARANTINE_PAGINATION
       });
       latestEvaluation = paginationEvaluation;
       if (!paginationEvaluation.safeCompleteness) {
@@ -610,10 +600,9 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
       if (
         expectedJobCount !== undefined &&
         (
-          seenRawOfficialIds.size !== expectedJobCount ||
+          seenRawOfficialIds.size+(evidence.jobQuarantines?.filter(q=>!q.sourceJobId).length??0) !== expectedJobCount ||
           (configuredMoka?.publishedWithinDays === undefined &&
-            (seenOfficialIds.size + independentlyVerifiedExclusionCount !== expectedJobCount ||
-              validCount + independentlyVerifiedExclusionCount !== expectedJobCount))
+            validCount + independentlyVerifiedExclusionCount+(evidence.jobQuarantines?.length??0) !== expectedJobCount)
         )
       ) {
         return failed(
@@ -627,7 +616,7 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
       return {
         ok: true,
         capturedAt,
-        payload: mergeMokaJobs(firstPayload, jobs),
+        payload: {success:true,data:{jobs}},
         completeness: scopedTraversal ? {
           completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", completenessEvidenceKind: "COMPLETE_PAGE_TRAVERSAL",
           completenessEvidenceUrl: credentialSafeEntryUrl(plan.source.officialEntryUrl), totalPages: pages.length, pageSize: MOKA_PAGE_SIZE, pagesVisited
@@ -656,6 +645,9 @@ export function createMokaSourceFetch(deps: MokaSourceFetchDeps = {}): SourceFet
       };
     } catch (error) {
       const transportFailure = retryableTransportFailureFromError(error);
+      if(!latestEvidence&&acquiredArtifacts.length)latestEvidence=parsePersistentSourceFetchEvidence({captureTool:{name:'moka-http',version:'1'},
+        artifacts:acquiredArtifacts.map(a=>({...a,kind:a.kind==='PAGINATION_PAGE'?'ATS_API_RESPONSE':a.kind})),pages:[],supportingArtifactOnlyFailure:{code:'SOURCE_FETCH_FAILED'},
+        fetchCounts:{rawCount:0,parsedCount:0,validCount:0,parseDiscardCount:0,validationDiscardCount:0},fetchLosses:[]});
       return failed(
         capturedAt,
         transportFailure
@@ -999,7 +991,7 @@ export function mokaDetailLocations(detail: Record<string, unknown>, orgId: stri
     const field = fields[id];
     if (!isObject(field) || Array.isArray(field) || field.name !== name || field.value !== value) return detail.locations;
   }
-  return [{ cityName: "Shanghai Qiantan Plaza" }];
+  return [{ cityName: "Shanghai Qiantan Plaza",country:"中国" }];
 }
 
 function isExactMokaDetailRequestBinding(
@@ -1279,60 +1271,6 @@ function mokaFailedPageEvidence(input: {
   });
 }
 
-function mokaRecordFailureEvidence(input: {
-  artifacts: SourceFetchArtifactDraft[];
-  pages: SourceFetchPageTrace[];
-  fetchLosses: PersistentSourceFetchEvidence["fetchLosses"];
-  rawCount: number;
-  parsedCount: number;
-  validCount: number;
-  parseDiscardCount: number;
-  validationDiscardCount: number;
-  artifactLogicalKey: string;
-  pageIndex: number;
-  offset: number;
-  response: MokaHttpResponse;
-  rawJobIds: string[];
-  validJobIds: string[];
-  declaredTotal: number | null;
-}): PersistentSourceFetchEvidence {
-  return parsePersistentSourceFetchEvidence({
-    captureTool: { name: "moka-http", version: "1" },
-    artifacts: input.artifacts,
-    pages: [
-      ...input.pages,
-      {
-        sequence: input.pageIndex,
-        artifactLogicalKey: input.artifactLogicalKey,
-        requestedOffset: input.offset,
-        returnedOffset: null,
-        requestedPage: null,
-        returnedPage: null,
-        requestedPageSize: MOKA_PAGE_SIZE,
-        returnedPageSize: null,
-        rawJobIds: input.rawJobIds,
-        validJobIds: input.validJobIds,
-        declaredTotal: input.declaredTotal,
-        declaredCount: null,
-        declaredPages: null,
-        nextPageSignalBefore: input.pageIndex === 0 ? null : String(input.offset),
-        nextPageSignalAfter: null,
-        responseFingerprintSha256: sha256Bytes(Buffer.from(input.response.body, "utf8")).sha256,
-        termination: "FAILED",
-        anomalyCodes: [],
-        capturedAt: input.response.capturedAt!
-      }
-    ],
-    fetchCounts: {
-      rawCount: input.rawCount,
-      parsedCount: input.parsedCount,
-      validCount: input.validCount,
-      parseDiscardCount: input.parseDiscardCount,
-      validationDiscardCount: input.validationDiscardCount
-    },
-    fetchLosses: input.fetchLosses
-  });
-}
 
 function credentialSafeEntryUrl(value: string): string {
   const url = new URL(value);
@@ -1372,13 +1310,6 @@ function readMokaOffset(payload: unknown): number | undefined {
   return numberValue(payload.data.offset);
 }
 
-function mergeMokaJobs(firstPayload: unknown, jobs: unknown[]): unknown {
-  void firstPayload;
-  return {
-    success: true,
-    data: { jobs }
-  };
-}
 
 function enrichMokaJob(job: unknown, officialEntryUrl: string): unknown {
   if (!isObject(job)) {
@@ -1394,7 +1325,7 @@ function enrichMokaJob(job: unknown, officialEntryUrl: string): unknown {
     title: requiredText(job.title),
     officialUrl: buildMokaJobUrl(officialEntryUrl, sourceJobId!),
     locationRaw: cities.join("、"),
-    cities,
+    cities: mokaDisplayCities(job.locations),
     ...(officialPublishedAt ? { officialPublishedAt } : {})
   };
 }
@@ -1413,13 +1344,13 @@ function mokaPublishedDateKey(value: unknown): string | undefined {
   return `${match[1]}-${match[2]}-${match[3]}`;
 }
 
-function mokaPublishedAtIso(value: unknown): string | undefined {
+export function mokaPublishedAtIso(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const text = value.trim();
-  if (!text) return undefined;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return `${text}T00:00:00+08:00`;
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)) return `${text}+08:00`;
-  const zoned = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text) ? `${text}:00+08:00` : text;
+  if (!text || !mokaPublishedDateKey(text)) return undefined;
+  const zoned = /^\d{4}-\d{2}-\d{2}$/.test(text) ? `${text}T00:00:00+08:00` :
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text) ? `${text}+08:00` :
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text) ? `${text}:00+08:00` : text;
   return Number.isNaN(Date.parse(zoned)) ? undefined : zoned;
 }
 
@@ -1430,16 +1361,6 @@ function buildMokaJobUrl(officialEntryUrl: string, sourceJobId: string): string 
   return url.toString();
 }
 
-function mokaRawLocator(
-  raw: unknown,
-  artifactLogicalKey: string,
-  pageSequence: number,
-  recordIndex: number
-): string {
-  return `${artifactLogicalKey}#page-${pageSequence}#record-${recordIndex}#sha256:${
-    sha256Bytes(Buffer.from(JSON.stringify(raw), "utf8")).sha256
-  }`;
-}
 
 function irreversibleEvidenceId(value: unknown): string {
   return `sha256:${sha256Bytes(Buffer.from(JSON.stringify(value), "utf8")).sha256}`;
@@ -1452,12 +1373,6 @@ function missingMokaRequiredField(job: Record<string, unknown>): string | undefi
   return undefined;
 }
 
-function mokaJobId(job: unknown): string | undefined {
-  if (!isObject(job) || Array.isArray(job)) return undefined;
-  if (typeof job.id === "string") return job.id.trim() || undefined;
-  if (typeof job.id === "number" && Number.isSafeInteger(job.id)) return String(job.id);
-  return undefined;
-}
 
 function requiredText(value: unknown): string | undefined {
   return typeof value === "string" ? value.trim() || undefined : undefined;

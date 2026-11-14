@@ -2295,7 +2295,7 @@ async function fetchEightfoldPcsx({
       requestedCursor: null, returnedCursor: null,
       requestedOffset: start, returnedOffset: start,
       requestedPage: null, returnedPage: null,
-      requestedPageSize: pageSize, returnedPageSize: root.data.positions.length,
+      requestedPageSize: pageSize, returnedPageSize: null,
       rawJobIds: [...new Set(rawIds)], validJobIds: validIds,
       declaredTotal: total, declaredCount: null, declaredPages: null,
       nextPageSignalBefore: pageIndex === 0 ? null : `start:${start}`,

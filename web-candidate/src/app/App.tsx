@@ -34,8 +34,9 @@ import {
   type StaticDocumentResult
 } from "./appDataProvider";
 import type { SortMode } from "./jobSearch";
-import { SEARCH_CITIES } from "../domain/search";
-import { ALL_CITIES, ALL_PROVINCES, CITY_PENDING, NATIONWIDE } from "../domain/jobLocation";
+import { JOB_CATEGORIES, SEARCH_CITIES } from "../domain/search";
+import { JOB_CATEGORY_GROUPS, matchesJobCategory } from "../domain/jobClassification";
+import { ALL_CITIES, ALL_PROVINCES, CITY_PENDING, MULTI_CITY, NATIONWIDE, PROVINCE_PENDING } from "../domain/jobLocation";
 import "./App.css";
 import { CompanyLogo, CompanyPlate, coordinate, LocationPicker, Modal, type LocationOption } from "./RedesignComponents";
 import { DESIGN_REGIONS } from "./designRegions";
@@ -59,9 +60,6 @@ interface FeedbackDraft {
 }
 
 const DEFAULT_COMPANY_ROW_CAP = 3;
-const CATEGORY_OPTIONS = ["销售", "医学事务", "市场准入/政府事务", "临床运营"];
-const NOVO_SOURCE_NOTE = "指定中国站已核实职位；全球站补充职位仍在核验";
-const ORGANON_SOURCE_NOTE = "排序日期采用官网职位列表记录；地点冲突保留为城市待核";
 
 function normalize(value: string): string {
   return value.trim().toLocaleLowerCase("zh-CN");
@@ -89,7 +87,6 @@ const COMPANY_CATEGORY_LABELS: Record<CoverageCompany["category"], string> = {
 };
 
 function publicationNote(company: CoverageCompany): string {
-  if (company.id === "company-novo-nordisk-china" && company.state === "PUBLISHING") return NOVO_SOURCE_NOTE;
   switch (company.state) {
     case "PUBLISHING":
       return "仅展示来源可核验的官方职位，不作抓全声明。";
@@ -142,7 +139,6 @@ function applyClientFilters(
   sort: SortMode
 ): SearchCompany[] {
   const normalizedKeyword = normalize(keyword);
-  const selectedCategories = new Set(categories);
 
   return sortCompanies(
     companies
@@ -155,9 +151,9 @@ function applyClientFilters(
             normalize(company.pinyin).includes(normalizedKeyword) ||
             normalize(job.title).includes(normalizedKeyword) ||
             normalize(job.officialTitle).includes(normalizedKeyword) ||
-            normalize(job.category).includes(normalizedKeyword);
-          const categoryMatches =
-            selectedCategories.size === 0 || selectedCategories.has(job.category);
+            normalize(job.category).includes(normalizedKeyword) ||
+            normalize(job.subcategory ?? "").includes(normalizedKeyword);
+          const categoryMatches = matchesJobCategory(job, categories);
           const newMatches = !onlyNew || job.isNew;
 
           return keywordMatches && categoryMatches && newMatches;
@@ -185,10 +181,13 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
   const [isSearching, setIsSearching] = useState(false);
   const [searchFailed, setSearchFailed] = useState(false);
   const selectedProvince = searchResult?.provinceFacets?.find((facet) => facet.province === province);
-  const allCitiesCount = province === ALL_PROVINCES ? searchResult?.publishedJobSummary?.totalJobs : selectedProvince?.jobCount;
+  const locationFacets = searchResult?.cityFacets ?? [];
+  const locationCount = (label: string) => locationFacets.find(facet => facet.city === label)?.jobCount;
+  const nationwideCount = locationCount(NATIONWIDE);
+  const allCitiesCount = province === ALL_PROVINCES ? searchResult?.publishedJobSummary?.totalJobs : selectedProvince?.jobCount ?? nationwideCount;
   const cityPendingCount = province === ALL_PROVINCES ? searchResult?.publishedJobSummary?.cityPendingJobs : selectedProvince?.cityPendingJobs;
-  const cityFacets = (searchResult?.cityFacets ?? [{ city: NATIONWIDE, province: null, jobCount: undefined }])
-    .filter((facet) => facet.city !== CITY_PENDING && (province === ALL_PROVINCES || facet.province === province));
+  const cityFacets = locationFacets.filter(facet => ![NATIONWIDE, CITY_PENDING, MULTI_CITY, PROVINCE_PENDING].includes(facet.city) &&
+    (province === ALL_PROVINCES || facet.province === province));
 
   const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
   const [rowCaps, setRowCaps] = useState<Record<string, number>>({});
@@ -380,11 +379,20 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
     });
   }
 
+  function selectLocation(nextProvince: string, nextCity: string) {
+    if (isLocked || searchBusy.current) return;
+    setProvince(nextProvince);
+    setCity(nextCity);
+    void executeSearch({ province: nextProvince, city: nextCity, keyword,
+      categories: selectedCategories, sort, onlyNew });
+  }
+
   async function handleSearch() {
     if (consentState !== "accepted" || city === "" || isSearching) {
       return;
     }
 
+    setFiltersOpen(false);
     await executeSearch({
       ...(dataProvider.supportsCityPendingSearch ? { province } : {}),
       city,
@@ -485,14 +493,18 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
   }
 
   const provinceOptions: LocationOption[] = [
-    {value: ALL_PROVINCES}, ...DESIGN_REGIONS.map(([value, group]) => ({value, group, count: searchResult?.provinceFacets?.find(facet => facet.province === value)?.jobCount ?? (searchResult ? 0 : undefined)}))
+    {value: ALL_PROVINCES}, ...DESIGN_REGIONS.map(([value, group]) => ({value, group, count: searchResult?.provinceFacets?.find(facet => facet.province === value)?.jobCount ?? nationwideCount}))
   ];
   const cityOptions: LocationOption[] = [{value: ALL_CITIES, count: allCitiesCount}];
   const regionCities = province === ALL_PROVINCES ? cityFacets.map(facet => facet.city) : [...new Set([...(DESIGN_REGIONS.find(([name]) => name === province)?.[2] ?? []), ...cityFacets.map(facet => facet.city)])];
   const concreteCities = regionCities.filter(value => value !== NATIONWIDE && value !== CITY_PENDING && value !== ALL_CITIES)
     .map(value => ({value, count: cityFacets.find(facet => facet.city === value)?.jobCount ?? (searchResult ? 0 : undefined)}));
-  if (province === ALL_PROVINCES) cityOptions.push({value: NATIONWIDE, count: cityFacets.find(facet => facet.city === NATIONWIDE)?.jobCount ?? (searchResult ? 0 : undefined)});
-  cityOptions.push({value: CITY_PENDING, count: cityPendingCount});
+  cityOptions.push(
+    {value: NATIONWIDE, count: nationwideCount},
+    {value: MULTI_CITY, count: province === ALL_PROVINCES ? locationCount(MULTI_CITY) : selectedProvince?.multiCityJobs ?? 0},
+    {value: CITY_PENDING, count: cityPendingCount},
+    {value: PROVINCE_PENDING, ...(province === ALL_PROVINCES ? {} : {sub: "查看全部地区"}), count: locationCount(PROVINCE_PENDING)}
+  );
   cityOptions.push(...concreteCities.filter(item => item.count !== 0).map(item => ({...item, group: "有已发布职位"})), ...concreteCities.filter(item => item.count === 0).map(item => ({...item, group: "暂无已发布职位"})));
   const hasSearch = searchResult !== null && !isSearching && !searchFailed;
   const plateBeforeFinder = mobile && activeView === "discover";
@@ -523,45 +535,43 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
           <div className="finder-main">
             <label className="field kw"><span className="lbl">职位关键词</span><span className="control"><Search className="ic" /><input aria-label="职位关键词" placeholder="职位、公司或岗位类别" type="search" disabled={isLocked} value={keyword} onChange={event => setKeyword(event.target.value)} /></span></label>
             {dataProvider.supportsCityPendingSearch ? <>
-              <LocationPicker label="省份/地区" value={province} options={provinceOptions} open={locationOpen === "province"} onOpen={() => setLocationOpen("province")} onClose={() => setLocationOpen(null)} disabled={isLocked} icon={<MapPin className="ic" />} onSelect={value => {setProvince(value);setCity(ALL_CITIES);setLocationOpen("city");}} />
-              <LocationPicker label="城市/地区" value={city || ALL_CITIES} options={cityOptions} open={locationOpen === "city"} onOpen={() => setLocationOpen("city")} onClose={() => setLocationOpen(null)} disabled={isLocked} icon={<Building2 className="ic" />} onSelect={value => {setCity(value);setLocationOpen(null);}} />
+              <LocationPicker label="省份/地区" value={province} options={provinceOptions} open={locationOpen === "province"} onOpen={() => setLocationOpen("province")} onClose={() => setLocationOpen(null)} disabled={isLocked || isSearching} icon={<MapPin className="ic" />} onSelect={value => selectLocation(value, ALL_CITIES)} />
+              <LocationPicker label="城市/地区" value={city || ALL_CITIES} options={cityOptions} open={locationOpen === "city"} onOpen={() => setLocationOpen("city")} onClose={() => setLocationOpen(null)} disabled={isLocked || isSearching} icon={<Building2 className="ic" />} onSelect={value => selectLocation(value === PROVINCE_PENDING ? ALL_PROVINCES : province, value)} />
             </> : <div className="legacy-cities" role="radiogroup" aria-label="城市">{SEARCH_CITIES.map(option => <label className="check" key={option}><input checked={city === option} name="city" onChange={() => setCity(option)} type="radio" value={option} /><span className="box"><Check className="ic" /></span><MapPin className="ic" />{option}</label>)}</div>}
             <button className="btn-primary" disabled={isLocked || isSearching} type="submit"><Search className="ic" />{isSearching ? "搜索中" : "搜索职位"}<ArrowRight className="ic go" /></button>
           </div>
-          {dataProvider.supportsCityPendingSearch ? <p className="finder-note" id="city-facet-note"><Info className="ic" /><span>{searchResult === null ? "职位加载后可查看已发布地区的职位数量。" : ""}城市数字为明确该城市/地区的岗位数，不含全国和城市待核，不随关键词等筛选变化；全部地区下按具体城市搜索时，同时包含全国岗位，选定省份后不含全国岗位。</span></p> : null}
+          {dataProvider.supportsCityPendingSearch ? <p className="finder-note" id="city-facet-note"><Info className="ic" /><span>{searchResult === null ? "职位加载后可查看已发布地区的职位数量。" : ""}选省份后，「全部城市」包含该省岗位和全国岗位。「省份待核」可单独查看省份未知的岗位。</span></p> : null}
           {city === CITY_PENDING ? <p className="finder-note">官方地点未明确到城市或存在冲突；城市待核职位不计入具体城市/地区筛选。已明确省份的职位可在该省的全部城市和城市待核中查看。</p> : null}
         </form> : <div className="dirbar"><p>全部目标公司均在目录中；状态会明确区分自动更新、核验中与仅提供官方入口。</p><label className="field"><span className="lbl">搜索已覆盖公司</span><span className="control"><Search className="ic" /><input type="search" aria-label="搜索已覆盖公司" placeholder="搜索已覆盖公司" value={coverageKeyword} onChange={event => setCoverageKeyword(event.target.value)} /></span></label></div>}
         {!plateBeforeFinder ? <div className="plate-m">{narrow ? plate : null}</div> : null}
         {activeView === "discover" ? <main className="board" aria-label="职位发现">
-          <div><button className="filter-toggle" type="button" aria-expanded={filtersOpen} aria-controls="filters" onClick={() => setFiltersOpen(value => !value)}><span><SlidersHorizontal className="ic" /> 筛选条件</span><ChevronDown className="ic" /></button>
+          <div><button className="filter-toggle" type="button" aria-expanded={filtersOpen} aria-controls="filters" onClick={() => setFiltersOpen(value => !value)}><span><SlidersHorizontal className="ic" /> 筛选条件{selectedCategories.length > 0 ? `（${selectedCategories.length}）` : ""}</span><ChevronDown className="ic" /></button>
             <aside className="filters" id="filters" data-open={filtersOpen} aria-label="筛选条件"><h2><SlidersHorizontal className="ic" />筛选条件</h2>
-              <div><div className="group-title">岗位类别</div><div className="checks">{CATEGORY_OPTIONS.map(category => <label className="check" key={category}><input checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} type="checkbox" /><span className="box"><Check className="ic" /></span>{category}</label>)}</div></div>
+              <div><div className="group-title">岗位类别</div><div className="category-filters">{JOB_CATEGORIES.map(category => <div className="category-group" key={category}>
+                <label className="check"><input checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} type="checkbox" /><span className="box"><Check className="ic" /></span>{category}</label>
+                {JOB_CATEGORY_GROUPS[category].length > 0 ? <details className="category-subfilters"><summary>{category}细分<ChevronDown className="ic" /></summary><div className="checks">{JOB_CATEGORY_GROUPS[category].map(subcategory => <label className="check" key={subcategory}><input checked={selectedCategories.includes(subcategory)} onChange={() => toggleCategory(subcategory)} type="checkbox" /><span className="box"><Check className="ic" /></span>{subcategory}</label>)}</div></details> : null}
+              </div>)}</div></div>
               <label className="switch"><span><Sparkles className="ic" /> 只看新增</span><input checked={onlyNew} onChange={event => setOnlyNew(event.target.checked)} type="checkbox" /><span className="track" /></label>
               <div><div className="group-title">排序</div><div className="seg" aria-label="排序">{([["PINYIN_ASC", "拼音 A-Z"], ["LATEST", "最新发布"], ["JOB_COUNT_DESC", "职位数量"]] as const).map(([value, label]) => <button key={value} aria-pressed={sort === value} onClick={() => setSort(value)} type="button">{label}<Check className="ic" /></button>)}</div></div>
+              {narrow ? <button className="btn-primary" type="button" disabled={isLocked || isSearching} onClick={() => void handleSearch()}>应用筛选</button> : null}
             </aside>
           </div>
           <div className="results">
             <section className="results-head" aria-label="职位概览">
               {hasSearch ? <><div><p className="kicker">当前筛选匹配</p><h2 className="results-title" aria-label={`${visibleJobCount} 个职位`}><b className="num">{visibleJobCount}</b><span>个职位</span></h2><p className="results-sub">{visibleCompanies.length} 家公司</p></div>
-                <div className="results-meta">{searchResult?.publishedJobSummary ? <p>全部已发布职位 {searchResult.publishedJobSummary.totalJobs} 个，其中城市待核 {searchResult.publishedJobSummary.cityPendingJobs} 个（不随筛选变化）</p> : null}
-                  {searchResult?.coverageSummary ? <p>当前已更新 {searchResult.coverageSummary.publishingCompanyCount}/{searchResult.coverageSummary.requiredCompanyCount} 家目标企业{searchResult.coverageSummary.publishingCompanyCount < searchResult.coverageSummary.requiredCompanyCount ? "，其他来源仍在核验" : ""}{searchResult.coverageSummary.degradedCompanyCount > 0 ? `；${searchResult.coverageSummary.degradedCompanyCount} 家近期更新异常` : ""}</p> : null}
-                  {searchResult?.snapshotStorage === "SAVED" ? <p role="status">已保存的公开快照；更新时间保留自原核验。</p> : null}
-                  <p>最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}{searchResult?.lastUpdatedAt ? " UTC" : ""}</p>
-                </div></> : <div><p className="kicker">职位结果</p><div className="results-title"><b className="num">—</b></div><p className="results-sub">{isLocked ? "完成使用前确认后自动加载职位。" : isSearching ? "正在加载职位，请稍候…" : searchFailed ? "暂时无法获取职位数据。" : "职位尚未加载。"}</p></div>}
+                <p className="results-meta">最后更新 {formatTimestamp(searchResult?.lastUpdatedAt ?? null)}{searchResult?.lastUpdatedAt ? " UTC" : ""}</p>
+              </> : <div><p className="kicker">职位结果</p><div className="results-title"><b className="num">—</b></div><p className="results-sub">{isLocked ? "完成使用前确认后自动加载职位。" : isSearching ? "正在加载职位，请稍候…" : searchFailed ? "暂时无法获取职位数据。" : "职位尚未加载。"}</p></div>}
             </section>
-            <p className="sort-note">排序日期采用官网职位列表记录；地点冲突保留为城市待核</p>
             {feedbackMessage ? <p className="banner"><CheckCircle2 className="ic" />{feedbackMessage}</p> : null}
             <section className="list" aria-label="公司职位列表" aria-busy={isSearching}>
               {isSearching ? <div className="empty" role="status"><Search className="ic" /><p>正在加载官方职位…</p></div> : searchFailed ? <div className="empty" role="alert"><p>职位加载失败，请重试。</p><button className="btn-primary" onClick={() => void handleSearch()} type="button">重新加载职位</button></div> : searchResult === null ? <div className="empty"><BriefcaseBusiness className="ic" /><p>完成使用前确认后，将自动展示官方职位分组结果。</p></div> : !visibleCompanies.length ? <div className="empty"><Search className="ic" /><p>当前筛选下没有匹配职位。</p><button type="button" className="btn-line" onClick={clearSearchFilters}>清除关键词与类别筛选</button></div> : visibleCompanies.map(company => {
                 const expanded = expandedCompanyId === company.id, cap = rowCaps[company.id] ?? DEFAULT_COMPANY_ROW_CAP;
                 return <article className={`co${hotId === company.id ? " is-link" : ""}`} data-open={expanded} data-testid={`company-${company.id}`} id={`row-${company.id}`} key={company.id} onMouseEnter={() => setHotId(company.id)} onMouseLeave={() => setHotId(null)}>
                   <button className="co-head" aria-expanded={expanded} aria-controls={`jobs-${company.id}`} onClick={() => toggleCompany(company.id)} type="button"><span className="coord">{companyIndex(company.id)}</span><CompanyLogo companyId={company.id} name={company.companyName} className="tk-row" /><strong className="co-name">{company.companyName}</strong><span className="co-count"><b>{company.jobs.length}</b><span>个职位</span></span><span className="co-go"><ChevronDown className="ic" /></span></button>
-                  {company.id === "company-novo-nordisk-china" ? <p className="source-scope-note">{NOVO_SOURCE_NOTE}</p> : company.id === "company-organon-china" ? <p className="source-scope-note">{ORGANON_SOURCE_NOTE}</p> : null}
-                  {company.sourceScopeNote ? <p className="source-scope-note">{company.sourceScopeNote}</p> : null}
                   <div className="co-body"><div className="co-inner" id={`jobs-${company.id}`} inert={!expanded} aria-hidden={!expanded}>{expanded ? <div className="jobs">
                     {company.jobs.slice(0, cap).map((job, index) => <div className="job" key={job.id}><span className="job-idx">{String(index + 1).padStart(2, "0")}</span>
                       <div><h3>{job.title}{job.cityPending ? <span className="badge pend">官方城市尚未核实</span> : job.city === NATIONWIDE ? <span className="badge nat">全国岗位</span> : null}{job.isNew ? <span className="badge new"><Sparkles className="ic" />新增</span> : null}</h3><p className="en">{job.officialTitle}</p></div>
-                      <div className="job-meta"><span><MapPin className="ic" />{job.cityPending ? `官方原始地点：${job.locationRaw}` : job.locationRaw}</span><span><BriefcaseBusiness className="ic" />{job.category}</span></div>
+                      <div className="job-meta"><span><MapPin className="ic" />{job.cityPending ? `官方原始地点：${job.locationRaw}` : job.cities?.join("、") || job.city || job.locationRaw}</span><span><BriefcaseBusiness className="ic" />{job.category}{job.subcategory ? ` · ${job.subcategory}` : ""}</span></div>
                       <div className="job-actions"><a className="btn-solid" aria-label={`查看官方职位 ${job.title}`} href={job.officialUrl} rel="noreferrer" target="_blank">查看官方职位<ExternalLink className="ic" /></a><button className="btn-text" aria-label={`反馈此职位 ${job.title}`} onClick={() => openFeedback(company, job)} type="button"><Flag className="ic" />反馈此职位</button></div>
                     </div>)}
                     {company.jobs.length > cap ? <button className="more" type="button" onClick={() => setRowCaps(current => ({...current, [company.id]: company.jobs.length}))}>查看全部 {company.jobs.length} 个职位<ChevronDown className="ic" /></button> : null}
@@ -575,7 +585,7 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
             const url = company.officialCareersUrl ?? company.officialWebsiteUrl;
             return <article className={`dr${hotId === company.id ? " is-link" : ""}`} id={`row-${company.id}`} key={company.id} onMouseEnter={() => setHotId(company.id)} onMouseLeave={() => setHotId(null)}><span className="coord">{companyIndex(company.id)}</span><div className="dco"><CompanyLogo companyId={company.id} name={company.companyName} className="tk-row" /><div><strong className="dname">{company.companyName}</strong><p className="dcat">{COMPANY_CATEGORY_LABELS[company.category]}</p></div></div>
               <div className="dstate"><span className="pill" data-state={company.state}>{PUBLICATION_STATE_LABELS[company.state]}</span>{company.health === "DEGRADED" ? <span className="pill health">近期更新异常</span> : null}</div>
-              <div className="dnote"><p>{publicationNote(company)}</p>{company.sourceScopeNote ? <p>{company.sourceScopeNote}</p> : null}</div><p className="dupd">{company.lastSuccessAt ? <>最近成功更新 {formatTimestamp(company.lastSuccessAt)} UTC</> : "暂无成功更新"}</p>
+              <div className="dnote"><p>{publicationNote(company)}</p></div><p className="dupd">{company.lastSuccessAt ? <>最近成功更新 {formatTimestamp(company.lastSuccessAt)} UTC</> : "暂无成功更新"}</p>
               {url ? <a className="btn-line" aria-label={company.officialCareersUrl ? `查看${company.companyName}官方招聘入口` : `访问${company.companyName}公司官网`} href={url} rel="noreferrer" target="_blank">{company.officialCareersUrl ? "官方招聘入口" : "公司官网"}<ExternalLink className="ic" /></a> : <p className="none">暂无可用公开链接。</p>}
             </article>;
           })}

@@ -62,7 +62,7 @@ function structurallyCollected(result: SourceCrawlResult, partitionId: Partition
     result.paginationEvaluation.verifiedEligible === true && evidence !== undefined && evidence.fetchCounts.parseDiscardCount === 0 &&
     evidence.fetchCounts.rawCount === evidence.fetchCounts.validCount + evidence.fetchCounts.validationDiscardCount &&
     evidence.fetchLosses.length === evidence.fetchCounts.validationDiscardCount &&
-    evidence.fetchLosses.every((loss) => loss.stage === "VALIDATION" && loss.details?.code === "OUT_OF_SCOPE") &&
+    evidence.fetchLosses.every((loss) => loss.stage === "VALIDATION" && ["OUT_OF_SCOPE","JOB_QUARANTINED"].includes(loss.details?.code??"")) &&
     (partitionId !== "qilu-non-marketing" || validateQiluForeignLossRowsForDiagnostic(evidence)) &&
     reconciliation !== undefined && reconciliation.adapterLosses.length === 0 && reconciliation.collisionGroups.length === 0;
 }
@@ -147,7 +147,7 @@ export async function collectQiluMainPartitions(deps: {
     state: collected ? "COLLECTED" : "INCOMPLETE", qualificationEligible: false, crossPartitionEquivalence: "NOT_ESTABLISHED",
     partitions: partitions.map((partition) => ({ ...partition })), candidateRecords: collected ? records : [],
     rawObservationCount: partitions.reduce((sum, partition) => sum + (partition.result?.fetchEvidence?.fetchCounts.rawCount ?? 0), 0),
-    scopeDiscardCount: partitions.reduce((sum, partition) => sum + (partition.result?.fetchEvidence?.fetchLosses.filter((loss) => loss.details?.code === "OUT_OF_SCOPE").length ?? 0), 0),
+    scopeDiscardCount: partitions.reduce((sum, partition) => sum + (partition.result?.fetchEvidence?.fetchLosses.filter((loss) => ["OUT_OF_SCOPE","JOB_QUARANTINED"].includes(loss.details?.code??"")).length ?? 0), 0),
     failureCodes,
     gaps: ["COMPOSITE_SOURCE_POLICY_NOT_ADMITTED", "INDEPENDENT_PARTITION_PROOFS_NOT_BOUND", "SOURCE_ORACLE_AND_RUNTIME_NOT_BOUND",
       "CROSS_PARTITION_ALIAS_EQUIVALENCE_NOT_ESTABLISHED", "DRIVER_EXCLUSIONS_NOT_SIGNED_SCOPE_PROOF", "ADDITIONAL_OFFICIAL_ENTRY_REVIEW_REQUIRED"]
