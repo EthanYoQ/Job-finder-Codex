@@ -86,6 +86,7 @@ const RULES: readonly ClassificationRule[] = [
   { category: "销售", subcategory: "医药销售", title: SALES_TITLE },
   { category: "销售", subcategory: "医药销售", title: COMMUNICATION_SALES_TITLE, sourceIds: COMMUNICATION_SALES_SOURCES },
   { category: "销售", subcategory: "医药销售", title: /^Diagnosis Science Liaison(?:\s*[-–—]|$)/i, sourceIds: ["source-astrazeneca-social"] },
+  { category: "销售", subcategory: "零售销售", title: /^零售\s*(?:\(高级\)\s*)?客户(?:代表|专员)|零售全国重点客户经理/, sourceIds: ["source-novartis-social"] },
   { category: "销售", subcategory: "医药销售", title: /产品专员/, sourceIds: ["source-novartis-social"] },
   { category: "医学事务", subcategory: "医学信息", title: /医学信息|医学沟通|科学传播|\b(?:medical information|medical communication|scientific communication)s?\b/i, excludes: /医学信息沟通|\bmedical information communication\b/i },
   { category: "市场", subcategory: "市场洞察", title: /市场洞察|市场调研|商业洞察|产品洞察|\b(?:market|business|commercial|product) (?:insight|intelligence|research)\b/i },

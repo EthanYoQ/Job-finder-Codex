@@ -89,7 +89,13 @@ const PUBLISHED_CITY_ALIASES = new Map(Object.entries({
   dongguan: "东莞", nanchong: "南充", neijiang: "内江", guangan: "广安",
   liaoyang: "辽阳", yangquan: "阳泉", luoyang: "洛阳", zhangjiakou: "张家口",
   zhangjiagang: "张家港", fushun: "抚顺", kunshan: "昆山", jinzhong: "晋中",
-  panjin: "盘锦", qianxinan: "黔西南"
+  panjin: "盘锦", qianxinan: "黔西南",
+  sanming: "三明", ningde: "宁德", hebi: "鹤壁", yongcheng: "永城", lincang: "临沧",
+  kaifeng: "开封", ziyang: "资阳", sanmenxia: "三门峡", shangqiu: "商丘",
+  ankang: "安康", hanzhong: "汉中", kelamayi: "克拉玛依", yanan: "延安", yongzhou: "永州",
+  pingxiang: "萍乡", suining: "遂宁", shangrao: "上饶", dongying: "东营", liuan: "六安",
+  chizhou: "池州", maanshan: "马鞍山", huainan: "淮南", hengshui: "衡水", benxi: "本溪",
+  fuxin: "阜新", siping: "四平"
 }));
 for (const [label, city] of Object.entries(PFIZER_OFFICIAL_LOCALITIES)) {
   const name = /^China - [^-]+ - (.+)$/u.exec(label)?.[1];
@@ -177,7 +183,7 @@ const PREFECTURE_LABELS = new Map([
 ]);
 
 const COUNTY_CITY_PROVINCES: Readonly<Record<string, string>> = {
-  海盐: "浙江", 伊宁: "新疆", 启东: "江苏", 宜兴: "江苏", 阆中: "四川",
+  永城: "河南", 海盐: "浙江", 伊宁: "新疆", 启东: "江苏", 宜兴: "江苏", 阆中: "四川",
   天长: "安徽", 界首: "安徽", 台山: "广东", 延吉: "吉林", 张家港: "江苏", 昆山: "江苏"
 };
 
@@ -186,6 +192,8 @@ function publishedCityProvince(city: string): string | null {
 }
 
 const AMBIGUOUS_CITY_PROVINCES = new Map<string, Readonly<Record<string, string>>>([
+  ["jian", { 江西: "吉安" }],
+  ["chaoyang", { 辽宁: "朝阳" }],
   ["jilin", { 吉林: "吉林" }],
   ["fuyang", { 安徽: "阜阳" }],
   ["longnan", { 甘肃: "陇南" }],
