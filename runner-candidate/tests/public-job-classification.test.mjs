@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { searchPortableSnapshot } from "../../web-candidate/src/server/portablePublicationApi.ts";
+import { coverageFromPortableSnapshot, searchPortableSnapshot } from "../../web-candidate/src/server/portablePublicationApi.ts";
 
 const cases = [
   ["source-astrazeneca-social", "(Asso.) Clinical Quality Manager", "质量", "临床质量"],
@@ -371,4 +371,38 @@ test("Novartis social search excludes confirmed internships and applies approved
   });
   assert.equal(searchPortableSnapshot({ city: "全部城市", keyword: "MR Intern" }, current).totalJobs, 0);
   assert.equal(rows.length, 9);
+});
+
+test("Hansoh social search omits the four verified campus vacancies", () => {
+  const sourceId = "source-hansoh-social";
+  const officialUrl = id => "https://hspharm.zhiye.com/social/detail?jobAdId=" + id;
+  const campusJobs = [
+    ["5872825e-9a36-4e86-af26-e5e9e77c9959", "工艺员（2027校招）(J16833)"],
+    ["ccad94da-9ea2-4cb0-8583-913608cf2b42", "QA（2027校招）(J16834)"],
+    ["157a8a20-a5ef-497f-9bcd-6cf62d18a7f9", "工艺安全工程师（2027校招）(J16835)"],
+    ["d579d1b4-7d3b-4238-b33b-ed38e2e071cc", "公用工程技术员（2027校招）(J16836)"],
+  ].map(([id, title]) => ({ ...oldJobs[0], id, sourceId, category: "质量", categoryManuallyCorrected: true,
+    title, officialTitle: title, officialUrl: officialUrl(id), inGrace: false }));
+  const rows = [
+    ...campusJobs,
+    { ...campusJobs[0], id: "legacy-copy", inGrace: true, title: "工艺员", officialTitle: "工艺员" },
+    { ...campusJobs[1], id: "other-source", sourceId: "fixture", title: "合规专员", officialTitle: "合规专员", category: "职能" },
+    { ...campusJobs[2], id: "different-url", officialUrl: officialUrl("11111111-1111-4111-8111-111111111111"),
+      title: "医药代表实习生", officialTitle: "医药代表实习生", category: "销售" },
+  ];
+  const saved = { ...snapshot, companies: [{ ...snapshot.companies[0], id: "company-hansoh",
+    companyName: "豪森", pinyin: "haosen", health: "HEALTHY", publishingSourceIds: [sourceId], sourceIds: [sourceId], jobs: rows }] };
+  const search = (request = {}) => searchPortableSnapshot({ city: "全部城市", ...request }, saved);
+  const result = search();
+  assert.deepEqual(result.companies[0].jobs.map(job => job.id).sort(), ["different-url", "other-source"]);
+  assert.equal(result.totalJobs, 2);
+  assert.equal(result.publishedJobSummary.totalJobs, 2);
+  assert.equal(result.cityFacets.find(facet => facet.city === "上海").jobCount, 2);
+  assert.equal(result.provinceFacets.find(facet => facet.province === "上海").jobCount, 2);
+  assert.equal(search({ keyword: "2027校招" }).totalJobs, 0);
+  assert.equal(search({ categories: ["质量"] }).totalJobs, 0);
+  const coverage = coverageFromPortableSnapshot({ keyword: "" }, saved);
+  assert.equal(coverage.coverageSummary.publishingCompanyCount, 1);
+  assert.equal(coverage.companies[0].state, "PUBLISHING");
+  assert.equal(saved.companies[0].jobs.length, 7);
 });

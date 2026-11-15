@@ -30,3 +30,29 @@ test('Novo closes its complete list before isolating individual list, detail and
   if(mode==='detail-429')assert.equal(calls.includes(detail(3)),false);
  }}finally{globalThis.fetch=oldFetch;}
 });
+
+test('Novo isolates conflicting application redirects and keeps a corroborated opaque posting',async()=>{
+ const plan=(await loadDirectPlans()).find(p=>p.sourceId==='source-novo-nordisk-china-social').plan;
+ const oldFetch=globalThis.fetch,postingId='1234567890';
+ try {
+  for(const [target,opaque] of [[1,false],[3,false],[1,true],[3,true],[2,true]]){
+   globalThis.fetch=async value=>{
+    const url=String(value),page=pages.get(url===apply(2)?apply(target):url);
+    assert.ok(page,url);
+    if(opaque&&url===apply(2)){
+     const id=new URL(page.finalUrl).pathname.split('/').at(-2);
+     return {status:200,url:page.finalUrl.replace(id,postingId),headers:new Headers({'content-type':page.contentType}),
+      text:async()=>page.body.replace(id,postingId)};
+    }
+    return {status:200,url:page.finalUrl,headers:new Headers({'content-type':page.contentType}),text:async()=>page.body};
+   };
+   const result=await runSourceCrawl(plan,{fetch:createOwnedSourceQualityFetch(),isBaseline:false});
+   const sameJob=target===2, label=`target=${target}, opaque=${opaque}`;
+   assert.equal(result.truth.completenessVerified,true,label);
+   assert.deepEqual(result.jobs.map(job=>job.officialUrl),sameJob?[detail(1),detail(2)]:[detail(1)],label);
+   assert.deepEqual(result.fetchEvidence.jobQuarantines?.map(job=>job.officialUrl)??[],sameJob?[]:[detail(2)],label);
+   assert.deepEqual(result.fetchEvidence.fetchLosses.map(loss=>loss.details.code),
+    sameJob?['OFFICIAL_APPLICATION_CLOSED']:['JOB_QUARANTINED','OFFICIAL_APPLICATION_CLOSED'],label);
+  }
+ }finally{globalThis.fetch=oldFetch;}
+});

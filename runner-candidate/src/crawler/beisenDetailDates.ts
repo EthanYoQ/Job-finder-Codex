@@ -94,7 +94,9 @@ function optionalDetail(plan:SourceCrawlPlan,row:ReturnType<typeof rows>[number]
       const country=data.Country??data.CountryName,locations=data.LocNames;
       if(typeof country==='string'||Array.isArray(locations)&&locations.length>0&&locations.every(v=>typeof v==='string'&&v.trim())){
         const parts=Array.isArray(locations)&&locations.every(v=>typeof v==='string')?locations as string[]:row.LocNames;
-        if(beisenDomesticRecordScopeReview(typeof country==='string'?country:undefined,parts,parts.join(' / '),'DOMESTIC_OFFICIAL_TENANT').scope!=='CHINA')return {quarantine:true};
+        const config=plan.adapterId==='official-json'?plan.officialJsonFetch:undefined;
+        const mixedLocationPolicy=config?.kind==='beisen-zhiye-2022'?config.mixedLocationPolicy:undefined;
+        if(beisenDomesticRecordScopeReview(typeof country==='string'?country:undefined,parts,parts.join(' / '),'DOMESTIC_OFFICIAL_TENANT',mixedLocationPolicy).scope!=='CHINA')return {quarantine:true};
       }
     }
     const date=verifyDetail(plan,row,artifact,capturedAt);

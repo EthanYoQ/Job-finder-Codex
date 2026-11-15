@@ -14,7 +14,7 @@ for(const sourceId of ['source-bayer-healthcare-social','source-gsk-china-social
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id===sourceId),org=plan.moka.expectedOrgId,site=plan.moka.expectedSiteId;
  const customFields={'283170':{name:'Division',value:'Pharmaceuticals'},'290891':{name:'国家',value:'China'}};
  const raw=n=>({id:`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`,orgId:org,siteId:site,title:`Role ${n}`,status:'open',showIsCampus:false,publishedAt:'2026-11-06T08:00:00',locations:[]});
- for(const mode of ['good','title','two-unbound','detail-503','detail-transport','detail-429','foreign','unresolved-country','duplicate','missing-page',...(org==='gsk'?['two-pages']:[])]){
+ for(const mode of ['good','title','two-unbound','detail-503','detail-transport','detail-429','foreign','unresolved-country','duplicate','missing-page',...(org==='gsk'?['two-pages','detail-paused']:[])]){
   const rows=mode==='two-pages'?Array.from({length:51},(_,i)=>raw(i+1)):[raw(1),raw(2),raw(3)],calls=[];
   if(mode==='title')rows[1].title='';if(mode==='two-unbound')rows.push(null,null);if(mode==='duplicate')rows[1]=raw(1);
   const fetch=createMokaSourceFetch({now:()=>new Date(at),http:async request=>{
@@ -26,6 +26,7 @@ for(const sourceId of ['source-bayer-healthcare-social','source-gsk-china-social
     if(mode==='detail-transport'&&current.id===raw(2).id)throw Error('Synthetic transport failure');
     status=current.id===raw(2).id?(['detail-503','two-pages'].includes(mode)?503:mode==='detail-429'?429:200):200;
     const detail={...current,locations:mode==='foreign'&&current.id===raw(2).id?[{country:'Japan',cityName:'Tokyo'}]:mode==='unresolved-country'&&current.id===raw(2).id?[{cityName:'Unknown City'}]:locations,jobDescription:'A substantive current official job description.',customFields};
+    if(mode==='detail-paused'&&current.id===raw(2).id)detail.status='pause';
     body=encrypt({success:true,data:detail});
    }
    return {status,body,finalUrl:request.url,contentType:request.method==='GET'?'text/html':'application/json',capturedAt:at};
@@ -33,7 +34,11 @@ for(const sourceId of ['source-bayer-healthcare-social','source-gsk-china-social
   const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
   if(['duplicate','missing-page'].includes(mode)){assert.equal(result.truth.completenessVerified,false,mode);assert.equal(calls.filter(r=>r.url.endsWith('/job')).length,0);assert(result.fetchEvidence?.artifacts.length>=2);continue;}
   assert.equal(result.truth.completenessVerified,true,`${mode}: ${JSON.stringify({truth:result.truth,observation:result.observation,losses:result.fetchEvidence?.fetchLosses})}`);
-  assert.equal(result.jobs.length,mode==='two-pages'?50:mode==='detail-429'?1:['title','detail-503','detail-transport','foreign','unresolved-country'].includes(mode)?2:3,mode);
+  assert.equal(result.jobs.length,mode==='two-pages'?50:mode==='detail-429'?1:['title','detail-503','detail-transport','foreign','unresolved-country','detail-paused'].includes(mode)?2:3,mode);
+  if(mode==='detail-paused'){
+   assert.deepEqual(result.jobs.map(job=>job.officialTitle),['Role 1','Role 3']);
+   assert.equal(replayStrictSourceQualityEvidence({plan,evidence:result.fetchEvidence,paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs:result.jobs,capturedAt:at}),true);
+  }
   if(mode==='two-pages')assert.deepEqual(calls.slice(0,3).map(r=>r.method==='GET'?'entry':r.url.endsWith('/jobs/v2')?'list':'detail'),['entry','list','list']);
   if(mode==='detail-429')assert.equal(calls.filter(r=>r.url.endsWith('/job')).length,2);
   if(mode!=='good'){

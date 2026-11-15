@@ -977,8 +977,10 @@ function validateMokaDetailResponse(input: {
 
 /** Shared by capture and strict replay; preserve the official workplace label. */
 export function mokaDetailLocations(detail: Record<string, unknown>, orgId: string, siteId: string): unknown {
-  if (orgId !== "gsk" || siteId !== "148067" || detail.orgId !== "gsk" || detail.status !== "open" ||
-      !Array.isArray(detail.locations) || detail.locations.length !== 0) return detail.locations;
+  if (orgId !== "gsk" || siteId !== "148067" || detail.orgId !== "gsk") return detail.locations;
+  // Native pause conflicts with the GSK board's Open scope.
+  if (detail.status === "pause") return undefined;
+  if (detail.status !== "open" || !Array.isArray(detail.locations) || detail.locations.length !== 0) return detail.locations;
   const fields = detail.customFields;
   if (!isObject(fields) || Array.isArray(fields)) return detail.locations;
   // shortcut: only the captured Shanghai workplace is supported; extend after official evidence for another tuple.
