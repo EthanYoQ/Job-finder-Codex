@@ -71,7 +71,7 @@ async function refreshFixture(t,{complete=false}={}) {
       assert.ok((await readState()).dailyAttempt.count<=3);
       if(args[0]==='pull'){
         const latest=args[2].endsWith('/latest.json');
-        if(!latest)snapshotPulls.push(args[2]);
+        if(!latest){assert.equal(args[2],receipt.snapshotFile);snapshotPulls.push(args[2]);}
         await writeFile(args[3],latest?JSON.stringify(receipt):bytes);
       }
       else assert.ok(['wake','exec','jobs'].includes(args[0]));
