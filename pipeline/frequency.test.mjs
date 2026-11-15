@@ -76,8 +76,16 @@ async function refreshFixture(t,{complete=false}={}) {
     acquireActivityLease:async()=>{calls.push('lease');return async()=>{calls.push('release');};},
     request:async url=>{
       calls.push('readback');
-      const expected=url.pathname==='/api/search'?searchPortableSnapshot({city:'全部城市'},snapshot)
-        :coverageFromPortableSnapshot({keyword:'',offset:0,limit:60},snapshot);
+      const query=Object.fromEntries(url.searchParams);
+      let expected;
+      if(url.pathname==='/api/search'){
+        assert.deepEqual(query,{city:'全部城市',sort:'COMPANY_PINYIN_ASC',limit:'50',offset:'0',province:'全部地区'});
+        expected=searchPortableSnapshot(query,snapshot);
+      }else{
+        assert.equal(url.pathname,'/api/coverage');
+        assert.deepEqual(query,{keyword:'',offset:'0',limit:'60'});
+        expected=coverageFromPortableSnapshot({keyword:query.keyword,offset:Number(query.offset),limit:Number(query.limit)},snapshot);
+      }
       return Response.json({...expected,snapshotStorage:'SAVED'});
     }};
   return {target,stateFile,legacy,options,calls,reports,readState};
