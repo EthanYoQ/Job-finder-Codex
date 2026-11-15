@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, readFile, realpath, rm, writeFile, rename } from "node:fs/promises";
@@ -118,10 +119,20 @@ async function refresh() {
   }
   if(!receipt)throw Error("CURRENT_SLOT_RESULT_NOT_CONFIRMED");
   phase = "INSTALL_SNAPSHOT";
-  const incoming=join(temporary,"public.json");
-  await command(["pull",machine,receipt.snapshotFile,incoming,"--json"]);
-  await installSnapshot(incoming,resolve(target),receipt.sha256);
-  const snapshot=validateSavedSnapshot(JSON.parse(await readFile(incoming,"utf8")));
+  const installed=await readFile(resolve(target)).catch(error=>{
+    if((error as NodeJS.ErrnoException).code==="ENOENT")return undefined;
+    throw error;
+  });
+  let snapshotBytes:Buffer;
+  if(installed&&createHash("sha256").update(installed).digest("hex")===receipt.sha256){
+    snapshotBytes=installed;
+  }else{
+    const incoming=join(temporary,"public.json");
+    await command(["pull",machine,receipt.snapshotFile,incoming,"--json"]);
+    await installSnapshot(incoming,resolve(target),receipt.sha256);
+    snapshotBytes=await readFile(incoming);
+  }
+  const snapshot=validateSavedSnapshot(JSON.parse(snapshotBytes.toString("utf8")));
   const search=searchPortableSnapshot({city:"全部城市",province:"全部地区",sort:"COMPANY_PINYIN_ASC"},snapshot);
   const coverage=coverageFromPortableSnapshot({keyword:"",offset:0,limit:60},snapshot);
   phase = "WEBSITE_READBACK";

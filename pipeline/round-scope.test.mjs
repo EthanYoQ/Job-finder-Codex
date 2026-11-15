@@ -1,13 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {mkdir,mkdtemp,realpath,rm,writeFile} from 'node:fs/promises';
+import {mkdir,mkdtemp,readFile,realpath,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {loadDirectPlans,selectDirectRoutes,runDirectRound} from '../runner-candidate/scripts/direct-round.ts';
 import {searchPortableSnapshot} from '../web-candidate/src/server/portablePublicationApi.ts';
 import {readRoundCoverage} from './round-coverage.ts';
 import {enrichSanofiPublicationClassification} from './sanofi-publication-classification.ts';
+import {selectRoundSnapshotHandle} from './snapshot-handle.ts';
+import {SOURCE_QUALITY_POLICY_ID} from '../web-candidate/src/crawler/sourceQualityAdmission.ts';
+import {PORTABLE_COVERAGE_POLICY_ID} from '../web-candidate/src/release/portableCoveragePolicy.ts';
 
 const routes=await loadDirectPlans(),sourceIds=routes.map(row=>row.sourceId);
 const retryIds=['source-novo-nordisk-china-social','source-pfizer-china-social','source-sanofi-china-social'];
@@ -110,4 +114,94 @@ test('Sanofi enrichment uses verified own-REQ metadata without changing public m
   assert.equal(snapshot.totalJobs,jobs.length);
   const filtered=searchPortableSnapshot({city:'全部城市',categories:['质量']},snapshot);
   assert.deepEqual(filtered.companies.flatMap(company=>company.jobs.map(job=>job.id)),['quality']);
+});
+
+async function snapshotFixture(t) {
+  const cache=fileURLToPath(new URL('../.runtime/.cache/',import.meta.url));
+  await mkdir(cache,{recursive:true});
+  const directory=await mkdtemp(join(cache,'snapshot-reuse-'));
+  t.after(()=>rm(directory,{recursive:true,force:true}));
+  const route=routes.find(row=>row.sourceId==='source-abbvie-china-social');
+  const observedAt=new Date(Number(slot)+60_000).toISOString();
+  const job={id:'synthetic-job',title:'Synthetic role',officialTitle:'Synthetic role',officialPublishedAt:null,
+    city:'上海',cities:['上海'],locationRaw:'上海',category:'其他',isNew:false,officialUrl:'https://example.invalid/job',
+    companyId:route.companyId,sourceId:route.sourceId,sourceResultId:'synthetic-result',lastSeenAt:observedAt,inGrace:false};
+  const previous={schemaVersion:'portable-public-snapshot-v1',policyId:SOURCE_QUALITY_POLICY_ID,
+    coveragePolicyId:PORTABLE_COVERAGE_POLICY_ID,generatedAt:observedAt,lastUpdatedAt:observedAt,totalJobs:1,
+    companies:[{id:route.companyId,companyName:'Synthetic company',pinyin:'synthetic',category:'FOREIGN_PHARMA',
+      sourceIds:[route.sourceId],publishingSourceIds:[route.sourceId],required:true,exclusionReason:null,
+      health:'HEALTHY',coverage:'COMPLETE',jobs:[job]}],
+    sources:[{companyId:route.companyId,sourceId:route.sourceId,currentConfigSha256:route.sourceConfigSha256,
+      policyId:null,state:'PUBLISHING',health:'HEALTHY',freshness:'FRESH',reasons:[],visibilityFloor:observedAt,
+      selectedSourceResultId:'synthetic-result',lastAttemptAt:observedAt,lastAcceptedAt:observedAt,lastSuccessAt:observedAt,
+      lastAcceptedJobCount:1,visibleJobCount:1,staleJobCount:0,jobs:[structuredClone(job)]}],
+    coverage:{companyCount:1,requiredCompanyCount:1,excludedCompanyCount:0,requiredSourceCount:1,
+      excludedSourceCount:0,expectedSourceCount:1,sourceCount:1,unplannedSourceCount:0,publishingSourceCount:1,
+      unsupportedSourceCount:0,heldSourceCount:0}};
+  const bytes=JSON.stringify(previous,null,2),sha256=createHash('sha256').update(bytes).digest('hex');
+  const snapshotFile=join(directory,`public-${sha256}.json`);
+  const receipt={status:'SNAPSHOT_SAVED',slot,snapshotFile,sha256,bytes:Buffer.byteLength(bytes),
+    generatedAt:previous.generatedAt,lastUpdatedAt:previous.lastUpdatedAt,totalJobs:previous.totalJobs,
+    complete:true,capturedSources:[{sourceId:route.sourceId,batchId:'old-batch'}],sources:[{sourceId:route.sourceId,status:'SUCCESS'}]};
+  await writeFile(snapshotFile,bytes);
+  await writeFile(join(directory,'latest.json'),JSON.stringify(receipt));
+  const fresh={...structuredClone(previous),generatedAt:new Date(Number(slot)+120_000).toISOString()};
+  return {directory,previous,fresh,bytes,receipt};
+}
+
+test('a verified equal same-slot projection reuses exact prior bytes and time without carrying old outcome fields',async t=>{
+  const fixture=await snapshotFixture(t),before=structuredClone(fixture.fresh);
+  const handle=await selectRoundSnapshotHandle(fixture.directory,slot,fixture.fresh);
+  assert.equal(handle.snapshotReused,true);
+  for(const field of ['snapshotFile','sha256','bytes','generatedAt','lastUpdatedAt','totalJobs']){
+    assert.equal(handle[field],fixture.receipt[field],field);
+  }
+  assert.equal('complete' in handle,false);
+  assert.equal('capturedSources' in handle,false);
+  assert.equal('sources' in handle,false);
+  assert.deepEqual(fixture.fresh,before);
+  assert.equal(await readFile(handle.snapshotFile,'utf8'),fixture.bytes);
+});
+
+test('source health, membership, public metadata or slot changes require a fresh snapshot handle',async t=>{
+  const fixture=await snapshotFixture(t);
+  const changes=[
+    snapshot=>{snapshot.sources[0].health='DEGRADED';snapshot.companies[0].health='DEGRADED';},
+    snapshot=>{snapshot.sources[0].lastAttemptAt=snapshot.generatedAt;},
+    snapshot=>{snapshot.sources[0].reasons=['CURRENT_CAPTURE_FAILED'];},
+    snapshot=>{snapshot.sources[0].jobs=[];snapshot.companies[0].jobs=[];snapshot.sources[0].visibleJobCount=0;snapshot.totalJobs=0;},
+    snapshot=>{snapshot.sources[0].jobs[0].title='Corrected title';snapshot.companies[0].jobs[0].title='Corrected title';},
+    snapshot=>{snapshot.coverage.heldSourceCount=1;}
+  ];
+  for(const change of changes){
+    const snapshot=structuredClone(fixture.fresh);change(snapshot);
+    const handle=await selectRoundSnapshotHandle(fixture.directory,slot,snapshot);
+    assert.equal(handle.snapshotReused,false);
+    assert.equal(handle.generatedAt,snapshot.generatedAt);
+    assert.equal(handle.sha256,createHash('sha256').update(JSON.stringify(snapshot)).digest('hex'));
+  }
+  for(const newSlot of [null,String(Number(slot)+24*3600_000)]){
+    const handle=await selectRoundSnapshotHandle(fixture.directory,newSlot,fixture.fresh);
+    assert.equal(handle.snapshotReused,false);
+    assert.equal(handle.generatedAt,fixture.fresh.generatedAt);
+  }
+});
+
+test('missing, corrupt, mismatched or unbound previous artifacts never authorize reuse',async t=>{
+  const fixture=await snapshotFixture(t),latest=join(fixture.directory,'latest.json');
+  for(const change of [{status:'UNKNOWN'},{slot:String(Number(slot)-24*3600_000)},{sha256:'z'.repeat(64)},
+    {snapshotFile:join(fixture.directory,'outside.json')},{bytes:fixture.receipt.bytes+1},
+    {generatedAt:fixture.fresh.generatedAt},{lastUpdatedAt:null},{totalJobs:2}]){
+    await writeFile(latest,JSON.stringify({...fixture.receipt,...change}));
+    assert.equal((await selectRoundSnapshotHandle(fixture.directory,slot,fixture.fresh)).snapshotReused,false);
+  }
+  await writeFile(latest,'{truncated');
+  assert.equal((await selectRoundSnapshotHandle(fixture.directory,slot,fixture.fresh)).snapshotReused,false);
+  await writeFile(latest,JSON.stringify(fixture.receipt));
+  await writeFile(fixture.receipt.snapshotFile,fixture.bytes.replace('Synthetic role','Different role'));
+  assert.equal((await selectRoundSnapshotHandle(fixture.directory,slot,fixture.fresh)).snapshotReused,false);
+  await rm(fixture.receipt.snapshotFile);
+  assert.equal((await selectRoundSnapshotHandle(fixture.directory,slot,fixture.fresh)).snapshotReused,false);
+  await rm(latest);
+  assert.equal((await selectRoundSnapshotHandle(fixture.directory,slot,fixture.fresh)).snapshotReused,false);
 });

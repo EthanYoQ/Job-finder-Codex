@@ -51,7 +51,7 @@ async function refreshFixture(t,{complete=false}={}) {
   const bytes=JSON.stringify(snapshot),sha256=createHash('sha256').update(bytes).digest('hex');
   const receipt={slot:String(midnight),complete,snapshotFile:`/data/job-finder/snapshots/public-${sha256}.json`,sha256,
     generatedAt:snapshot.generatedAt,lastUpdatedAt:null,totalJobs:0,capturedSources:[],unresolvedCoverage:!complete};
-  const calls=[],reports=[];
+  const calls=[],reports=[],snapshotPulls=[];
   t.mock.method(console,'log',value=>reports.push(JSON.parse(value)));
   t.mock.method(console,'error',value=>reports.push(JSON.parse(value)));
   const readState=async()=>JSON.parse(await readFile(stateFile,'utf8'));
@@ -69,7 +69,11 @@ async function refreshFixture(t,{complete=false}={}) {
       calls.push(args[0]);
       assert.equal((await readState()).dailyAttempt.status,'RESERVED');
       assert.ok((await readState()).dailyAttempt.count<=3);
-      if(args[0]==='pull')await writeFile(args[3],args[2].endsWith('/latest.json')?JSON.stringify(receipt):bytes);
+      if(args[0]==='pull'){
+        const latest=args[2].endsWith('/latest.json');
+        if(!latest)snapshotPulls.push(args[2]);
+        await writeFile(args[3],latest?JSON.stringify(receipt):bytes);
+      }
       else assert.ok(['wake','exec','jobs'].includes(args[0]));
       return {stdout:args[0]==='exec'?JSON.stringify({jobId:'synthetic-job'}):'',stderr:''};
     },
@@ -88,7 +92,7 @@ async function refreshFixture(t,{complete=false}={}) {
       }
       return Response.json({...expected,snapshotStorage:'SAVED'});
     }};
-  return {target,stateFile,legacy,options,calls,reports,readState};
+  return {target,stateFile,legacy,options,calls,reports,readState,snapshotPulls};
 }
 
 test('three partial publications retain the verified receipt and stop without a fourth wake',async t=>{
@@ -98,6 +102,7 @@ test('three partial publications retain the verified receipt and stop without a 
   assert.deepEqual(codes,[75,75,0],JSON.stringify(fixture.reports));
   assert.equal(fixture.calls.filter(call=>call==='exec').length,3);
   assert.equal(fixture.calls.filter(call=>call==='readback').length,6);
+  assert.equal(fixture.snapshotPulls.length,1);
   const state=await fixture.readState();
   assert.deepEqual(state.dailyAttempt,{slot:String(midnight),count:3,status:'VERIFIED',complete:false});
   assert.equal(state.records.length,1);

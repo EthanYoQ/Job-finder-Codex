@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { mkdir, open, rename, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { isIP } from "node:net";
@@ -14,6 +14,7 @@ import { describePortableRuntimeError } from "../runner-candidate/src/crawler/po
 import { readPortablePublicSnapshot } from "../web-candidate/src/db/portablePublicSnapshotRepository";
 import { validateSavedSnapshot } from "../web-candidate/src/server/savedPublicSnapshot";
 import { savePublicSnapshot } from "../web-candidate/src/server/public-snapshot-file.mjs";
+import { selectRoundSnapshotHandle } from "./snapshot-handle";
 
 const run = promisify(execFile);
 const stateRoot = resolve(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder");
@@ -41,17 +42,14 @@ try {
   const snapshot = validateSavedSnapshot(await readPortablePublicSnapshot(db as never));
   const sanofiClassified = await enrichSanofiPublicationClassification(db, stateRoot, snapshot);
   if (sanofiClassified) console.error(JSON.stringify({status:"SANOFI_SNAPSHOT_CLASSIFIED",count:sanofiClassified}));
-  const bytes = Buffer.from(JSON.stringify(snapshot));
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
   const snapshots = join(stateRoot, "snapshots");
   await mkdir(snapshots, {recursive:true, mode:0o700});
-  const snapshotFile = join(snapshots, `public-${sha256}.json`);
-  await savePublicSnapshot(snapshotFile, snapshot);
   const slot = process.env.JOBFINDER_SLOT ?? null;
+  const handle = await selectRoundSnapshotHandle(snapshots, slot, snapshot);
+  if (!handle.snapshotReused) await savePublicSnapshot(handle.snapshotFile, snapshot);
   // The DB retains accepted captures even if the worker died before writing latest.json.
   const {complete,quarantinedJobCount,unresolvedCoverage,capturedSources} = await readRoundCoverage(db,candidateId,slot,sourceIds,results);
-  const receipt = {status:"SNAPSHOT_SAVED", slot, complete, quarantinedJobCount, unresolvedCoverage, snapshotFile, sha256, bytes:bytes.length,
-    generatedAt:snapshot.generatedAt, lastUpdatedAt:snapshot.lastUpdatedAt, totalJobs:snapshot.totalJobs,
+  const receipt = {status:"SNAPSHOT_SAVED", slot, complete, quarantinedJobCount, unresolvedCoverage, ...handle,
     capturedSources,
     sources:results.map(row=>({sourceId:row.sourceId,status:row.status}))};
   const temporary = join(snapshots, `latest-${randomUUID()}.tmp`);
