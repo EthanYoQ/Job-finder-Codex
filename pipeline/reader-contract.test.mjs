@@ -5,6 +5,7 @@ import { candidateCompanies } from '../web-candidate/src/data/companyRegistry.ts
 import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from '../web-candidate/src/crawler/sourcePlan.ts';
 import { getSourceQualityPolicy } from '../web-candidate/src/crawler/sourceQualityAdmission.ts';
 import { selectPortableSourceSnapshots,verifiedMembers } from '../web-candidate/src/domain/portablePublicSnapshot.ts';
+import { portableCommittedResultsSql, readPortablePublicSnapshotWithStatus } from '../web-candidate/src/db/portablePublicSnapshotRepository.ts';
 import {hashCanonicalStringSet} from '../web-candidate/src/crawler/runtimeBatchIdentity.ts';
 import {createHash} from 'node:crypto';
 import {B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION,SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION,BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION} from '../web-candidate/src/crawler/traversalCertificate.ts';
@@ -62,4 +63,27 @@ test('native A-grade quarantines retain verified GRACE jobs in the public projec
   const selected=selectPortableSourceSnapshots([plan],[{...row,completenessCertificate:receipt}],{currentTime:new Date(at)})[0];assert.equal(selected.state,'PUBLISHING');
   assert.deepEqual([...verifiedMembers(selected.selected,members).keys()],quarantined?['current','held']:['current']);
  }
+});
+
+test('portableCommittedResultsSql unpacks certificates once via jsonb_to_record, gates observations, filters redundant SOURCE_NOT_DUE, and uses 120s tx timeout', async () => {
+  const sql = portableCommittedResultsSql(reader);
+  assert.match(sql, /\blatest_not_due AS\s*\(/);
+  assert.match(sql, /NOT \(\([^)]*'SOURCE_NOT_DUE'[^)]*\) IS TRUE\) OR r\.id IN \(SELECT id FROM latest_not_due\)/);
+  assert.match(sql, /CASE WHEN r\."atomicCommitState"='COMMITTED' AND r\."completenessState"='VERIFIED'\s+THEN \(SELECT coalesce\(jsonb_agg\(/);
+  assert.match(sql, /LEFT JOIN LATERAL jsonb_to_record\(/);
+
+  let observedOptions = null;
+  const mockDb = {
+    async $transaction(operation, options) {
+      observedOptions = options;
+      return operation({
+        crawlBatchSourceResult: { findMany: async () => [] },
+        lifecycleSetEvidenceMember: { findMany: async () => [] },
+        job: { findMany: async () => [] }
+      });
+    }
+  };
+  await readPortablePublicSnapshotWithStatus(mockDb, { currentTime: new Date('2026-11-15T14:45:00.000Z') }, [reader[0]]);
+  assert.equal(observedOptions?.isolationLevel, 'RepeatableRead');
+  assert.equal(observedOptions?.timeout, 120_000);
 });

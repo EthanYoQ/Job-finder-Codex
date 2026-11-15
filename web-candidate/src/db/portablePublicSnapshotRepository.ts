@@ -55,27 +55,35 @@ export function portableCommittedResultsSql(plans: readonly SourceCrawlPlan[]): 
   const candidateScope = plans.map(plan => `(r."sourceId"=${quote(plan.source.id)} AND (${configScope(plan)}${isSanofiPublicTransitionPlan(plan) ? ` OR r.id=${quote(SANOFI_HISTORICAL_PUBLIC_RECEIPT.binding.sourceResultId)}` : ""}))`).join(" OR ") || "FALSE";
   const scalars = Object.entries(portableSourceResultSelect).filter(([key, value]) => value === true && key !== "completenessCertificate").map(([key]) => `r."${key}"`).join(",");
   const object = (alias: string, fields: object) => `jsonb_build_object(${Object.keys(fields).map(key => `${quote(key)},${alias}."${key}"`).join(",")})`;
-  const legacy = `jsonb_build_object('schemaVersion',c.value->'schemaVersion','policyId',c.value->'policyId','observedAt',c.value->'observedAt',
-    'observation',CASE WHEN c.value->'observation' IS NOT NULL THEN jsonb_build_object('crawledAt',c.value#>'{observation,crawledAt}') END,
-    'counts',jsonb_build_object('finalUniqueJobCount',c.value#>'{counts,finalUniqueJobCount}','validationDiscardCount',c.value#>'{counts,validationDiscardCount}',
-      'quarantinedJobCount',jsonb_array_length(COALESCE(c.value->'jobQuarantineLedger',c.value#>'{mainTraversal,jobQuarantine,ledger}','[]'::jsonb))),
-    'mainTraversal',CASE WHEN c.value->'mainTraversal' IS NOT NULL THEN jsonb_build_object('matchKeyKind',c.value#>'{mainTraversal,matchKeyKind}','canonicalMatchKeySetSha256',c.value#>'{mainTraversal,canonicalMatchKeySetSha256}') END)`;
+  const legacy = (alias: string) => `jsonb_build_object('schemaVersion',${alias}."schemaVersion",'policyId',${alias}."policyId",'observedAt',${alias}."observedAt",
+    'observation',CASE WHEN ${alias}.observation IS NOT NULL THEN jsonb_build_object('crawledAt',${alias}.observation->'crawledAt') END,
+    'counts',jsonb_build_object('finalUniqueJobCount',${alias}.counts->'finalUniqueJobCount','validationDiscardCount',${alias}.counts->'validationDiscardCount',
+      'quarantinedJobCount',jsonb_array_length(COALESCE(${alias}."jobQuarantineLedger",${alias}."mainTraversal"#>'{jobQuarantine,ledger}','[]'::jsonb))),
+    'mainTraversal',CASE WHEN ${alias}."mainTraversal" IS NOT NULL THEN jsonb_build_object('matchKeyKind',${alias}."mainTraversal"->'matchKeyKind','canonicalMatchKeySetSha256',${alias}."mainTraversal"->'canonicalMatchKeySetSha256') END)`;
+  const certificateColumns = `"schemaVersion" jsonb,binding jsonb,"verifiedAt" jsonb,"observedAt" jsonb,members jsonb,"legacyCertificate" jsonb,"policyId" jsonb,observation jsonb,counts jsonb,"jobQuarantineLedger" jsonb,"mainTraversal" jsonb`;
+  const notDuePredicate = `r."failureCode"='SOURCE_NOT_DUE' AND r."transportState"='SKIPPED' AND r."adapterState"='SKIPPED' AND r."completenessState"='FAILED' AND r."atomicCommitState"='NOT_ATTEMPTED' AND r."finishedAt" IS NOT NULL AND r."startedAt" <= r."finishedAt" AND r."dedupeOutputCount"=0 AND r."expectedJobCount" IS NULL AND r."completenessCertificate" IS NULL`;
   const relations = {transportAttempts:"TransportAttemptEvidence",evidenceArtifacts:"EvidenceArtifact",observations:"CrawlObservation",paginationEvidence:"PaginationEvidence",lossLedgerEntries:"LossLedgerEntry",lifecycleSetMembers:"LifecycleSetEvidenceMember"};
   return `WITH latest AS (SELECT DISTINCT ON (r."sourceId") r.id FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
     WHERE (${candidateScope}) AND b.kind='SCHEDULED' AND r."atomicCommitState"='COMMITTED' AND r."completenessState"='VERIFIED'
-    ORDER BY r."sourceId",r."finishedAt" DESC,r.id DESC)
+    ORDER BY r."sourceId",r."finishedAt" DESC,r.id DESC),
+  latest_not_due AS (SELECT DISTINCT ON (r."sourceId") r.id FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
+    WHERE (${scope}) AND b.kind='SCHEDULED' AND (${notDuePredicate})
+    ORDER BY r."sourceId",GREATEST(r."startedAt",r."finishedAt") DESC,r.id DESC)
   SELECT ${scalars},
-    CASE WHEN r."completenessCertificate" IS NULL THEN NULL WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1'
-      THEN jsonb_build_object('schemaVersion',r."completenessCertificate"->'schemaVersion','binding',r."completenessCertificate"->'binding',
-        'verifiedAt',r."completenessCertificate"->'verifiedAt','observedAt',r."completenessCertificate"->'observedAt',
-        'members',CASE WHEN r.id IN (SELECT id FROM latest) THEN r."completenessCertificate"->'members' ELSE '[]'::jsonb END,'legacyCertificate',${legacy})
-      ELSE ${legacy} END AS "completenessCertificate",
+    CASE WHEN r."completenessCertificate" IS NULL THEN NULL WHEN d."schemaVersion"='"job-projection-delta-receipt-v1"'::jsonb
+      THEN jsonb_build_object('schemaVersion',d."schemaVersion",'binding',d.binding,
+        'verifiedAt',d."verifiedAt",'observedAt',d."observedAt",
+        'members',CASE WHEN r.id IN (SELECT id FROM latest) THEN d.members ELSE '[]'::jsonb END,'legacyCertificate',${legacy("l")})
+      ELSE ${legacy("d")} END AS "completenessCertificate",
     ${object("b", portableSourceResultSelect.batch.select)} AS batch,
-    (SELECT coalesce(jsonb_agg(${object("o", portableSourceResultSelect.observations.select)}),'[]'::jsonb) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id) AS observations,
+    CASE WHEN r."atomicCommitState"='COMMITTED' AND r."completenessState"='VERIFIED'
+      THEN (SELECT coalesce(jsonb_agg(${object("o", portableSourceResultSelect.observations.select)}),'[]'::jsonb) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id)
+      ELSE '[]'::jsonb END AS observations,
     CASE WHEN r."failureCode"='BATCH_ABORTED_BEFORE_SOURCE_TERMINAL' THEN jsonb_build_object(${Object.entries(relations).map(([key, table]) => `${quote(key)},(SELECT count(*) FROM public."${table}" e WHERE e."sourceResultId"=r.id)`).join(",")}) ELSE '{}'::jsonb END AS "_count"
   FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
-  CROSS JOIN LATERAL (SELECT CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END AS value) c
-  WHERE (${scope}) AND b.kind='SCHEDULED' ORDER BY r."startedAt",r.id`;
+  LEFT JOIN LATERAL jsonb_to_record(CASE WHEN jsonb_typeof(r."completenessCertificate")='object' THEN r."completenessCertificate" END) AS d(${certificateColumns}) ON r."completenessCertificate" IS NOT NULL
+  LEFT JOIN LATERAL jsonb_to_record(CASE WHEN d."schemaVersion"='"job-projection-delta-receipt-v1"'::jsonb AND jsonb_typeof(d."legacyCertificate")='object' THEN d."legacyCertificate" END) AS l(${certificateColumns}) ON d."schemaVersion"='"job-projection-delta-receipt-v1"'::jsonb
+  WHERE (${scope}) AND b.kind='SCHEDULED' AND (NOT ((${notDuePredicate}) IS TRUE) OR r.id IN (SELECT id FROM latest_not_due)) ORDER BY r."startedAt",r.id`;
 }
 
 const lifecycleMemberSelect = {
@@ -297,7 +305,7 @@ export async function readPortablePublicSnapshotWithStatus(
       jobs = rawJobs as PortableJobRow[];
     }
     return {results, members, jobs, version, novoClosed};
-  }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 30_000});
+  }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 120_000});
   timing?.record("tx", performance.now() - transactionStartedAt);
   if (data.cached) {
     const state = data.refreshRequired ? onRefreshRequired!() ?? "UPDATING" : "CURRENT";
