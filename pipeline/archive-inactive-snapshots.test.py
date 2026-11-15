@@ -106,7 +106,9 @@ class ArchiveSnapshotsTest(unittest.TestCase):
                     receipt_file.write_text(json.dumps(receipt))
                 before = {path: path.read_bytes() for path in paths}
                 result = self.command(root, apply=True)
-                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertTrue(result.stderr.strip())
+                self.assertNotIn("Traceback", result.stderr)
                 self.assertEqual({path: path.read_bytes() for path in paths}, before)
                 self.assertFalse(list(directory.glob("*.tmp")))
 
