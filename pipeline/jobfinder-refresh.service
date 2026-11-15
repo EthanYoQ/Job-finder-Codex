@@ -10,5 +10,6 @@ EnvironmentFile=/opt/jobfinder-new/private/refresh.env
 ExecStart=/usr/bin/flock -n /opt/jobfinder-new/refresh.lock /opt/jobfinder-new/app/bin/node --import tsx pipeline/refresh.ts
 TimeoutStartSec=8h
 Restart=on-failure
+RestartPreventExitStatus=76
 RestartSec=10min
 
