@@ -1013,7 +1013,8 @@ async function fetchSingleResponseOfficialJson({
         }
         if (!applyUrl) throw new Error("Novo native detail/application identity is UNKNOWN");
         const application = await html(applyUrl, `novo-application-${raw.jobId}`, true);
-        const status = novoApplicationStatus(application.body, application.finalUrl!, String((raw.jobCity as { value: string }).value), String((raw.jobState as { value: string }).value));
+        const status = novoApplicationStatus(application.body, application.finalUrl!, String((raw.jobCity as { value: string }).value),
+          String((raw.jobState as { value: string }).value), { jobId: String(raw.jobId), listTitle: projection.title, detailBody: detail.body });
         if (!status) throw new Error("Novo official application status is UNKNOWN");
         if (status.status === "CLOSED") losses.push(novoClosedLoss(raw, i, application.capturedAt!));
         else jobs.push({ ...projection, ...(status.cityUncertain ? {cities: [CITY_PENDING]} : {}), officialUrl: detailUrl, title: status.title! });
@@ -4502,12 +4503,12 @@ async function fetchPhenomWidgets({
       await Promise.all(rows.slice(offset,offset+concurrency).map(async({raw,pageIndex,recordIndex})=>{
         const sourceJobId=persistentOfficialJsonJobId(raw.jobSeqNo as string);
         const family=preserveOrganonQuality?'organon':preserveLillyQuality?'lilly':'roche';
+        let response:OfficialJsonHttpResponse|undefined;
         try{
           if(blocked)throw Error('PHENOM_NATIVE_ACCESS_BLOCKED');
           const requestedUrl=preserveRocheQuality?rocheNativeDetailUrl(raw):raw.applyUrl as string;
           if(!requestedUrl)throw Error('PHENOM_NATIVE_IDENTITY_INVALID');
-          const response=await http({url:requestedUrl,method:'GET',headers:{Accept:preserveRocheQuality?'application/json':'text/html','User-Agent':'job-search-crawler/0.1'}});
-          if(response.status===403||response.status===429)blocked=true;
+          response=await http({url:requestedUrl,method:'GET',headers:{Accept:preserveRocheQuality?'application/json':'text/html','User-Agent':'job-search-crawler/0.1'}});
           assertOfficialJsonEvidenceResponse(response,{requestedUrl,crawlStartedAtMs:Date.parse(capturedAt),observedNowMs:now().getTime()});
           const detail=phenomArtifact({id:family+'-detail-'+raw.reqId,kind:preserveRocheQuality?'ATS_API_RESPONSE':'OFFICIAL_COMPANY_PAGE',requestedUrl,response,extractorLocator:family+'-workday-jobposting-v1'});
           detail.bodyRepresentation='EXACT';artifacts.push(detail);
@@ -4529,6 +4530,7 @@ async function fetchPhenomWidgets({
             Object.assign(jobs.find(job=>job.sourceJobId===sourceJobId)!,update);
           }
         }catch{
+          if(response?.status===403||response?.status===429)blocked=true;
           nativeQuarantines.push(phenomJobQuarantine(raw,pageIndex,recordIndex,pages[pageIndex]!.artifactLogicalKey,'PHENOM_NATIVE_JOB_UNVERIFIED'));
           const index=jobs.findIndex(job=>job.sourceJobId===sourceJobId);if(index>=0)jobs.splice(index,1);
         }

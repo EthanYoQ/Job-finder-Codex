@@ -23,23 +23,30 @@ for(const sourceId of ['source-biogen-china-social','source-csl-china-social'])t
  }
 });
 
-test('CSL closes both list pages before details and stops native requests after a 429',async()=>{
+test('CSL resolves multiple locations after closing both list pages and stops native requests after a 429',async()=>{
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-csl-china-social');
  const shanghai='APAC, CN, Shanghai, CSL Behring',beijing='APAC, CN, Beijing, CSL Behring';
  const rows=Array.from({length:22},(_,index)=>({title:`Role ${index+1}`,externalPath:`/job/APAC-CN-Shanghai-CSL-Behring/Role_R-${index+1}`,locationsText:index<3?'2 Locations':shanghai,bulletFields:['China',`R-${index+1}`]}));
- for(const mode of ['single-failure','rate-limit']){
+ for(const mode of ['single-failure','rate-limit','ten-locations']){
+  const firstLocations=mode==='ten-locations'
+   ? [beijing,...['Guangzhou','Tianjin','Wenzhou','Nantong','Nanjing','Suzhou','Shenzhen','Hangzhou'].map(city=>`APAC, CN, ${city}, CSL Behring`)]
+   : [beijing];
+  const listedRows=rows.map((row,index)=>index===0&&mode==='ten-locations'?{...row,locationsText:'10 Locations'}:row);
   const events=[];let details=0;
   const fetch=createWorkdaySourceFetch({now:()=>new Date(at),http:async({url,body})=>{
    const offset=JSON.parse(body).offset;events.push(`LIST:${offset}`);
-   return {status:200,finalUrl:url,contentType:'application/json',capturedAt:at,body:JSON.stringify({total:22,jobPostings:rows.slice(offset,offset+20),userAuthenticated:false,facets:[{facetParameter:'locationCountry',values:[{id:countryId,descriptor:'China',count:22}]}]})};
+   return {status:200,finalUrl:url,contentType:'application/json',capturedAt:at,body:JSON.stringify({total:22,jobPostings:listedRows.slice(offset,offset+20),userAuthenticated:false,facets:[{facetParameter:'locationCountry',values:[{id:countryId,descriptor:'China',count:22}]}]})};
   },detailHttp:async({url})=>{
    assert.deepEqual(events.slice(0,2),['LIST:0','LIST:20']);details++;events.push('DETAIL');
    const row=rows.find(row=>url.endsWith(row.externalPath));assert.ok(row);
-   const status=row===rows[0]?mode==='rate-limit'?429:503:200;
+   const status=row===rows[0]&&mode!=='ten-locations'?mode==='rate-limit'?429:503:200;
    const country={id:countryId,descriptor:'China'};
-   return {status,finalUrl:url,contentType:'application/json',capturedAt:at,body:status!==200?'Synthetic unavailable':JSON.stringify({userAuthenticated:false,jobPostingInfo:{id:'a'.repeat(32),title:row.title,jobReqId:row.bulletFields[1],jobPostingId:row.externalPath.split('/').at(-1),jobPostingSiteId:plan.workday.site,externalUrl:new URL(plan.source.officialEntryUrl).origin+'/'+plan.workday.site+row.externalPath,posted:true,canApply:true,country,jobRequisitionLocation:{descriptor:shanghai,country:{...country,alpha2Code:'CN'}},location:shanghai,additionalLocations:[beijing]}})};
+   return {status,finalUrl:url,contentType:'application/json',capturedAt:at,body:status!==200?'Synthetic unavailable':JSON.stringify({userAuthenticated:false,jobPostingInfo:{id:'a'.repeat(32),title:row.title,jobReqId:row.bulletFields[1],jobPostingId:row.externalPath.split('/').at(-1),jobPostingSiteId:plan.workday.site,externalUrl:new URL(plan.source.officialEntryUrl).origin+'/'+plan.workday.site+row.externalPath,posted:true,canApply:true,country,jobRequisitionLocation:{descriptor:shanghai,country:{...country,alpha2Code:'CN'}},location:shanghai,additionalLocations:row===rows[0]?firstLocations:[beijing]}})};
   }});
   const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
-  assert.equal(result.truth.completenessVerified,true,`${mode}: ${JSON.stringify(result.truth)}`);assert.equal(result.jobs.length,mode==='rate-limit'?19:21);assert.equal(details,mode==='rate-limit'?1:3);
+  assert.equal(result.truth.completenessVerified,true,`${mode}: ${JSON.stringify(result.truth)}`);
+  assert.equal(result.jobs.length,mode==='rate-limit'?19:mode==='ten-locations'?22:21,mode);
+  assert.equal(details,mode==='rate-limit'?1:3);
+  if(mode==='ten-locations')assert.equal(result.jobs.find(job=>job.officialTitle===rows[0].title)?.locationRaw,[shanghai,...firstLocations].join(' | '));
  }
 });

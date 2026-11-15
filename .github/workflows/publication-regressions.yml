@@ -29,4 +29,6 @@ jobs:
         run: ln -s runner-candidate/node_modules node_modules
       - run: npm exec -- prisma generate
       - run: npm run test:publication
+      - run: node --import tsx --test tests/beisen-detail-scope.test.mjs tests/direct-round-timeout.test.mjs tests/novo-job-isolation.test.mjs tests/roche-denied-detail-isolation.test.mjs tests/workday-job-isolation.test.mjs
       - run: node --import tsx --test ../pipeline/frequency.test.mjs ../pipeline/round-scope.test.mjs
+      - run: python3 ../pipeline/archive-inactive-snapshots.test.py

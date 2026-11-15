@@ -7,6 +7,13 @@ import { candidateCompanies } from "../data/companyRegistry";
 import { classifyJob, matchesJobCategory } from "../domain/jobClassification";
 import { isVerifiedNovartisIntern } from "../domain/jobClassificationEvidence";
 
+const HANSOH_VERIFIED_CAMPUS_URLS = new Set([
+  "5872825e-9a36-4e86-af26-e5e9e77c9959", // J16833
+  "ccad94da-9ea2-4cb0-8583-913608cf2b42", // J16834
+  "157a8a20-a5ef-497f-9bcd-6cf62d18a7f9", // J16835
+  "d579d1b4-7d3b-4238-b33b-ed38e2e071cc", // J16836
+].map(id => "https://hspharm.zhiye.com/social/detail?jobAdId=" + id));
+
 // Scope labels describe the reviewed entry, never a live count or publication
 // decision. Counts and visibility still come only from the verified snapshot.
 function sourceScopeNote(sourceIds: readonly string[], snapshot: PortablePublicSnapshot): { sourceScopeNote?: string } {
@@ -46,7 +53,12 @@ export function searchPortableSnapshot(request:unknown,snapshot:PortablePublicSn
   const q=PortableSearchRequestSchema.parse(request),keyword=q.keyword?.toLocaleLowerCase("zh-CN")??"";
   const date=(s:string|null)=>s===null?Number.NEGATIVE_INFINITY:Date.parse(s);
   const seenJobIds=new Set<string>();
-  const publishedCompanies=snapshot.companies.filter(c=>c.required&&c.publishingSourceIds.length>0).map(c=>({...c,jobs:c.jobs.filter(j=>{if(seenJobIds.has(j.id) || isVerifiedNovartisIntern(j))return false;seenJobIds.add(j.id);return true;}).map(({categoryManuallyCorrected,...job})=>{
+  const publishedCompanies=snapshot.companies.filter(c=>c.required&&c.publishingSourceIds.length>0).map(c=>({...c,jobs:c.jobs.filter(j=>{
+    if (seenJobIds.has(j.id) || isVerifiedNovartisIntern(j) ||
+        j.sourceId === "source-hansoh-social" && HANSOH_VERIFIED_CAMPUS_URLS.has(j.officialUrl)) return false;
+    seenJobIds.add(j.id);
+    return true;
+  }).map(({categoryManuallyCorrected,...job})=>{
     const cities = resolvedPublishedJobCities(job);
     const located = cities.length ? { ...job, city: cities[0]!, cities } : job;
     const classification=classifyJob(job);

@@ -182,18 +182,25 @@ export function novoNativeApplicationUrl(body: string, detailUrl: string, jobId:
   } catch { return undefined; }
 }
 
-export function novoApplicationStatus(body: string, finalUrl: string, city: string, state?: string): { status: "ACTIVE" | "CLOSED"; title?: string; cityUncertain?: true } | undefined {
+export function novoApplicationStatus(body: string, finalUrl: string, city: string, state?: string,
+  requisition?: { jobId: string; listTitle: string; detailBody: string }
+): { status: "ACTIVE" | "CLOSED"; title?: string; cityUncertain?: true } | undefined {
   let url: URL;
   try { url = new URL(finalUrl); } catch { return undefined; }
   if (url.origin !== "https://careers.novonordisk.com" || url.username || url.password || url.search || url.hash ||
     !/^\/job\/[^/]+\/[0-9]+\/$/u.test(url.pathname)) return undefined;
+  const postingId = url.pathname.split("/").at(-2)!;
+  const matchingRequisition = postingId === requisition?.jobId.split(".")[0];
+  if (requisition && /^[1-9][0-9]{5}$/u.test(postingId) && !matchingRequisition) return undefined;
   const $ = loadHtml(body), job = $(".jobDisplay .job"), text = clean(job.text());
   const links = $(".jobDisplay a.apply[href]").toArray().filter(node => /^Apply now/u.test(clean($(node).text())));
   const closed = text.includes("Thank you for your interest unfortunately, we are no longer accepting applicants to this position.");
-  if (closed) return links.length === 0 ? { status: "CLOSED" } : undefined;
+  if (closed) return links.length === 0 && (!requisition || matchingRequisition) ? { status: "CLOSED" } : undefined;
   const title = clean(job.find("[data-careersite-propertyid=title]").text());
+  // An opaque posting ID needs the title from the same-requisition list or native detail.
+  if (requisition && !matchingRequisition && title !== requisition.listTitle &&
+    title !== clean(loadHtml(requisition.detailBody)("#careerjobdisplay h1").text())) return undefined;
   const location = clean(job.find(".jobGeoLocation").text()).split(/,\s*/u);
-  const postingId = url.pathname.split("/").at(-2);
   // Official applications can truncate a locality. Confirm the same mainland province,
   // preserve the original list label, and avoid claiming a precise city in that case.
   const cityUncertain = location[0] !== city;
@@ -316,7 +323,8 @@ export function replayNovoChinaRows(plan: SourceCrawlPlan, evidence: PersistentS
     if (!href) return false;
     const application = readNative(href, `novo-application-${raw.jobId}`, true);
     if (!application) return false;
-    const state = novoApplicationStatus(body(application), application.finalUrl!, String(record(raw.jobCity)!.value), String(record(raw.jobState)!.value));
+    const state = novoApplicationStatus(body(application), application.finalUrl!, String(record(raw.jobCity)!.value),
+      String(record(raw.jobState)!.value), { jobId: String(raw.jobId), listTitle: projection.title, detailBody: body(detail) });
     if (!state) return false;
     if (state.status === "CLOSED") losses.push(novoClosedLoss(raw, i, application.capturedAt));
     else expected.push({ ...projection, ...(state.cityUncertain ? {cities: [CITY_PENDING]} : {}), title: state.title! });

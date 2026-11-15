@@ -14,6 +14,7 @@ import {buildAtomicRuntimeCommit,buildPendingRuntimeBatch,verifyAtomicRuntimeCom
 import {canonicalStringSetSha256} from '../src/crawler/sourceFetchEvidence.ts';
 import {buildJobDedupeKey} from '../src/crawler/normalizedJob.ts';
 const started = "2026-10-02T12:00:00.000Z";
+const denial=JSON.stringify({errorCode:'S22',httpStatus:403,message:'permission denied'});
 const raw = { reqId: "202609-123373", jobId: "202609-123373", jobSeqNo: "ROCHGLOBAL202609123373EXTERNALZHCN",
   title: "Role", applyUrl: "https://roche.wd3.myworkdayjobs.com/roche-ext/job/Shanghai/Role_202609-123373/apply",
   postedDate: "2026-09-30T00:00:00.000+0000", country: "中国大陆", location: "上海, 中国大陆", multi_location: ["上海, 中国大陆"],
@@ -31,7 +32,6 @@ function artifact(row = raw, patch = {}) {
 test('bound Roche denials preserve each previous row while other details commit',async()=>{
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-roche-china-social');
  const denied=['202610-125686','202610-126799'].map(id=>({...raw,reqId:id,jobId:id,jobSeqNo:`ROCHGLOBAL${id.replace('-','')}EXTERNALZHCN`,applyUrl:raw.applyUrl.replaceAll(raw.reqId,id)}));
- const denial=JSON.stringify({errorCode:'S22',httpStatus:403,message:'permission denied'});
  for(const row of denied){
   const a={...artifact(row),httpStatus:403,body:denial};assert.equal(rocheDeniedDetail(row,a,started),true);
   for(const patch of [{httpStatus:429},{finalUrl:'https://invalid.example'},{capturedAt:'2026-10-01T00:00:00Z'},{body:JSON.stringify({errorCode:'OTHER',httpStatus:403,message:'permission denied'})}])
@@ -62,4 +62,46 @@ test('bound Roche denials preserve each previous row while other details commit'
    for(const old of previousJobs){const held=commit.commands.find(c=>c.type==='UPSERT_JOB'&&c.dedupeKey===old.dedupeKey);assert.deepEqual(held.record,old.record);assert.equal(held.lastSeenAt,oldAt);assert.equal(held.lifecycleStatus,state);assert.equal(held.missingSuccessfulCrawlCount,state==='ACTIVE'?1:count);}
   }
  }finally{await rm(workspaceRoot,{recursive:true,force:true});}
+});
+
+for(const [name,patch,isolated] of [
+ ['all details valid',undefined,false],
+ ['bound S22 denial',{status:403,body:denial},true],
+ ['generic 403',{status:403,body:'Forbidden',contentType:'text/html'},false],
+ ['429 with S22 body',{status:429,body:denial},false],
+ ['403 missing capture time',{status:403,body:denial,capturedAt:undefined},false],
+ ['403 future capture time',{status:403,body:denial,capturedAt:'2026-10-02T12:01:00.000Z'},false],
+ ['403 unbound URL',{status:403,body:denial,finalUrl:'https://login.example.invalid/error'},false],
+ ['403 invalid MIME',{status:403,body:denial,contentType:'text/html'},false]
+])test(`Roche detail batches: ${name}`,async()=>{
+ const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-roche-china-social');
+ const rows=Array.from({length:12},(_,index)=>{
+  const reqId=`202609-${123373+index}`;
+  return {...raw,reqId,jobId:reqId,jobSeqNo:`ROCHGLOBAL${reqId.replace('-','')}EXTERNALZHCN`,applyUrl:raw.applyUrl.replaceAll(raw.reqId,reqId)};
+ });
+ let posts=0;const visited=[];
+ const fetch=createOfficialJsonSourceFetch({now:()=>new Date(started),http:async request=>{
+  let body,contentType='application/json';
+  if(request.url===plan.source.officialEntryUrl){
+   body='<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11-ds"};</script>';
+   contentType='text/html';
+  }else if(request.method==='POST'){
+   const first=posts++===0;
+   body=JSON.stringify({refineSearch:{totalHits:rows.length,data:{jobs:first?[]:rows,aggregations:first?[{field:'country',value:{中国大陆:rows.length}}]:[]}}});
+  }else{
+   visited.push(request.url);
+   const row=rows.find(row=>rocheNativeDetailUrl(row)===request.url);assert.ok(row);
+   body=artifact(row,{jobReqId:row.reqId,jobPostingId:new URL(row.applyUrl).pathname.split('/').at(-2),externalUrl:row.applyUrl.replace(/\/apply$/u,'')}).body;
+  }
+  return {status:200,body,finalUrl:request.url,capturedAt:started,contentType,
+   ...(request.url===rocheNativeDetailUrl(rows[0])?patch:{})};
+ }});
+ const result=await runSourceCrawl(plan,{fetch});
+ const stops=patch&&!isolated;
+ assert.equal(visited.length,stops?6:12,'Detail requests must continue after a bound denial and stop after an access block');
+ assert.deepEqual(visited,rows.slice(0,stops?6:12).map(rocheNativeDetailUrl),'Each requested detail is fetched once');
+ assert.equal(result.truth.completenessVerified,true);
+ assert.deepEqual(result.jobs.map(job=>job.sourceJobId),rows.slice(patch?1:0,stops?6:12).map(row=>persistentOfficialJsonJobId(row.jobSeqNo)));
+ assert.deepEqual([...rocheQuarantinedSourceJobIds(result.fetchEvidence)],isolated?[persistentOfficialJsonJobId(rows[0].jobSeqNo)]:[]);
+ assert.deepEqual((result.fetchEvidence.jobQuarantines??[]).map(row=>row.sourceJobId),stops?[rows[0],...rows.slice(6)].map(row=>persistentOfficialJsonJobId(row.jobSeqNo)):[]);
 });

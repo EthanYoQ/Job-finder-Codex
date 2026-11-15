@@ -100,10 +100,10 @@ export function parseWorkdayMainlandRow(plan: SourceCrawlPlan, candidate: unknow
     requisitions.length === 1 && bullets.filter(value => value === "China").length === 1 ? requisitions[0] : undefined;
   const pathMatch = /^\/job\/([A-Za-z0-9-]+)\/([A-Za-z0-9-]+_(R-[0-9]+)(?:-[1-9][0-9]*)?)$/u.exec(raw.externalPath);
   if (!text(reqId) || !/^R-[1-9][0-9]*$/u.test(reqId) || pathMatch?.[3] !== reqId) return undefined;
-  const opaque = /^([2-9][0-9]*) Locations$/u.exec(raw.locationsText), opaqueCount = opaque ? Number(opaque[1]) : undefined;
+  const opaque = /^([1-9][0-9]*) Locations$/u.exec(raw.locationsText), opaqueCount = opaque ? Number(opaque[1]) : undefined;
   const listCity = descriptorCity(p, raw.locationsText);
   if (opaqueCount === undefined && (!listCity || pathMatch[1] !== slug(raw.locationsText))) return undefined;
-  if (opaqueCount !== undefined && (!Number.isSafeInteger(opaqueCount) || opaqueCount > 100)) return undefined;
+  if (opaqueCount !== undefined && (!Number.isSafeInteger(opaqueCount) || opaqueCount < 2 || opaqueCount > 100)) return undefined;
   const title = normalizedText(raw.title);
   return { raw, path: raw.externalPath, reqId, title, ...(opaqueCount !== undefined ? { opaqueCount } : {}),
     ...(listCity ? { listCity } : {}), requiresDetail: opaqueCount !== undefined || (p.tenant === "csl" && raw.locationsText === CSL_FIELD_SALES) || (listCity !== CITY_PENDING && !!listCity && conflict(title, [listCity])) };
