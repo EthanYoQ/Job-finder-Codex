@@ -13,7 +13,7 @@ import { retryableHttpTransportFailure, retryableTransportFailureFromError, type
 
 const ORIGIN = "https://www.novartis.com.cn", PATH = "/careers/career-search";
 export const NOVARTIS_PARTITION_CAPTURE = { name:"novartis-native-functional-partitions", version:"13" };
-export const NOVARTIS_PARTITION_PAGINATION = { allowCompleteTraversalOfEmptyFirstPage:true,...JOB_QUARANTINE_PAGINATION } as const;
+export const NOVARTIS_PARTITION_PAGINATION = { allowCompleteTraversalOfEmptyFirstPage:true,allowRawIdOverlapAcrossPages:true,...JOB_QUARANTINE_PAGINATION } as const;
 const FAIL = "NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE", AUDIT = "novartis-partitions-audit";
 export const NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR = "novartis-default-discovery-exhausted";
 const clean = (s:string) => s.replace(/\s+/gu," ").trim();
@@ -116,6 +116,30 @@ function finalPartitionSort(field:string, siteForSales:boolean, siteForMarketing
   const site = (siteForSales && field==="FCT_SA") || (siteForMarketing && field==="FCT_MM");
   return site ? {order:"站点",prefix:"site-"} : {order:"职位名称",prefix:"title-"};
 }
+type PartitionTrace = [SourceFetchArtifactDraft,Row[],string,number|null,number|null,number|null,string|null];
+interface PartitionTraversal { own:Row[]; counts:number[]; traces:PartitionTrace[]; first:SourceFetchArtifactDraft; terminal:boolean; closed:boolean }
+interface PartitionAttempt { traversal:PartitionTraversal; order:string; sort:"asc"|"desc" }
+function canReconcileAttempts(attempts:readonly PartitionAttempt[]):boolean {
+  if(attempts.length<2||!attempts.every(a=>a.traversal.terminal&&a.traversal.traces.length>0&&a.traversal.own.length>0))return false;
+  const allCounts=attempts.flatMap(a=>a.traversal.counts);
+  const unionSize=new Set(attempts.flatMap(a=>a.traversal.own.map(r=>r.id))).size;
+  return unionSize>=Math.min(...allCounts)||new Set(allCounts).size>1||attempts.some(a=>a.traversal.traces.length>2);
+}
+function reconcileAttempts(attempts:readonly PartitionAttempt[]):PartitionAttempt {
+  const chosen=[...attempts].sort((a,b)=>new Set(b.traversal.own.map(r=>r.id)).size-new Set(a.traversal.own.map(r=>r.id)).size)[0]!;
+  const seen=new Set<string>(),own:Row[]=[];
+  const grouped=chosen.traversal.traces.map(trace=>{
+    const fresh=trace[1].filter(r=>{if(seen.has(r.id))return false;seen.add(r.id);own.push(r);return true;});
+    return {trace,fresh};
+  });
+  const totalCount=own.length,pageCount=grouped.length;
+  const traces:PartitionTrace[]=grouped.map(({trace,fresh})=>{
+    const fallback=trace[1][0]!;
+    const rows=fresh.length>0?fresh:[{id:fallback.id,url:fallback.url,html:fallback.html,title:fallback.title}];
+    return [trace[0],rows,trace[2],trace[3],totalCount,pageCount,trace[6]];
+  });
+  return {...chosen,traversal:{...chosen.traversal,own,counts:[totalCount],traces,closed:true}};
+}
 function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],order:string,allowReverse=false,allowFinalSort=false,siteForSales=false,allowDefaultExhaustion=false,siteForMarketing=false,titleFirstForSales=false) {
   requireValue(hasNovartisOfficialPresencePlan(plan));const approved=new URL(partitionUrl("FCT_QA"));approved.searchParams.delete("functional_area[0]");requireValue(sameUrl(plan.source.officialEntryUrl,approved.href));const used=new Set<string>();let last=-Infinity;
   const take=(key:string,url:string,role:string)=>{const found=artifacts.filter(a=>a.logicalKey===key);requireValue(found.length===1);const a=found[0]!;
@@ -133,7 +157,7 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],or
       nextPageSignalBefore:page===1?"initial":page===null?null:a.requestedUrl,nextPageSignalAfter:next?sanitizeEvidenceHttpUrl(next):null,termination:next?"CONTINUE":rs.length?"NEXT_ABSENT":"EMPTY_PAGE",
       responseFingerprintSha256:hash(body(a)),capturedAt:a.capturedAt,anomalyCodes:[]});};
   for(const field of fields){
-    const read=(url:string,prefix="")=>{const own:Row[]=[],counts:number[]=[],traces:Array<Parameters<typeof addPage>>=[];let first:SourceFetchArtifactDraft|undefined,terminal=false;
+    const read=(url:string,prefix=""):PartitionTraversal=>{const own:Row[]=[],counts:number[]=[],traces:PartitionTrace[]=[];let first:SourceFetchArtifactDraft|undefined,terminal=false;
       for(let p=0;p<100;p++){const a=take(`novartis-partition-${field}-${prefix}${p}`,url,"novartis-native-functional-page-v1"),parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");
         requireValue(a.channelId===`novartis:${field}`);
         first??=a;counts.push(parsed.count);own.push(...parsed.rows);traces.push([a,parsed.rows,`novartis:${field}`,p+1,parsed.count,parsed.pages,parsed.next]);
@@ -141,21 +165,31 @@ function projection(plan:SourceCrawlPlan,artifacts:SourceFetchArtifactDraft[],or
       return {own,counts,traces,first:first!,terminal,closed:partitionClosed(own,counts,terminal)};};
     const titleFirst=titleFirstForSales&&field==="FCT_SA";
     let traversal=read(partitionUrl(field,0,titleFirst?"职位名称":order),titleFirst?"title-":""),discardedTitle:unknown,discarded:unknown,discardedReverse:unknown;
+    const attempts:PartitionAttempt[]=[{traversal,order:titleFirst?"职位名称":order,sort:"asc"}];
     if(titleFirst&&!traversal.closed&&traversal.terminal){
       discardedTitle={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};
       for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);
       traversal=read(nativePartitionSortUrl(traversal.first,field,order,"asc"));
+      attempts.push({traversal,order,sort:"asc"});
     }
     const first=traversal.first, finalSort=finalPartitionSort(field,siteForSales,siteForMarketing);
-    if(!traversal.closed&&allowReverse&&traversal.terminal){discarded={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=read(nativePartitionSortUrl(first,field,order),"reverse-");}
+    if(!traversal.closed&&allowReverse&&traversal.terminal){discarded={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=read(nativePartitionSortUrl(first,field,order),"reverse-");attempts.push({traversal,order,sort:"desc"});}
     if(!traversal.closed&&allowFinalSort&&!titleFirst&&traversal.terminal){
       discardedReverse={observed:traversal.own.length,unique:new Set(traversal.own.map(r=>r.id)).size,reportedTotals:traversal.counts};
       for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);
       traversal=read(nativePartitionSortUrl(first,field,finalSort.order,"asc"),finalSort.prefix);
+      attempts.push({traversal,order:finalSort.order,sort:"asc"});
+    }
+    let reconciledChoice:{order:string;sort:"asc"|"desc"}|undefined;
+    if(!traversal.closed&&titleFirstForSales&&canReconcileAttempts(attempts)){
+      for(const attempt of attempts)for(const row of attempt.traversal.own)ascendingDiscoveries.set(row.id,row);
+      const reconciled=reconcileAttempts(attempts);
+      traversal=reconciled.traversal;
+      reconciledChoice={order:reconciled.order,sort:reconciled.sort};
     }
     requireValue(traversal.closed);
     for(const trace of traversal.traces)addPage(...trace);
-    partitionAudit.push({field,declaredTotal:traversal.counts[0],uniqueCount:traversal.own.length,...(titleFirst?{selectedOrder:discardedTitle?order:"职位名称",selectedSort:"asc"}:{}),...(discardedTitle?{discardedTitleAscending:discardedTitle}:{}),...(discarded?{discardedAscending:discarded,selectedSort:"desc"}:{}),...(discardedReverse?{[order==="发布日期"?"discardedDateReverse":"discardedLocationReverse"]:discardedReverse,selectedOrder:finalSort.order,selectedSort:"asc"}:{})});rows.push(...traversal.own);
+    partitionAudit.push({field,declaredTotal:traversal.counts[0],uniqueCount:traversal.own.length,...(titleFirst?{selectedOrder:discardedTitle?order:"职位名称",selectedSort:"asc"}:{}),...(discardedTitle?{discardedTitleAscending:discardedTitle}:{}),...(discarded?{discardedAscending:discarded,selectedSort:"desc"}:{}),...(discardedReverse?{[order==="发布日期"?"discardedDateReverse":"discardedLocationReverse"]:discardedReverse,selectedOrder:finalSort.order,selectedSort:"asc"}:{}),...(reconciledChoice?{selectedOrder:reconciledChoice.order,selectedSort:reconciledChoice.sort,reconciledMultiSort:true}:{})});rows.push(...traversal.own);
   }
   requireValue(new Set(rows.map(r=>r.id)).size===rows.length);
   const primaryIds=new Set(rows.map(r=>r.id)),defaults=new Map<string,Row>(),defaultTotals:number[]=[];let url=NOVARTIS_DEFAULT_ENTRY,terminal=false,defaultUnboundUnknown=false;
@@ -208,20 +242,26 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
     artifactOk(a,url,role);if(artifacts.length===1)capturedAt=a.capturedAt;return a;};
   try{requireValue(hasNovartisOfficialPresencePlan(plan));const {fields}=readRoot(plan,await capture(plan.source.officialEntryUrl,"novartis-partitions-root","novartis-native-partition-root-v1"));const primary=new Set<string>(),ascendingDiscoveries=new Map<string,Row>();
     for(const field of fields){
-      const read=async(url:string,prefix="")=>{const own:Row[]=[],counts:number[]=[];let first:SourceFetchArtifactDraft|undefined,terminal=false;
+      const read=async(url:string,prefix=""):Promise<PartitionTraversal>=>{const own:Row[]=[],counts:number[]=[],traces:PartitionTrace[]=[];let first:SourceFetchArtifactDraft|undefined,terminal=false;
         for(let p=0;p<100;p++){const a=await capture(url,`novartis-partition-${field}-${prefix}${p}`,"novartis-native-functional-page-v1",`novartis:${field}`),parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");
-          first??=a;counts.push(parsed.count);own.push(...parsed.rows);if(!parsed.next){terminal=true;break;}url=parsed.next;}
-        return {own,first:first!,terminal,closed:partitionClosed(own,counts,terminal)};};
+          first??=a;counts.push(parsed.count);own.push(...parsed.rows);traces.push([a,parsed.rows,`novartis:${field}`,p+1,parsed.count,parsed.pages,parsed.next]);if(!parsed.next){terminal=true;break;}url=parsed.next;}
+        return {own,counts,traces,first:first!,terminal,closed:partitionClosed(own,counts,terminal)};};
       const titleFirst=field==="FCT_SA";
       let traversal=await read(partitionUrl(field,0,titleFirst?"职位名称":"发布日期"),titleFirst?"title-":"");
-      if(titleFirst&&!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(nativePartitionSortUrl(traversal.first,field,"发布日期","asc"));}
+      const attempts:PartitionAttempt[]=[{traversal,order:titleFirst?"职位名称":"发布日期",sort:"asc"}];
+      if(titleFirst&&!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(nativePartitionSortUrl(traversal.first,field,"发布日期","asc"));attempts.push({traversal,order:"发布日期",sort:"asc"});}
       const first=traversal.first;
       // Only a separately complete traversal can replace the overlapping one; never union incomplete sets.
-      if(!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(nativePartitionSortUrl(first,field,"发布日期"),"reverse-");}
+      if(!traversal.closed&&traversal.terminal){for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);traversal=await read(nativePartitionSortUrl(first,field,"发布日期"),"reverse-");attempts.push({traversal,order:"发布日期",sort:"desc"});}
       if(!traversal.closed&&!titleFirst&&traversal.terminal){
         for(const row of traversal.own)ascendingDiscoveries.set(row.id,row);
         const finalSort=finalPartitionSort(field,false,true);
         traversal=await read(nativePartitionSortUrl(first,field,finalSort.order,"asc"),finalSort.prefix);
+        attempts.push({traversal,order:finalSort.order,sort:"asc"});
+      }
+      if(!traversal.closed&&canReconcileAttempts(attempts)){
+        for(const attempt of attempts)for(const row of attempt.traversal.own)ascendingDiscoveries.set(row.id,row);
+        traversal=reconcileAttempts(attempts).traversal;
       }
       requireValue(traversal.closed);for(const row of traversal.own)primary.add(row.id);
     }

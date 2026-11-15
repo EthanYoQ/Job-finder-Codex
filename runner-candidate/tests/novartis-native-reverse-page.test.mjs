@@ -213,3 +213,46 @@ test(`an advertised ${fieldId} ${prefix} traversal can replace two incomplete da
   }
  }
 });
+
+test('Sales multi-page partition reconciles terminal traversals with cached header drift and cross-page duplicates',async()=>{
+ const salesIds=Array.from({length:21},(_,i)=>`REQ-${10090000+i}`);
+ const page3=(url,rows,total,p)=>{
+  const pages=Math.ceil(total/10);
+  const next=new URL(url);next.searchParams.set('page',String(p+1));
+  const reverse=new URL(url);reverse.searchParams.delete('page');reverse.searchParams.set('order','发布日期');reverse.searchParams.set('sort','desc');
+  const dateAsc=new URL(url);dateAsc.searchParams.delete('page');dateAsc.searchParams.set('order','发布日期');dateAsc.searchParams.set('sort','asc');
+  return `<div class="view-header">Showing ${total} results</div><table class="views-table"><thead><tr><th><a href="${dateAsc.href}">日期升序</a></th><th><a href="${reverse.href}">日期降序</a></th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table><div class="pagination"><span class="active"><a class="page-link" title="page ${p+1} out of ${pages} pages"></a></span><a rel="next" ${p+1===pages?'class="disabled"':`href="${next.href}"`}></a></div>`;
+ };
+ const at=new Date().toISOString();
+ const fetched=await acquireNovartisNativePartitions(plan,async req=>{
+  const u=new URL(req.url),field=u.searchParams.get('functional_area[0]'),p=Number(u.searchParams.get('page')??0),title=field&&u.searchParams.get('order')==='职位名称',reverse=u.searchParams.get('sort')==='desc';
+  if(req.url===plan.source.officialEntryUrl)return {status:200,body:'<div class="view-header">Showing 21 results</div><select name="functional_area[]"><option value="FCT_SA">Sales</option></select><select name="country[]"><option value="LOC_CN" selected>China</option></select><select name="field_job_posted_date"><option value="All" selected>All</option></select>',finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  if(u.pathname.includes('/job/details/'))return {status:200,body:`<h1>Job ${salesIds[20]}</h1><article>Job ID ${salesIds[20]}<p>A current substantive description for this Sales job.</p><a href="https://platform.moseeker.com/m/customize/page/novartis?job_number=${salesIds[20]}">Apply to Job</a></article>`,finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  if(!field){
+   const slice=p===0?salesIds.slice(0,10):p===1?salesIds.slice(10,20):[salesIds[20]];
+   return {status:200,body:page3(req.url,slice,21,p),finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  }
+  if(title){
+   const slice=p===0?salesIds.slice(0,10):p===1?[salesIds[9],...salesIds.slice(10,19)]:[salesIds[19]];
+   const declared=p===1?24:21;
+   return {status:200,body:page3(req.url,slice,declared,p),finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  }
+  const slice=reverse
+   ?(p===0?[salesIds[20],...salesIds.slice(0,9)]:p===1?[salesIds[0],...salesIds.slice(1,10)]:[salesIds[10]])
+   :(p===0?salesIds.slice(0,10):p===1?[...salesIds.slice(0,5),...salesIds.slice(15,20)]:[salesIds[20]]);
+  return {status:200,body:page3(req.url,slice,p===1?23:21,p),finalUrl:req.url,contentType:'text/html',capturedAt:at};
+ });
+ assert.equal(fetched.ok,true,fetched.failureReason);
+ const projected=replayNovartisNativePartitions(plan,fetched.fetchEvidence);
+ const saAudit=projected.audit.partitions[0];
+ assert.equal(saAudit.field,'FCT_SA');
+ assert.equal(saAudit.selectedOrder,'职位名称');
+ assert.equal(saAudit.selectedSort,'asc');
+ assert.equal(saAudit.reconciledMultiSort,true);
+ assert.equal(saAudit.uniqueCount,20);
+ assert.equal(projected.audit.observedUniqueCount,21);
+ const result=await runSourceCrawl(plan,{fetch:async()=>fetched,isBaseline:false});
+ assert.equal(result.status,'SUCCESS');
+ assert.equal(result.truth.completenessVerified,true);
+ assert.equal(result.jobs.length,21);
+});
