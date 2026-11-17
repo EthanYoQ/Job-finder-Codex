@@ -105,3 +105,38 @@ for(const [name,patch,isolated] of [
  assert.deepEqual([...rocheQuarantinedSourceJobIds(result.fetchEvidence)],isolated?[persistentOfficialJsonJobId(rows[0].jobSeqNo)]:[]);
  assert.deepEqual((result.fetchEvidence.jobQuarantines??[]).map(row=>row.sourceJobId),stops?[rows[0],...rows.slice(6)].map(row=>persistentOfficialJsonJobId(row.jobSeqNo)):[]);
 });
+
+test('bound Roche S22 denial with foreign primary location and mainland alternative is isolated without SCOPE_MISMATCH',async()=>{
+ const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-roche-china-social');
+ const altDenied={...raw,reqId:'202609-124049',jobId:'202609-124049',jobSeqNo:'ROCHGLOBAL202609124049EXTERNALZHCN',
+  title:'Value Stream SPOC - Infrastructure Business Analyst (APAC)',
+  country:'马来西亚',location:'Petaling Jaya, 雪兰莪, 马来西亚',city:'Petaling Jaya',state:'雪兰莪',
+  multi_location:['Petaling Jaya, 雪兰莪, 马来西亚','上海, 中国大陆'],
+  applyUrl:'https://roche.wd3.myworkdayjobs.com/roche-ext/job/Petaling-Jaya/Value-Stream-SPOC---Infrastructure-Business-Analyst--APAC-_202609-124049/apply'};
+ let posts=0,clock=0;
+ const fetch=createOfficialJsonSourceFetch({now:()=>new Date(clock++===0?started:'2026-10-02T12:00:03.000Z'),http:async request=>{
+  const isDenied=request.url===rocheNativeDetailUrl(altDenied);
+  const body=request.method==='POST'?JSON.stringify({refineSearch:{totalHits:2,data:{jobs:posts++===0?[]:[raw,altDenied],aggregations:posts===1?[{field:'country',value:{中国大陆:2}}]:[]}}}):request.url.includes('/wday/cxs/')?(isDenied?denial:artifact().body):'<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11-ds"};</script>';
+  return {status:isDenied?403:200,body,finalUrl:request.url,capturedAt:request.url===plan.source.officialEntryUrl?'2026-10-02T12:00:01.000Z':'2026-10-02T12:00:02.000Z',contentType:request.method==='POST'||request.url.includes('/wday/cxs/')?'application/json':'text/html'};
+ }});
+ const result=await runSourceCrawl(plan,{fetch});
+ assert.equal(result.truth.completenessVerified,true);
+ assert.equal(result.jobs.length,1);
+ assert.deepEqual([...rocheQuarantinedSourceJobIds(result.fetchEvidence)],[persistentOfficialJsonJobId(altDenied.jobSeqNo)]);
+ const oldAt='2026-10-01T12:00:00.000Z',at='2026-10-02T12:00:03.000Z';
+ const identity={releaseCandidateId:'roche-alt-isolation-test',commitSha:'a'.repeat(64),rosterSha256:'a'.repeat(64),sourcePlanSha256:'a'.repeat(64),sourceConfigSha256:'a'.repeat(64),adapterBundleSha256:'a'.repeat(64),batchKind:'SCHEDULED',ownerId:'test',expectedPlannedSourceIds:[plan.source.id],expectedPlannedSourceSetSha256:canonicalStringSetSha256([plan.source.id]),expectedPlannedSourceCount:1};
+ const batchId='roche-alt-isolation-batch',pending=buildPendingRuntimeBatch(batchId,[plan],identity,new Date(started)).sources[0];
+ const workspaceRoot=await mkdtemp(join(tmpdir(),'roche-alt-isolation-'));
+ try{
+  const binding={workspaceRoot,releaseCandidateId:identity.releaseCandidateId,batchId,sourceId:plan.source.id,sourceResultId:pending.id,evidenceSubdirectory:'evidence'};
+  const archived=await archiveSourceEvidence({...binding,captureTool:result.fetchEvidence.captureTool,artifacts:result.fetchEvidence.artifacts});
+  const artifacts=await verifyArchivedSourceEvidence({...binding,artifacts:archived.artifacts});
+  const priorRecord={...structuredClone(result.jobs[0]),officialTitle:altDenied.title,officialUrl:altDenied.applyUrl,sourceJobId:persistentOfficialJsonJobId(altDenied.jobSeqNo),evidence:{...result.jobs[0].evidence,capturedAt:oldAt}};
+  const previousJobs=[{dedupeKey:buildJobDedupeKey(priorRecord),record:priorRecord,lifecycleStatus:'ACTIVE',missingSuccessfulCrawlCount:0,firstSeenAt:oldAt,lastSeenAt:oldAt}];
+  const commit=buildAtomicRuntimeCommit({plan,pending,identity,batchId,result,baselineCompletedBeforeCrawl:true,artifacts,completedAt:new Date(at),publicationPolicy:'SOURCE_ATOMIC_LAST_GOOD_V1',previousJobs});
+  assert.equal(commit.sourceResult.completenessState,'VERIFIED');
+  await verifyAtomicRuntimeCommitForPersistence(commit);
+  const held=commit.commands.find(c=>c.type==='UPSERT_JOB'&&c.dedupeKey===previousJobs[0].dedupeKey);
+  assert.deepEqual(held.record,priorRecord);assert.equal(held.lastSeenAt,oldAt);assert.equal(held.missingSuccessfulCrawlCount,1);
+ }finally{await rm(workspaceRoot,{recursive:true,force:true});}
+});

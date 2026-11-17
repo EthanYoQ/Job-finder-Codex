@@ -46,6 +46,9 @@ import {identityForSource} from '../scripts/direct-round.ts';
 import {withPortableCrawlLease} from '../src/crawler/portableCrawlLease.ts';
 import {runP0CrawlBatch} from '../src/crawler/runCrawlBatch.ts';
 import {verifyAGradeCompletenessCertificateReceipt} from '../src/crawler/completenessCertificate.ts';
+import {replayJnjCareersDomEvidence as replayWebJnjDom} from '../../web-candidate/src/crawler/jnjCareersDomEvidence.ts';
+import {auditJnjCareersChinaResultSet,JNJ_CAREERS_CHINA_FETCH_CONFIG} from '../src/crawler/jnjCareersChinaSourceFetch.ts';
+import {createJnjDomRuntime} from '../src/crawler/local-browser/jnj-browser-runtime.mjs';
 
 test('JNJ native DOM atomic admission accepts good and isolated jobs with a persistable certificate',async()=>{
  const plan=(await loadDirectPlans()).find(p=>p.sourceId==='source-johnson-innovative-medicine-social').plan;
@@ -63,4 +66,62 @@ test('JNJ native DOM atomic admission accepts good and isolated jobs with a pers
   const row=memory.rows[0];assert.equal(result.status,'SUCCESS',`${mode}: ${JSON.stringify(row)}`);assert.equal(row.atomicCommitState,'COMMITTED');assert.equal(row.dedupeOutputCount,mode==='good'?3:2);
   assert.equal(verifyAGradeCompletenessCertificateReceipt({certificate:JSON.parse(JSON.stringify(row.completenessCertificate)),certificateSha256:row.completenessCertificateSha256,expected:{releaseCandidateId:candidate.id,batchId:result.batchId,sourceResultId:row.id,sourceId:plan.source.id,sourceConfigSha256:row.sourceConfigHash}}).status,'PASS');
  }}finally{await rm(workspaceRoot,{recursive:true,force:true});}
+});
+
+test('JNJ handles single-item last page heading Displaying N of N matching jobs across runtime, DOM audit, batch commit, and web replay',async()=>{
+ const plan=(await loadDirectPlans()).find(p=>p.sourceId==='source-johnson-innovative-medicine-social').plan;
+ const origin='https://www.careers.jnj.com',listUrl=p=>`${origin}/en/jobs/?${p===1?'':`page=${p}&`}country=China&origin=global#results`;
+ const title='Synthetic role',stamp=new Date().toISOString();
+ const rows=Array.from({length:21},(_,i)=>{const id=`r-${String(i+1).padStart(6,'0')}`;return {id,url:`${origin}/en/jobs/${id}/synthetic-role/`,apply:`https://careers.jnj.com.cn/jnj/apply?exid=${id.toUpperCase()}&m=1`};});
+ const mkPage=(page,slice,heading)=>{
+  const html=`<ul id="js-job-search-results" data-results="21">${slice.map(({id,url})=>`<li class="PageList-items-item card-job" data-id="${id}"><a href="${url}">${title}</a><div class="PagePromo-category">Pharmaceutical Sales</div><address class="PagePromo-location">Guiyang</address></li>`).join('')}</ul>`;
+  const pagination=[...(page>1?[{label:'Previous page',url:listUrl(page-1)}]:[]),{label:'Page 1',url:listUrl(1)},{label:'Page 2',url:listUrl(2)},...(page<2?[{label:'Next page',url:listUrl(page+1)}]:[])];
+  return {kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',observedAt:stamp,url:listUrl(page),heading,fragment:{html,htmlLength:html.length,items:slice.map(({url})=>({text:title,links:[{title,url}]}))},
+   filters:['team','subteam','country','state','location','type','pattern'].map(name=>({id:name,name,selectedOptions:name==='country'?[{text:'China',value:'China'}]:[]})),
+   pagination,dom:`- option "China" [selected]\n${heading}\n${page<2?'link "Next page"\n':''}${slice.map(r=>r.url).join('\n')}`};
+ };
+ const pages=[mkPage(1,rows.slice(0,20),'Displaying 1 to 20 of 21 matching jobs'),mkPage(2,rows.slice(20),'Displaying 21 of 21 matching jobs')];
+ const details=rows.map(({id,url,apply})=>{
+  const body=`<div id="js-job-detail" data-id="${id}" data-jobtitle="${title}"><article class="RichTextBody"><ul class="job-meta"><li>Job title<span>${title}</span></li><li>Function<span>Pharmaceutical Sales</span></li><li>Location<span>Guiyang / China</span></li><li>Requisition number<span>${id.toUpperCase()}</span></li></ul><h2>Description</h2><p>Job Description: ${'Scientific responsibilities and collaboration. '.repeat(8)}</p></article></div>`;
+  return {kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',observedAt:stamp,url,expectedUrl:url,expectedTitle:title,heading:title,body:{html:body,htmlLength:body.length,text:id+' Description'},applyLinks:[{text:'Apply now',href:apply}],dom:`${id}\n- link "Apply now"\n${apply}`};
+ });
+ // 1. Verify runtime heading locator + parser on page 1 -> page 2 single-item heading
+ let curPage=0;
+ const tab={
+  async goto(u){curPage=u===listUrl(1)?0:1;},async close(){},async url(){return pages[curPage].url;},
+  playwright:{
+   locator:sel=>sel==='#js-job-search-results'?{async waitFor(){},async evaluate(){return pages[curPage].fragment;}}:
+    {async evaluateAll(){return pages[curPage].filters;}},
+   getByRole:(_role,opts)=>({
+    async waitFor(){const h=pages[curPage].heading;assert.ok(opts.name instanceof RegExp?opts.name.test(h):opts.name===h,h);},
+    async innerText(){return pages[curPage].heading;},
+    async evaluateAll(){return pages[curPage].pagination;},
+    async evaluate(){return listUrl(2);}
+   }),
+   async domSnapshot(){return pages[curPage].dom;}
+  }
+ };
+ const runtime=createJnjDomRuntime({async createBrowserTab(){return tab;}});
+ await runtime.start();
+ const p1=await runtime.readList();assert.equal(p1.failure,undefined);assert.equal(p1.rowCount,20);assert.equal(p1.next,true);
+ await runtime.advance();
+ const p2=await runtime.readList();assert.equal(p2.failure,undefined);assert.equal(p2.rowCount,1);assert.equal(p2.next,false);
+ await runtime.close();
+
+ // 2. Verify runner batch commit + certificate + web replay
+ const memory=memoryDb(),candidate={id:'synthetic-jnj-single-tail',commitSha:'a'.repeat(40),rosterHash:'b'.repeat(64),sourcePlanHash:'c'.repeat(64),sourceConfigHash:'d'.repeat(64),adapterBundleHash:'e'.repeat(64)};
+ const workspaceRoot=await mkdtemp(join(tmpdir(),'jnj-single-tail-'));
+ try{
+  const fetch=async(...args)=>{const s=new Date().toISOString();return createJnjCareersDomSourceFetch({lists:pages.map(p=>JSON.stringify({...p,observedAt:s})),details:details.map(d=>JSON.stringify({...d,observedAt:s}))})(...args);};
+  const batch=await withPortableCrawlLease(memory.db,lease=>runP0CrawlBatch([plan],{db:memory.db,identity:identityForSource(candidate,plan.source.id),now:()=>new Date(),publicationPolicy:'SOURCE_ATOMIC_LAST_GOOD_V1',portableLease:lease,workspaceRoot,fetch,getPreviousJobs:async()=>[],getRecentObservations:async()=>[],isBaselineCompleted:async()=>false,getTrustedCompletenessBaseline:async()=>null,getFirstAcceptedCurrentPolicyReceipt:async()=>null}));
+  const row=memory.rows[0];assert.equal(batch.status,'SUCCESS');assert.equal(row.atomicCommitState,'COMMITTED');assert.equal(row.dedupeOutputCount,21);
+  assert.equal(verifyAGradeCompletenessCertificateReceipt({certificate:JSON.parse(JSON.stringify(row.completenessCertificate)),certificateSha256:row.completenessCertificateSha256,expected:{releaseCandidateId:candidate.id,batchId:batch.batchId,sourceResultId:row.id,sourceId:plan.source.id,sourceConfigSha256:row.sourceConfigHash}}).status,'PASS');
+  const direct=await runSourceCrawl(plan,{fetch,isBaseline:false});
+  assert.equal(replayWebJnjDom(plan,direct.fetchEvidence,direct.jobs),true);
+ }finally{await rm(workspaceRoot,{recursive:true,force:true});}
+
+ // 3. Verify direct HTML parser also accepts single-item heading format
+ const htmlPage=`<html><body><select name="country"><option value="China" selected>China</option></select><h2>Displaying 1 of 1 matching jobs</h2><ul id="js-job-search-results" data-results="1"><li class="PageList-items-item card-job" data-id="r-000001"><a href="${rows[0].url}">${title}</a><div class="PagePromo-category">Pharmaceutical Sales</div><address class="PagePromo-location">Guiyang</address></li></ul></body></html>`;
+ const directHtml=await auditJnjCareersChinaResultSet(JNJ_CAREERS_CHINA_FETCH_CONFIG,{http:async req=>({status:200,finalUrl:req.url,contentType:'text/html',body:htmlPage})});
+ assert.equal(directHtml.ok,true);assert.equal(directHtml.total,1);
 });

@@ -97,7 +97,11 @@ async function refresh() {
   temporary=await mkdtemp(join(tmpdir(),"jobfinder-refresh-"));
   // wake respects a manual stop/pause; it does not change lifetime/security settings.
   phase = "WAKE";
-  await command(["wake",machine,"--json"]);
+  try {
+    await command(["wake",machine,"--json"]);
+  } catch {
+    await command(["resume",machine,"--json"]);
+  }
   phase = "ACTIVITY_LEASE";
   releaseActivityLease = await acquireActivityLease(machine,env.INSTABOX_API_KEY);
   phase = "READ_RECEIPT";

@@ -88,7 +88,16 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
     try {
       await rejectTemporaryAccessFailure(list,'#js-job-search-results');
       await list.playwright.locator('#js-job-search-results').waitFor({state:'visible',timeoutMs:30000});
-      headingLocator = list.playwright.getByRole('heading',{name:total===undefined?/^Displaying 1 to \d+ of \d+ matching jobs$/:`Displaying ${(page-1)*20+1} to ${Math.min(page*20,total)} of ${total} matching jobs`,exact:true});
+      const firstIndex = (page - 1) * 20 + 1;
+      const lastIndex = total === undefined ? undefined : Math.min(page * 20, total);
+      headingLocator = list.playwright.getByRole('heading', {
+        name: total === undefined
+          ? /^Displaying 1(?: to \d+)? of \d+ matching jobs$/
+          : firstIndex === lastIndex
+            ? new RegExp(`^Displaying ${firstIndex}(?: to ${lastIndex})? of ${total} matching jobs$`)
+            : `Displaying ${firstIndex} to ${lastIndex} of ${total} matching jobs`,
+        exact: true
+      });
       sourceFetchStage = 'JNJ_HEADING_READY';
       await waitOriginalDomVisible(headingLocator,deadline);
     } catch(error) {
@@ -115,11 +124,13 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
       filters:await list.playwright.locator('select[name]').evaluateAll(es=>es.map(e=>({id:e.id,name:e.name,selectedOptions:Array.from(e.selectedOptions).map(o=>({text:o.text,value:o.value}))}))),
       pagination:await list.playwright.getByRole('link',{name:/^(?:Page \d+|Next page|Previous page)$/}).evaluateAll(es=>es.map(e=>({label:e.getAttribute('aria-label'),text:e.textContent.trim(),url:e.href}))),
       dom:await list.playwright.domSnapshot(),observedAt:new Date().toISOString()};
-    const declaration = /^Displaying (\d+) to (\d+) of (\d+) matching jobs$/.exec(heading);
+    const declaration = /^Displaying (\d+)(?: to (\d+))? of (\d+) matching jobs$/.exec(heading);
     if(!declaration) throw Error('JNJ_DOM_TOTAL_DECLARATION');
+    const firstDeclared = Number(declaration[1]);
+    const lastDeclared = declaration[2] === undefined ? firstDeclared : Number(declaration[2]);
     total ??= Number(declaration[3]);
     if(value.url!==listUrl(page) || total<=0 || total>400 || Number(declaration[3])!==total ||
-       Number(declaration[1])!==(page-1)*20+1 || Number(declaration[2])!==Math.min(page*20,total) ||
+       firstDeclared!==(page-1)*20+1 || lastDeclared!==Math.min(page*20,total) ||
        fragment.items.length!==Math.min(20,total-(page-1)*20)) {
       return {file:'jnj-list-page-'+page+'.json',raw:raw(value),failure:'JNJ_DOM_PAGE_DRIFT:'+JSON.stringify({page,expectedUrl:listUrl(page),actualUrl:value.url,heading,itemCount:fragment.items.length,total})};
     }

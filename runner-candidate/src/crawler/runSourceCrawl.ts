@@ -2688,6 +2688,7 @@ function strictPhenomRequestContracts(
     const expectedCountry = facetScope?.countryIncludeDescriptor ?? "China";
     for (const [recordIndex,job] of envelope.jobs.entries()) {
       if(evidence.jobQuarantines?.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
+      if(rocheLosses.some(loss=>loss.details.pageSequence===pageIndex&&loss.details.recordIndex===recordIndex))continue;
       const record = strictRecord(job);
       if (!record) return false;
       if (strictPhenomRecordHasGenericLocation(record)) return false;
