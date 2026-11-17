@@ -336,7 +336,7 @@ async function recordBrowserAccessResponse(response: import("playwright-core").R
     if (headers.get("cf-mitigated") !== "challenge" && /^text\/html(?:;|$)/iu.test(headers.get("content-type") ?? "")) {
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
-            const timeout = new Promise<undefined>(resolve => { timer = setTimeout(resolve, 1_000); });
+            const timeout = new Promise<undefined>(resolve => { timer = setTimeout(() => resolve(undefined), 1_000); });
             const decoded = await Promise.race([response.body(), timeout]);
             if (decoded) challenge = isWorkdayChallengeHtml(decoded.subarray(0, 64 * 1024).toString("utf8"));
         } catch {
