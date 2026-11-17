@@ -387,10 +387,10 @@ export function parseJnjCareersChinaPage(
     .map((option) => $(option).attr("value"));
   if (selectedCountries.length !== 1 || selectedCountries[0] !== "China") return undefined;
   const visibleText = $.root().text().replace(/\s+/gu, " ").trim();
-  const count = /Displaying\s+(\d+)\s+to\s+(\d+)\s+of\s+(\d+)\s+matching jobs/iu.exec(visibleText);
+  const count = /Displaying\s+(\d+)(?:\s+to\s+(\d+))?\s+of\s+(\d+)\s+matching jobs/iu.exec(visibleText);
   if (!count) return undefined;
   const first = Number(count[1]);
-  const last = Number(count[2]);
+  const last = count[2] === undefined ? first : Number(count[2]);
   const total = Number(count[3]);
   if (![first, last, total].every(Number.isSafeInteger) || total < 0) return undefined;
 

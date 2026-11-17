@@ -74,7 +74,7 @@ async function refreshFixture(t,{complete=false}={}) {
         if(!latest){assert.equal(args[2],receipt.snapshotFile);snapshotPulls.push(args[2]);}
         await writeFile(args[3],latest?JSON.stringify(receipt):bytes);
       }
-      else assert.ok(['wake','exec','jobs'].includes(args[0]));
+      else assert.ok(['wake','resume','exec','jobs'].includes(args[0]));
       return {stdout:args[0]==='exec'?JSON.stringify({jobId:'synthetic-job'}):'',stderr:''};
     },
     acquireActivityLease:async()=>{calls.push('lease');return async()=>{calls.push('release');};},
@@ -123,21 +123,40 @@ test('three partial publications retain the verified receipt and stop without a 
 
 test('failed attempts are consumed before wake and reset at the next Beijing slot, not after 24 hours',async t=>{
   const fixture=await refreshFixture(t);
-  let wakes=0;
+  let wakes=0,resumes=0;
   const execute=async(_cli,args)=>{
-    assert.equal(args[0],'wake');wakes++;
-    assert.equal((await fixture.readState()).dailyAttempt.status,'RESERVED');
-    throw Error('SYNTHETIC_WAKE_FAILED');
+    if(args[0]==='wake'){
+      wakes++;
+      assert.equal((await fixture.readState()).dailyAttempt.status,'RESERVED');
+      throw Error('SYNTHETIC_WAKE_FAILED');
+    }
+    assert.equal(args[0],'resume');
+    resumes++;
+    throw Error('SYNTHETIC_RESUME_FAILED');
   };
   const codes=[];
   for(const now of [next-1200000,next-600000,next-1])codes.push(await runRefresh({...fixture.options,now,execute}));
   assert.deepEqual(codes,[75,75,76]);
-  assert.equal(wakes,3);
+  assert.equal(wakes,3);assert.equal(resumes,3);
   assert.equal(await runRefresh({...fixture.options,now:next-1,execute}),76);
-  assert.equal(wakes,3);
+  assert.equal(wakes,3);assert.equal(resumes,3);
   assert.equal(await runRefresh({...fixture.options,now:next,execute}),75);
-  assert.equal(wakes,4);
+  assert.equal(wakes,4);assert.equal(resumes,4);
   assert.deepEqual((await fixture.readState()).dailyAttempt,{slot:String(next),count:1,status:'RESERVED'});
+});
+
+test('when wake fails for a manually suspended machine, refresh falls back to resume and succeeds',async t=>{
+  const fixture=await refreshFixture(t);
+  let woke=0,resumed=0;
+  const execute=async(cli,args)=>{
+    if(args[0]==='wake'){woke++;throw Error('MACHINE_MANUALLY_SUSPENDED');}
+    if(args[0]==='resume'){resumed++;}
+    return fixture.options.execute(cli,args);
+  };
+  assert.equal(await runRefresh({...fixture.options,execute}),75);
+  assert.equal(woke,1);assert.equal(resumed,1);
+  assert.deepEqual(fixture.calls.slice(0,2),['resume','lease']);
+  assert.deepEqual((await fixture.readState()).dailyAttempt,{slot:String(midnight),count:1,status:'VERIFIED',complete:false});
 });
 
 test('a last readback failure stays terminal even with an earlier verified partial receipt',async t=>{

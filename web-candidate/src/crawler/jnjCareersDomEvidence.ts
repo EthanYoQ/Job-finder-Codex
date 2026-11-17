@@ -57,9 +57,9 @@ function parseList(body: string, page: number) {
   assert(isDeepStrictEqual(filters.map(f => f.name), ["team", "subteam", "country", "state", "location", "type", "pattern"]));
   assert(filters.every(f => f.name === "country" ? isDeepStrictEqual(f.selectedOptions, [{ text: "China", value: "China" }]) : f.selectedOptions.length === 0));
   assert(original.dom.includes('- option "China" [selected]') && original.dom.includes(original.heading));
-  const match = /^Displaying (\d+) to (\d+) of (\d+) matching jobs$/u.exec(original.heading);
+  const match = /^Displaying (\d+)(?: to (\d+))? of (\d+) matching jobs$/u.exec(original.heading);
   assert(match);
-  const [first, last, total] = match.slice(1).map(Number) as [number, number, number];
+  const [first, last, total] = [Number(match[1]), match[2] === undefined ? Number(match[1]) : Number(match[2]), Number(match[3])] as [number, number, number];
   assert([first, last, total].every(Number.isSafeInteger) && total > 0 && total <= 400 && page <= Math.ceil(total / 20));
   const $ = load(original.fragment.html);
   assert($("#js-job-search-results").length === 1 && $("#js-job-search-results").attr("data-results") === String(total));
