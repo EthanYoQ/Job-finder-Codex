@@ -300,6 +300,7 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
       pages.push({channelId:CHANNEL,pageNumber:list.pageNumber,declaredTotalPages:list.totalPages,declaredTotalJobs:list.total,uiRequestCandidateIds:[],rawRows,nextControlPresent:list.nextPresent});
     }
     if(listAccessDenied)accessSignal.throwIfAborted();
+    await Promise.all(accessRecordings);
     return pages;
     }
     catch(error) {
@@ -324,20 +325,19 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
     }
     finally {
         page.context().off('response',observeAccess);
+        await Promise.allSettled(accessRecordings);
         await detail?.close().catch(() => undefined);
-        await Promise.all(accessRecordings);
     }
 }
 
 async function recordBrowserAccessResponse(response: import("playwright-core").Response, headers: Headers): Promise<void> {
     let challenge = false;
-    const length = Number(headers.get("content-length"));
-    if (headers.get("cf-mitigated") !== "challenge" && length > 0 && length <= 64 * 1024 &&
-        (headers.get("content-encoding") ?? "identity") === "identity" && /^text\/html(?:;|$)/iu.test(headers.get("content-type") ?? "")) {
+    if (headers.get("cf-mitigated") !== "challenge" && /^text\/html(?:;|$)/iu.test(headers.get("content-type") ?? "")) {
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
-            const timeout = new Promise<string>(resolve => { timer = setTimeout(() => resolve(""), 1_000); });
-            challenge = isWorkdayChallengeHtml(await Promise.race([response.text(), timeout]));
+            const timeout = new Promise<undefined>(resolve => { timer = setTimeout(resolve, 1_000); });
+            const decoded = await Promise.race([response.body(), timeout]);
+            if (decoded) challenge = isWorkdayChallengeHtml(decoded.subarray(0, 64 * 1024).toString("utf8"));
         } catch {
             // The observed status and response headers remain available.
         } finally {

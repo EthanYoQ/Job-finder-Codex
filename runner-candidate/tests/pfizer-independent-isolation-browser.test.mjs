@@ -38,7 +38,7 @@ for(const mode of ['503','wrong-id','429','iframe-429','list-429','unbound','mal
  }finally{await browser.close();await rm(directory,{recursive:true,force:true});}
 });
 
-test('Pfizer stops waiting for the next rendered page and persists a real challenge', {timeout:10_000}, async()=>{
+for(const encoding of ['identity','gzip'])test(`Pfizer stops waiting after a ${encoding} challenge and persists cooldown`, {timeout:10_000}, async()=>{
  const directory=await mkdtemp(join(tmpdir(),'pfizer-cooldown-'));
  const browser=await chromium.launch({executablePath:process.platform==='win32'?'C:/Program Files/Google/Chrome/Application/chrome.exe':'/usr/bin/chromium',headless:true,chromiumSandbox:true});
  let timer;
@@ -51,7 +51,10 @@ test('Pfizer stops waiting for the next rendered page and persists a real challe
    if(request.url()===endpoint){
     nextRequests++;
     const body='<html>Enable JavaScript and cookies to continue</html>';
-    return route.fulfill({status:429,headers:{'content-type':'text/html','retry-after':'120'},body});
+    const headers={'content-type':'text/html','retry-after':'120'};
+    // Route fulfillment supplies the decoded bytes that Chromium exposes to Playwright.
+    if(encoding==='gzip')headers['content-encoding']='gzip';
+    return route.fulfill({status:429,headers,body});
    }
    if(request.url()!==entry+'?Location_Country='+country)return route.abort();
    const listWithoutAdvance=list.split('<button onclick=')[0];

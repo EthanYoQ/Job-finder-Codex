@@ -21,13 +21,14 @@ test('closed Lilly applications reconcile across pages and altered closure evide
  sample.postedDate='unknown';sample.dateCreated='unknown';sample.displayBadge='New';
  const rows=Array.from({length:51},(_,i)=>{const reqId=`R-${800000+i}`;return {...sample,reqId,jobId:reqId,jobSeqNo:`LILLUS${reqId.replace('-','')}EXTERNALENUS`,applyUrl:sample.applyUrl.replace(sample.reqId,reqId)};});
  const bootstrap={widgetApiEndpoint:'https://careers.lilly.com/widgets',country:'us',deviceType:'desktop',locale:'en_us',refNum:'LILLUS',pageName:'search-results',pageId:'page11-ds'};
- let page=0, detailsBlocked=false;
+ let page=0, detailMode='healthy';
  const fetch=createOfficialJsonSourceFetch({allowBrowserFallback:false,http:async({url,method})=>{
   let body,contentType='text/html';
   if(url===plan.source.officialEntryUrl)body=`<script>var phApp=${JSON.stringify(bootstrap)};</script>`;
   else if(url===bootstrap.widgetApiEndpoint){assert.equal(method,'POST');const jobs=rows.slice(page*50,(++page)*50);body=JSON.stringify({refineSearch:{status:200,hits:jobs.length,totalHits:rows.length,data:{jobs,aggregations:[],ui_selections:{country:['China']}}}});contentType='application/json';}
   else {const i=rows.findIndex(r=>r.applyUrl===url);assert(i>=0,'unexpected request');const r=rows[i];
-   if(detailsBlocked)return {status:429,finalUrl:url,body:'Security Check',contentType,capturedAt:new Date().toISOString(),retryAfter:{value:'2700',delayMs:2700000}};
+   if(detailMode==='mostly-unavailable'&&i<49)return {status:503,finalUrl:url,body:'Service Unavailable',contentType,capturedAt:new Date().toISOString()};
+   if(detailMode!=='healthy')return {status:429,finalUrl:url,body:'Security Check',contentType,capturedAt:new Date().toISOString(),retryAfter:{value:'2700',delayMs:2700000}};
    body=i===0||i===50?`<meta property="og:url" content="${url}"><script>window.workday={tenant:'lilly',siteId:'LLY',postingAvailable:false};</script>`:`<script>window.workday={postingAvailable:true};</script><script type="application/ld+json">${JSON.stringify({'@type':'JobPosting',identifier:{value:r.reqId},title:r.title,description:'Role',datePosted:'2026-11-03',jobLocation:{address:{addressCountry:'China',addressLocality:'CN: Bao Ding'}}})}</script>`;}
   return {status:200,finalUrl:url,body,contentType,capturedAt:new Date().toISOString()};
  }});
@@ -56,11 +57,13 @@ test('closed Lilly applications reconcile across pages and altered closure evide
   const round=await run(memory,'b');
   assert.equal(round.status,'SUCCESS',JSON.stringify(memory.rows));
   assert.equal(memory.rows[0].atomicCommitState,'COMMITTED');assert.equal(memory.rows[0].completenessState,'VERIFIED');assert.equal(memory.jobWrites(),49);
-  page=0;detailsBlocked=true;
-  const blocked=memoryDb();
-  await run(blocked,'blocked');
-  assert.equal(blocked.rows[0].failureDiagnosticCode,'OFFICIAL_HTTP_429');
-  assert.equal(blocked.rows[0].atomicCommitState,'NOT_ATTEMPTED');
-  assert.equal(blocked.jobWrites(),0);
+  for(const mode of ['blocked','mostly-unavailable']){
+   page=0;detailMode=mode;
+   const blocked=memoryDb();
+   await run(blocked,mode);
+   assert.equal(blocked.rows[0].atomicCommitState,'NOT_ATTEMPTED',mode);
+   assert.equal(blocked.rows[0].failureDiagnosticCode,'OFFICIAL_HTTP_429',mode);
+   assert.equal(blocked.jobWrites(),0,mode);
+  }
  }finally{await rm(workspaceRoot,{recursive:true,force:true});}
 });

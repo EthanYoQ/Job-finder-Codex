@@ -4535,8 +4535,8 @@ async function fetchPhenomWidgets({
           const status = deferred ? error.status : response?.status;
           if (status === 403 || status === 429) {
             blocked = true;
-            const blockedCount = rows.length - index;
-            if (blockedCount >= 3 || blockedCount * 10 > rows.length) {
+            const unverifiedCount = nativeQuarantines.length + rows.length - index;
+            if (unverifiedCount >= 3 || unverifiedCount * 10 > rows.length) {
               const failure = deferred ? retryableTransportFailureFromError(error)
                 : retryableHttpTransportFailure(status, response?.retryAfter);
               return phenomFailure(capturedAt, deferred ? error.message : `Official JSON source returned HTTP ${status}`,
