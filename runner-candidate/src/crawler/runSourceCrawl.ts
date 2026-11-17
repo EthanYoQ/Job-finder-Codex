@@ -2688,7 +2688,6 @@ function strictPhenomRequestContracts(
     const expectedCountry = facetScope?.countryIncludeDescriptor ?? "China";
     for (const [recordIndex,job] of envelope.jobs.entries()) {
       if(evidence.jobQuarantines?.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
-      if(rocheLosses.some(loss=>loss.details.pageSequence===pageIndex&&loss.details.recordIndex===recordIndex))continue;
       const record = strictRecord(job);
       if (!record) return false;
       if (strictPhenomRecordHasGenericLocation(record)) return false;
@@ -2699,6 +2698,7 @@ function strictPhenomRequestContracts(
         const rawId = strictNonblankText(record.jobSeqNo) ?? strictNonblankText(record.reqId) ??
           strictNonblankText(record.jobId);
         if (!alternative || !rawId) return false;
+        if (rocheLosses.some(loss => loss.details.pageSequence === pageIndex && loss.details.recordIndex === recordIndex)) continue;
         const sourceJobId = strictPhenomPersistentSourceJobId(rawId);
         if (mainlandAlternativeOutputs.has(sourceJobId)) return false;
         mainlandAlternativeOutputs.set(sourceJobId, { sourceJobId, ...alternative });

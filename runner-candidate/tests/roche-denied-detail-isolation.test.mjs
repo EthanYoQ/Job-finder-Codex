@@ -113,15 +113,19 @@ test('bound Roche S22 denial with foreign primary location and mainland alternat
   country:'马来西亚',location:'Petaling Jaya, 雪兰莪, 马来西亚',city:'Petaling Jaya',state:'雪兰莪',
   multi_location:['Petaling Jaya, 雪兰莪, 马来西亚','上海, 中国大陆'],
   applyUrl:'https://roche.wd3.myworkdayjobs.com/roche-ext/job/Petaling-Jaya/Value-Stream-SPOC---Infrastructure-Business-Analyst--APAC-_202609-124049/apply'};
- let posts=0,clock=0;
- const fetch=createOfficialJsonSourceFetch({now:()=>new Date(clock++===0?started:'2026-10-02T12:00:03.000Z'),http:async request=>{
-  const isDenied=request.url===rocheNativeDetailUrl(altDenied);
-  const body=request.method==='POST'?JSON.stringify({refineSearch:{totalHits:2,data:{jobs:posts++===0?[]:[raw,altDenied],aggregations:posts===1?[{field:'country',value:{中国大陆:2}}]:[]}}}):request.url.includes('/wday/cxs/')?(isDenied?denial:artifact().body):'<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11-ds"};</script>';
-  return {status:isDenied?403:200,body,finalUrl:request.url,capturedAt:request.url===plan.source.officialEntryUrl?'2026-10-02T12:00:01.000Z':'2026-10-02T12:00:02.000Z',contentType:request.method==='POST'||request.url.includes('/wday/cxs/')?'application/json':'text/html'};
- }});
- const result=await runSourceCrawl(plan,{fetch});
+ const makeFetch=deniedRow=>{
+  let posts=0,clock=0;
+  return createOfficialJsonSourceFetch({now:()=>new Date(clock++===0?started:'2026-10-02T12:00:03.000Z'),http:async request=>{
+   const isDenied=request.url===rocheNativeDetailUrl(deniedRow);
+   const body=request.method==='POST'?JSON.stringify({refineSearch:{totalHits:2,data:{jobs:posts++===0?[]:[raw,deniedRow],aggregations:posts===1?[{field:'country',value:{中国大陆:2}}]:[]}}}):request.url.includes('/wday/cxs/')?(isDenied?denial:artifact().body):'<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11-ds"};</script>';
+   return {status:isDenied?403:200,body,finalUrl:request.url,capturedAt:request.url===plan.source.officialEntryUrl?'2026-10-02T12:00:01.000Z':'2026-10-02T12:00:02.000Z',contentType:request.method==='POST'||request.url.includes('/wday/cxs/')?'application/json':'text/html'};
+  }});
+ };
+ const result=await runSourceCrawl(plan,{fetch:makeFetch(altDenied)});
  assert.equal(result.truth.completenessVerified,true);
  assert.equal(result.jobs.length,1);
+ const outOfScope=await runSourceCrawl(plan,{fetch:makeFetch({...altDenied,city:'Shanghai'})});
+ assert.equal(outOfScope.truth.completenessVerified,false,'S22 isolation must still verify the original list geography');
  assert.deepEqual([...rocheQuarantinedSourceJobIds(result.fetchEvidence)],[persistentOfficialJsonJobId(altDenied.jobSeqNo)]);
  const oldAt='2026-10-01T12:00:00.000Z',at='2026-10-02T12:00:03.000Z';
  const identity={releaseCandidateId:'roche-alt-isolation-test',commitSha:'a'.repeat(64),rosterSha256:'a'.repeat(64),sourcePlanSha256:'a'.repeat(64),sourceConfigSha256:'a'.repeat(64),adapterBundleSha256:'a'.repeat(64),batchKind:'SCHEDULED',ownerId:'test',expectedPlannedSourceIds:[plan.source.id],expectedPlannedSourceSetSha256:canonicalStringSetSha256([plan.source.id]),expectedPlannedSourceCount:1};
