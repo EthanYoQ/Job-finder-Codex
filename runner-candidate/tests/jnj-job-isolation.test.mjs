@@ -68,7 +68,9 @@ test('JNJ native DOM atomic admission accepts good and isolated jobs with a pers
  }}finally{await rm(workspaceRoot,{recursive:true,force:true});}
 });
 
-test('JNJ handles single-item last page heading Displaying N of N matching jobs across runtime, DOM audit, batch commit, and web replay',async()=>{
+test('JNJ handles single-item last page heading Displaying N of N matching jobs across runtime, DOM audit, batch commit, and web replay',async t=>{
+ const workspaceRoot=await mkdtemp(join(tmpdir(),'jnj-single-tail-'));
+ t.after(()=>rm(workspaceRoot,{recursive:true,force:true}));
  const plan=(await loadDirectPlans()).find(p=>p.sourceId==='source-johnson-innovative-medicine-social').plan;
  const origin='https://www.careers.jnj.com',listUrl=p=>`${origin}/en/jobs/?${p===1?'':`page=${p}&`}country=China&origin=global#results`;
  const title='Synthetic role',stamp=new Date().toISOString();
@@ -101,7 +103,7 @@ test('JNJ handles single-item last page heading Displaying N of N matching jobs 
    async domSnapshot(){return pages[curPage].dom;}
   }
  };
- const runtime=createJnjDomRuntime({async createBrowserTab(){return tab;}});
+ const runtime=createJnjDomRuntime({async createBrowserTab(){return tab;}},{failureDirectory:join(workspaceRoot,'diagnostics')});
  await runtime.start();
  const p1=await runtime.readList();assert.equal(p1.failure,undefined);assert.equal(p1.rowCount,20);assert.equal(p1.next,true);
  await runtime.advance();
@@ -110,15 +112,12 @@ test('JNJ handles single-item last page heading Displaying N of N matching jobs 
 
  // 2. Verify runner batch commit + certificate + web replay
  const memory=memoryDb(),candidate={id:'synthetic-jnj-single-tail',commitSha:'a'.repeat(40),rosterHash:'b'.repeat(64),sourcePlanHash:'c'.repeat(64),sourceConfigHash:'d'.repeat(64),adapterBundleHash:'e'.repeat(64)};
- const workspaceRoot=await mkdtemp(join(tmpdir(),'jnj-single-tail-'));
- try{
-  const fetch=async(...args)=>{const s=new Date().toISOString();return createJnjCareersDomSourceFetch({lists:pages.map(p=>JSON.stringify({...p,observedAt:s})),details:details.map(d=>JSON.stringify({...d,observedAt:s}))})(...args);};
-  const batch=await withPortableCrawlLease(memory.db,lease=>runP0CrawlBatch([plan],{db:memory.db,identity:identityForSource(candidate,plan.source.id),now:()=>new Date(),publicationPolicy:'SOURCE_ATOMIC_LAST_GOOD_V1',portableLease:lease,workspaceRoot,fetch,getPreviousJobs:async()=>[],getRecentObservations:async()=>[],isBaselineCompleted:async()=>false,getTrustedCompletenessBaseline:async()=>null,getFirstAcceptedCurrentPolicyReceipt:async()=>null}));
-  const row=memory.rows[0];assert.equal(batch.status,'SUCCESS');assert.equal(row.atomicCommitState,'COMMITTED');assert.equal(row.dedupeOutputCount,21);
-  assert.equal(verifyAGradeCompletenessCertificateReceipt({certificate:JSON.parse(JSON.stringify(row.completenessCertificate)),certificateSha256:row.completenessCertificateSha256,expected:{releaseCandidateId:candidate.id,batchId:batch.batchId,sourceResultId:row.id,sourceId:plan.source.id,sourceConfigSha256:row.sourceConfigHash}}).status,'PASS');
-  const direct=await runSourceCrawl(plan,{fetch,isBaseline:false});
-  assert.equal(replayWebJnjDom(plan,direct.fetchEvidence,direct.jobs),true);
- }finally{await rm(workspaceRoot,{recursive:true,force:true});}
+ const fetch=async(...args)=>{const s=new Date().toISOString();return createJnjCareersDomSourceFetch({lists:pages.map(p=>JSON.stringify({...p,observedAt:s})),details:details.map(d=>JSON.stringify({...d,observedAt:s}))})(...args);};
+ const batch=await withPortableCrawlLease(memory.db,lease=>runP0CrawlBatch([plan],{db:memory.db,identity:identityForSource(candidate,plan.source.id),now:()=>new Date(),publicationPolicy:'SOURCE_ATOMIC_LAST_GOOD_V1',portableLease:lease,workspaceRoot,fetch,getPreviousJobs:async()=>[],getRecentObservations:async()=>[],isBaselineCompleted:async()=>false,getTrustedCompletenessBaseline:async()=>null,getFirstAcceptedCurrentPolicyReceipt:async()=>null}));
+ const row=memory.rows[0];assert.equal(batch.status,'SUCCESS');assert.equal(row.atomicCommitState,'COMMITTED');assert.equal(row.dedupeOutputCount,21);
+ assert.equal(verifyAGradeCompletenessCertificateReceipt({certificate:JSON.parse(JSON.stringify(row.completenessCertificate)),certificateSha256:row.completenessCertificateSha256,expected:{releaseCandidateId:candidate.id,batchId:batch.batchId,sourceResultId:row.id,sourceId:plan.source.id,sourceConfigSha256:row.sourceConfigHash}}).status,'PASS');
+ const direct=await runSourceCrawl(plan,{fetch,isBaseline:false});
+ assert.equal(replayWebJnjDom(plan,direct.fetchEvidence,direct.jobs),true);
 
  // 3. Verify direct HTML parser also accepts single-item heading format
  const htmlPage=`<html><body><select name="country"><option value="China" selected>China</option></select><h2>Displaying 1 of 1 matching jobs</h2><ul id="js-job-search-results" data-results="1"><li class="PageList-items-item card-job" data-id="r-000001"><a href="${rows[0].url}">${title}</a><div class="PagePromo-category">Pharmaceutical Sales</div><address class="PagePromo-location">Guiyang</address></li></ul></body></html>`;

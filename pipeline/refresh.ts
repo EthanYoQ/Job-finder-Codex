@@ -95,7 +95,7 @@ async function refresh() {
   await saveState();
   attempt=state.dailyAttempt.count;
   temporary=await mkdtemp(join(tmpdir(),"jobfinder-refresh-"));
-  // wake respects a manual stop/pause; it does not change lifetime/security settings.
+  // A manually suspended collector requires resume.
   phase = "WAKE";
   try {
     await command(["wake",machine,"--json"]);
