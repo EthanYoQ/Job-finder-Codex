@@ -6,6 +6,21 @@ import {createWorkdaySourceFetch} from '../src/crawler/workdaySourceFetch.ts';
 import {runSourceCrawl,replayStrictSourceQualityEvidence} from '../src/crawler/runSourceCrawl.ts';
 
 const at='2026-11-06T00:00:00.000Z',countryId='6cb77610a8a543aea2d6bc10457e35d4';
+test('CSL reports a limited or unavailable Workday list with its response evidence', async () => {
+ const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(p => p.source.id === 'source-csl-china-social');
+ for (const status of [429, 503]) {
+  const body = '<html>Temporarily unavailable</html>';
+  const fetch = createWorkdaySourceFetch({now: () => new Date(at), http: async ({url}) => ({
+   status, finalUrl: url, contentType: 'text/html', capturedAt: at, body, retryAfter: {value: '60', delayMs: 60000}
+  })});
+  const result = await fetch(plan);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.transportFailure, {code: `OFFICIAL_HTTP_${status}`, retryable: true, retryAfterMs: 60000});
+  assert.equal(result.fetchEvidence.artifacts[0].httpStatus, status);
+  assert.equal(result.fetchEvidence.artifacts[0].body, body);
+ }
+});
+
 for(const sourceId of ['source-biogen-china-social','source-csl-china-social'])test(`${sourceId}: complete list rows can update despite an invalid job`,async()=>{
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id===sourceId),biogen=sourceId.includes('biogen');
  const rows=[1,2].map(index=>({title:`Role ${index}`,externalPath:biogen?`/job/Shanghai-China/Role_REQ${index}-1`:`/job/APAC-CN-Shanghai-CSL-Behring/Role_R-${index}`,locationsText:biogen?'Shanghai, China':'APAC, CN, Shanghai, CSL Behring',bulletFields:biogen?[`REQ${index}`]:['China',`R-${index}`]}));

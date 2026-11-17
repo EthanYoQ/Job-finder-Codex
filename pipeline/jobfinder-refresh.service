@@ -11,5 +11,5 @@ ExecStart=/usr/bin/flock -n /opt/jobfinder-new/refresh.lock /opt/jobfinder-new/a
 TimeoutStartSec=8h
 Restart=on-failure
 RestartPreventExitStatus=76
-RestartSec=10min
+RestartSec=40min
 

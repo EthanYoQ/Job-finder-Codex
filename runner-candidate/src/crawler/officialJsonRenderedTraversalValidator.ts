@@ -6,6 +6,7 @@ import { capturePfizerRenderedTraversal, replayPfizerRenderedRow, assertPfizerRe
 import { BAYER_MOKA_ENTRY } from "./bayerMokaScope";
 import { replayBayerHybridTraversal, BAYER_HYBRID_RETRIEVAL_PATH } from "./bayerMokaRenderedTraversal";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
+import { assertWorkdayAvailable } from "./workdayRequestPolicy";
 import {
   B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES,
   tagBGradeIndependentTraversalFailure
@@ -216,6 +217,7 @@ export async function captureOfficialJsonRenderedTraversal(
 async function captureOfficialJsonRenderedTraversalOnce(
   input: OfficialJsonRenderedTraversalCaptureInput
 ): Promise<{ observedAt: string; pages: OfficialJsonRenderedPageCapture[] }> {
+  if (input.sourceId === "source-pfizer-china-social") assertWorkdayAvailable(input.entryUrl);
   const browser = await (input.launchBrowser ?? launchProductionBrowser)();
   let closePromise: Promise<void> | undefined;
   const closeBrowser = () => closePromise ??= browser.close();

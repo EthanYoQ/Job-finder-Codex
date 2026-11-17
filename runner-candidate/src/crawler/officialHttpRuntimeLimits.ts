@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { officialHttpRequestDiagnostics } from "./officialHttpRequestDiagnostics";
 import { assertOfficialHttpProxyRuntime } from "./officialHttpProxyRuntime";
+import { observeWorkdayResponse, waitForWorkdayRequest } from "./workdayRequestPolicy";
 
 export const DEFAULT_OFFICIAL_HTTP_TIMEOUT_MS = 45_000;
 export const DEFAULT_SOURCE_ATTEMPT_TIMEOUT_MS = 5 * 60 * 1_000;
@@ -206,6 +207,9 @@ export async function fetchWithOfficialTimeout<T>(
   if (!deps.fetchImpl) assertOfficialHttpProxyRuntime();
   // BI signing material must not reach telemetry, even as a whole-URL digest.
   const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const sourceSignal = currentOfficialSourceAttemptSignal();
+  const dispatchSignals = [sourceSignal, init.signal].filter((item): item is AbortSignal => item != null);
+  await waitForWorkdayRequest(requestUrl, dispatchSignals.length ? AbortSignal.any(dispatchSignals) : undefined);
   const diagnosticInput = requestUrl.startsWith("https://coapi.51job.com/job_list.php?")
     ? "https://coapi.51job.com/job_list.php" : input;
   const diagnostic = officialHttpRequestDiagnostics(diagnosticInput, timeoutMs);
@@ -214,7 +218,6 @@ export async function fetchWithOfficialTimeout<T>(
   let timeoutAtMs: number | undefined;
   const recordTimeout = () => { timeoutAtMs = Date.now(); };
   deadline.addEventListener("abort", recordTimeout, { once: true });
-  const sourceSignal = currentOfficialSourceAttemptSignal();
   const signals = [init.signal, sourceSignal, deadline].filter((signal): signal is AbortSignal => signal != null);
   const combined = combineAbortSignals(signals);
   const sourceDeadlineAtMs = currentOfficialSourceAttemptDeadlineAtMs();
@@ -241,8 +244,9 @@ export async function fetchWithOfficialTimeout<T>(
     const response = await Promise.race([pending, aborted]);
     headersReceived = true;
     diagnostic?.("HEADERS_RECEIVED", { status: response.status });
-    if (!deps.consumeResponse) return response;
+    await observeWorkdayResponse(requestUrl, response, combined.signal);
     combined.signal.throwIfAborted();
+    if (!deps.consumeResponse) return response;
     const result = await Promise.race([deps.consumeResponse(response), aborted]);
     combined.signal.throwIfAborted();
     diagnostic?.("BODY_COMPLETE");

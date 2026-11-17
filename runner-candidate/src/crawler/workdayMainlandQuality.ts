@@ -8,6 +8,8 @@ import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
 import { currentOfficialSourceAttemptSignal, fetchWithOfficialTimeout, officialHttpTimeoutMs } from "./officialHttpRuntimeLimits";
+import { parseOfficialRetryAfter } from "./officialRetryAfter";
+import { workdayRetryAfterHeader } from "./workdayRequestPolicy";
 import type { WorkdayHttpRequest, WorkdayDetailHttpRequest, WorkdayHttpResponse } from "./workdaySourceFetch";
 
 export const AMGEN_MAINLAND_POLICY = "AMGEN_MAINLAND_DETAIL_V1" as const;
@@ -249,8 +251,10 @@ export async function fetchWorkdayMainlandHttp(request: WorkdayHttpRequest | Wor
       length += chunk.value.byteLength; if (length > limit) { void reader.cancel().catch(() => undefined); throw Error("Workday mainland body exceeds byte limit"); }
       chunks.push(chunk.value);
     }
+    const retryAfter = parseOfficialRetryAfter(workdayRetryAfterHeader(response), Date.now());
     return { status: response.status, finalUrl: response.url, contentType: response.headers.get("content-type") ?? "",
-      body: new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)), capturedAt: new Date().toISOString() };
+      body: new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)), capturedAt: new Date().toISOString(),
+      ...(retryAfter === undefined ? {} : { retryAfter }) };
   } finally { clearTimeout(deadline); source?.removeEventListener("abort", abort); controller.signal.removeEventListener("abort", cancel); reader?.releaseLock(); }
 }
 import {verifyWorkdayJobQuarantines,workdayRawObservationId} from './workdayJobQuarantine';

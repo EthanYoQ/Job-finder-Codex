@@ -214,10 +214,10 @@ test('a failed reservation write never wakes the collector',async t=>{
   assert.deepEqual(await fixture.readState(),fixture.legacy);
 });
 
-test('the service keeps its lock and ten minute delay while terminal failures cannot restart',()=>{
+test('the service keeps its lock and forty minute delay while terminal failures cannot restart',()=>{
   const service=readFileSync(new URL('./jobfinder-refresh.service',import.meta.url),'utf8');
   assert.match(service,/^ExecStart=\/usr\/bin\/flock -n /m);
-  assert.match(service,/^RestartSec=10min$/m);
+  assert.match(service,/^RestartSec=40min$/m);
   assert.match(service,/^RestartPreventExitStatus=76$/m);
   assert.match(service,/^StartLimitIntervalSec=0$/m);
 });

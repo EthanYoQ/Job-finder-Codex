@@ -14,6 +14,8 @@ import { parsePersistentSourceFetchEvidence, sha256Bytes, type PersistentSourceF
 import { WORKDAY_JSON_CONFIG } from "./companyRecruitmentProfiles/shared";
 import { PFIZER_OFFICIAL_LOCALITIES } from "./pfizerOfficialLocalities";
 import { CITY_PENDING } from "../domain/jobLocation";
+import { parseOfficialRetryAfter, retryableHttpTransportFailure, retryableTransportFailureFromError, safeSourceTransportFailureReason } from "./sourceFetchFailure";
+import { isWorkdayCooldownError, workdayRetryAfterHeader } from "./workdayRequestPolicy";
 export const PFIZER_TRAVERSAL_POLICY = "PFIZER_COUNTRY_DETAIL_COMPLETE_TRAVERSAL_V1";
 export const PFIZER_ENTRY = "https://pfizer.wd1.myworkdayjobs.com/PfizerCareers";
 export const PFIZER_API = "https://pfizer.wd1.myworkdayjobs.com/wday/cxs/pfizer/PfizerCareers";
@@ -98,8 +100,9 @@ export function projectPfizerDetail(raw: unknown, detailBody: string) {
             locationRaw: locations.join(" | "), cities: cities.includes(CITY_PENDING) ? [CITY_PENDING] : [...new Set(cities)], ...(officialPublishedAt === undefined ? {} : {officialPublishedAt}) } };
 }
 function requestBody(offset: number) { return { appliedFacets: { Location_Country: [PFIZER_CHINA] }, limit: 20, offset, searchText: "" }; }
-function artifact(key: string, url: string, response: WorkdayHttpResponse, request: unknown): SourceFetchArtifactDraft {
-    if (response.status !== 200 || response.finalUrl !== url || !/^application\/json(?:;|$)/iu.test(response.contentType ?? "") || !response.capturedAt || !Number.isFinite(Date.parse(response.capturedAt)))
+function artifact(key: string, url: string, response: WorkdayHttpResponse, request: unknown, supportingFailure = false): SourceFetchArtifactDraft {
+    if (response.finalUrl !== url || !response.contentType || !response.capturedAt || !Number.isFinite(Date.parse(response.capturedAt)) ||
+        (!supportingFailure && (response.status !== 200 || !/^application\/json(?:;|$)/iu.test(response.contentType))))
         throw Error("Pfizer response metadata is invalid");
     if (Buffer.byteLength(response.body) > 2000000)
         throw Error("Pfizer response body budget exceeded");
@@ -112,7 +115,9 @@ async function http(request: {
     body?: string;
 }): Promise<WorkdayHttpResponse> {
     const response = await fetchWithOfficialTimeout(request.url, { method: request.method, headers: { ...request.headers, "User-Agent": "job-search-crawler/0.1" }, ...(request.body ? { body: request.body } : {}) });
-    return { status: response.status, body: await response.text(), finalUrl: response.url, contentType: response.headers.get("content-type") ?? "", capturedAt: new Date().toISOString() };
+    const retryAfter = parseOfficialRetryAfter(workdayRetryAfterHeader(response), Date.now());
+    return { status: response.status, body: await response.text(), finalUrl: response.url, contentType: response.headers.get("content-type") ?? "", capturedAt: new Date().toISOString(),
+        ...(retryAfter ? { retryAfter } : {}) };
 }
 // The official CXS endpoint resets a beyond-end offset to its first page. Keep
 // that response as an auxiliary artifact, never as an empty or additional page.
@@ -162,15 +167,23 @@ function projectSlots(pages:readonly SourceFetchPageTrace[],artifacts:readonly S
 }
 export async function fetchPfizerWorkdayTraversal(plan:SourceCrawlPlan,deps:WorkdaySourceFetchDeps):Promise<SourceFetchResult>{
  const started=(deps.now?.()??new Date()).toISOString(),artifacts:SourceFetchArtifactDraft[]=[],pages:SourceFetchPageTrace[]=[];
+  let failedHttp: WorkdayHttpResponse | undefined;
  try{
   if(!isPfizerWorkdayTraversalPlan(plan))throw Error('Pfizer traversal source plan mismatch');
   const listHttp=deps.http??http,detailHttp=deps.detailHttp??(deps.http?undefined:http);if(!detailHttp)throw Error('Pfizer detail transport required');
+   const readListArtifact = (key: string, url: string, response: WorkdayHttpResponse, body: ReturnType<typeof requestBody>) => {
+     if (response.status !== 200) failedHttp = response;
+     const captured = artifact(key, url, response, {method: 'POST', url, body}, failedHttp !== undefined);
+     artifacts.push(captured);
+     if (failedHttp) throw Error('Pfizer Workday list HTTP request failed');
+     return captured;
+   };
   const seen=new Set<string>();let total:number|undefined,bytes=0,closed=false;
   for(let index=0;index<20;index++){
     currentOfficialSourceAttemptSignal()?.throwIfAborted();
     const url=PFIZER_API+'/jobs',offset=index*20,body=requestBody(offset),key=`pfizer-page-${index}`;
     const response=await listHttp({url,method:'POST',headers:{Accept:'application/json','Content-Type':'application/json',Referer:PFIZER_ENTRY},body:JSON.stringify(body)});
-    const a=artifact(key,url,response,{method:'POST',url,body});artifacts.push(a);bytes+=Buffer.byteLength(response.body);
+     const a=readListArtifact(key,url,response,body);bytes+=Buffer.byteLength(response.body);
     const root=parse(response.body);total??=root.total;
     if(!Number.isSafeInteger(total)||!total||!Array.isArray(root.jobPostings)||root.jobPostings.length<1||root.jobPostings.length>20||root.total!==total&&!(index>0&&root.total===0))throw Error('Pfizer list total or continuation changed');
     const slots=(root.jobPostings as unknown[]).map((raw,n)=>slot(raw,index,n));
@@ -180,29 +193,49 @@ export async function fetchPfizerWorkdayTraversal(plan:SourceCrawlPlan,deps:Work
     pages.push({sequence:index,artifactLogicalKey:key,requestedOffset:offset,returnedOffset:offset,requestedPage:index,returnedPage:index,requestedPageSize:20,rawJobIds:slots.map(row=>row.rawId),validJobIds:[],declaredTotal:root.total,declaredPages:root.total===0?0:Math.ceil(total!/20),nextPageSignalBefore:index===0?null:String(offset),nextPageSignalAfter:done?null:String(offset+20),termination:done?'NEXT_ABSENT':'CONTINUE',anomalyCodes:[],capturedAt:a.capturedAt,responseFingerprintSha256:sha256Bytes(Buffer.from(response.body)).sha256});
     if(!done)continue;
     const terminalBody=requestBody(offset+20),end=await listHttp({url,method:'POST',headers:{Accept:'application/json','Content-Type':'application/json',Referer:PFIZER_ENTRY},body:JSON.stringify(terminalBody)});
-    artifacts.push(artifact('pfizer-terminal',url,end,{method:'POST',url,body:terminalBody}));
+     readListArtifact('pfizer-terminal',url,end,terminalBody);
     if(!terminalBoundaryMatches(parse(artifacts[0]!.body),parse(end.body),total!,slots.length))throw Error('Pfizer terminal boundary invalid');
     closed=true;break;
   }
   if(!closed)throw Error('Pfizer reached resource page budget without terminal proof');
   let accessStopped=false;
+   let detailAccessFailure: WorkdayHttpResponse | undefined;
   for(const [pageSequence,page] of pages.entries())for(const [recordIndex,raw] of (parse(artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!.body).jobPostings as unknown[]).entries()){
     const row=slot(raw,pageSequence,recordIndex);if(!row.bound||accessStopped)continue;
     currentOfficialSourceAttemptSignal()?.throwIfAborted();
     try{const {id,path}=row.bound,url=PFIZER_API+path,key=`pfizer-detail-${id}`;
       const response=await detailHttp({url,method:'GET',headers:{Accept:'application/json',Referer:PFIZER_ENTRY}});
-      if(response.status===403||response.status===429)accessStopped=true;
+       if(response.status===403||response.status===429){
+         detailAccessFailure=response;
+         accessStopped=true;
+       }
       bytes+=Buffer.byteLength(response.body);if(bytes>35000000){accessStopped=true;continue;}
       artifacts.push(officialJsonNetworkArtifact({id:key,logicalKey:key,kind:'ATS_API_RESPONSE',requestedUrl:url,response,extractorLocator:JSON.stringify({method:'GET',url,officialId:id}),bodyRepresentation:'EXACT'}));
-    }catch{currentOfficialSourceAttemptSignal()?.throwIfAborted();}
+     }catch(error){
+       currentOfficialSourceAttemptSignal()?.throwIfAborted();
+       if(isWorkdayCooldownError(error))throw error;
+     }
   }
   const projected=projectSlots(pages,artifacts),terminal=artifacts.find(a=>a.logicalKey==='pfizer-terminal')!;
+   if(detailAccessFailure && projected.jobs.length===0){
+     failedHttp=detailAccessFailure;
+     throw Error('Pfizer Workday details are access restricted');
+   }
   let evidence=parsePersistentSourceFetchEvidence({captureTool:{name:'pfizer-workday-full-traversal',version:'1'},artifacts,pages:projected.pages,...(projected.quarantines.length?{jobQuarantines:projected.quarantines}:{}),declaredCompleteness:{kind:'COMPLETE_PAGE_TRAVERSAL',scope:'SOURCE',value:pages.length,artifactLogicalKey:'pfizer-terminal',extractorLocator:terminal.extractorLocator},fetchCounts:{rawCount:seen.size,parsedCount:seen.size,validCount:projected.jobs.length,parseDiscardCount:0,validationDiscardCount:projected.losses.length},fetchLosses:projected.losses});
   evidence=deriveCanonicalPaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,...PFIZER_PAGINATION_POLICY});
   const paginationEvaluation=evaluatePaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,...PFIZER_PAGINATION_POLICY});
   if(!paginationEvaluation.verifiedEligible)throw Error('Pfizer traversal has pagination anomalies');
   return {ok:true,capturedAt:artifacts[0]!.capturedAt,payload:{jobPostings:projected.jobs},fetchEvidence:evidence,paginationEvaluation,completeness:{completenessStatus:'NEEDS_MANUAL_COMPLETENESS_REVIEW',completenessEvidenceKind:'COMPLETE_PAGE_TRAVERSAL',completenessEvidenceUrl:PFIZER_ENTRY,pagesVisited:pages.length,totalPages:pages.length,pageSize:20,completenessBlockerReason:'Independent current-run UI comparison required'}};
- }catch(error){return {ok:false,capturedAt:started,failureReason:error instanceof Error?error.message:String(error),...(artifacts.length?{fetchEvidence:finalizeOfficialJsonSupportingFailureEvidence({artifacts:artifacts.map(a=>({...a,kind:a.kind==='PAGINATION_PAGE'?'ATS_API_RESPONSE':a.kind})),code:'PFIZER_TRAVERSAL_UNVERIFIED'})}:{})};}
+  }catch(error){
+    const transportFailure = failedHttp
+      ? retryableHttpTransportFailure(failedHttp.status, failedHttp.retryAfter)
+      : retryableTransportFailureFromError(error);
+    const failureReason = isWorkdayCooldownError(error) ? error.message
+      : transportFailure ? safeSourceTransportFailureReason(transportFailure)
+      : failedHttp ? `Official JSON source returned HTTP ${failedHttp.status}`
+      : error instanceof Error ? error.message : String(error);
+    return {ok:false,capturedAt:started,failureReason,...(transportFailure?{transportFailure}:{}),...(artifacts.length?{fetchEvidence:finalizeOfficialJsonSupportingFailureEvidence({artifacts:artifacts.map(a=>({...a,kind:a.kind==='PAGINATION_PAGE'?'ATS_API_RESPONSE':a.kind})),code:'PFIZER_TRAVERSAL_UNVERIFIED'})}:{})};
+  }
 }
 /** Rebuild every raw list slot, detail, quarantine and proven exclusion before comparing output. */
 export function replayPfizerWorkdayTraversal(plan:SourceCrawlPlan,evidence:PersistentSourceFetchEvidence,output:readonly NormalizedJobRecord[],now?:Date):boolean{

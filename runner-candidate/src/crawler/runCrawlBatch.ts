@@ -496,7 +496,7 @@ export async function runP0CrawlBatch(
         const pending = plannedBatch.sources.find((source) => source.sourceId === plan.source.id)!;
         await terminateRuntimeSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id, sourceId: plan.source.id, transportState: "SKIPPED", adapterState: "SKIPPED",
-          completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED", finishedAt: portableMode ? new Date() : batchStartedAt,
+          completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED", finishedAt: new Date(),
           failureCode: "SOURCE_NOT_DUE", failureReason: "Source was not due for this scheduled batch" }, deps);
         terminalSourceIds.add(plan.source.id);
         skippedSourceCount += 1;
@@ -554,7 +554,7 @@ export async function runP0CrawlBatch(
           transportState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "SUCCEEDED" : "FAILED",
           adapterState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "FAILED" : "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
-          finishedAt: portableMode ? new Date() : batchStartedAt,
+          finishedAt: new Date(),
           failureCode: sourceTimedOut
             ? "SOURCE_ATTEMPT_TIMEOUT"
             : error instanceof SourceCrawlStageError && error.stage === "ADAPTER"
@@ -595,14 +595,13 @@ export async function runP0CrawlBatch(
         ? evaluateCompletenessAnomalyForCrawl(plan, crawlResult, trustedCompletenessBaseline)
         : { independentValidationRequired: false, triggerCodes: [], countChange: null };
       const completenessAnomalyTriggerCodes: readonly string[] = anomaly.triggerCodes;
-      if (!portableMode && requiresBGradeTraversalCertificate(plan)) {
+      if (!portableMode && crawlResult.truth.transportSuccess && requiresBGradeTraversalCertificate(plan)) {
         independentTraversalValidationTrigger = selectCompletenessValidationTrigger({
           baseline: trustedCompletenessBaseline,
           currentSourceConfigSha256: pending.sourceConfigHash,
           anomaly
         });
-        const mainPathCanBeCertified = crawlResult.truth.transportSuccess && crawlResult.truth.adapterSuccess;
-        if (mainPathCanBeCertified || anomaly.independentValidationRequired) {
+        if (crawlResult.truth.adapterSuccess || anomaly.independentValidationRequired) {
           if (!independentTraversalValidation && independentTraversalValidationTrigger === "STABLE_RUN" &&
               trustedCompletenessBaseline?.certificateGrade === "B") {
             try {
@@ -664,7 +663,7 @@ export async function runP0CrawlBatch(
           adapterState: transportFailed ? "SKIPPED" : "FAILED",
           completenessState: "FAILED",
           atomicCommitState: "NOT_ATTEMPTED",
-          finishedAt: crawlResult.observation.crawledAt,
+          finishedAt: new Date(),
           failureCode: transportFailed ? "SOURCE_TRANSPORT_FAILED" : "SOURCE_ADAPTER_FAILED",
           failureReason: transportFailed
             ? crawlResult.transportFailure
@@ -884,7 +883,7 @@ export async function runP0CrawlBatch(
                 releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id,
                 sourceId: plan.source.id, transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
                 completenessState: "FAILED", atomicCommitState: "ROLLED_BACK",
-                finishedAt: crawlResult.observation.crawledAt,
+                finishedAt: new Date(),
                 failureCode: atomicFailureCode, failureReason: "Atomic evidence processing failed",
                 ...sourceFailureDiagnosticBundle(
                   "EVIDENCE_PERSISTENCE_FAILURE",
@@ -942,7 +941,7 @@ export async function runP0CrawlBatch(
               ? (crawlResult.truth.adapterSuccess ? "SUCCEEDED" : "FAILED") : "SKIPPED",
             completenessState: "FAILED",
             atomicCommitState: crawlResult.truth.transportSuccess && crawlResult.truth.adapterSuccess ? "ROLLED_BACK" : "NOT_ATTEMPTED",
-            finishedAt: crawlResult.observation.crawledAt,
+            finishedAt: new Date(),
             failureCode: atomicFailureCode, failureReason: "Atomic evidence processing failed",
             ...sourceFailureDiagnosticBundle(
               "EVIDENCE_PERSISTENCE_FAILURE",
@@ -998,7 +997,7 @@ export async function runP0CrawlBatch(
           releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id,
           sourceId: pending.sourceId, transportState: portableMode && !sourceExecutionStarted ? "SKIPPED" : "FAILED", adapterState: "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
-          finishedAt: portableMode ? new Date() : batchStartedAt, failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
+          finishedAt: new Date(), failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
           failureReason: sourceExecutionStarted
             ? "Source execution started but did not reach a persisted terminal result"
             : "Batch aborted before this source reached a terminal state",

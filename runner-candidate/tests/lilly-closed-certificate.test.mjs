@@ -21,12 +21,15 @@ test('closed Lilly applications reconcile across pages and altered closure evide
  sample.postedDate='unknown';sample.dateCreated='unknown';sample.displayBadge='New';
  const rows=Array.from({length:51},(_,i)=>{const reqId=`R-${800000+i}`;return {...sample,reqId,jobId:reqId,jobSeqNo:`LILLUS${reqId.replace('-','')}EXTERNALENUS`,applyUrl:sample.applyUrl.replace(sample.reqId,reqId)};});
  const bootstrap={widgetApiEndpoint:'https://careers.lilly.com/widgets',country:'us',deviceType:'desktop',locale:'en_us',refNum:'LILLUS',pageName:'search-results',pageId:'page11-ds'};
- let page=0;
+ let page=0, detailMode='healthy';
  const fetch=createOfficialJsonSourceFetch({allowBrowserFallback:false,http:async({url,method})=>{
   let body,contentType='text/html';
   if(url===plan.source.officialEntryUrl)body=`<script>var phApp=${JSON.stringify(bootstrap)};</script>`;
   else if(url===bootstrap.widgetApiEndpoint){assert.equal(method,'POST');const jobs=rows.slice(page*50,(++page)*50);body=JSON.stringify({refineSearch:{status:200,hits:jobs.length,totalHits:rows.length,data:{jobs,aggregations:[],ui_selections:{country:['China']}}}});contentType='application/json';}
-  else {const i=rows.findIndex(r=>r.applyUrl===url);assert(i>=0,'unexpected request');const r=rows[i];body=i===0||i===50?`<meta property="og:url" content="${url}"><script>window.workday={tenant:'lilly',siteId:'LLY',postingAvailable:false};</script>`:`<script>window.workday={postingAvailable:true};</script><script type="application/ld+json">${JSON.stringify({'@type':'JobPosting',identifier:{value:r.reqId},title:r.title,description:'Role',datePosted:'2026-11-03',jobLocation:{address:{addressCountry:'China',addressLocality:'CN: Bao Ding'}}})}</script>`;}
+  else {const i=rows.findIndex(r=>r.applyUrl===url);assert(i>=0,'unexpected request');const r=rows[i];
+   if(detailMode==='mostly-unavailable'&&i<49)return {status:503,finalUrl:url,body:'Service Unavailable',contentType,capturedAt:new Date().toISOString()};
+   if(detailMode!=='healthy')return {status:429,finalUrl:url,body:'Security Check',contentType,capturedAt:new Date().toISOString(),retryAfter:{value:'2700',delayMs:2700000}};
+   body=i===0||i===50?`<meta property="og:url" content="${url}"><script>window.workday={tenant:'lilly',siteId:'LLY',postingAvailable:false};</script>`:`<script>window.workday={postingAvailable:true};</script><script type="application/ld+json">${JSON.stringify({'@type':'JobPosting',identifier:{value:r.reqId},title:r.title,description:'Role',datePosted:'2026-11-03',jobLocation:{address:{addressCountry:'China',addressLocality:'CN: Bao Ding'}}})}</script>`;}
   return {status:200,finalUrl:url,body,contentType,capturedAt:new Date().toISOString()};
  }});
  const result=await runSourceCrawl(plan,{fetch,isBaseline:false});assert.equal(result.status,'SUCCESS');assert.equal(result.jobs.length,49);
@@ -40,17 +43,30 @@ test('closed Lilly applications reconcile across pages and altered closure evide
  assert.equal(verifyAGradeCompletenessCertificateReceipt({certificate:JSON.parse(JSON.stringify(decision.certificate)),certificateSha256:decision.certificateSha256,expected:{...binding,sourceId:plan.source.id}}).status,'PASS','Persisted no-quarantine certificates must retain their hash');
  const changed=structuredClone(evidence);changed.fetchLosses[0].details.code='UNVERIFIED_FAILURE';
  assert.equal(issueAGradeOfficialTotalCertificate({...input,evidence:changed}).status,'REJECTED');
- const workspaceRoot=await mkdtemp(join(tmpdir(),'lilly-atomic-')),memory=memoryDb();
+ const workspaceRoot=await mkdtemp(join(tmpdir(),'lilly-atomic-'));
  try {
   page=0;
   const candidate={id:'synthetic-lilly',commitSha:'a'.repeat(40),rosterHash:'b'.repeat(64),sourcePlanHash:'c'.repeat(64),sourceConfigHash:'d'.repeat(64),adapterBundleHash:'e'.repeat(64)};
-  const round=await withPortableCrawlLease(memory.db,lease=>runP0CrawlBatch([plan],{
+  const run=(memory,batchId)=>withPortableCrawlLease(memory.db,lease=>runP0CrawlBatch([plan],{
    db:memory.db,identity:identityForSource(candidate,plan.source.id),publicationPolicy:'SOURCE_ATOMIC_LAST_GOOD_V1',portableLease:lease,
-   workspaceRoot,fetch,now:()=>new Date(),createBatchId:()=> 'b',evidenceSubdirectory:'e',
+   workspaceRoot,fetch,now:()=>new Date(),createBatchId:()=>batchId,evidenceSubdirectory:'e',
    getPreviousJobs:async()=>[],getRecentObservations:async()=>[],isBaselineCompleted:async()=>false,
    getTrustedCompletenessBaseline:async()=>null,getFirstAcceptedCurrentPolicyReceipt:async()=>null
   }));
+  const memory=memoryDb();
+  memory.db.crawlBatchSourceResult.findMany=async({where})=>memory.rows.filter(row=>row.batchId===where.batchId);
+  const round=await run(memory,'b');
   assert.equal(round.status,'SUCCESS',JSON.stringify(memory.rows));
   assert.equal(memory.rows[0].atomicCommitState,'COMMITTED');assert.equal(memory.rows[0].completenessState,'VERIFIED');assert.equal(memory.jobWrites(),49);
+  const lastGood=structuredClone(memory.rows[0]);
+  for(const mode of ['blocked','mostly-unavailable']){
+   page=0;detailMode=mode;
+   await run(memory,mode);
+   const attempt=memory.rows.at(-1);
+   assert.equal(attempt.atomicCommitState,'NOT_ATTEMPTED',mode);
+   assert.equal(attempt.failureDiagnosticCode,'OFFICIAL_HTTP_429',mode);
+   assert.deepEqual(memory.rows[0],lastGood,mode);
+   assert.equal(memory.jobWrites(),49,mode);
+  }
  }finally{await rm(workspaceRoot,{recursive:true,force:true});}
 });

@@ -21,7 +21,7 @@ const reasons = new Set([
   "ORGANON_NATIVE_DETAIL_UNKNOWN_PRESERVE_LAST_GOOD", "ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD",
   "Expected exactly one new detail tab", "Pfizer UI entry navigation failed", "Pfizer UI native detail navigation failed",
   "Official recruitment endpoint temporarily rate limited the request (HTTP 429)", "Official recruitment browser session failed before evidence capture",
-  "SANOFI_COMPACT_DECISION_MISMATCH"
+  "Workday request skipped during access cooldown", "SANOFI_COMPACT_DECISION_MISMATCH"
 ]);
 const lossCodes = new Set(["MERCK_RAW_FIELDS_INVALID", "MERCK_POSTED_DATE_INVALID", "ORGANON_RAW_FIELDS_INVALID",
   "ORGANON_POSTED_DATE_INVALID", "MISSING_REQUIRED_FIELD", "DUPLICATE_OFFICIAL_ID", "OUT_OF_SCOPE", "UNSAFE_OFFICIAL_URL", "SENSITIVE_OUTPUT"]);
@@ -35,7 +35,8 @@ function reason(value: string) {
   if (/strict mode violation/.test(value)) return "BROWSER_SELECTOR_AMBIGUOUS";
   if (/InvalidSelectorError|Unknown engine.*selector|Unexpected token.*selector|is not a valid selector/.test(value)) return "BROWSER_SELECTOR_INVALID";
   if (/(?:locator|waitFor|evaluate|evaluateAll|domSnapshot|getAXState|createBrowserTab|listTabs|getTab|frameLocator)\b[^\n]{0,30}is not a function/.test(value)) return "BROWSER_METHOD_UNAVAILABLE";
-  const http = /^(?:Phenom entry page|Phenom widgets|Official JSON source) returned HTTP ([1-5][0-9]{2})$/.exec(value);
+  const http = /^(?:Phenom entry page|Phenom widgets|Official JSON source|Workday jobs API) returned HTTP ([1-5][0-9]{2})$/.exec(value)
+    ?? /^Pfizer official (?:list|detail) access restricted \(HTTP (403|429)\)$/.exec(value);
   if (http) return `OFFICIAL_HTTP_${http[1]}`;
   if (/Running as root without --no-sandbox|No usable sandbox|Failed to move to new namespace|unshare.*Operation not permitted/i.test(value)) return "BROWSER_SANDBOX_UNAVAILABLE";
   if (/Executable doesn't exist|executable doesn't exist|spawn .* ENOENT/.test(value)) return "BROWSER_EXECUTABLE_MISSING";

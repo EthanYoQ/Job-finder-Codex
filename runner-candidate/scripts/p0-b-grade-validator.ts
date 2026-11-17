@@ -1,6 +1,7 @@
 import { sourceFetchDiagnostic } from "../src/crawler/sourceFetchDiagnostics";
 import { runBGradeIndependentTraversalValidator } from "../src/crawler/traversalCertificate";
 import { runWithOfficialSourceCancellation } from "../src/crawler/officialHttpRuntimeLimits";
+import { withWorkdayRequestPolicy } from "../src/crawler/workdayRequestPolicy";
 import { serializeBGradeValidatorSuccess } from "../src/crawler/isolatedBGradeTraversalValidator";
 import {
   classifyBGradeIndependentTraversalFailure,
@@ -18,8 +19,10 @@ try {
   if (!rawInput) throw new Error("B-grade validator input is required");
   const input = JSON.parse(rawInput) as Parameters<typeof runBGradeIndependentTraversalValidator>[0];
   sourceId = input.sourceId;
-  const validation = await runWithOfficialSourceCancellation(controller.signal,
+  const workdayRoot = input.sourceId === "source-pfizer-china-social" ? process.env.JOBFINDER_WORKDAY_POLICY_ROOT : undefined;
+  const run = () => runWithOfficialSourceCancellation(controller.signal,
     () => runBGradeIndependentTraversalValidator({ ...input, signal: controller.signal }));
+  const validation = await (workdayRoot ? withWorkdayRequestPolicy(workdayRoot, run) : run());
   process.stdout.write(serializeBGradeValidatorSuccess(validation));
 } catch (error) {
   process.stdout.write(JSON.stringify({
