@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {registerHooks} from 'node:module';
-import {mkdtemp, writeFile, unlink, rmdir} from 'node:fs/promises';
+import {mkdtemp, rmdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
@@ -19,21 +19,39 @@ const hooks = registerHooks({load(url, context, next) {
 const {loadDirectPlans, runDirectRound} = await import('../scripts/direct-round.ts');
 hooks.deregister();
 
-test('direct round gives Novartis 25 minutes, budgets paced Roche and interleaves Workday sources under the same lease', async () => {
+test('the registered scheduler runs without the migration file and keeps source budgets and pacing', async () => {
   const routes = await loadDirectPlans(), calls = [];
-  const candidate = {id: 'instabox-timeout-test', status: 'BUILDING'};
+  const accepted = [];
+  const candidate = {id: 'instabox-timeout-test', goalId: 'job-finder-instabox-migration', status: 'BUILDING'};
   const lease = {signal: new AbortController().signal};
   const db = {
     releaseCandidate: {findUniqueOrThrow: async () => candidate},
     recruitmentSource: {findMany: async () => routes.map(({sourceId: id, companyId}) => ({id, companyId}))},
-    crawlBatchSourceResult: {findFirst: async () => null}, crawlBatch: {findFirst: async () => null},
+    crawlBatchSourceResult: {findFirst: async () => null, findMany: async ({where}) => {
+      assert.equal(where.releaseCandidateId, candidate.id);
+      assert.equal(where.atomicCommitState, 'COMMITTED');
+      assert.equal(where.completenessState, 'VERIFIED');
+      assert.deepEqual(where.batch.is, {kind: 'SCHEDULED', ownerId: 'direct-scheduler'});
+      assert.equal(where.finishedAt.gte.toISOString(), '2026-11-17T16:01:00.000Z');
+      assert.equal(where.finishedAt.lt.toISOString(), '2026-11-18T16:01:00.000Z');
+      return accepted.filter(row => where.OR.some(bound =>
+        row.sourceId === bound.sourceId && row.sourceConfigHash === bound.sourceConfigHash));
+    }}, crawlBatch: {findFirst: async () => null},
     capture: async (plans, deps) => { calls.push({sourceId: plans[0].source.id, deps}); return {status: 'SUCCESS'}; }
   };
   const workspaceRoot = await mkdtemp(join(tmpdir(), 'jobfinder-timeout-test-'));
+  const slot = String(Date.parse('2026-11-17T16:01:00Z'));
   try {
-    await writeFile(join(workspaceRoot, 'migration-state.json'), JSON.stringify({candidateId: candidate.id,
-      legacyCandidateIds: [], unresolvedRequests: [], replayLegacy: false}));
-    const results = await runDirectRound({db, leaseDb: {lease}, candidateId: candidate.id, workspaceRoot});
+    await assert.rejects(runDirectRound({db, leaseDb: {lease}, candidateId: 'old-candidate', workspaceRoot}),
+      /NEW_INSTABOX_CANDIDATE_REQUIRED/);
+    candidate.goalId = 'old-registration';
+    await assert.rejects(runDirectRound({db, leaseDb: {lease}, candidateId: candidate.id, workspaceRoot}),
+      /NEW_INSTABOX_CANDIDATE_REQUIRED/);
+    candidate.goalId = 'job-finder-instabox-migration';
+    candidate.status = 'INVALIDATED';
+    await assert.rejects(runDirectRound({db, leaseDb: {lease}, candidateId: candidate.id, workspaceRoot}), /CANDIDATE_NOT_ACTIVE/);
+    candidate.status = 'BUILDING';
+    const results = await runDirectRound({db, leaseDb: {lease}, candidateId: candidate.id, workspaceRoot, slot});
     assert.equal(results.length, 36);
     assert.equal(calls.length, 36);
     assert.deepEqual(Object.fromEntries(calls.filter(({deps}) => Object.hasOwn(deps, 'sourceAttemptTimeoutMs'))
@@ -53,8 +71,19 @@ test('direct round gives Novartis 25 minutes, budgets paced Roche and interleave
     assert.deepEqual(calls.filter(row => !workdayIds.has(row.sourceId)).map(row => row.sourceId),
       routes.filter(row => !workdayIds.has(row.sourceId)).map(row => row.sourceId));
     assert(calls.every(({deps}) => deps.portableLease === lease && deps.portableLease.signal === lease.signal));
+    assert(calls.every(({deps}) => deps.force === true));
+
+    const [current, obsolete] = routes;
+    accepted.push({sourceId: current.sourceId, sourceConfigHash: current.sourceConfigSha256, batchId: 'accepted-batch'},
+      {sourceId: obsolete.sourceId, sourceConfigHash: 'old-config', batchId: 'old-batch'});
+    calls.length = 0;
+    const retry = await runDirectRound({db, leaseDb: {lease}, candidateId: candidate.id, workspaceRoot, slot,
+      onlySourceIds: [current.sourceId, obsolete.sourceId]});
+    assert.deepEqual(calls.map(row => row.sourceId), [obsolete.sourceId]);
+    assert.deepEqual(retry.find(row => row.sourceId === current.sourceId), {
+      sourceId: current.sourceId, route: current.route, batchId: 'accepted-batch', status: 'SKIPPED_ALREADY_COMMITTED_IN_WINDOW'
+    });
   } finally {
-    await unlink(join(workspaceRoot, 'migration-state.json'));
     await rmdir(workspaceRoot);
   }
 });

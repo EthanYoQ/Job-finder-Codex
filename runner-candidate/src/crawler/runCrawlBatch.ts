@@ -485,13 +485,13 @@ export async function runP0CrawlBatch(
           failureCode:policyHold,failureReason:PORTABLE_SKIP_REASONS[policyHold]!},deps);
         terminalSourceIds.add(plan.source.id);skippedSourceCount+=1;continue;
       }
-      const recentObservations = await deps.getRecentObservations(plan.source.id);
-      const sourceState = toSourceScheduleState(plan.source.id, recentObservations);
-
       if (
         deps.identity.batchKind !== "FULL_RELEASE" &&
         !deps.force &&
-        !isSourceDueForScheduledRun(sourceState, batchStartedAt)
+        !isSourceDueForScheduledRun(
+          toSourceScheduleState(plan.source.id, await deps.getRecentObservations(plan.source.id)),
+          batchStartedAt
+        )
       ) {
         const pending = plannedBatch.sources.find((source) => source.sourceId === plan.source.id)!;
         await terminateRuntimeSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,

@@ -13,6 +13,7 @@ import { describePortableRuntimeError } from "../src/crawler/portableRuntimeDiag
 import { recoverDirectBatches } from "./recover-direct";
 import { withLocalOfficialDom } from "../src/crawler/localOfficialSourceFetch";
 import { withWorkdayRequestPolicy } from "../src/crawler/workdayRequestPolicy";
+import { dailySlotMs, slotAt } from "../../pipeline/frequency.mjs";
 
 type Route = { sourceId: string; companyId: string; route: "PORTABLE" | "TRUE_A" | "TRUE_B"; sourceConfigSha256: string };
 const workdaySources = new Set([
@@ -90,28 +91,45 @@ export async function assertNoUnresolvedWrites(db: Pick<PrismaClient, "crawlBatc
   if (running) throw Error(`RECONCILE_RUNNING_BATCH:${running.id}`);
 }
 
-export async function runDirectRound(input: { db: PrismaClient; leaseDb: PortableLeaseDatabase; candidateId: string; workspaceRoot: string; onlySourceIds?:string[] }) {
+export async function runDirectRound(input: { db: PrismaClient; leaseDb: PortableLeaseDatabase; candidateId: string; workspaceRoot: string; onlySourceIds?:string[]; slot?: string | null }) {
   const routes = await loadDirectPlans(), sourceIds = routes.map(row => row.sourceId);
   const selectedRoutes = selectDirectRoutes(routes,input.onlySourceIds);
-  assertLegacyAuditState(JSON.parse(await readFile(resolve(input.workspaceRoot, "migration-state.json"), "utf8")), input.candidateId);
+  const windowStart = Number(input.slot ?? slotAt());
+  if (!Number.isSafeInteger(windowStart) || slotAt(windowStart) !== windowStart) throw Error("INVALID_SCHEDULE_SLOT");
+  if (!input.candidateId.startsWith("instabox-")) throw Error("NEW_INSTABOX_CANDIDATE_REQUIRED");
   if (input.db === input.leaseDb) throw Error("SEPARATE_LEASE_CONNECTION_REQUIRED");
   return withPortableCrawlLease(input.leaseDb, lease => withWorkdayRequestPolicy(resolve(input.workspaceRoot), async () => {
+    const candidate = await input.db.releaseCandidate.findUniqueOrThrow({ where: { id: input.candidateId } });
+    if (candidate.goalId !== "job-finder-instabox-migration") throw Error("NEW_INSTABOX_CANDIDATE_REQUIRED");
+    if (!["BUILDING", "READY_FOR_QA", "RELEASED"].includes(candidate.status)) throw Error("CANDIDATE_NOT_ACTIVE");
     await recoverDirectBatches(input.db, lease, input.candidateId, sourceIds);
     await assertNoUnresolvedWrites(input.db, input.candidateId, sourceIds);
-    const candidate = await input.db.releaseCandidate.findUniqueOrThrow({ where: { id: input.candidateId } });
-    if (!["BUILDING", "READY_FOR_QA", "RELEASED"].includes(candidate.status)) throw Error("CANDIDATE_NOT_ACTIVE");
     const sources = await input.db.recruitmentSource.findMany({ where: { id: { in: sourceIds } }, select: { id: true, companyId: true } });
     if (routes.some(row => !sources.some(source => source.id === row.sourceId && source.companyId === row.companyId))) throw Error("RESTORED_SOURCE_CATALOG_REQUIRED");
+    const completed = await input.db.crawlBatchSourceResult.findMany({
+      where: {
+        releaseCandidateId: candidate.id, atomicCommitState: "COMMITTED", completenessState: "VERIFIED",
+        finishedAt: { gte: new Date(windowStart), lt: new Date(windowStart + dailySlotMs) },
+        batch: { is: { kind: "SCHEDULED", ownerId: "direct-scheduler" } },
+        OR: selectedRoutes.map(row => ({ sourceId: row.sourceId, sourceConfigHash: row.sourceConfigSha256 }))
+      }, select: { sourceId: true, batchId: true }, orderBy: [{ finishedAt: "asc" }, { id: "asc" }]
+    });
+    const completedBySource = new Map(completed.map(row => [row.sourceId, row.batchId]));
     const portableFetch = createOwnedSourceQualityFetch(), certifiedFetch = withLocalOfficialDom(createHttpOnlyOfficialSourceFetch());
     const results = [];
     for (const row of interleaveWorkday(selectedRoutes)) {
+      const batchId = completedBySource.get(row.sourceId);
+      if (batchId) {
+        results.push({ sourceId: row.sourceId, route: row.route, batchId, status: "SKIPPED_ALREADY_COMMITTED_IN_WINDOW" });
+        continue;
+      }
       const portable = row.route === "PORTABLE";
       const runtime = createPrismaCrawlRuntimeDeps(input.db as never, portable ? { portablePlans: [row.plan] } : {});
       const workdayTimeout = pacedWorkdaySourceTimeout(row.sourceId);
       try {
         const result = await runP0CrawlBatch([row.plan], {
           db: input.db as never, ...runtime, identity: identityForSource(candidate, row.sourceId), now: () => new Date(),
-          publicationPolicy: "SOURCE_ATOMIC_LAST_GOOD_V1", portableLease: lease,
+          publicationPolicy: "SOURCE_ATOMIC_LAST_GOOD_V1", portableLease: lease, force: true,
           ...(["source-johnson-innovative-medicine-social", "source-sanofi-china-social"].includes(row.sourceId) ? { sourceAttemptTimeoutMs: 30 * 60 * 1_000 } : {}),
           ...(workdayTimeout === undefined ? {} : { sourceAttemptTimeoutMs: workdayTimeout }),
           ...(row.sourceId === "source-novartis-social" ? { sourceAttemptTimeoutMs: 25 * 60 * 1_000 } : {}),

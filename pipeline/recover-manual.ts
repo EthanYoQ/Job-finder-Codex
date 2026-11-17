@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { assertLegacyAuditState, loadDirectPlans } from "../runner-candidate/scripts/direct-round";
-import { assertFreshManualRequest } from "../runner-candidate/scripts/direct-manual";
+import { assertFreshManualRequest, MANUAL_REQUEST_ID_PATTERN } from "../runner-candidate/scripts/manual-request";
 
 const execute = promisify(execFile);
 const requestSelect = { id: true, sourceId: true, createdAt: true, status: true } as const;
@@ -35,7 +35,7 @@ export async function recoverQueuedManualPreviews(input: {
   for (const request of requests) {
     try {
       assertFreshManualRequest({ request, registeredAt: candidate.createdAt, sourceIds, unresolvedRequests: audit.unresolvedRequests });
-      if (!/^[a-zA-Z0-9_-]{1,128}$/.test(request.id)) throw Error("INVALID_MANUAL_REQUEST_ID");
+      if (!MANUAL_REQUEST_ID_PATTERN.test(request.id)) throw Error("INVALID_MANUAL_REQUEST_ID");
     } catch { result.skippedCount++; continue; }
     const unit = `jobfinder-manual@${request.id}.service`;
     let state: Record<string, string>;

@@ -7,8 +7,8 @@ import { isIP } from "node:net";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
 import { loadDirectPlans, runDirectRound } from "../runner-candidate/scripts/direct-round";
+import { MANUAL_RECOVERY_INSTANCE } from "../runner-candidate/scripts/manual-request";
 import { readRoundCoverage } from "./round-coverage";
-import { recoverQueuedManualPreviews } from "./recover-manual";
 import { enrichSanofiPublicationClassification } from "./sanofi-publication-classification";
 import { describePortableRuntimeError } from "../runner-candidate/src/crawler/portableRuntimeDiagnostics";
 import { readPortablePublicSnapshot } from "../web-candidate/src/db/portablePublicSnapshotRepository";
@@ -34,8 +34,9 @@ try {
   url.searchParams.set("pool_timeout", "10");
   db = new PrismaClient({datasources:{db:{url:url.href}}});
   leaseDb = new PrismaClient({datasources:{db:{url:url.href}}});
+  const slot = process.env.JOBFINDER_SLOT ?? null;
   const sourceIds = (await loadDirectPlans()).map(row=>row.sourceId);
-  const results = await runDirectRound({db, leaseDb, candidateId, workspaceRoot:stateRoot,
+  const results = await runDirectRound({db, leaseDb, candidateId, workspaceRoot:stateRoot, slot,
     ...(onlySourceIds===undefined?{}:{onlySourceIds})});
   // Read the original transactional public projection, even when some sources failed.
   // It retains each source's last accepted publication and original observation times.
@@ -44,7 +45,6 @@ try {
   if (sanofiClassified) console.error(JSON.stringify({status:"SANOFI_SNAPSHOT_CLASSIFIED",count:sanofiClassified}));
   const snapshots = join(stateRoot, "snapshots");
   await mkdir(snapshots, {recursive:true, mode:0o700});
-  const slot = process.env.JOBFINDER_SLOT ?? null;
   const handle = await selectRoundSnapshotHandle(snapshots, slot, snapshot);
   if (!handle.snapshotReused) await savePublicSnapshot(handle.snapshotFile, snapshot);
   // The DB retains accepted captures even if the worker died before writing latest.json.
@@ -65,12 +65,11 @@ try {
   console.error(JSON.stringify({status:"ROUND_FAILED",diagnostic:describePortableRuntimeError(error)}));
   process.exitCode=1;
 } finally {
-  // The scheduled round's shared lease has been released before manual units start.
-  if (db && candidateId) try {
-    const manual = await recoverQueuedManualPreviews({db,candidateId,workspaceRoot:stateRoot});
-    if (manual.queuedCount) console.error(JSON.stringify({status:"MANUAL_QUEUE_CHECKED",...manual}));
+  if (db) try {
+    await run("sudo", ["-n", "systemctl", "start", "--no-block", `jobfinder-manual@${MANUAL_RECOVERY_INSTANCE}.service`],
+      { timeout: 2_000, killSignal: "SIGKILL" });
   } catch (error) {
-    console.error(JSON.stringify({status:"MANUAL_QUEUE_CHECK_FAILED",diagnostic:describePortableRuntimeError(error)}));
+    console.error(JSON.stringify({status:"MANUAL_QUEUE_RECOVERY_START_FAILED",diagnostic:describePortableRuntimeError(error)}));
   }
   await Promise.allSettled([db?.$disconnect(),leaseDb?.$disconnect()]);
 }
