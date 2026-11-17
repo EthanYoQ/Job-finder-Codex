@@ -37,9 +37,11 @@ export function currentWorkdayPolicyRoot(): string | undefined {
   return scope ? dirname(scope.file) : undefined;
 }
 
-export function reloadWorkdayCooldowns(): void {
+export function finishIsolatedWorkdayTraversal(): void {
   const scope = scopes.getStore();
-  if (scope) delete scope.cooldowns;
+  if (!scope) return;
+  delete scope.cooldowns;
+  scope.nextRequestAt = Date.now() + randomInt(500, 1201);
 }
 
 function workdayHost(raw: string): string | undefined {
@@ -168,6 +170,7 @@ export async function observeWorkdayResponse(url: string, response: Response, si
       }
     }
   }
+  signal.throwIfAborted();
   const delayMs = recordWorkdayAccessResponse(finalUrl, response.status, headers, challengeHtml);
   if (delayMs !== undefined) effectiveRetryHeaders.set(response, String(Math.ceil(delayMs / 1000)));
 }

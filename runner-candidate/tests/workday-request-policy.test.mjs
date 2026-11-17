@@ -92,3 +92,27 @@ test("source cancellation during pacing prevents the queued Workday dispatch", a
     assert.equal(requests, 1);
   });
 });
+
+test("cancellation while inspecting challenge bytes stays a rejected request", async t => {
+  const directory = await localCleanup(t);
+  const abort = new AbortController();
+  const reason = new Error("cancelled during challenge inspection");
+  let stream;
+  const response = new Response(new ReadableStream({ start(controller) { stream = controller; } }), {
+    status: 429, headers: { "Content-Type": "text/html" }
+  });
+  await withWorkdayRequestPolicy(directory, async () => {
+    const pending = fetchWithOfficialTimeout(amgen, { signal: abort.signal }, {
+      fetchImpl: async () => {
+        setImmediate(() => abort.abort(reason));
+        return response;
+      }
+    });
+    try {
+      await assert.rejects(pending, error => error === reason);
+      await assert.rejects(readFile(join(directory, "workday-cooldown.json")), {code: "ENOENT"});
+    } finally {
+      stream.close();
+    }
+  });
+});

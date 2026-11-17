@@ -91,9 +91,9 @@ export function tagBGradeIndependentTraversalFailure(
 export function classifyBGradeIndependentTraversalFailure(
   error: unknown
 ): BGradeIndependentTraversalFailureCode {
-  if (isWorkdayCooldownError(error)) return "B_GRADE_WORKDAY_COOLDOWN";
   const tagged = readTaggedFailureCode(error);
   if (tagged) return tagged;
+  if (isWorkdayCooldownError(error)) return "B_GRADE_WORKDAY_COOLDOWN";
   const message = error instanceof Error ? error.message : "";
   if (/(?:\bnavigation\b|\bpage\.goto\b)/iu.test(message)) {
     return "B_GRADE_BROWSER_NAVIGATION_FAILED";

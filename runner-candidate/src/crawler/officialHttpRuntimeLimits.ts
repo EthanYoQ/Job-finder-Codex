@@ -245,8 +245,8 @@ export async function fetchWithOfficialTimeout<T>(
     headersReceived = true;
     diagnostic?.("HEADERS_RECEIVED", { status: response.status });
     await observeWorkdayResponse(requestUrl, response, combined.signal);
-    if (!deps.consumeResponse) return response;
     combined.signal.throwIfAborted();
+    if (!deps.consumeResponse) return response;
     const result = await Promise.race([deps.consumeResponse(response), aborted]);
     combined.signal.throwIfAborted();
     diagnostic?.("BODY_COMPLETE");

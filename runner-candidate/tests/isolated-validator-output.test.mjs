@@ -6,7 +6,40 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {bGradeValidatorChildEnvironment,createIsolatedBGradeTraversalValidator,executeBGradeValidatorCommand,
   serializeBGradeValidatorSuccess,decodeBGradeValidatorOutput} from '../src/crawler/isolatedBGradeTraversalValidator.ts';
-import {assertWorkdayAvailable,withWorkdayRequestPolicy} from '../src/crawler/workdayRequestPolicy.ts';
+import {assertWorkdayAvailable,waitForWorkdayRequest,withWorkdayRequestPolicy,WorkdayCooldownError} from '../src/crawler/workdayRequestPolicy.ts';
+import {classifyBGradeIndependentTraversalFailure,tagBGradeIndependentTraversalFailure} from '../src/crawler/independentTraversalDiagnostics.ts';
+
+test('an explicit validator cancellation tag takes precedence over the cooldown error type',()=>{
+  const error=new WorkdayCooldownError(429,60_000);
+  assert.equal(classifyBGradeIndependentTraversalFailure(error),'B_GRADE_WORKDAY_COOLDOWN');
+  tagBGradeIndependentTraversalFailure(error,'B_GRADE_VALIDATOR_ABORTED');
+  assert.equal(classifyBGradeIndependentTraversalFailure(error),'B_GRADE_VALIDATOR_ABORTED');
+});
+
+test('Pfizer isolated browser launch respects Workday pacing in both directions',async()=>{
+  const root=await mkdtemp(join(tmpdir(),'pfizer-validator-pace-'));
+  const entryUrl='https://pfizer.wd1.myworkdayjobs.com/PfizerCareers';
+  const amgenUrl='https://amgen.wd1.myworkdayjobs.com/Careers';
+  try {
+    await withWorkdayRequestPolicy(root,async()=>{
+      const firstRequestAt=Date.now();
+      await waitForWorkdayRequest(amgenUrl);
+      let childFinishedAt;
+      const validate=createIsolatedBGradeTraversalValidator(async()=>{
+        childFinishedAt=Date.now();
+        return JSON.stringify({decision:'FAILED',failureCode:'B_GRADE_VALIDATOR_EXECUTION_FAILED',
+          message:'B-grade independent traversal failed: B_GRADE_VALIDATOR_EXECUTION_FAILED'});
+      });
+      await assert.rejects(validate({sourceId:'source-pfizer-china-social',entryUrl}),
+        {bGradeIndependentTraversalFailureCode:'B_GRADE_VALIDATOR_EXECUTION_FAILED'});
+      assert.ok(childFinishedAt-firstRequestAt>=500,'The child cannot launch immediately after a parent Workday request');
+      await waitForWorkdayRequest(amgenUrl);
+      assert.ok(Date.now()-childFinishedAt>=500,'The next parent request must respect the gap after the last possible child request');
+    });
+  } finally {
+    await rm(root,{recursive:true,force:true});
+  }
+});
 
 test('Pfizer reloads a child cooldown and skips launching the isolated browser again', async t => {
   t.mock.method(console, 'error', () => {});

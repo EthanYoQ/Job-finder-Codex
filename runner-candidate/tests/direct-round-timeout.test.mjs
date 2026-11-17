@@ -47,7 +47,8 @@ test('direct round gives Novartis 25 minutes, budgets paced Roche and interleave
     const workdayIds = new Set(['amgen', 'biogen', 'csl', 'lilly', 'organon', 'pfizer', 'roche']
       .map(company => 'source-' + company + '-china-social'));
     const workdayPositions = calls.flatMap(({sourceId}, index) => workdayIds.has(sourceId) ? [index] : []);
-    assert.equal(workdayPositions.length, 7);
+    assert.deepEqual(workdayPositions.map(index => calls[index].sourceId),
+      routes.filter(row => workdayIds.has(row.sourceId)).map(row => row.sourceId));
     assert.ok(workdayPositions.every((index, pos) => index > (workdayPositions[pos - 1] ?? -2) + 1));
     assert.deepEqual(calls.filter(row => !workdayIds.has(row.sourceId)).map(row => row.sourceId),
       routes.filter(row => !workdayIds.has(row.sourceId)).map(row => row.sourceId));

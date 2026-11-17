@@ -13,35 +13,37 @@ function entry(){
 }
 function identity(row){return `<link rel="canonical" href="${row.url}"><h1>${row.title}</h1><script type="application/ld+json">${JSON.stringify({'@type':'JobPosting',identifier:row.req,url:row.url,title:row.title,description:'Synthetic official description with enough complete content.',hiringOrganization:{name:'Amgen'},jobLocation:[{address:{addressCountry:'China',addressLocality:'Shanghai',addressRegion:'Shanghai'}}]})}</script>`;}
 function application(row,mode){const country={id:china,descriptor:'China'};return JSON.stringify({userAuthenticated:false,jobPostingInfo:{jobReqId:mode==='wrong-id'&&row===rows[1]?'R-999':row.req,jobPostingId:row.path.split('/').at(-1),jobPostingSiteId:'Careers',externalUrl:`${wd}/Careers${row.path}`,title:row.title,posted:true,canApply:true,country,jobRequisitionLocation:{descriptor:'China - Shanghai',country:{...country,alpha2Code:'CN'}},location:'China - Shanghai',jobDescription:'Synthetic official description with enough complete content.'}});}
-test('Amgen keeps prior jobs when Workday blocks the lookup or first application', async () => {
+test('Amgen fails the source and retains the response when a required request fails', async (t) => {
  const plan = buildStagedSourceCrawlPlans(candidateCompanies).find(p => p.source.id === 'source-amgen-china-social');
  const lookup = `${wd}/wday/cxs/amgen/Careers/jobs`;
- const body = '<html>Security Check</html>';
- for (const blockLookup of [true, false]) {
+ const firstApplication = `${wd}/wday/cxs/amgen/Careers${rows[0].path}`;
+ const urls = [plan.source.officialEntryUrl, lookup, rows[0].url, firstApplication];
+ for (const [failedAt, status] of [[0, 429], [1, 503], [1, 429], [3, 429]]) await t.test(`request ${failedAt + 1}, HTTP ${status}`, async () => {
+  const body = `<html>Request failed with HTTP ${status}</html>`;
   const calls = [];
   const fetch = createAmgenManualWorkdaySourceFetch({now: () => new Date(at), http: async ({url}) => {
    calls.push(url);
    const meta = {finalUrl: url, capturedAt: at};
+   if (url === urls[failedAt]) return {...meta, status, body, contentType: 'text/html', retryAfter: {value: '60', delayMs: 60000}};
    if (url === plan.source.officialEntryUrl) return {...meta, status: 200, body: entry(), contentType: 'text/html'};
-   if (url === lookup && !blockLookup) {
+   if (url === lookup) {
     const jobPostings = rows.map(row => ({title: row.title, externalPath: row.path, locationsText: 'China - Shanghai', bulletFields: [row.req]}));
     const facets = [{facetParameter: 'LocationCountry', values: [{id: china, descriptor: 'China', count: rows.length}]}];
     return {...meta, status: 200, body: JSON.stringify({total: rows.length, jobPostings, facets}), contentType: 'application/json'};
    }
    if (url === rows[0].url) return {...meta, status: 200, body: identity(rows[0]), contentType: 'text/html'};
-   return {...meta, status: 429, body, contentType: 'text/html', retryAfter: {value: '60', delayMs: 60000}};
+   assert.fail(`Unexpected request: ${url}`);
   }});
   const result = await fetch(plan);
   assert.equal(result.ok, false);
-  assert.deepEqual(result.transportFailure, {code: 'OFFICIAL_HTTP_429', retryable: true, retryAfterMs: 60000});
-  const expected = [plan.source.officialEntryUrl, lookup];
-  if (!blockLookup) expected.push(rows[0].url, `${wd}/wday/cxs/amgen/Careers${rows[0].path}`);
-  assert.deepEqual(calls, expected);
+  assert.deepEqual(result.transportFailure, {code: `OFFICIAL_HTTP_${status}`, retryable: true, retryAfterMs: 60000});
+  assert.deepEqual(calls, urls.slice(0, failedAt + 1));
+  assert.ok(result.fetchEvidence?.supportingArtifactOnlyFailure, 'Failed response must be retained as supporting evidence');
   assert.equal(result.fetchEvidence.pages.length, 0);
   const response = result.fetchEvidence.artifacts.at(-1);
-  assert.equal(response.httpStatus, 429);
+  assert.equal(response.httpStatus, status);
   assert.equal(response.body, body);
- }
+ });
 });
 
 test('Amgen retains a complete manual list and isolates individual identity/application failures',async()=>{

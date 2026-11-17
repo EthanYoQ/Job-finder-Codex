@@ -13,7 +13,7 @@ import {
 } from "./independentTraversalDiagnostics";
 import { productionTsxProcessArgs } from "../ops/productionTsxProcess";
 import {
-  assertWorkdayAvailable, currentWorkdayPolicyRoot, isWorkdayCooldownError, reloadWorkdayCooldowns
+  currentWorkdayPolicyRoot, finishIsolatedWorkdayTraversal, isWorkdayCooldownError, waitForWorkdayRequest
 } from "./workdayRequestPolicy";
 
 type ValidatorInput = Parameters<typeof runBGradeIndependentTraversalValidator>[0];
@@ -73,8 +73,9 @@ export function createIsolatedBGradeTraversalValidator(
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       let output: string;
       try {
-        if (pfizer) assertWorkdayAvailable(input.entryUrl);
-        output = await execute(serializableInput, signal);
+        if (pfizer) await waitForWorkdayRequest(input.entryUrl, signal);
+        const pending = execute(serializableInput, signal);
+        output = await (pfizer ? pending.finally(finishIsolatedWorkdayTraversal) : pending);
       } catch (error) {
         reportSourceFetchFailure(input.sourceId, {error});
         if (signal?.aborted) {
@@ -82,9 +83,6 @@ export function createIsolatedBGradeTraversalValidator(
         }
         throw tagBGradeIndependentTraversalFailure(error,
           isWorkdayCooldownError(error) ? "B_GRADE_WORKDAY_COOLDOWN" : "B_GRADE_VALIDATOR_EXECUTION_FAILED");
-      } finally {
-        // The isolated Pfizer worker can persist a newer cooldown under the same collector lease.
-        if (pfizer) reloadWorkdayCooldowns();
       }
       if (signal?.aborted) {
         throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");

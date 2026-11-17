@@ -50,13 +50,12 @@ function exactPlan(plan: SourceCrawlPlan): boolean {
 }
 function artifact(role: Role, index: number, req: Request, response: WorkdayHttpResponse, now: string): SourceFetchArtifactDraft {
   const mime = role === "lookup" || role === "application" || role === "list" && index > 1 ? /^application\/json(?:;|$)/iu : /^text\/html(?:;|$)/iu;
-  const detail=role==='identity'||role==='application';
-  const retainFailure = detail || role === "lookup" && (response.status === 403 || response.status === 429);
   assert(Number.isInteger(response.status)&&response.status>=100&&response.status<=599&&response.finalUrl === req.url && typeof response.body === "string" && Buffer.byteLength(response.body) <= 2 * 1024 * 1024 &&
-    (response.status===200?mime.test(response.contentType??''):retainFailure&&typeof response.contentType==='string'&&response.contentType.length>0));
+    typeof response.contentType === "string" && response.contentType.length > 0 &&
+    (response.status !== 200 || mime.test(response.contentType)));
   const capturedAt = response.capturedAt ?? now; assert(Number.isFinite(Date.parse(capturedAt)));
   return { id: key(role, index), logicalKey: key(role, index), kind: role === "list" ? "PAGINATION_PAGE" : role === "identity" ? "ATS_PAGE" : "ATS_API_RESPONSE",
-    requestedUrl: req.url, finalUrl: req.url, httpStatus: response.status, contentType: response.contentType!, capturedAt, body: response.body, bodyRepresentation: "EXACT",
+    requestedUrl: req.url, finalUrl: req.url, httpStatus: response.status, contentType: response.contentType, capturedAt, body: response.body, bodyRepresentation: "EXACT",
     extractorLocator: requestContractV2Locator(role === "list" ? "#search-results@data-total-job-results" : role === "lookup" ? "$.jobPostings:lookup-only" : role === "identity" ? "schema:JobPosting:identity-only" : "$.jobPostingInfo", {
       family: role === "lookup" || role === "application" ? "workday" : "html", role: `amgen-manual-workday-v2-${role}`, method: req.method, url: req.url,
       body: req.body ? JSON.parse(req.body) : null, coordinate: { index }

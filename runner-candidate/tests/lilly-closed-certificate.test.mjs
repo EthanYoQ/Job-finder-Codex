@@ -54,16 +54,19 @@ test('closed Lilly applications reconcile across pages and altered closure evide
    getTrustedCompletenessBaseline:async()=>null,getFirstAcceptedCurrentPolicyReceipt:async()=>null
   }));
   const memory=memoryDb();
+  memory.db.crawlBatchSourceResult.findMany=async({where})=>memory.rows.filter(row=>row.batchId===where.batchId);
   const round=await run(memory,'b');
   assert.equal(round.status,'SUCCESS',JSON.stringify(memory.rows));
   assert.equal(memory.rows[0].atomicCommitState,'COMMITTED');assert.equal(memory.rows[0].completenessState,'VERIFIED');assert.equal(memory.jobWrites(),49);
+  const lastGood=structuredClone(memory.rows[0]);
   for(const mode of ['blocked','mostly-unavailable']){
    page=0;detailMode=mode;
-   const blocked=memoryDb();
-   await run(blocked,mode);
-   assert.equal(blocked.rows[0].atomicCommitState,'NOT_ATTEMPTED',mode);
-   assert.equal(blocked.rows[0].failureDiagnosticCode,'OFFICIAL_HTTP_429',mode);
-   assert.equal(blocked.jobWrites(),0,mode);
+   await run(memory,mode);
+   const attempt=memory.rows.at(-1);
+   assert.equal(attempt.atomicCommitState,'NOT_ATTEMPTED',mode);
+   assert.equal(attempt.failureDiagnosticCode,'OFFICIAL_HTTP_429',mode);
+   assert.deepEqual(memory.rows[0],lastGood,mode);
+   assert.equal(memory.jobWrites(),49,mode);
   }
  }finally{await rm(workspaceRoot,{recursive:true,force:true});}
 });
