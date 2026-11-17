@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { clearTimeout, setTimeout } from "node:timers";
 import {join} from "node:path";
 import {savePrivateDomFailure} from "./local-browser/private-dom-failure.mjs";
 import type { OfficialJsonRenderedRawRow, OfficialJsonRenderedPageCapture, OfficialJsonRenderedReplay } from "./officialJsonRenderedTraversalValidator";
