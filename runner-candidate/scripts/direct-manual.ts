@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { isIP } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
-import { assertLegacyAuditState, identityForSource, loadDirectPlans } from "./direct-round";
+import { assertLegacyAuditState, identityForSource, loadDirectPlans, pacedWorkdaySourceTimeout } from "./direct-round";
 import { withPortableCrawlLease, PortableCrawlLeaseError, type PortableLeaseDatabase } from "../src/crawler/portableCrawlLease";
 import { createPortableFencedRuntimeDatabase } from "../src/db/portableRuntimeDatabase";
 import { createManualCrawlRequestRepository } from "../src/db/manualCrawlRequestRepository";
@@ -19,6 +19,7 @@ import { createHttpOnlyOfficialSourceFetch } from "../src/crawler/sourceQualityA
 import { withLocalOfficialDom } from "../src/crawler/localOfficialSourceFetch";
 import { runWithOfficialSourceCancellation } from "../src/crawler/officialHttpRuntimeLimits";
 import { runIsolatedBGradeTraversalValidator } from "../src/crawler/isolatedBGradeTraversalValidator";
+import { withWorkdayRequestPolicy } from "../src/crawler/workdayRequestPolicy";
 import { describePortableRuntimeError } from "../src/crawler/portableRuntimeDiagnostics";
 
 export function assertFreshManualRequest(input: {
@@ -45,17 +46,19 @@ export async function runDirectManual(input: {
   assertFreshManualRequest({ request, registeredAt: candidate.createdAt,
     sourceIds: routes.map(row => row.sourceId), unresolvedRequests: audit.unresolvedRequests });
   const { plan } = routes.find(row => row.sourceId === request.sourceId)!;
-  return withPortableCrawlLease(input.leaseDb, async lease => {
+  return withPortableCrawlLease(input.leaseDb, lease => withWorkdayRequestPolicy(resolve(input.workspaceRoot), async () => {
     const db = createPortableFencedRuntimeDatabase(input.db, lease);
     const repository = createManualCrawlRequestRepository({ db: db as never,
       queuedRequest: { id: request.id, createdAfter: candidate.createdAt },
       resolveClaimableSourceIds: async () => [request.sourceId] });
     const runtime = createPrismaCrawlRuntimeDeps(db as never);
+    const workdayTimeout = pacedWorkdaySourceTimeout(request.sourceId);
     const execute = createManualSourceBatchExecutor({ plans: [plan],
       baseIdentity: identityForSource(candidate, request.sourceId), db: db as never,
       fetch: withLocalOfficialDom(createHttpOnlyOfficialSourceFetch()), now: () => new Date(), runtimeDeps: runtime,
       runP0CrawlBatch: (plans, deps) => runWithOfficialSourceCancellation(lease.signal, () => runP0CrawlBatch(plans, {
-        ...deps, ...runtime, workspaceRoot: resolve(input.workspaceRoot), evidenceSubdirectory: "runtime-evidence",
+        ...deps, ...runtime, ...(workdayTimeout === undefined ? {} : { sourceAttemptTimeoutMs: workdayTimeout }),
+        workspaceRoot: resolve(input.workspaceRoot), evidenceSubdirectory: "runtime-evidence",
         runIndependentTraversalValidator: args => runIsolatedBGradeTraversalValidator({ ...args,
           signal: args.signal ? AbortSignal.any([args.signal, lease.signal]) : lease.signal })
       })) });
@@ -64,7 +67,7 @@ export async function runDirectManual(input: {
       ownerId: `direct-manual-${randomUUID()}`, signal: lease.signal, stopWhenIdle: true,
       onOperationalError: event => { errors.push(event.code); } });
     return { ...result, errors, requestId: request.id, mode: "PREVIEW_ONLY" as const };
-  });
+  }));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

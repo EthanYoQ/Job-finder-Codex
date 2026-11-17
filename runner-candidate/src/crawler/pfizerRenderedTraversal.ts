@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import {join} from "node:path";
 import {savePrivateDomFailure} from "./local-browser/private-dom-failure.mjs";
 import type { OfficialJsonRenderedRawRow, OfficialJsonRenderedPageCapture, OfficialJsonRenderedReplay } from "./officialJsonRenderedTraversalValidator";
 import { irreversibleOfficialJsonEvidenceId } from "./officialJsonEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
+import { tagBGradeIndependentTraversalFailure } from "./independentTraversalDiagnostics";
+import { isWorkdayChallengeHtml, recordWorkdayAccessResponse, waitForWorkdayRequest } from "./workdayRequestPolicy";
 import { PFIZER_LIST_ROW_UNKNOWN, pfizerQuarantinedEvidenceKey } from "./pfizerWorkdayTraversal";
 const ENTRY = "https://pfizer.wd1.myworkdayjobs.com/en-US/PfizerCareers";
 const COUNTRY = "6cb77610a8a543aea2d6bc10457e35d4";
@@ -147,29 +150,58 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
     let total: number | undefined, totalPages: number | undefined, currentPage: number | undefined, currentRecord: number | undefined;
     let currentCard: {href:string;title:string} | undefined, detailNavigationStatus: number | undefined;
     const seen = new Set<string>();
-    let accessStopped=false,listAccessDenied=false,accessHttpStatus:number|undefined,retryAfter:string|undefined;
-    const observeAccess=(response:import("playwright-core").Response)=>{
-      const status=response.status();if(status!==403&&status!==429)return;
-      const url=new URL(response.url()),type=response.request().resourceType();
-      if(url.origin===new URL(ENTRY).origin&&['document','xhr','fetch'].includes(type)&&
-        (url.pathname.startsWith('/en-US/PfizerCareers')||url.pathname.startsWith('/wday/cxs/pfizer/PfizerCareers/'))){
-        accessStopped=true;accessHttpStatus=status;retryAfter=response.headers()['retry-after'];
-        if(!url.pathname.includes('/job/'))listAccessDenied=true;
+    let listAccessDenied = false, accessHttpStatus: number | undefined, retryAfter: string | undefined;
+    const access = new AbortController();
+    const accessSignal = access.signal;
+    const accessRecordings: Promise<void>[] = [];
+    const observeAccess = AsyncLocalStorage.bind((response: import("playwright-core").Response) => {
+      const status = response.status();
+      if (status !== 403 && status !== 429) return;
+      const url = new URL(response.url()), type = response.request().resourceType();
+      if (url.origin !== new URL(ENTRY).origin || !["document", "xhr", "fetch"].includes(type) ||
+          !/^\/(?:en-US\/PfizerCareers|wday\/cxs\/pfizer\/PfizerCareers)(?:\/|$)/u.test(url.pathname)) return;
+      const listResponse = !url.pathname.includes("/job/");
+      listAccessDenied ||= listResponse;
+      const headers = new Headers(response.headers());
+      if (!accessSignal.aborted || listResponse) {
+        accessHttpStatus = status;
+        retryAfter = headers.get("retry-after") ?? undefined;
       }
+      if (type === "document" && listResponse && sourceFetchStage === "PFIZER_ENTRY_NAVIGATION") navigation = response;
+      if (type === "document" && !listResponse && sourceFetchStage === "PFIZER_DETAIL_READ") detailNavigationStatus = status;
+      if (!accessSignal.aborted) {
+        const surface = listResponse ? "list" : "detail";
+        access.abort(tagBGradeIndependentTraversalFailure(
+          new Error(`Pfizer official ${surface} access restricted (HTTP ${status})`), "B_GRADE_OFFICIAL_ACCESS_RESTRICTED"));
+      }
+      const recording = recordBrowserAccessResponse(response, headers);
+      accessRecordings.push(recording);
+      void recording.catch(() => undefined);
+    });
+    const untilAccessDenied = async <T>(run: () => Promise<T>): Promise<T> => {
+      accessSignal.throwIfAborted();
+      let interrupt: () => void;
+      const denied = new Promise<never>((_, reject) => {
+        interrupt = () => reject(accessSignal.reason);
+        accessSignal.addEventListener("abort", interrupt, { once: true });
+      });
+      try { return await Promise.race([run(), denied]); }
+      finally { accessSignal.removeEventListener("abort", interrupt!); }
     };
     page.context().on('response',observeAccess);
     try {
     const cards = page.locator('[data-automation-id="jobTitle"]');
-    navigation = await page.goto(entry, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await waitForWorkdayRequest(entry, signal);
+    navigation = await untilAccessDenied(() => page.goto(entry, { waitUntil: "domcontentloaded", timeout: 60000 }));
     if (!navigation || navigation.status() !== 200 || page.url() !== entry)
         throw Error("Pfizer UI entry navigation failed");
     sourceFetchStage="PFIZER_COUNTRY_READY";
-    await page.getByRole("button", { name: "China clear filter", exact: true }).waitFor({ state: "visible", timeout: 30000 });
+    await untilAccessDenied(() => page.getByRole("button", { name: "China clear filter", exact: true }).waitFor({ state: "visible", timeout: 30000 }));
     const lists:Array<{slots:ReturnType<typeof pfizerDomListSlots>;listPage:Record<string,unknown>;pageNumber:number;total:number;totalPages:number;nextPresent:boolean}>=[];
         for (let index = 1; index <= 20; index++) {
             currentPage=index;currentRecord=undefined;currentCard=undefined;sourceFetchStage="PFIZER_LIST_READ";
             signal?.throwIfAborted();
-            await page.locator('[data-automation-id="jobFoundText"]').filter({ hasText: /^\d+ JOBS FOUND$/u }).waitFor({ state: "visible", timeout: 60000 });
+            await untilAccessDenied(() => page.locator('[data-automation-id="jobFoundText"]').filter({ hasText: /^\d+ JOBS FOUND$/u }).waitFor({ state: "visible", timeout: 60000 }));
             const label = await page.locator('ul[aria-label^="Page "]').getAttribute("aria-label");
             const match = /^Page (\d+) of (\d+)$/u.exec(label ?? "");
             const count = Number((await page.locator('[data-automation-id="jobFoundText"]').innerText()).match(/^\d+/u)?.[0]);
@@ -197,8 +229,10 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
             const listPage = { url: page.url(), title: await page.title(), countryFilter: "China clear filter", filterCount: 1,
                 searchText: await page.getByRole("textbox").inputValue(), pageLabel: label, range, totalText: `${total} JOBS FOUND`,
                 nextControlPresent: nextPresent, capturedAt: new Date().toISOString(),...physical };
-            await page.getByRole("button", {name:"China clear filter",exact:true}).waitFor({state:"visible"});
-            await page.getByRole("button", {name:"Clear All (1)",exact:true}).waitFor({state:"visible"});
+            await untilAccessDenied(async () => {
+                await page.getByRole("button", {name:"China clear filter",exact:true}).waitFor({state:"visible"});
+                await page.getByRole("button", {name:"Clear All (1)",exact:true}).waitFor({state:"visible"});
+            });
             lists.push({slots,listPage,pageNumber:index,total,totalPages,nextPresent});
             if (!nextPresent) {
                 if (seen.size !== total)
@@ -206,12 +240,12 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
                 break;
             }
             sourceFetchStage="PFIZER_PAGE_ADVANCE";
-            if(accessStopped)throw Error("Pfizer list access restricted before complete pagination");
-            await next.click();
-            await page.locator(`ul[aria-label="Page ${index + 1} of ${totalPages}"]`).waitFor({ state: "attached", timeout: 60000 });
+            await waitForWorkdayRequest(entry, signal);
+            await untilAccessDenied(() => next.click());
+            await untilAccessDenied(() => page.locator(`ul[aria-label="Page ${index + 1} of ${totalPages}"]`).waitFor({ state: "attached", timeout: 60000 }));
         }
         if(!total||lists.length!==totalPages||seen.size!==total||lists.at(-1)?.nextPresent)throw Error("Pfizer UI safety limit reached without complete list evidence");
-        if(accessStopped)throw Error("Pfizer official list access restricted before detail processing");
+        accessSignal.throwIfAborted();
     for(const list of lists){
       currentPage=list.pageNumber;const rawRows:OfficialJsonRenderedRawRow[]=[];
       for(const [recordIndex,slot] of list.slots.entries()){
@@ -221,15 +255,18 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
         const link=slot.card,path=new URL(link.href).pathname.slice("/en-US/PfizerCareers".length),id=slot.officialId;
         detailNavigationStatus=undefined;
         try{
-          if(accessStopped)throw Error("Pfizer detail requests stopped after access restriction");
+          accessSignal.throwIfAborted();
           const target=new URL(link.href);if(target.origin!==new URL(ENTRY).origin||target.pathname!=="/en-US/PfizerCareers"+path||!/^\/job\/[^?#]+$/u.test(path)||!new RegExp(`_${id}(?:-\\d+)?$`,"u").test(path)||target.search!==`?Location_Country=${COUNTRY}`||target.hash||target.username||target.password)throw Error("Pfizer detail link is outside the official native chain");
+          await waitForWorkdayRequest(link.href, signal);
           detail??=await page.context().newPage();
-                const response = await detail!.goto(link.href, { waitUntil: "domcontentloaded", timeout: 60000 });
+                const response = await untilAccessDenied(() => detail!.goto(link.href, { waitUntil: "domcontentloaded", timeout: 60000 }));
                 detailNavigationStatus=response?.status();
                 if (!response || response.status() !== 200 || detail!.url() !== link.href)
                     throw Error("Pfizer UI native detail navigation failed");
-                await detail!.locator('[data-automation-id="jobPostingHeader"]').waitFor({ state: "visible", timeout: 60000 });
-                await detail!.getByRole("button", { name: "Apply", exact: true }).waitFor({ state: "visible", timeout: 30000 });
+                await untilAccessDenied(async () => {
+                    await detail!.locator('[data-automation-id="jobPostingHeader"]').waitFor({ state: "visible", timeout: 60000 });
+                    await detail!.getByRole("button", { name: "Apply", exact: true }).waitFor({ state: "visible", timeout: 30000 });
+                });
                 const jsons = await detail!.locator('script[type="application/ld+json"]').allTextContents();
                 if (jsons.length !== 1)
                     throw Error("Pfizer native detail has ambiguous JSON-LD");
@@ -242,13 +279,12 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
                 const marker = object(object(ld.jobLocation).address).addressCountry;
                 const row: OfficialJsonRenderedRawRow = { sourceJobId: `workday:sha256:${createHash("sha256").update(path).digest("hex")}`, rawEvidenceId: irreversibleOfficialJsonEvidenceId(id), scopeMarker: String(marker), scopeDecision: marker === "China" ? "INCLUDED_MAINLAND" : "EXCLUDED_AUDITED", recordIndex, rawPayload };
                 replayPfizerRenderedRow(row, recordIndex);
-                if(accessStopped)throw Error("Pfizer native data request was access restricted");
+                accessSignal.throwIfAborted();
                 rawRows.push(row);
 
         }catch(error){
           signal?.throwIfAborted();
-          if(listAccessDenied)throw Error("Pfizer official list access restricted");
-          if(detailNavigationStatus===403||detailNavigationStatus===429)accessStopped=true;
+          if(listAccessDenied)accessSignal.throwIfAborted();
           let privateCapture:{file:string;sha256:string}|undefined;
           if(detail){try{privateCapture=await savePrivateDomFailure({directory:options.failureDirectory??join(process.env.JOBFINDER_STATE_ROOT??"/data/job-finder","diagnostics","pfizer"),filePrefix:"pfizer-detail",
             context:{kind:"PFIZER_UNVERIFIED_DETAIL_NOT_HTTP_SUCCESS",officialId:id,expectedUrl:link.href,navigationStatus:detailNavigationStatus},
@@ -257,13 +293,13 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
           }
           rawRows.push({sourceJobId:pfizerQuarantinedEvidenceKey(id),rawEvidenceId:irreversibleOfficialJsonEvidenceId(id),scopeMarker:"UNKNOWN",scopeDecision:"EXCLUDED_AUDITED",recordIndex,
             rawPayload:{officialId:id,title:link.title,detailUrl:link.href,quarantineCode:PFIZER_DETAIL_UNVERIFIED,noOmissionVerified:false,capturedAt:new Date().toISOString(),
-              detailFailure:{code:accessStopped?"ACCESS_RESTRICTED":"NATIVE_DETAIL_UNVERIFIED",...(detailNavigationStatus===undefined?{}:{httpStatus:detailNavigationStatus}),...(accessHttpStatus===undefined?{}:{accessHttpStatus}),...(retryAfter===undefined?{}:{retryAfter}),...(privateCapture?{privateCapture}:{})}}});
+              detailFailure:{code:accessSignal.aborted?"ACCESS_RESTRICTED":"NATIVE_DETAIL_UNVERIFIED",...(detailNavigationStatus===undefined?{}:{httpStatus:detailNavigationStatus}),...(accessHttpStatus===undefined?{}:{accessHttpStatus}),...(retryAfter===undefined?{}:{retryAfter}),...(privateCapture?{privateCapture}:{})}}});
         }
       }
       rawRows[0]!.rawPayload.listPage=list.listPage;
       pages.push({channelId:CHANNEL,pageNumber:list.pageNumber,declaredTotalPages:list.totalPages,declaredTotalJobs:list.total,uiRequestCandidateIds:[],rawRows,nextControlPresent:list.nextPresent});
     }
-    if(listAccessDenied)throw Error("Pfizer official list access restricted");
+    if(listAccessDenied)accessSignal.throwIfAborted();
     return pages;
     }
     catch(error) {
@@ -289,7 +325,26 @@ export async function capturePfizerRenderedTraversal(page: import("playwright-co
     finally {
         page.context().off('response',observeAccess);
         await detail?.close().catch(() => undefined);
+        await Promise.all(accessRecordings);
     }
+}
+
+async function recordBrowserAccessResponse(response: import("playwright-core").Response, headers: Headers): Promise<void> {
+    let challenge = false;
+    const length = Number(headers.get("content-length"));
+    if (headers.get("cf-mitigated") !== "challenge" && length > 0 && length <= 64 * 1024 &&
+        (headers.get("content-encoding") ?? "identity") === "identity" && /^text\/html(?:;|$)/iu.test(headers.get("content-type") ?? "")) {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            const timeout = new Promise<string>(resolve => { timer = setTimeout(() => resolve(""), 1_000); });
+            challenge = isWorkdayChallengeHtml(await Promise.race([response.text(), timeout]));
+        } catch {
+            // The observed status and response headers remain available.
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+    recordWorkdayAccessResponse(response.url(), response.status(), headers, challenge);
 }
 
 /** Wrap actual managed-browser DOM packets in the existing B page model; no main-crawl input is accepted. */

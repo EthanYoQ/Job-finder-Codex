@@ -20,11 +20,14 @@ import {
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
 import {
+  parseOfficialRetryAfter,
   retryableHttpTransportFailure,
   retryableTransportFailureFromError,
   safeSourceTransportFailureReason,
+  type OfficialRetryAfter,
   type SourceTransportFailure
 } from "./sourceFetchFailure";
+import { isWorkdayCooldownError, workdayRetryAfterHeader } from "./workdayRequestPolicy";
 
 export interface WorkdayFetchConfig {
   traversalScopePolicy?: typeof PFIZER_TRAVERSAL_POLICY;
@@ -102,6 +105,7 @@ export interface WorkdayHttpResponse {
   finalUrl?: string;
   contentType?: string;
   capturedAt?: string;
+  retryAfter?: OfficialRetryAfter;
 }
 
 export type WorkdayHttpClient = (request: WorkdayHttpRequest) => Promise<WorkdayHttpResponse>;
@@ -707,7 +711,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         });
         const preflight = await http(preflightRequest);
         if (preflight.status < 200 || preflight.status >= 300) {
-          const transportFailure = retryableHttpTransportFailure(preflight.status);
+          const transportFailure = retryableHttpTransportFailure(preflight.status, preflight.retryAfter);
           return failed(capturedAt, transportFailure
             ? safeSourceTransportFailureReason(transportFailure)
             : `Workday jobs API returned HTTP ${preflight.status}`, undefined, undefined, transportFailure);
@@ -748,7 +752,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         });
         const facetPreflight = await http(facetPreflightRequest);
         if (facetPreflight.status < 200 || facetPreflight.status >= 300) {
-          const transportFailure = retryableHttpTransportFailure(facetPreflight.status);
+          const transportFailure = retryableHttpTransportFailure(facetPreflight.status, facetPreflight.retryAfter);
           return failed(capturedAt, transportFailure
             ? safeSourceTransportFailureReason(transportFailure)
             : `Workday jobs API returned HTTP ${facetPreflight.status}`, undefined, undefined, transportFailure);
@@ -818,16 +822,16 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           latestEvidence = workdayInPageFailureEvidence({ artifacts, pages, artifactLogicalKey, pageIndex, offset, pageSize,
             rawJobIds: [], validJobIds: [], declaredTotal: undefined, response, rawCount, parsedCount, validCount,
             parseDiscardCount, validationDiscardCount, fetchLosses });
-          if (response.status !== 200 || response.finalUrl !== url || !/^application\/json(?:\s*;|$)/iu.test(response.contentType ?? "")) {
-            return failed(capturedAt, "Workday mainland list HTTP status, URL or content type is invalid", latestEvidence);
+          if (response.status === 200 && (response.finalUrl !== url || !/^application\/json(?:\s*;|$)/iu.test(response.contentType ?? ""))) {
+            return failed(capturedAt, "Workday mainland list URL or content type is invalid", latestEvidence);
           }
         }
 
-        if (response.status < 200 || response.status >= 300) {
-          const transportFailure = retryableHttpTransportFailure(response.status);
+        if (mainlandQuality ? response.status !== 200 : response.status < 200 || response.status >= 300) {
+          const transportFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
           return failed(capturedAt, transportFailure
             ? safeSourceTransportFailureReason(transportFailure)
-            : `Workday jobs API returned HTTP ${response.status}`, undefined, undefined, transportFailure);
+            : `Official JSON source returned HTTP ${response.status}`, latestEvidence, undefined, transportFailure);
         }
 
         assertEvidenceResponse(response);
@@ -1127,17 +1131,17 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       }
 
       // Close the original list before requesting native details.
-      let detailBlocked=false;
+      let detailAccessFailure: WorkdayHttpResponse | undefined;
       for(const {row,pageSequence,recordIndex,rawLocator,capturedAt:listedAt} of pendingMainland){
         let detailResponse:WorkdayHttpResponse|undefined;
         try{
           if(row.requiresDetail){
-            if(detailBlocked||!detailHttp)throw Error('WORKDAY_DETAIL_UNAVAILABLE');
+            if(detailAccessFailure||!detailHttp)throw Error('WORKDAY_DETAIL_UNAVAILABLE');
             currentOfficialSourceAttemptSignal()?.throwIfAborted();
             if(mainlandDetailCount>=WORKDAY_MAINLAND_MAX_DETAILS)throw Error('WORKDAY_DETAIL_BUDGET');mainlandDetailCount++;
             const detailUrl=workdayMainlandDetailUrl(plan,row);
             detailResponse=await requestWorkdayDetail({http:detailHttp,url:detailUrl,referer:plan.source.officialEntryUrl});
-            if(detailResponse.status===403||detailResponse.status===429)detailBlocked=true;
+            if(detailResponse.status===403||detailResponse.status===429)detailAccessFailure=detailResponse;
             const bytes=Buffer.byteLength(detailResponse.body,'utf8');
             if(bytes>WORKDAY_MAINLAND_DETAIL_BODY_LIMIT||mainlandRetainedBytes+bytes>WORKDAY_MAINLAND_SOURCE_BODY_LIMIT)throw Error('WORKDAY_DETAIL_BUDGET');
             mainlandRetainedBytes+=bytes;
@@ -1147,7 +1151,8 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           const projected=projectWorkdayMainlandRow(plan,row,detailResponse?.body);if(!projected)throw Error('WORKDAY_DETAIL_UNVERIFIED');
           const {locations:_locations,...job}=projected;if(emittedCredentialField(job))throw Error('WORKDAY_UNSAFE_ROW');
           jobs.push(job);
-        }catch{
+        }catch(error){
+          if (isWorkdayCooldownError(error)) throw error;
           validCount--;pages[pageSequence]!.validJobIds=pages[pageSequence]!.validJobIds.filter(id=>id!==irreversibleEvidenceId(sourceJobId(row.path)));
           validationDiscardCount++;fetchLosses.push({stage:'VALIDATION',reason:'Workday mainland row or required detail validation failed',rawLocator,
             details:{code:'MAINLAND_DETAIL_VALIDATION_FAILED',pageSequence,recordIndex},recordedAt:detailResponse?.capturedAt??listedAt});
@@ -1197,6 +1202,12 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           : {})
       });
       latestEvaluation = paginationEvaluation;
+      if (detailAccessFailure && validCount === 0) {
+        const transportFailure = retryableHttpTransportFailure(detailAccessFailure.status, detailAccessFailure.retryAfter);
+        return failed(capturedAt, transportFailure
+          ? safeSourceTransportFailureReason(transportFailure)
+          : `Official JSON source returned HTTP ${detailAccessFailure.status}`, evidence, paginationEvaluation, transportFailure);
+      }
       if (mainlandQuality && !projectWorkdayMainlandEvidence(plan, evidence)) {
         return failed(capturedAt, "Workday mainland raw rows, countries, alternatives, totals or details did not reconcile; complete source held", evidence, paginationEvaluation);
       }
@@ -1266,7 +1277,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       const transportFailure = retryableTransportFailureFromError(error);
       return failed(
         capturedAt,
-        transportFailure
+        isWorkdayCooldownError(error) ? error.message : transportFailure
           ? safeSourceTransportFailureReason(transportFailure)
           : error instanceof Error ? error.message : String(error),
         latestEvidence,
@@ -1675,16 +1686,7 @@ async function defaultWorkdayHttpClient(
     headers: request.headers,
     body: request.body
   });
-
-  return {
-    status: response.status,
-    body: await response.text(),
-    finalUrl: response.url,
-    ...(response.headers.get("content-type")
-      ? { contentType: response.headers.get("content-type")! }
-      : {}),
-    capturedAt: new Date().toISOString()
-  };
+  return readWorkdayHttpResponse(response);
 }
 
 async function defaultWorkdayDetailHttpClient(
@@ -1694,13 +1696,18 @@ async function defaultWorkdayDetailHttpClient(
     method: request.method,
     headers: request.headers
   });
+  return readWorkdayHttpResponse(response);
+}
+
+async function readWorkdayHttpResponse(response: Response): Promise<WorkdayHttpResponse> {
+  const retryAfter = parseOfficialRetryAfter(workdayRetryAfterHeader(response), Date.now());
+  const contentType = response.headers.get("content-type");
   return {
     status: response.status,
     body: await response.text(),
     finalUrl: response.url,
-    ...(response.headers.get("content-type")
-      ? { contentType: response.headers.get("content-type")! }
-      : {}),
+    ...(contentType ? { contentType } : {}),
+    ...(retryAfter ? { retryAfter } : {}),
     capturedAt: new Date().toISOString()
   };
 }

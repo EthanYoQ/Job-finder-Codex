@@ -19,7 +19,7 @@ const hooks = registerHooks({load(url, context, next) {
 const {loadDirectPlans, runDirectRound} = await import('../scripts/direct-round.ts');
 hooks.deregister();
 
-test('direct round gives Novartis 25 minutes, retains three 30-minute sources and preserves every lease signal', async () => {
+test('direct round gives Novartis 25 minutes, budgets paced Roche and interleaves Workday sources under the same lease', async () => {
   const routes = await loadDirectPlans(), calls = [];
   const candidate = {id: 'instabox-timeout-test', status: 'BUILDING'};
   const lease = {signal: new AbortController().signal};
@@ -41,8 +41,16 @@ test('direct round gives Novartis 25 minutes, retains three 30-minute sources an
       'source-johnson-innovative-medicine-social': 1_800_000,
       'source-pfizer-china-social': 1_800_000,
       'source-sanofi-china-social': 1_800_000,
-      'source-novartis-social': 1_500_000
+      'source-novartis-social': 1_500_000,
+      'source-roche-china-social': 900_000
     });
+    const workdayIds = new Set(['amgen', 'biogen', 'csl', 'lilly', 'organon', 'pfizer', 'roche']
+      .map(company => 'source-' + company + '-china-social'));
+    const workdayPositions = calls.flatMap(({sourceId}, index) => workdayIds.has(sourceId) ? [index] : []);
+    assert.equal(workdayPositions.length, 7);
+    assert.ok(workdayPositions.every((index, pos) => index > (workdayPositions[pos - 1] ?? -2) + 1));
+    assert.deepEqual(calls.filter(row => !workdayIds.has(row.sourceId)).map(row => row.sourceId),
+      routes.filter(row => !workdayIds.has(row.sourceId)).map(row => row.sourceId));
     assert(calls.every(({deps}) => deps.portableLease === lease && deps.portableLease.signal === lease.signal));
   } finally {
     await unlink(join(workspaceRoot, 'migration-state.json'));

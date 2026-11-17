@@ -64,7 +64,7 @@ test('bound Roche denials preserve each previous row while other details commit'
  }finally{await rm(workspaceRoot,{recursive:true,force:true});}
 });
 
-for(const [name,patch,isolated] of [
+for(const [name,patch,isolated,late] of [
  ['all details valid',undefined,false],
  ['bound S22 denial',{status:403,body:denial},true],
  ['generic 403',{status:403,body:'Forbidden',contentType:'text/html'},false],
@@ -72,7 +72,8 @@ for(const [name,patch,isolated] of [
  ['403 missing capture time',{status:403,body:denial,capturedAt:undefined},false],
  ['403 future capture time',{status:403,body:denial,capturedAt:'2026-10-02T12:01:00.000Z'},false],
  ['403 unbound URL',{status:403,body:denial,finalUrl:'https://login.example.invalid/error'},false],
- ['403 invalid MIME',{status:403,body:denial,contentType:'text/html'},false]
+ ['403 invalid MIME',{status:403,body:denial,contentType:'text/html'},false],
+ ['429 on just the last detail',{status:429,body:'Rate Limited',contentType:'text/html'},false,true]
 ])test(`Roche detail batches: ${name}`,async()=>{
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-roche-china-social');
  const rows=Array.from({length:12},(_,index)=>{
@@ -94,16 +95,22 @@ for(const [name,patch,isolated] of [
    body=artifact(row,{jobReqId:row.reqId,jobPostingId:new URL(row.applyUrl).pathname.split('/').at(-2),externalUrl:row.applyUrl.replace(/\/apply$/u,'')}).body;
   }
   return {status:200,body,finalUrl:request.url,capturedAt:started,contentType,
-   ...(request.url===rocheNativeDetailUrl(rows[0])?patch:{})};
+   ...(request.url===rocheNativeDetailUrl(late?rows.at(-1):rows[0])?patch:{})};
  }});
  const result=await runSourceCrawl(plan,{fetch});
- const stops=patch&&!isolated;
- assert.equal(visited.length,stops?6:12,'Detail requests must continue after a bound denial and stop after an access block');
- assert.deepEqual(visited,rows.slice(0,stops?6:12).map(rocheNativeDetailUrl),'Each requested detail is fetched once');
+ const blocked=patch&&!isolated&&!late;
+ assert.deepEqual(visited,rows.slice(0,blocked?1:12).map(rocheNativeDetailUrl),'Each detail is requested once; a bound denial does not stop other requests');
+ if(blocked){
+  assert.equal(result.truth.transportSuccess,false);
+  assert.equal(result.truth.completenessVerified,false);
+  assert.equal(result.failureReason,`Official JSON source returned HTTP ${patch.status}`);
+  assert.equal(result.transportFailure?.code,patch.status===429?'OFFICIAL_HTTP_429':undefined);
+  return;
+ }
  assert.equal(result.truth.completenessVerified,true);
- assert.deepEqual(result.jobs.map(job=>job.sourceJobId),rows.slice(patch?1:0,stops?6:12).map(row=>persistentOfficialJsonJobId(row.jobSeqNo)));
+ assert.deepEqual(result.jobs.map(job=>job.sourceJobId),rows.slice(isolated?1:0,late?-1:undefined).map(row=>persistentOfficialJsonJobId(row.jobSeqNo)));
  assert.deepEqual([...rocheQuarantinedSourceJobIds(result.fetchEvidence)],isolated?[persistentOfficialJsonJobId(rows[0].jobSeqNo)]:[]);
- assert.deepEqual((result.fetchEvidence.jobQuarantines??[]).map(row=>row.sourceJobId),stops?[rows[0],...rows.slice(6)].map(row=>persistentOfficialJsonJobId(row.jobSeqNo)):[]);
+ assert.deepEqual((result.fetchEvidence.jobQuarantines??[]).map(row=>row.sourceJobId),late?[persistentOfficialJsonJobId(rows.at(-1).jobSeqNo)]:[]);
 });
 
 test('bound Roche S22 denial with foreign primary location and mainland alternative is isolated without SCOPE_MISMATCH',async()=>{

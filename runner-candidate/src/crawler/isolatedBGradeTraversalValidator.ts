@@ -12,6 +12,9 @@ import {
   tagBGradeIndependentTraversalFailure
 } from "./independentTraversalDiagnostics";
 import { productionTsxProcessArgs } from "../ops/productionTsxProcess";
+import {
+  assertWorkdayAvailable, currentWorkdayPolicyRoot, isWorkdayCooldownError, reloadWorkdayCooldowns
+} from "./workdayRequestPolicy";
 
 type ValidatorInput = Parameters<typeof runBGradeIndependentTraversalValidator>[0];
 type ExecuteValidatorProcess = (
@@ -66,16 +69,22 @@ export function createIsolatedBGradeTraversalValidator(
 ): (input: ValidatorInput) => Promise<BGradeIndependentTraversalValidation> {
   return async (input) => {
     const { signal, ...serializableInput } = input;
+    const pfizer = input.sourceId === "source-pfizer-china-social";
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       let output: string;
       try {
+        if (pfizer) assertWorkdayAvailable(input.entryUrl);
         output = await execute(serializableInput, signal);
       } catch (error) {
         reportSourceFetchFailure(input.sourceId, {error});
         if (signal?.aborted) {
           throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
         }
-        throw tagBGradeIndependentTraversalFailure(error, "B_GRADE_VALIDATOR_EXECUTION_FAILED");
+        throw tagBGradeIndependentTraversalFailure(error,
+          isWorkdayCooldownError(error) ? "B_GRADE_WORKDAY_COOLDOWN" : "B_GRADE_VALIDATOR_EXECUTION_FAILED");
+      } finally {
+        // The isolated Pfizer worker can persist a newer cooldown under the same collector lease.
+        if (pfizer) reloadWorkdayCooldowns();
       }
       if (signal?.aborted) {
         throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
@@ -172,8 +181,10 @@ export function bGradeValidatorChildEnvironment(
   const environment = Object.fromEntries(Object.entries(parentEnvironment).filter(
     ([key]) => CHILD_ENVIRONMENT_ALLOWLIST.has(key.toUpperCase())
   ));
+  const workdayRoot = input.sourceId === "source-pfizer-china-social" ? currentWorkdayPolicyRoot() : undefined;
   return {
     ...environment,
+    ...(workdayRoot ? { JOBFINDER_WORKDAY_POLICY_ROOT: workdayRoot } : {}),
     JOB_FINDER_B_GRADE_VALIDATOR_INPUT: JSON.stringify(input)
   };
 }

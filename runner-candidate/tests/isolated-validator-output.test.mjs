@@ -1,8 +1,55 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {gzipSync} from 'node:zlib';
-import {createIsolatedBGradeTraversalValidator, executeBGradeValidatorCommand,
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {bGradeValidatorChildEnvironment,createIsolatedBGradeTraversalValidator,executeBGradeValidatorCommand,
   serializeBGradeValidatorSuccess,decodeBGradeValidatorOutput} from '../src/crawler/isolatedBGradeTraversalValidator.ts';
+import {assertWorkdayAvailable,withWorkdayRequestPolicy} from '../src/crawler/workdayRequestPolicy.ts';
+
+test('Pfizer reloads a child cooldown and skips launching the isolated browser again', async t => {
+  t.mock.method(console, 'error', () => {});
+  const root = await mkdtemp(join(tmpdir(),'pfizer-validator-cooldown-'));
+  const entryUrl = 'https://pfizer.wd1.myworkdayjobs.com/PfizerCareers';
+  const otherUrl = 'https://amgen.wd1.myworkdayjobs.com/Careers';
+  const input = {sourceId:'source-pfizer-china-social',companyId:'company-pfizer-china',entryUrl};
+  const moduleUrl = new URL('../src/crawler/workdayRequestPolicy.ts',import.meta.url).href;
+  try {
+    await withWorkdayRequestPolicy(root, async () => {
+      assertWorkdayAvailable(entryUrl);
+      let calls = 0;
+      const validate = createIsolatedBGradeTraversalValidator(async (payload, signal) => {
+        calls++;
+        const env = bGradeValidatorChildEnvironment(process.env,payload);
+        assert.equal(env.JOBFINDER_WORKDAY_POLICY_ROOT,root);
+        assert.equal(bGradeValidatorChildEnvironment(process.env,{
+          ...payload,sourceId:'source-sanofi-china-social'
+        }).JOBFINDER_WORKDAY_POLICY_ROOT,undefined);
+        return executeBGradeValidatorCommand(process.execPath,
+          ['--import','tsx','--input-type=module','-e',`
+            import {recordWorkdayAccessResponse,withWorkdayRequestPolicy} from ${JSON.stringify(moduleUrl)};
+            await withWorkdayRequestPolicy(process.env.JOBFINDER_WORKDAY_POLICY_ROOT,async()=>{
+              recordWorkdayAccessResponse(${JSON.stringify(entryUrl)},429,new Headers({'cf-mitigated':'challenge'}));
+            });
+            process.stdout.write(JSON.stringify({decision:'FAILED',failureCode:'B_GRADE_OFFICIAL_ACCESS_RESTRICTED',
+              message:'B-grade independent traversal failed: B_GRADE_OFFICIAL_ACCESS_RESTRICTED'}));
+          `], env, signal);
+      }, async () => assert.fail('Pfizer access restrictions must not be retried'));
+      await assert.rejects(validate(input),{bGradeIndependentTraversalFailureCode:'B_GRADE_OFFICIAL_ACCESS_RESTRICTED'});
+      assert.throws(()=>assertWorkdayAvailable(otherUrl),{code:'WORKDAY_COOLDOWN'});
+      await assert.rejects(validate(input),{bGradeIndependentTraversalFailureCode:'B_GRADE_WORKDAY_COOLDOWN'});
+      assert.equal(calls,1);
+
+      const output = await executeBGradeValidatorCommand(process.execPath,
+        ['--import','tsx','scripts/p0-b-grade-validator.ts'], bGradeValidatorChildEnvironment(process.env,input),
+        AbortSignal.timeout(10_000));
+      assert.equal(JSON.parse(output).failureCode,'B_GRADE_WORKDAY_COOLDOWN');
+    });
+  } finally {
+    await rm(root,{recursive:true,force:true});
+  }
+});
 
 test('actual child returns a complete 32 MiB synthetic evidence envelope', async () => {
   const output = await executeBGradeValidatorCommand(process.execPath,

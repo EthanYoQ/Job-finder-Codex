@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {loadDirectPlans} from '../scripts/direct-round.ts';
+import {mkdir, mkdtemp, rm} from 'node:fs/promises';
+import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {identityForSource, loadDirectPlans} from '../scripts/direct-round.ts';
+import {runP0CrawlBatch} from '../src/crawler/runCrawlBatch.ts';
+import {withPortableCrawlLease} from '../src/crawler/portableCrawlLease.ts';
+import {memoryDb} from './memory-db.mjs';
 import {fetchPfizerWorkdayTraversal,PFIZER_API,PFIZER_ENTRY,PFIZER_CHINA,replayPfizerWorkdayTraversal} from '../src/crawler/pfizerWorkdayTraversal.ts';
 import {sourcePlanConfigSha256} from '../src/crawler/sourcePlan.ts';
 import {irreversibleOfficialJsonEvidenceId} from '../src/crawler/officialJsonEvidence.ts';
@@ -13,6 +19,93 @@ import {pfizerDomListSlots} from '../src/crawler/pfizerRenderedTraversal.ts';
 import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
 const at='2026-11-06T04:00:00.000Z',path=id=>`/job/Shanghai/Role_${id}`,row=id=>({title:`List ${id}`,bulletFields:[id],externalPath:path(id)});
 const detail=id=>JSON.stringify({jobPostingInfo:{jobReqId:id,title:`Official role ${id}`,jobPostingSiteId:'PfizerCareers',externalUrl:PFIZER_ENTRY+path(id),posted:true,canApply:true,jobDescription:'<p>Research laboratory procedures.</p>',location:'China - Shanghai',country:{descriptor:'China',id:PFIZER_CHINA},jobRequisitionLocation:{country:{descriptor:'China',alpha2Code:'CN'}}}});
+test('Pfizer reports access restrictions at the list, terminal check or first detail', async () => {
+ const plan = (await loadDirectPlans()).find(p => p.sourceId === 'source-pfizer-china-social').plan;
+ const rows = ['1234567', '1234568', '1234569'].map(row);
+ const body = '<html>Security Check</html>';
+ for (const [restrictedCall, status] of [[1, 429], [2, 429], [3, 429], [3, 403]]) {
+  const calls = [];
+  const transport = async request => {
+   calls.push(request.method);
+   const meta = {finalUrl: request.url, capturedAt: at};
+   if (calls.length === restrictedCall) return {...meta, status, body, contentType: 'text/html', retryAfter: {value: '60', delayMs: 60000}};
+   return {...meta, status: 200, contentType: 'application/json', body: JSON.stringify({total: 3, jobPostings: JSON.parse(request.body).offset === 0 ? rows : []})};
+  };
+  const result = await fetchPfizerWorkdayTraversal(plan, {http: transport, detailHttp: transport, now: () => new Date(at)});
+  assert.equal(result.ok, false);
+  if (status === 429) assert.deepEqual(result.transportFailure, {code: 'OFFICIAL_HTTP_429', retryable: true, retryAfterMs: 60000});
+  else {
+   assert.equal(result.transportFailure, undefined);
+   assert.match(result.failureReason, /HTTP 403/);
+  }
+  assert.deepEqual(calls, ['POST', 'POST', 'GET'].slice(0, restrictedCall));
+  assert.equal(result.fetchEvidence.pages.length, 0);
+  const response = result.fetchEvidence.artifacts.at(-1);
+  assert.equal(response.httpStatus, status);
+  assert.equal(response.body, body);
+ }
+});
+
+test('Pfizer batch honors main transport failure even when a count drop would trigger independent traversal', async t => {
+ const {plan, sourceId, sourceConfigSha256} = (await loadDirectPlans()).find(row => row.sourceId === 'source-pfizer-china-social');
+ const candidate = {id: 'synthetic-pfizer-batch', commitSha: 'a'.repeat(40), rosterHash: 'b'.repeat(64),
+  sourcePlanHash: 'c'.repeat(64), sourceConfigHash: 'd'.repeat(64), adapterBundleHash: 'e'.repeat(64)};
+ const baseline = {
+  sourceId, sourceResultId: 'previous-pfizer-result', sourceConfigSha256,
+  certificateGrade: 'B', certificateSha256: 'f'.repeat(64), certifiedJobCount: 361, verifiedAt: at
+ };
+ const cache = fileURLToPath(new URL('../../.runtime/.cache/', import.meta.url));
+ await mkdir(cache, {recursive: true});
+ const workspaceRoot = await mkdtemp(join(cache, 'pfizer-failed-traversal-'));
+ try {
+  for (const httpStatus of [429, 200]) await t.test(`main HTTP ${httpStatus}`, async () => {
+   const memory = memoryDb();
+   const calls = [];
+   let fetchReturnedAt;
+   const result = await withPortableCrawlLease(memory.db, lease => runP0CrawlBatch([plan], {
+    db: memory.db, identity: identityForSource(candidate, sourceId), now: () => new Date(),
+    publicationPolicy: 'SOURCE_ATOMIC_LAST_GOOD_V1', portableLease: lease, workspaceRoot,
+    getPreviousJobs: async () => [], getRecentObservations: async () => [], isBaselineCompleted: async () => true,
+    getTrustedCompletenessBaseline: async () => baseline,
+    runIndependentTraversalValidator: async () => {
+     calls.push('independent');
+     throw Error('Synthetic independent traversal failure');
+    },
+    fetch: async () => {
+     calls.push('main');
+     if (httpStatus === 429) {
+      fetchReturnedAt = Date.now();
+      return {ok: false, capturedAt: at, failureReason: 'Synthetic HTTP 429',
+       transportFailure: {code: 'OFFICIAL_HTTP_429', retryable: true}};
+     }
+     const id = '1234567';
+     const http = async request => ({
+      status: 200, finalUrl: request.url, capturedAt: new Date().toISOString(), contentType: 'application/json',
+      body: request.method === 'POST' ? JSON.stringify({total: 1, jobPostings: [row(id)]}) : detail(id)
+     });
+     return fetchPfizerWorkdayTraversal(plan, {http, detailHttp: http});
+    }
+   }));
+   const [sourceResult] = memory.rows;
+   if (httpStatus === 429) {
+    assert.deepEqual(calls, ['main']);
+    assert.equal(result.status, 'INCOMPLETE');
+    assert.equal(sourceResult.failureDiagnosticCode, 'OFFICIAL_HTTP_429');
+    assert.equal(sourceResult.atomicCommitState, 'NOT_ATTEMPTED');
+    assert.ok(sourceResult.finishedAt.getTime() >= fetchReturnedAt, 'finish time follows the fetch');
+    assert.equal(memory.jobWrites(), 0);
+   } else {
+    assert.deepEqual(calls, ['main', 'independent']);
+    assert.equal(sourceResult.transportState, 'SUCCEEDED');
+    assert.equal(sourceResult.adapterState, 'SUCCEEDED');
+   }
+  });
+ } finally {
+  assert.equal(workspaceRoot.startsWith(cache), true);
+  await rm(workspaceRoot, {recursive: true, force: true});
+ }
+});
+
 test('Pfizer complete traversal isolates malformed jobs, short real descriptions and native failures',async()=>{
  const plan=(await loadDirectPlans()).find(p=>p.sourceId==='source-pfizer-china-social').plan;
  for(const mode of ['good','title','extra-bullet','two-unbound','detail-transport','detail-503','detail-429','wrong-id','main-excluded-independent-detail','independent-detail','independent-unbound','independent-combined-unbound','foreign','duplicate','missing-page']){

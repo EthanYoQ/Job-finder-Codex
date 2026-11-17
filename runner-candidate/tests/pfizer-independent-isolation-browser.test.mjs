@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {chromium} from 'playwright-core';
 import {capturePfizerRenderedTraversal,replayPfizerRenderedRow,pfizerDomPacketsToPages} from '../src/crawler/pfizerRenderedTraversal.ts';
 import {replayOfficialJsonRenderedTraversal} from '../src/crawler/officialJsonRenderedTraversalValidator.ts';
+import {assertWorkdayAvailable,withWorkdayRequestPolicy} from '../src/crawler/workdayRequestPolicy.ts';
 const origin='https://pfizer.wd1.myworkdayjobs.com',entry=origin+'/en-US/PfizerCareers',country='6cb77610a8a543aea2d6bc10457e35d4';
 const id=n=>String(1234500+n),url=n=>entry+`/job/China/Role_${id(n)}?Location_Country=${country}`;
 const cards=(from,to)=>Array.from({length:to-from+1},(_,i)=>from+i).map(n=>`<li><a data-automation-id="jobTitle" href="${url(n)}">Listing ${n}</a></li>`).join('');
@@ -35,4 +36,38 @@ for(const mode of ['503','wrong-id','429','iframe-429','list-429','unbound','mal
   }
   assert.equal(tabs.filter(tab=>tab!==page&&!tab.isClosed()).length,0,'All detail pages, including the failed operation, must finish');
  }finally{await browser.close();await rm(directory,{recursive:true,force:true});}
+});
+
+test('Pfizer stops waiting for the next rendered page and persists a real challenge', {timeout:10_000}, async()=>{
+ const directory=await mkdtemp(join(tmpdir(),'pfizer-cooldown-'));
+ const browser=await chromium.launch({executablePath:process.platform==='win32'?'C:/Program Files/Google/Chrome/Application/chrome.exe':'/usr/bin/chromium',headless:true,chromiumSandbox:true});
+ let timer;
+ try {
+  const context=await browser.newContext({serviceWorkers:'block'}),page=await context.newPage();
+  const endpoint=origin+'/wday/cxs/pfizer/PfizerCareers/jobs';
+  let nextRequests=0;
+  await context.route('**/*',route=>{
+   const request=route.request();
+   if(request.url()===endpoint){
+    nextRequests++;
+    const body='<html>Enable JavaScript and cookies to continue</html>';
+    return route.fulfill({status:429,headers:{'content-type':'text/html','retry-after':'120'},body});
+   }
+   if(request.url()!==entry+'?Location_Country='+country)return route.abort();
+   const listWithoutAdvance=list.split('<button onclick=')[0];
+   return route.fulfill({contentType:'text/html',body:listWithoutAdvance+`<button onclick="fetch('${endpoint}')">next</button>`});
+  });
+  const capture=withWorkdayRequestPolicy(directory,()=>capturePfizerRenderedTraversal(page,undefined,{failureDirectory:directory}));
+  const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Waited for a next-page selector after the source blocked access')),4_000);});
+  await assert.rejects(Promise.race([capture,timeout]),error=>
+   error.bGradeIndependentTraversalFailureCode==='B_GRADE_OFFICIAL_ACCESS_RESTRICTED'&&error.sourceFetchStage==='PFIZER_PAGE_ADVANCE');
+  assert.equal(nextRequests,1);
+  await withWorkdayRequestPolicy(directory,async()=>{
+   assert.throws(()=>assertWorkdayAvailable('https://amgen.wd1.myworkdayjobs.com/Careers'),error=>error.status===429&&error.retryAfterMs>120_000);
+  });
+ } finally {
+  clearTimeout(timer);
+  await browser.close();
+  await rm(directory,{recursive:true,force:true});
+ }
 });

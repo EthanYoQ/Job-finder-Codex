@@ -12,8 +12,35 @@ import type { PrismaClient } from "@prisma/client";
 import { describePortableRuntimeError } from "../src/crawler/portableRuntimeDiagnostics";
 import { recoverDirectBatches } from "./recover-direct";
 import { withLocalOfficialDom } from "../src/crawler/localOfficialSourceFetch";
+import { withWorkdayRequestPolicy } from "../src/crawler/workdayRequestPolicy";
 
 type Route = { sourceId: string; companyId: string; route: "PORTABLE" | "TRUE_A" | "TRUE_B"; sourceConfigSha256: string };
+const workdaySources = new Set([
+  "source-amgen-china-social", "source-biogen-china-social", "source-csl-china-social",
+  "source-lilly-china-social", "source-organon-china-social", "source-pfizer-china-social",
+  "source-roche-china-social"
+]);
+
+function interleaveWorkday<T extends { sourceId: string }>(routes: readonly T[]): T[] {
+  const workday = routes.filter(row => workdaySources.has(row.sourceId));
+  const others = routes.filter(row => !workdaySources.has(row.sourceId));
+  const ordered: T[] = [];
+  let start = 0;
+  for (const [index, row] of workday.entries()) {
+    const end = Math.ceil((index + 1) * others.length / (workday.length + 1));
+    ordered.push(...others.slice(start, end), row);
+    start = end;
+  }
+  ordered.push(...others.slice(start));
+  return ordered;
+}
+
+export function pacedWorkdaySourceTimeout(sourceId: string): number | undefined {
+  if (sourceId === "source-roche-china-social") return 15 * 60_000;
+  if (sourceId === "source-pfizer-china-social") return 30 * 60_000;
+  return undefined;
+}
+
 export async function loadDirectPlans() {
   const { rows } = JSON.parse(await readFile(new URL("../sources.json", import.meta.url), "utf8")) as { rows: Route[] };
   const plans = buildStagedSourceCrawlPlans(candidateCompanies);
@@ -68,7 +95,7 @@ export async function runDirectRound(input: { db: PrismaClient; leaseDb: Portabl
   const selectedRoutes = selectDirectRoutes(routes,input.onlySourceIds);
   assertLegacyAuditState(JSON.parse(await readFile(resolve(input.workspaceRoot, "migration-state.json"), "utf8")), input.candidateId);
   if (input.db === input.leaseDb) throw Error("SEPARATE_LEASE_CONNECTION_REQUIRED");
-  return withPortableCrawlLease(input.leaseDb, async lease => {
+  return withPortableCrawlLease(input.leaseDb, lease => withWorkdayRequestPolicy(resolve(input.workspaceRoot), async () => {
     await recoverDirectBatches(input.db, lease, input.candidateId, sourceIds);
     await assertNoUnresolvedWrites(input.db, input.candidateId, sourceIds);
     const candidate = await input.db.releaseCandidate.findUniqueOrThrow({ where: { id: input.candidateId } });
@@ -77,14 +104,16 @@ export async function runDirectRound(input: { db: PrismaClient; leaseDb: Portabl
     if (routes.some(row => !sources.some(source => source.id === row.sourceId && source.companyId === row.companyId))) throw Error("RESTORED_SOURCE_CATALOG_REQUIRED");
     const portableFetch = createOwnedSourceQualityFetch(), certifiedFetch = withLocalOfficialDom(createHttpOnlyOfficialSourceFetch());
     const results = [];
-    for (const row of selectedRoutes) {
+    for (const row of interleaveWorkday(selectedRoutes)) {
       const portable = row.route === "PORTABLE";
       const runtime = createPrismaCrawlRuntimeDeps(input.db as never, portable ? { portablePlans: [row.plan] } : {});
+      const workdayTimeout = pacedWorkdaySourceTimeout(row.sourceId);
       try {
         const result = await runP0CrawlBatch([row.plan], {
           db: input.db as never, ...runtime, identity: identityForSource(candidate, row.sourceId), now: () => new Date(),
           publicationPolicy: "SOURCE_ATOMIC_LAST_GOOD_V1", portableLease: lease,
-          ...(["source-pfizer-china-social", "source-johnson-innovative-medicine-social", "source-sanofi-china-social"].includes(row.sourceId) ? { sourceAttemptTimeoutMs: 30 * 60 * 1_000 } : {}),
+          ...(["source-johnson-innovative-medicine-social", "source-sanofi-china-social"].includes(row.sourceId) ? { sourceAttemptTimeoutMs: 30 * 60 * 1_000 } : {}),
+          ...(workdayTimeout === undefined ? {} : { sourceAttemptTimeoutMs: workdayTimeout }),
           ...(row.sourceId === "source-novartis-social" ? { sourceAttemptTimeoutMs: 25 * 60 * 1_000 } : {}),
           ...(portable ? { sourceAdmissionPolicy: SOURCE_QUALITY_POLICY_ID } : {}),
           workspaceRoot: resolve(input.workspaceRoot), evidenceSubdirectory: "runtime-evidence",
@@ -102,7 +131,7 @@ export async function runDirectRound(input: { db: PrismaClient; leaseDb: Portabl
       }
     }
     return results;
-  });
+  }));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

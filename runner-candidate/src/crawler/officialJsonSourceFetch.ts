@@ -43,6 +43,7 @@ import {
   type SourceTransportFailure,
   type OfficialRetryAfter
 } from "./sourceFetchFailure";
+import { isWorkdayCooldownError, workdayRetryAfterHeader } from "./workdayRequestPolicy";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
 import { load as loadHtml } from "cheerio";
 import { parse as parseJavaScript } from "@babel/parser";
@@ -4497,15 +4498,13 @@ async function fetchPhenomWidgets({
     const listed=pages.flatMap(page=>JSON.parse(artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!.body as string).refineSearch.data.jobs);
     if(preserveOrganonQuality&&!organonKeywordCountryEquivalent(entry.body,listed))return phenomFailure(capturedAt,'ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD',artifacts,pages,counts,losses,declaredCompleteness);
     if(preserveRocheQuality)for(const artifact of artifacts)artifact.bodyRepresentation='EXACT';
-    let blocked=false;
-    const concurrency=preserveOrganonQuality?1:6;
-    for(let offset=0;offset<rows.length;offset+=concurrency){
-      await Promise.all(rows.slice(offset,offset+concurrency).map(async({raw,pageIndex,recordIndex})=>{
-        const sourceJobId=persistentOfficialJsonJobId(raw.jobSeqNo as string);
-        const family=preserveOrganonQuality?'organon':preserveLillyQuality?'lilly':'roche';
+    let blocked = false;
+    const family = preserveOrganonQuality ? "organon" : preserveLillyQuality ? "lilly" : "roche";
+    for (const [index, { raw, pageIndex, recordIndex }] of rows.entries()) {
+      const sourceJobId = persistentOfficialJsonJobId(raw.jobSeqNo as string);
+      if (!blocked) {
         let response:OfficialJsonHttpResponse|undefined;
         try{
-          if(blocked)throw Error('PHENOM_NATIVE_ACCESS_BLOCKED');
           const requestedUrl=preserveRocheQuality?rocheNativeDetailUrl(raw):raw.applyUrl as string;
           if(!requestedUrl)throw Error('PHENOM_NATIVE_IDENTITY_INVALID');
           response=await http({url:requestedUrl,method:'GET',headers:{Accept:preserveRocheQuality?'application/json':'text/html','User-Agent':'job-search-crawler/0.1'}});
@@ -4515,7 +4514,8 @@ async function fetchPhenomWidgets({
           if(preserveRocheQuality&&rocheDeniedDetail(raw,detail,capturedAt)){
             losses.push(rocheDeniedLoss(raw,pageIndex,recordIndex,detail.capturedAt));
             counts.validCount--;counts.validationDiscardCount++;jobs.splice(jobs.findIndex(job=>job.sourceJobId===sourceJobId),1);
-            pages[pageIndex]!.validJobIds=pages[pageIndex]!.validJobIds.filter(id=>id!==irreversibleOfficialJsonEvidenceId(sourceJobId));return;
+            pages[pageIndex]!.validJobIds=pages[pageIndex]!.validJobIds.filter(id=>id!==irreversibleOfficialJsonEvidenceId(sourceJobId));
+            continue;
           }
           if(response.status!==200)throw Error('PHENOM_NATIVE_RESPONSE_FAILED');
           if(preserveRocheQuality)assertOfficialJsonMime(response);else assertOfficialHtmlMime(response);
@@ -4529,12 +4529,25 @@ async function fetchPhenomWidgets({
             const update=preserveLillyQuality?{cities:native.cities,locationRaw:native.locationRaw}:native;
             Object.assign(jobs.find(job=>job.sourceJobId===sourceJobId)!,update);
           }
-        }catch{
-          if(response?.status===403||response?.status===429)blocked=true;
-          nativeQuarantines.push(phenomJobQuarantine(raw,pageIndex,recordIndex,pages[pageIndex]!.artifactLogicalKey,'PHENOM_NATIVE_JOB_UNVERIFIED'));
-          const index=jobs.findIndex(job=>job.sourceJobId===sourceJobId);if(index>=0)jobs.splice(index,1);
+          continue;
+        } catch (error) {
+          const deferred = isWorkdayCooldownError(error);
+          const status = deferred ? error.status : response?.status;
+          if (status === 403 || status === 429) {
+            blocked = true;
+            const blockedCount = rows.length - index;
+            if (blockedCount >= 3 || blockedCount * 10 > rows.length) {
+              const failure = deferred ? retryableTransportFailureFromError(error)
+                : retryableHttpTransportFailure(status, response?.retryAfter);
+              return phenomFailure(capturedAt, deferred ? error.message : `Official JSON source returned HTTP ${status}`,
+                artifacts, pages, counts, losses, declaredCompleteness, failure);
+            }
+          }
         }
-      }));
+      }
+      nativeQuarantines.push(phenomJobQuarantine(raw, pageIndex, recordIndex, pages[pageIndex]!.artifactLogicalKey, "PHENOM_NATIVE_JOB_UNVERIFIED"));
+      const jobIndex = jobs.findIndex(job => job.sourceJobId === sourceJobId);
+      if (jobIndex >= 0) jobs.splice(jobIndex, 1);
     }
   }
   losses.sort((a,b)=>(a.details.pageSequence??0)-(b.details.pageSequence??0)||(a.details.recordIndex??0)-(b.details.recordIndex??0));
@@ -8570,7 +8583,7 @@ function createDefaultHttpClient(now: () => Date): OfficialJsonHttpClient {
       consumeResponse: async (response) => ({ response, body: await response.text() }) });
     const responseHeaders = response.headers as Headers & { getSetCookie?: () => string[] };
     const capturedAt = now().toISOString();
-    const retryAfter = parseOfficialRetryAfter(response.headers.get("retry-after"), Date.parse(capturedAt));
+    const retryAfter = parseOfficialRetryAfter(workdayRetryAfterHeader(response), Date.parse(capturedAt));
     return {
       status: response.status,
       body,

@@ -1,3 +1,5 @@
+import { isWorkdayCooldownError } from "./workdayRequestPolicy";
+
 export const B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES = Object.freeze([
   "B_GRADE_SOURCE_BINDING_FAILED",
   "B_GRADE_COMPANY_BINDING_FAILED",
@@ -14,6 +16,8 @@ export const B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES = Object.freeze([
   "B_GRADE_POLICY_BINDING_FAILED",
   "B_GRADE_BROWSER_NAVIGATION_FAILED",
   "B_GRADE_BROWSER_READINESS_FAILED",
+  "B_GRADE_OFFICIAL_ACCESS_RESTRICTED",
+  "B_GRADE_WORKDAY_COOLDOWN",
   "B_GRADE_REQUEST_PROTOCOL_FAILED",
   "B_GRADE_PAGINATION_FAILED",
   "B_GRADE_RECONCILIATION_FAILED",
@@ -87,6 +91,7 @@ export function tagBGradeIndependentTraversalFailure(
 export function classifyBGradeIndependentTraversalFailure(
   error: unknown
 ): BGradeIndependentTraversalFailureCode {
+  if (isWorkdayCooldownError(error)) return "B_GRADE_WORKDAY_COOLDOWN";
   const tagged = readTaggedFailureCode(error);
   if (tagged) return tagged;
   const message = error instanceof Error ? error.message : "";
