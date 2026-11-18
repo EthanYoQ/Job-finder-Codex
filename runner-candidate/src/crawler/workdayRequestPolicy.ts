@@ -144,7 +144,8 @@ export function recordWorkdayAccessResponse(url: string, status: number, headers
   // still enforced by assertAvailable until their recorded deadline expires.
   const previous = cooldowns.hosts[host];
   const until = Math.max(now + delayMs, previous?.until ?? 0);
-  transportObservers.getStore()?.({ kind: "HTTP_RESPONSE", observedAt: now, status, retryAt: until });
+  const retryAt = Math.max(until, cooldowns.family?.until ?? 0);
+  transportObservers.getStore()?.({ kind: "HTTP_RESPONSE", observedAt: now, status, retryAt });
   if (previous?.until !== until) {
     const cooldown: Cooldown = { status, until };
     cooldowns.hosts[host] = cooldown;
@@ -156,7 +157,7 @@ export function recordWorkdayAccessResponse(url: string, status: number, headers
       rmSync(temporary, { force: true });
     }
   }
-  return until - now;
+  return retryAt - now;
 }
 
 export function workdayRetryAfterHeader(response: Response): string | null {

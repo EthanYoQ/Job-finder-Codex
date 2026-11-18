@@ -201,10 +201,17 @@ test("active legacy family deadlines survive restarts and new host observations 
     await assert.rejects(fetchWithOfficialTimeout(csl, {}, { fetchImpl }), { code: "WORKDAY_COOLDOWN" });
     // A response already in flight can still arrive while the legacy hold is active.
     recordWorkdayAccessResponse(amgen, 403, new Headers({ "cf-mitigated": "challenge", "retry-after": "7200" }));
+    const observation = [];
+    await withSourceTransportObservation("csl-response", value => observation.push(value), async () => {
+      const delay = recordWorkdayAccessResponse(csl, 429, new Headers({ "retry-after": "120" }));
+      assert.equal(delay, family.until - now);
+    });
+    assert.equal(observation.at(-1).retryAt, family.until);
   });
   const written = JSON.parse(await readFile(file, "utf8"));
   assert.deepEqual(written.family, family, "The old shared deadline is neither reset nor extended");
   assert.equal(written.hosts[new URL(amgen).hostname].until, now + 7_200_000);
+  assert.equal(written.hosts[new URL(csl).hostname].until, now + 120_000);
   now = family.until - 1;
   await withWorkdayRequestPolicy(directory, async () => {
     await assert.rejects(fetchWithOfficialTimeout(csl, {}, { fetchImpl }), error =>
