@@ -3,6 +3,7 @@ Description=Job Finder daily at 00:01 Beijing time
 
 [Timer]
 OnCalendar=*-*-* 16:01:00 UTC
+OnCalendar=*-*-* *:00/5:00 UTC
 Persistent=true
 Unit=jobfinder-refresh.service
 

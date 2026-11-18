@@ -146,7 +146,8 @@ export function transportFailureDiagnosticBundle(
   return isRetryableSourceTransportFailure(failure)
     ? sourceFailureDiagnosticBundle(
         "TEMPORARY_OFFICIAL_SOURCE_FAILURE",
-        isSourceFailureDiagnosticCode(failure.code) ? failure.code : "OFFICIAL_HTTP_5XX",
+        failure.code === "OFFICIAL_REQUEST_DEFERRED" ? "FETCH_FAILED_CLOSED" :
+          isSourceFailureDiagnosticCode(failure.code) ? failure.code : "OFFICIAL_HTTP_5XX",
         tracker
       )
     : sourceFailureDiagnosticBundle(

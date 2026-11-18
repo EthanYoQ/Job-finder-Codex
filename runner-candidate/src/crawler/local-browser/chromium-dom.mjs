@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {parseRedseaQueryPostList} from '../officialJsonSourceFetch.ts';
 import {redseaNativeJobId} from '../redseaCandidateScope.ts';
 import {cspcNativeRowQuality} from './cspc-dom-http-review.ts';
+import {assertSourceTransportAvailable,bindOfficialHttpResponseObserver} from '../sourceTransportObservation.ts';
 
 const browserName = name => { if (name !== undefined && name !== 'cdp') throw Error('LOCAL_CHROMIUM_BROWSER_REQUIRED'); };
 function options(value) {
@@ -43,9 +44,14 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
   try { context = await browser.newContext(); }
   catch (error) { await browser.close(); throw error; }
   // Context observation includes a popup's first response, before its page event.
+  const observeHttpResponse = bindOfficialHttpResponseObserver();
   let cspcAccessBlock;
   context.on('response',response=>{
     const url=new URL(response.url()),request=response.request();
+    const mainDocument = request.isNavigationRequest() && response.frame() === response.frame().page().mainFrame();
+    const cspcApi = url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname.startsWith('/RedseaPlatform/')&&
+      ['fetch','xhr'].includes(request.resourceType?.());
+    if(mainDocument||cspcApi)observeHttpResponse(response.status(),response.headers()['retry-after']??null);
     if(url.origin==='https://ehr.e-cspc.com:8081'&&url.pathname.startsWith('/RedseaPlatform/')&&[403,429].includes(response.status())&&
       (request.isNavigationRequest()||['fetch','xhr'].includes(request.resourceType?.())))
       cspcAccessBlock={httpStatus:response.status(),retryAfter:response.headers()['retry-after']??null};
@@ -93,6 +99,7 @@ export async function createChromiumDom({chromium, executablePath = '/usr/bin/ch
         await popup.waitForLoadState('domcontentloaded',{timeout:remaining});return tabFor(popup);
       }, navigationInfo: async () => cspcAccessBlock?{...navigationInfo,...(cspcListResponse?{cspcListResponse}:{}),cspcAccessBlock}:cspcListResponse?{...navigationInfo,cspcListResponse}:navigationInfo,
       goto: async (url, config) => {
+        assertSourceTransportAvailable();
         navigationInfo=undefined;cspcListResponse=undefined;
         const response=await page.goto(url, {waitUntil:'domcontentloaded',...options(config)});
         navigationInfo=response?{httpStatus:response.status(),retryAfter:await response.headerValue('retry-after')}:undefined;

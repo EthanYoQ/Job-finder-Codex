@@ -1,15 +1,17 @@
 [Unit]
 Description=Collect Job Finder and install its public snapshot
 StartLimitIntervalSec=0
+RefuseManualStart=yes
 
 [Service]
 Type=oneshot
 User=root
 WorkingDirectory=/opt/jobfinder-new/app
 EnvironmentFile=/opt/jobfinder-new/private/refresh.env
+Environment=JOBFINDER_REFRESH_ORIGIN=timer
 ExecStart=/usr/bin/flock -n /opt/jobfinder-new/refresh.lock /opt/jobfinder-new/app/bin/node --import tsx pipeline/refresh.ts
 TimeoutStartSec=8h
 Restart=on-failure
 RestartPreventExitStatus=76
-RestartSec=40min
+RestartSec=5min
 

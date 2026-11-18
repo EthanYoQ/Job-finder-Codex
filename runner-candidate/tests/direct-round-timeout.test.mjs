@@ -29,9 +29,8 @@ test('the registered scheduler runs without the migration file and keeps source 
     recruitmentSource: {findMany: async () => routes.map(({sourceId: id, companyId}) => ({id, companyId}))},
     crawlBatchSourceResult: {findFirst: async () => null, findMany: async ({where}) => {
       assert.equal(where.releaseCandidateId, candidate.id);
-      assert.equal(where.atomicCommitState, 'COMMITTED');
-      assert.equal(where.completenessState, 'VERIFIED');
       assert.deepEqual(where.batch.is, {kind: 'SCHEDULED', ownerId: 'direct-scheduler'});
+      assert.equal(where.startedAt.gte.toISOString(), '2026-11-17T16:01:00.000Z');
       assert.equal(where.finishedAt.gte.toISOString(), '2026-11-17T16:01:00.000Z');
       assert.equal(where.finishedAt.lt.toISOString(), '2026-11-18T16:01:00.000Z');
       return accepted.filter(row => where.OR.some(bound =>
@@ -60,6 +59,7 @@ test('the registered scheduler runs without the migration file and keeps source 
       'source-pfizer-china-social': 1_800_000,
       'source-sanofi-china-social': 1_800_000,
       'source-novartis-social': 1_500_000,
+      'source-novo-nordisk-china-social': 1_200_000,
       'source-roche-china-social': 900_000
     });
     const workdayIds = new Set(['amgen', 'biogen', 'csl', 'lilly', 'organon', 'pfizer', 'roche']
@@ -74,8 +74,9 @@ test('the registered scheduler runs without the migration file and keeps source 
     assert(calls.every(({deps}) => deps.force === true));
 
     const [current, obsolete] = routes;
-    accepted.push({sourceId: current.sourceId, sourceConfigHash: current.sourceConfigSha256, batchId: 'accepted-batch'},
-      {sourceId: obsolete.sourceId, sourceConfigHash: 'old-config', batchId: 'old-batch'});
+    const completed={atomicCommitState:'COMMITTED',completenessState:'VERIFIED',lossLedgerEntries:[],_count:{lossLedgerEntries:0,evidenceArtifacts:0}};
+    accepted.push({...completed,sourceId: current.sourceId, sourceConfigHash: current.sourceConfigSha256, batchId: 'accepted-batch'},
+      {...completed,sourceId: obsolete.sourceId, sourceConfigHash: 'old-config', batchId: 'old-batch'});
     calls.length = 0;
     const retry = await runDirectRound({db, leaseDb: {lease}, candidateId: candidate.id, workspaceRoot, slot,
       onlySourceIds: [current.sourceId, obsolete.sourceId]});
@@ -83,6 +84,36 @@ test('the registered scheduler runs without the migration file and keeps source 
     assert.deepEqual(retry.find(row => row.sourceId === current.sourceId), {
       sourceId: current.sourceId, route: current.route, batchId: 'accepted-batch', status: 'SKIPPED_ALREADY_COMMITTED_IN_WINDOW'
     });
+    for(const gap of [
+      {sourceId:'source-roche-china-social',quarantined:308,unresolved:0,lossLedgerEntries:[]},
+      {sourceId:'source-roche-china-social',quarantined:0,unresolved:0,lossLedgerEntries:[{id:'s22-denied'}]},
+      {sourceId:'source-novartis-social',quarantined:0,unresolved:1,lossLedgerEntries:[]}
+    ]){
+      const route=routes.find(row=>row.sourceId===gap.sourceId);
+      accepted.length=0;calls.length=0;
+      accepted.push({...completed,sourceId:route.sourceId,sourceConfigHash:route.sourceConfigSha256,batchId:'old-healthy'},
+        {...completed,sourceId:route.sourceId,sourceConfigHash:route.sourceConfigSha256,batchId:'latest-gap',
+          lossLedgerEntries:gap.lossLedgerEntries,_count:{lossLedgerEntries:gap.quarantined,evidenceArtifacts:gap.unresolved}});
+      const pending=await runDirectRound({db,leaseDb:{lease},candidateId:candidate.id,workspaceRoot,slot,onlySourceIds:[route.sourceId]});
+      assert.deepEqual(calls.map(row=>row.sourceId),[route.sourceId]);
+      assert.equal(pending[0].status,'SUCCESS');
+      accepted.push({...completed,sourceId:route.sourceId,sourceConfigHash:route.sourceConfigSha256,batchId:'recovered'});
+      calls.length=0;
+      const recovered=await runDirectRound({db,leaseDb:{lease},candidateId:candidate.id,workspaceRoot,slot,onlySourceIds:[route.sourceId]});
+      assert.equal(calls.length,0);
+      assert.equal(recovered[0].batchId,'recovered');
+      assert.equal(recovered[0].status,'SKIPPED_ALREADY_COMMITTED_IN_WINDOW');
+    }
+    accepted.length=0;calls.length=0;
+    const dueOrder=['source-roche-china-social','source-pfizer-china-social','source-amgen-china-social'];
+    const observations=[],onSourceTransportObservation=observation=>observations.push(observation);
+    await runDirectRound({db,leaseDb:{lease},candidateId:candidate.id,workspaceRoot,slot,
+      onlySourceIds:dueOrder,preserveSelectedSourceOrder:true,onSourceTransportObservation});
+    assert.deepEqual(calls.map(row=>row.sourceId),dueOrder);
+    assert.ok(calls.every(({deps})=>deps.onSourceTransportObservation===onSourceTransportObservation));
+    const observation={sourceId:dueOrder[0],observedAt:Date.now(),observedActualHttp:true,actualHttpStatuses:[429],locallyDeferred:false};
+    calls[0].deps.onSourceTransportObservation(observation);
+    assert.deepEqual(observations,[observation]);
   } finally {
     await rmdir(workspaceRoot);
   }

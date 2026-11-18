@@ -16,10 +16,12 @@ import {installSavedSnapshot} from '../web-candidate/src/server/savedPublicSnaps
 
 const midnight = Date.parse('2026-11-14T00:01:00+08:00');
 const next = Date.parse('2026-11-15T00:01:00+08:00');
+const catalog=JSON.parse(readFileSync(new URL('../runner-candidate/sources.json',import.meta.url),'utf8')).rows;
+const fullCoverage=catalog.map(row=>({sourceId:row.sourceId,batchId:'test-'+row.sourceId}));
 
 test('the timer and retry slots both use Beijing 00:01', () => {
   const timer = readFileSync(new URL('./jobfinder-refresh.timer', import.meta.url), 'utf8');
-  assert.deepEqual(timer.match(/^OnCalendar=.*$/gm), ['OnCalendar=*-*-* 16:01:00 UTC']);
+  assert.deepEqual(timer.match(/^OnCalendar=.*$/gm), ['OnCalendar=*-*-* 16:01:00 UTC','OnCalendar=*-*-* *:00/5:00 UTC']);
   assert.equal(slotAt(midnight-1), Date.parse('2026-11-13T00:01:00+08:00'));
   assert.equal(slotAt(midnight), midnight);
   assert.equal(slotAt(Date.parse('2026-11-14T12:01:00+08:00')), midnight);
@@ -35,7 +37,7 @@ test('a delayed retry retains the same timer provenance until the next daily slo
   assert.equal(timerBelongsToSlot(NaN, midnight, midnight), false);
 });
 
-async function refreshFixture(t,{complete=false}={}) {
+async function refreshFixture(t,{complete=false,retryAt=midnight+120*60_000}={}) {
   const cache=fileURLToPath(new URL('../.runtime/.cache/',import.meta.url));
   await mkdir(cache,{recursive:true});
   const directory=await mkdtemp(join(cache,'daily-refresh-'));
@@ -50,8 +52,11 @@ async function refreshFixture(t,{complete=false}={}) {
       publishingSourceCount:0,unsupportedSourceCount:0,heldSourceCount:0}};
   const bytes=JSON.stringify(snapshot),sha256=createHash('sha256').update(bytes).digest('hex');
   const receipt={slot:String(midnight),complete,snapshotFile:`/data/job-finder/snapshots/public-${sha256}.json`,sha256,
-    generatedAt:snapshot.generatedAt,lastUpdatedAt:null,totalJobs:0,capturedSources:[],unresolvedCoverage:!complete};
-  const calls=[],reports=[],snapshotPulls=[];
+    generatedAt:snapshot.generatedAt,lastUpdatedAt:null,totalJobs:0,
+    capturedSources:complete?fullCoverage:fullCoverage.slice(1),unresolvedCoverage:!complete,
+    retrySources:complete?[]:[{sourceId:fullCoverage[0].sourceId,retryAt}],
+    nextRetryAt:complete?undefined:retryAt};
+  const calls=[],reports=[],snapshotPulls=[],jobs=new Map(),receipts=new Map();
   t.mock.method(console,'log',value=>reports.push(JSON.parse(value)));
   t.mock.method(console,'error',value=>reports.push(JSON.parse(value)));
   const readState=async()=>JSON.parse(await readFile(stateFile,'utf8'));
@@ -67,15 +72,32 @@ async function refreshFixture(t,{complete=false}={}) {
     },
     execute:async(_cli,args)=>{
       calls.push(args[0]);
-      assert.equal((await readState()).dailyAttempt.status,'RESERVED');
-      assert.ok((await readState()).dailyAttempt.count<=3);
+      const state=await readState();
+      assert.match(state.active.roundId,/^[a-f0-9]{32}$/);
       if(args[0]==='pull'){
-        const latest=args[2].endsWith('/latest.json');
-        if(!latest){assert.equal(args[2],receipt.snapshotFile);snapshotPulls.push(args[2]);}
-        await writeFile(args[3],latest?JSON.stringify(receipt):bytes);
+        const round=args[2].match(/\/round-([a-f0-9]{32})\.json$/)?.[1];
+        if(round) {
+          const result=receipts.get(round);
+          if(!result)throw Error('SYNTHETIC_NOT_FOUND');
+          await writeFile(args[3],JSON.stringify(result));
+        } else {
+          assert.equal(args[2],receipt.snapshotFile);
+          snapshotPulls.push(args[2]);
+          await writeFile(args[3],bytes);
+        }
+      } else if(args[0]==='exec'){
+        assert.equal(args.at(-1),state.active.roundId);
+        const jobId=`synthetic-job-${jobs.size+1}`;
+        jobs.set(jobId,{...receipt,slot:args.at(-2),roundId:args.at(-1)});
+        return {stdout:JSON.stringify({jobId}),stderr:''};
+      } else if(args[0]==='jobs'){
+        assert.equal(state.active.jobId,args[3]);
+        const result=jobs.get(args[3]);
+        receipts.set(result.roundId,result);
+      } else {
+        assert.ok(['wake','resume'].includes(args[0]));
       }
-      else assert.ok(['wake','resume','exec','jobs'].includes(args[0]));
-      return {stdout:args[0]==='exec'?JSON.stringify({jobId:'synthetic-job'}):'',stderr:''};
+      return {stdout:'',stderr:''};
     },
     acquireActivityLease:async()=>{calls.push('lease');return async()=>{calls.push('release');};},
     request:async url=>{
@@ -92,57 +114,60 @@ async function refreshFixture(t,{complete=false}={}) {
       }
       return Response.json({...expected,snapshotStorage:'SAVED'});
     }};
-  return {target,stateFile,legacy,options,calls,reports,readState,snapshotPulls};
+  const setComplete=()=>Object.assign(receipt,{complete:true,capturedSources:fullCoverage,unresolvedCoverage:false,
+    retrySources:[],nextRetryAt:undefined});
+  return {target,stateFile,legacy,options,calls,reports,readState,snapshotPulls,jobs,receipts,receipt,setComplete};
 }
 
-test('three partial publications retain the verified receipt and stop without a fourth wake',async t=>{
+test('a two-hour cooldown causes no collector wakes before its persisted deadline',async t=>{
   const fixture=await refreshFixture(t);
-  const codes=[];
-  for(let i=0;i<3;i++)codes.push(await runRefresh(fixture.options));
-  assert.deepEqual(codes,[75,75,0],JSON.stringify(fixture.reports));
-  assert.equal(fixture.calls.filter(call=>call==='exec').length,3);
-  assert.equal(fixture.calls.filter(call=>call==='readback').length,6);
-  assert.equal(fixture.snapshotPulls.length,1);
+  assert.equal(await runRefresh(fixture.options),0,JSON.stringify(fixture.reports));
   const state=await fixture.readState();
-  assert.deepEqual(state.dailyAttempt,{slot:String(midnight),count:3,status:'VERIFIED',complete:false});
+  assert.deepEqual(state.progress,{slot:String(midnight),nextRetryAt:fixture.receipt.nextRetryAt});
   assert.equal(state.records.length,1);
   assert.equal(state.records[0].complete,false);
   assert.equal(state.records[0].webReadback,true);
   assert.equal(state.records[0].unresolvedCoverage,true);
   assert.equal(state.dailySince,fixture.legacy.dailySince);
-  assert.ok(fixture.reports.some(row=>row.status==='DAILY_REFRESH_DEGRADED'&&row.complete===false));
   const before=fixture.calls.length;
-  assert.equal(await runRefresh(fixture.options),0);
+  for(const minutes of [5,40,80,119]){
+    assert.equal(await runRefresh({...fixture.options,now:midnight+minutes*60_000}),0);
+  }
   assert.equal(fixture.calls.length,before);
   assert.deepEqual(await fixture.readState(),state);
+  fixture.setComplete();
+  assert.equal(await runRefresh({...fixture.options,now:state.progress.nextRetryAt}),0);
+  assert.equal(fixture.calls.filter(call=>call==='exec').length,2);
+  assert.equal(fixture.snapshotPulls.length,1);
   const publicStatus=await createRefreshStatusReader(fixture.target)();
   assert.equal(publicStatus.status,'AVAILABLE');
-  assert.equal(publicStatus.records[0].complete,false);
-  assert.equal('dailyAttempt' in publicStatus,false);
+  assert.equal(publicStatus.records[0].complete,true);
+  assert.equal('active' in publicStatus,false);
 });
 
-test('failed attempts are consumed before wake and reset at the next Beijing slot, not after 24 hours',async t=>{
+test('three missed wakes keep one reserved round and do not exhaust source retry',async t=>{
   const fixture=await refreshFixture(t);
   let wakes=0,resumes=0;
+  const roundIds=new Set();
   const execute=async(_cli,args)=>{
+    roundIds.add((await fixture.readState()).active.roundId);
     if(args[0]==='wake'){
       wakes++;
-      assert.equal((await fixture.readState()).dailyAttempt.status,'RESERVED');
       throw Error('SYNTHETIC_WAKE_FAILED');
     }
     assert.equal(args[0],'resume');
     resumes++;
     throw Error('SYNTHETIC_RESUME_FAILED');
   };
-  const codes=[];
-  for(const now of [next-1200000,next-600000,next-1])codes.push(await runRefresh({...fixture.options,now,execute}));
-  assert.deepEqual(codes,[75,75,76]);
+  for(const minutes of [0,5,10]){
+    assert.equal(await runRefresh({...fixture.options,now:midnight+minutes*60_000,execute}),75);
+  }
+  assert.equal(await runRefresh({...fixture.options,now:midnight+11*60_000,execute}),0);
   assert.equal(wakes,3);assert.equal(resumes,3);
-  assert.equal(await runRefresh({...fixture.options,now:next-1,execute}),76);
-  assert.equal(wakes,3);assert.equal(resumes,3);
-  assert.equal(await runRefresh({...fixture.options,now:next,execute}),75);
-  assert.equal(wakes,4);assert.equal(resumes,4);
-  assert.deepEqual((await fixture.readState()).dailyAttempt,{slot:String(next),count:1,status:'RESERVED'});
+  assert.equal(roundIds.size,1);
+  assert.equal(await runRefresh({...fixture.options,now:midnight+15*60_000}),0);
+  assert.equal(fixture.jobs.size,1);
+  assert.equal(fixture.jobs.values().next().value.roundId,[...roundIds][0]);
 });
 
 test('when wake fails for a manually suspended machine, refresh falls back to resume and succeeds',async t=>{
@@ -153,37 +178,147 @@ test('when wake fails for a manually suspended machine, refresh falls back to re
     if(args[0]==='resume'){resumed++;}
     return fixture.options.execute(cli,args);
   };
-  assert.equal(await runRefresh({...fixture.options,execute}),75);
+  assert.equal(await runRefresh({...fixture.options,execute}),0);
   assert.equal(woke,1);assert.equal(resumed,1);
   assert.deepEqual(fixture.calls.slice(0,2),['resume','lease']);
-  assert.deepEqual((await fixture.readState()).dailyAttempt,{slot:String(midnight),count:1,status:'VERIFIED',complete:false});
+  assert.equal((await fixture.readState()).progress.slot,String(midnight));
 });
 
-test('a last readback failure stays terminal even with an earlier verified partial receipt',async t=>{
+test('a failed readback retries the same installed snapshot without a collector wake',async t=>{
   const fixture=await refreshFixture(t);
-  assert.equal(await runRefresh(fixture.options),75);
-  assert.equal(await runRefresh(fixture.options),75);
-  const previous=(await fixture.readState()).records;
-  assert.equal(await runRefresh({...fixture.options,request:async()=>Response.json({wrong:'snapshot'})}),76);
+  assert.equal(await runRefresh({...fixture.options,request:async()=>Response.json({wrong:'snapshot'})}),75);
   const state=await fixture.readState();
-  assert.equal(state.dailyAttempt.status,'RESERVED');
-  assert.deepEqual(state.records,previous);
-  const before=fixture.calls.length;
-  assert.equal(await runRefresh(fixture.options),76);
-  assert.equal(fixture.calls.length,before);
-  assert.ok(fixture.reports.some(row=>row.status==='WEBSITE_READBACK_MISMATCH'&&row.exitCode===76));
+  assert.equal(state.active.publication.sha256,fixture.receipt.sha256);
+  assert.deepEqual(state.records,[]);
+  const before=fixture.calls.filter(call=>call==='wake').length;
+  assert.equal(await runRefresh({...fixture.options,now:state.infrastructureRetryAt}),0);
+  assert.equal(fixture.calls.filter(call=>call==='wake').length,before);
+  assert.equal((await fixture.readState()).records[0].sha256,fixture.receipt.sha256);
+  assert.equal(fixture.snapshotPulls.length,1);
 });
 
-test('a verified complete third attempt is also a successful no-op on restart',async t=>{
+test('a completed wave is a successful no-op until next Beijing slot',async t=>{
   const fixture=await refreshFixture(t,{complete:true});
   await writeFile(fixture.stateFile,JSON.stringify({...fixture.legacy,
     dailyAttempt:{slot:String(midnight),count:2,status:'RESERVED'}}));
   assert.equal(await runRefresh(fixture.options),0);
-  assert.equal((await fixture.readState()).dailyAttempt.complete,true);
-  assert.equal(fixture.calls.includes('exec'),false);
+  assert.equal((await fixture.readState()).progress.nextRetryAt,null);
+  assert.equal(fixture.calls.filter(call=>call==='exec').length,1);
   const before=fixture.calls.length;
   assert.equal(await runRefresh(fixture.options),0);
   assert.equal(fixture.calls.length,before);
+});
+
+test('an invocation ID and an earlier timer tick do not qualify a manual wave',async t=>{
+  const fixture=await refreshFixture(t,{complete:true});
+  assert.equal(await runRefresh({...fixture.options,env:{...fixture.options.env,INVOCATION_ID:'manual-invocation'}}),0);
+  assert.equal((await fixture.readState()).records[0].trigger,'manual');
+});
+
+test('manual launch after a failed timer wake marks the resumed round manual',async t=>{
+  const fixture=await refreshFixture(t,{complete:true});
+  const env={...fixture.options.env,INVOCATION_ID:'timer-invocation',JOBFINDER_REFRESH_ORIGIN:'timer'};
+  const execute=async()=>{throw Error('SYNTHETIC_SLEEP');};
+  assert.equal(await runRefresh({...fixture.options,env,execute}),75);
+  const before=await fixture.readState();
+  assert.equal(before.active.trigger,'timer');
+  assert.equal(await runRefresh({...fixture.options,now:before.infrastructureRetryAt}),0);
+  const after=await fixture.readState();
+  assert.equal(fixture.jobs.values().next().value.roundId,before.active.roundId);
+  assert.equal(after.records[0].trigger,'manual');
+});
+
+test('later timer waves retain an earlier manual intervention for the day',async t=>{
+  const fixture=await refreshFixture(t);
+  const env={...fixture.options.env,INVOCATION_ID:'timed-invocation',JOBFINDER_REFRESH_ORIGIN:'timer'};
+  fixture.receipt.manualIntervention=true;
+  assert.equal(await runRefresh({...fixture.options,env}),0);
+  assert.equal((await fixture.readState()).records[0].trigger,'manual');
+  const due=fixture.receipt.nextRetryAt;
+  fixture.setComplete();
+  delete fixture.receipt.manualIntervention;
+  assert.equal(await runRefresh({...fixture.options,now:due,env}),0);
+  const state=await fixture.readState();
+  assert.equal(state.records[0].trigger,'manual');
+  assert.equal(state.records[0].complete,true);
+});
+
+test('lost wait response rejects a stale receipt and resumes waiting for the same job',async t=>{
+  const fixture=await refreshFixture(t);
+  const execute=async(cli,args)=>{
+    if(args[0]==='jobs'){
+      const round=fixture.jobs.get(args[3]);
+      fixture.receipts.set(round.roundId,{...round,roundId:'1'.repeat(32)});
+      throw Error('SYNTHETIC_LOST_WAIT');
+    }
+    return fixture.options.execute(cli,args);
+  };
+  assert.equal(await runRefresh({...fixture.options,execute}),75);
+  const state=await fixture.readState();
+  assert.equal(state.active.jobId,'synthetic-job-1');
+  assert.deepEqual(state.records,[]);
+  assert.equal(await runRefresh({...fixture.options,now:state.infrastructureRetryAt}),0);
+  assert.equal(fixture.calls.filter(call=>call==='exec').length,1);
+});
+
+test('lost dispatch response adopts the exact reserved round receipt without another dispatch',async t=>{
+  const fixture=await refreshFixture(t);
+  const execute=async(cli,args)=>{
+    const response=await fixture.options.execute(cli,args);
+    if(args[0]==='exec'){
+      const result=fixture.jobs.get(JSON.parse(response.stdout).jobId);
+      fixture.receipts.set(result.roundId,result);
+      throw Error('SYNTHETIC_LOST_DISPATCH');
+    }
+    return response;
+  };
+  assert.equal(await runRefresh({...fixture.options,execute}),75);
+  const state=await fixture.readState();
+  assert.equal(state.active.jobId,undefined);
+  assert.equal(await runRefresh({...fixture.options,now:state.infrastructureRetryAt}),0);
+  assert.equal(fixture.calls.filter(call=>call==='exec').length,1);
+  assert.equal(fixture.calls.filter(call=>call==='jobs').length,0);
+});
+
+test('the final periodic tick leaves room for the new daily slot',async t=>{
+  const fixture=await refreshFixture(t);
+  assert.equal(await runRefresh({...fixture.options,now:next-60_000}),0);
+  assert.equal(fixture.calls.length,0);
+  assert.equal(await runRefresh({...fixture.options,now:next}),0);
+  assert.equal(fixture.jobs.values().next().value.slot,String(next));
+});
+
+test('an obsolete pending publication cannot block the next Beijing slot or be installed again',async t=>{
+  const fixture=await refreshFixture(t,{complete:true});
+  assert.equal(await runRefresh({...fixture.options,request:async()=>Response.json({wrong:'snapshot'})}),75);
+  const state=await fixture.readState();
+  assert.equal(state.active.publication.complete,true);
+  assert.equal(await runRefresh({...fixture.options,now:next}),0);
+  const record=(await fixture.readState()).records[0];
+  assert.equal(record.slot,String(next));
+  assert.equal(record.webReadback,true);
+  assert.equal(fixture.jobs.size,2);
+  assert.equal(fixture.snapshotPulls.length,1);
+  assert.ok(fixture.reports.some(row=>row.status==='OBSOLETE_PUBLICATION_RELEASED'));
+});
+
+test('a complete receipt with missing source identities cannot be published',async t=>{
+  const fixture=await refreshFixture(t,{complete:true});
+  fixture.receipt.capturedSources=[];
+  assert.equal(await runRefresh(fixture.options),75);
+  assert.equal(fixture.snapshotPulls.length,0);
+  assert.deepEqual((await fixture.readState()).records,[]);
+  assert.ok(fixture.reports.some(row=>row.status==='ROUND_RECEIPT_SOURCE_COVERAGE_MISMATCH'));
+});
+
+test('contradictory snapshot metadata is rejected before installation',async t=>{
+  const fixture=await refreshFixture(t);
+  fixture.receipt.totalJobs++;
+  let installations=0;
+  const installSnapshot=async()=>{installations++;};
+  assert.equal(await runRefresh({...fixture.options,installSnapshot}),75);
+  assert.equal(installations,0);
+  assert.ok(fixture.reports.some(row=>row.status==='ROUND_RECEIPT_SNAPSHOT_METADATA_MISMATCH'));
 });
 
 test('unknown or corrupt schedule state fails closed without rewriting it or making requests',async t=>{
@@ -214,10 +349,12 @@ test('a failed reservation write never wakes the collector',async t=>{
   assert.deepEqual(await fixture.readState(),fixture.legacy);
 });
 
-test('the service keeps its lock and forty minute delay while terminal failures cannot restart',()=>{
+test('the service keeps its lock and retries infrastructure failures after five minutes',()=>{
   const service=readFileSync(new URL('./jobfinder-refresh.service',import.meta.url),'utf8');
   assert.match(service,/^ExecStart=\/usr\/bin\/flock -n /m);
-  assert.match(service,/^RestartSec=40min$/m);
+  assert.match(service,/^RestartSec=5min$/m);
+  assert.match(service,/^RefuseManualStart=yes$/m);
+  assert.match(service,/^Environment=JOBFINDER_REFRESH_ORIGIN=timer$/m);
   assert.match(service,/^RestartPreventExitStatus=76$/m);
   assert.match(service,/^StartLimitIntervalSec=0$/m);
 });

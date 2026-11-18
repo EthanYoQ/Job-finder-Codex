@@ -1,0 +1,46 @@
+{
+  "roche": {
+    "provenance": "20261117-pr75-full-source-evidence.json",
+    "sourceResultId": "e6f4cc55-5e0b-4b72-954f-5d3df3022090--source-roche-china-social",
+    "batchId": "e6f4cc55-5e0b-4b72-954f-5d3df3022090",
+    "sourceId": "source-roche-china-social",
+    "startedAt": "2026-11-17T08:00:37.36",
+    "finishedAt": "2026-11-17T08:00:42.569",
+    "atomicCommitState": "COMMITTED",
+    "completenessState": "VERIFIED",
+    "dedupeOutputCount": 2,
+    "losses": [
+      {
+        "code": "JOB_QUARANTINED",
+        "n": 308
+      }
+    ]
+  },
+  "rocheS22": {
+    "provenance": "20261117-pr75-replay-roche-archive.json",
+    "batchId": "2b812584-86a9-4d91-ab3b-8f6edfb30d1e",
+    "responses": 319,
+    "expected": 315,
+    "verified": true,
+    "jobs": 314,
+    "targetStatus": 403,
+    "targetCode": "S22",
+    "denied": [
+      {
+        "page": 0,
+        "record": 50
+      }
+    ]
+  },
+  "novartis": {
+    "provenance": "20261117-pr75-novartis-capture.json",
+    "sourceResultId": "326f72a4-293d-44f7-9c27-2ed19a58bed4--source-novartis-social",
+    "indexDeclaredTotal": 609,
+    "primaryUniqueCount": 610,
+    "observedUniqueCount": 615,
+    "noOmissionVerified": false,
+    "anomalyCodes": [
+      "NOVARTIS_ROOT_PARTITION_COUNT_MISMATCH"
+    ]
+  }
+}
