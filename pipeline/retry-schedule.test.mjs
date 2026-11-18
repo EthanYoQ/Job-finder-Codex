@@ -83,6 +83,43 @@ test('local deferral does not renew cooling, while a real refusal keeps the poli
   assert.equal(refused.retrySources.find(row=>row.sourceId==='source-amgen').retryAt,now+sourceRetryBackoffMs);
 });
 
+test('CSL real response time anchors the policy floor instead of the later wave completion',()=>{
+  const sourceId='source-csl-china-social',actualResponseAt=1794975468412,observedRetryAt=1794977868412;
+  const finishedAt=1794977565790;
+  const schedule=buildRetrySchedule({sourceConfigHashes:new Map([[sourceId,'a'.repeat(64)]]),completeSourceIds:new Set(),
+    previous:[{sourceId,retryAt:observedRetryAt,lastActualRequestAt:actualResponseAt}],attemptedSourceIds:new Set([sourceId]),
+    outcomes:[{sourceId,retryAt:observedRetryAt,observedActualHttp:true,lastActualRequestAt:actualResponseAt}],now:finishedAt});
+  assert.equal(schedule.nextRetryAt,observedRetryAt);
+  assert.equal(schedule.retrySources[0].lastActualRequestAt,actualResponseAt);
+  assert.deepEqual(selectDueSourceIds([sourceId],new Set(),schedule.retrySources,observedRetryAt-1),[]);
+  assert.deepEqual(selectDueSourceIds([sourceId],new Set(),schedule.retrySources,observedRetryAt),[sourceId]);
+});
+
+test('response-clock backoff preserves its policy minimum and longer official or persisted deadlines',()=>{
+  const actualResponseAt=now-35*60_000;
+  for(const [officialRetryAt,previousRetryAt] of [
+    [actualResponseAt+60_000,0], [actualResponseAt+2*3600_000,0], [actualResponseAt+2*3600_000,actualResponseAt+3*3600_000]
+  ]) {
+    const schedule=build({completeSourceIds:new Set(['source-roche','source-novo']),attemptedSourceIds:new Set(['source-amgen']),
+      previous:previousRetryAt?[{sourceId:'source-amgen',retryAt:previousRetryAt}]:[],
+      outcomes:[{sourceId:'source-amgen',retryAt:officialRetryAt,observedActualHttp:true,lastActualRequestAt:actualResponseAt}]});
+    assert.equal(schedule.nextRetryAt,Math.max(actualResponseAt+sourceRetryBackoffMs,officialRetryAt,previousRetryAt));
+  }
+});
+
+test('insufficient current refusal evidence keeps the completion-clock fallback',()=>{
+  const actualResponseAt=now-35*60_000;
+  for(const outcome of [
+    {sourceId:'source-amgen',retryAt:now+60_000,lastActualRequestAt:actualResponseAt},
+    {sourceId:'source-amgen',observedActualHttp:true,lastActualRequestAt:actualResponseAt},
+    {sourceId:'source-amgen',retryAt:now+60_000,observedActualHttp:true}
+  ]) {
+    const schedule=build({attemptedSourceIds:new Set(['source-amgen']),
+      previous:[{sourceId:'source-amgen',retryAt:now-1,lastActualRequestAt:actualResponseAt}],outcomes:[outcome]});
+    assert.equal(schedule.retrySources.find(row=>row.sourceId==='source-amgen').retryAt,now+sourceRetryBackoffMs);
+  }
+});
+
 test('an idle activation does not restart the backoff clock',()=>{
   const previous=ids.map(sourceId=>({sourceId,retryAt:now+300_000}));
   const schedule=build({previous,now:now+60_000});
