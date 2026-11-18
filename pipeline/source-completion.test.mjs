@@ -141,6 +141,24 @@ test('failed latest results retain explicit unresolved coverage until a clean re
   assert.equal(coverage.complete,false);assert.equal(coverage.unresolvedCoverage,false);
 });
 
+test('legacy scheduler no-op cannot hide a verified source or a genuine failed attempt',async()=>{
+  const sourceId='source-abbvie-china-social';
+  const accepted=result(sourceId);
+  const noOp=result(sourceId,{id:'no-op',batchId:'no-op',finishedAt:new Date(Number(slot)+180_000),
+    transportState:'SKIPPED',adapterState:'SKIPPED',failureCode:'SOURCE_NOT_DUE',
+    atomicCommitState:'NOT_ATTEMPTED',completenessState:'FAILED'});
+  const failed=result(sourceId,{id:'failed',batchId:'failed',finishedAt:new Date(Number(slot)+120_000),
+    transportState:'FAILED',adapterState:'SKIPPED',failureCode:'SOURCE_TRANSPORT_FAILED',
+    atomicCommitState:'NOT_ATTEMPTED',completenessState:'FAILED'});
+  const complete=await readRoundCoverage(database([accepted,noOp]),candidateId,slot,[sourceId],[]);
+  assert.equal(complete.complete,true);
+  assert.deepEqual(complete.capturedSources,[{sourceId,batchId:accepted.batchId}]);
+  assert.deepEqual(await readSourceCompletion(database([noOp]),candidateId,slot,[sourceId]),[]);
+  const incomplete=await readRoundCoverage(database([accepted,noOp,failed]),candidateId,slot,[sourceId],[]);
+  assert.equal(incomplete.complete,false);
+  assert.deepEqual(incomplete.capturedSources,[]);
+});
+
 test('candidate, slot, scheduler owner and config constrain completion',async()=>{
   const scoped=result('source');
   for(const patch of [{releaseCandidateId:'another-candidate'},{startedAt:new Date(Number(slot)-1)},
