@@ -15,7 +15,6 @@ export type RetryableSourceTransportFailureCode =
   | "OFFICIAL_NETWORK_ERROR"
   | "OFFICIAL_BROWSER_SESSION_ERROR"
   | "OFFICIAL_PAGINATION_SNAPSHOT_DRIFT"
-  | "OFFICIAL_REQUEST_DEFERRED"
   | "OFFICIAL_HTTP_429"
   | `OFFICIAL_HTTP_5${DecimalDigit}${DecimalDigit}`;
 
@@ -26,7 +25,7 @@ export type SourceTransportFailureStage =
   | "PAGE";
 
 export interface SourceTransportFailure {
-  code: RetryableSourceTransportFailureCode;
+  code: RetryableSourceTransportFailureCode | "OFFICIAL_REQUEST_DEFERRED";
   retryable: true;
   stage?: SourceTransportFailureStage;
   /** A server minimum; the router never extends the configured backoff to fit it. */
@@ -36,7 +35,7 @@ export interface SourceTransportFailure {
 }
 
 const RETRYABLE_FAILURE_CODE =
-  /^(?:OFFICIAL_HTTP_TIMEOUT|OFFICIAL_NETWORK_ERROR|OFFICIAL_BROWSER_SESSION_ERROR|OFFICIAL_PAGINATION_SNAPSHOT_DRIFT|OFFICIAL_REQUEST_DEFERRED|OFFICIAL_HTTP_429|OFFICIAL_HTTP_5\d\d)$/u;
+  /^(?:OFFICIAL_HTTP_TIMEOUT|OFFICIAL_NETWORK_ERROR|OFFICIAL_BROWSER_SESSION_ERROR|OFFICIAL_PAGINATION_SNAPSHOT_DRIFT|OFFICIAL_HTTP_429|OFFICIAL_HTTP_5\d\d)$/u;
 
 const RETRYABLE_NETWORK_ERROR_CODES = new Set([
   "EAI_AGAIN",
@@ -53,6 +52,7 @@ const RETRYABLE_NETWORK_ERROR_CODES = new Set([
   "UND_ERR_SOCKET"
 ]);
 
+/** Persisted in-wave retry reasons must match the database allowlist; local deferral is excluded. */
 export function isRetryableSourceTransportFailureCode(
   value: unknown
 ): value is RetryableSourceTransportFailureCode {
@@ -64,7 +64,7 @@ export function isRetryableSourceTransportFailure(
 ): failure is SourceTransportFailure {
   if (typeof failure !== "object" || failure === null || !("code" in failure) ||
     !("retryable" in failure) || failure.retryable !== true) return false;
-  return isRetryableSourceTransportFailureCode(failure.code) &&
+  return (failure.code === "OFFICIAL_REQUEST_DEFERRED" || isRetryableSourceTransportFailureCode(failure.code)) &&
     (!("retryAfterMs" in failure) ||
       (typeof failure.retryAfterMs === "number" && Number.isSafeInteger(failure.retryAfterMs) && failure.retryAfterMs >= 0));
 }

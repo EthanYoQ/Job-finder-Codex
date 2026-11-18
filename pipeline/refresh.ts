@@ -16,6 +16,10 @@ import { retryReceiptFields, retrySourcesSchema, roundIdSchema } from "./retry-s
 const exec = promisify(execFile);
 const machine = "m_agqzacofwxyhtea4rr7b6tvbba";
 const infrastructureBackoffMs = 5 * 60_000;
+const invalidReceiptCodes = new Set([
+  "ROUND_RECEIPT_SOURCE_COVERAGE_MISMATCH", "ROUND_RECEIPT_INVALID_COMPLETION",
+  "ROUND_RECEIPT_INVALID_RETRY_SCHEDULE", "ROUND_RECEIPT_SNAPSHOT_METADATA_MISMATCH"
+]);
 const slotSchema = z.string().regex(/^\d{13}$/);
 const dailySlotSchema = slotSchema.refine(value => slotAt(Number(value)) === Number(value));
 const shaSchema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -42,7 +46,8 @@ const scheduleSchema = z.object({
   infrastructureRetryAt: timestampSchema.optional(),
   active: z.object({
     slot: dailySlotSchema, roundId: roundIdSchema, trigger: z.enum(["timer","manual"]), jobId: z.string().min(1).optional(),
-    waitFailures: z.number().int().nonnegative().optional(), publication: receiptSchema.optional()
+    waitFailures: z.number().int().nonnegative().optional(), publication: receiptSchema.optional(),
+    invalidReceipt: z.boolean().optional()
   }).refine(active => !active.publication ||
     active.publication.slot === active.slot && active.publication.roundId === active.roundId).optional(),
   dailyAttempt: z.discriminatedUnion("status", [
@@ -64,6 +69,7 @@ const cli = env.INSTABOX_CLI ?? "instabox";
 const target = env.JOBFINDER_PUBLIC_SNAPSHOT_FILE;
 let phase = "INITIALIZE";
 let retryInfrastructure: (() => Promise<void>) | undefined;
+let stopInvalidReceipt: (() => Promise<void>) | undefined;
 let releaseActivityLease: (() => Promise<void>) | undefined;
 type Receipt = z.infer<typeof receiptSchema>;
 function validateReceiptCoverage(receipt:Receipt, sourceIds:ReadonlySet<string>) {
@@ -120,12 +126,14 @@ async function refresh() {
   if([state.active?.slot,state.progress?.slot,state.dailyAttempt?.slot].some(slot=>slot && slot>currentSlot))
     throw Error("SCHEDULE_SLOT_REGRESSION");
   const saveState=async()=>{await writeFile(stateFile+".tmp",JSON.stringify(state)+"\n",{mode:0o600});await rename(stateFile+".tmp",stateFile);};
-  if(state.active?.publication && state.active.slot!==currentSlot) {
-    console.error(JSON.stringify({status:"OBSOLETE_PUBLICATION_RELEASED",slot:state.active.slot,roundId:state.active.roundId}));
+  if(state.active && state.active.slot!==currentSlot) {
+    console.error(JSON.stringify({status:state.active.publication?"OBSOLETE_PUBLICATION_RELEASED":"OBSOLETE_ROUND_RELEASED",
+      slot:state.active.slot,roundId:state.active.roundId}));
     delete state.active;
     delete state.infrastructureRetryAt;
     await saveState();
   }
+  if(state.active?.invalidReceipt)return 76;
   if(state.infrastructureRetryAt !== undefined && now<state.infrastructureRetryAt)return 0;
   if(!state.active && state.progress?.slot===currentSlot &&
     (state.progress.nextRetryAt===null || now<state.progress.nextRetryAt))return 0;
@@ -147,6 +155,11 @@ async function refresh() {
   const active=state.active, {slot,roundId}=active;
   retryInfrastructure=async()=>{
     state.infrastructureRetryAt=clock()+infrastructureBackoffMs;
+    await saveState();
+  };
+  stopInvalidReceipt=async()=>{
+    active.invalidReceipt=true;
+    delete state.infrastructureRetryAt;
     await saveState();
   };
   temporary=await mkdtemp(join(tmpdir(),"jobfinder-refresh-"));
@@ -173,7 +186,10 @@ async function refresh() {
       }
       phase = "WAIT_ROUND";
       try {
-        await command(["jobs","wait",machine,active.jobId,"--timeout","7h","--json"],7*3600_000+60_000);
+        const secondsLeft=Math.floor((Number(slot)+dailySlotMs-clock())/1000);
+        if(secondsLeft<=0)return 0;
+        const waitSeconds=Math.min(7*3600,secondsLeft);
+        await command(["jobs","wait",machine,active.jobId,"--timeout",`${waitSeconds}s`,"--json"],waitSeconds*1000+1000);
         delete active.jobId;
         delete active.waitFailures;
       } catch {
@@ -218,6 +234,7 @@ async function refresh() {
   const snapshot=validateSavedSnapshot(JSON.parse(snapshotBytes.toString("utf8")));
   if(snapshot.totalJobs!==receipt.totalJobs || snapshot.lastUpdatedAt!==receipt.lastUpdatedAt)
     throw Error("ROUND_RECEIPT_SNAPSHOT_METADATA_MISMATCH");
+  if(slotAt(clock())!==Number(slot))return 0;
   if(incoming)await installSnapshot(incoming,resolve(target),receipt.sha256);
   const search=searchPortableSnapshot({city:"全部城市",province:"全部地区",sort:"COMPANY_PINYIN_ASC"},snapshot);
   const coverage=coverageFromPortableSnapshot({keyword:"",offset:0,limit:60},snapshot);
@@ -255,8 +272,11 @@ try {
   const code=error instanceof Error&&/^[A-Z][A-Z_]+$/.test(error.message)?error.message:"REFRESH_FAILED";
   let exitCode=76;
   if(retryInfrastructure)try {
-    await retryInfrastructure();
-    exitCode=75;
+    if(invalidReceiptCodes.has(code))await stopInvalidReceipt?.();
+    else {
+      await retryInfrastructure();
+      exitCode=75;
+    }
   }catch{/* The next timer invocation rereads the last saved state. */}
   console.error(JSON.stringify({status:code,phase,slot:currentSlot,exitCode}));
   return exitCode;

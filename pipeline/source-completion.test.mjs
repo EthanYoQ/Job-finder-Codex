@@ -119,6 +119,28 @@ test('latest result controls completion and an actual clean retry clears the pre
   assert.equal((await readSourceCompletion(database([healthy,tie]),candidateId,slot,['source']))[0].complete,false);
 });
 
+test('failed latest results retain explicit unresolved coverage until a clean retry completes',async()=>{
+  for(const {sourceId,...pending} of [
+    {sourceId:'source-novartis-social',artifacts:[{extractorLocator:'novartis-default-discovery-exhausted'}]},
+    {sourceId:'source-roche-china-social',losses:[loss('ROCHE_DETAIL_DENIED')]},
+    {sourceId:'source-servier-china-social',losses:[loss('SERVIER_WORKPLACE_COUNTRY_UNKNOWN')]}]){
+    const healthy=result(sourceId);
+    const failed=result(sourceId,{id:'failed',batchId:'failed',atomicCommitState:'NOT_ATTEMPTED',
+      completenessState:'FAILED',finishedAt:new Date(Number(slot)+120_000),...pending});
+    const coverage=await readRoundCoverage(database([healthy,failed]),candidateId,slot,[sourceId],[]);
+    assert.equal(coverage.complete,false);assert.deepEqual(coverage.capturedSources,[]);
+    assert.equal(coverage.unresolvedCoverage,true);
+    assert.equal(coverage.quarantinedJobCount,0);
+    const recovered=result(sourceId,{id:'recovered',batchId:'recovered',finishedAt:new Date(Number(slot)+180_000)});
+    const fresh=await readRoundCoverage(database([healthy,failed,recovered]),candidateId,slot,[sourceId],success);
+    assert.equal(fresh.complete,true);assert.equal(fresh.unresolvedCoverage,false);
+    assert.deepEqual(fresh.capturedSources,[{sourceId,batchId:'recovered'}]);
+  }
+  const transportFailure=result('source-novartis-social',{atomicCommitState:'NOT_ATTEMPTED',completenessState:'FAILED'});
+  const coverage=await readRoundCoverage(database([transportFailure]),candidateId,slot,[transportFailure.sourceId],[]);
+  assert.equal(coverage.complete,false);assert.equal(coverage.unresolvedCoverage,false);
+});
+
 test('candidate, slot, scheduler owner and config constrain completion',async()=>{
   const scoped=result('source');
   for(const patch of [{releaseCandidateId:'another-candidate'},{startedAt:new Date(Number(slot)-1)},

@@ -23,9 +23,9 @@ const run = promisify(execFile);
 const stateRoot = resolve(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder");
 const candidateId = process.env.JOBFINDER_CANDIDATE_ID;
 const onlySourceIds = process.env.JOBFINDER_ONLY_SOURCE_IDS?.split(",").map(id=>id.trim());
-const roundId = process.env.JOBFINDER_ROUND_ID === undefined ? undefined : roundIdSchema.parse(process.env.JOBFINDER_ROUND_ID);
 let db: PrismaClient | undefined, leaseDb: PrismaClient | undefined;
 try {
+  const roundId = process.env.JOBFINDER_ROUND_ID === undefined ? undefined : roundIdSchema.parse(process.env.JOBFINDER_ROUND_ID);
   if (!candidateId || !process.env.POSTGRES_PASSWORD) throw Error("REGISTERED_CANDIDATE_AND_POSTGRES_PASSWORD_REQUIRED");
   process.chdir(fileURLToPath(new URL("../runner-candidate",import.meta.url)));
   const { stdout } = await run("docker", ["inspect", "--format", "{{.NetworkSettings.Networks.bridge.IPAddress}}", "jobfinder-postgres"]);
@@ -54,7 +54,7 @@ try {
   const due = roundId ? selectDueSourceIds(selected,new Set(completedBefore.filter(row=>row.complete).map(row=>row.sourceId)),previous,Date.now()) : selected;
   const outcomes: RetryOutcome[] = [];
   const results = await runDirectRound({db, leaseDb, candidateId, workspaceRoot:stateRoot, slot,
-    onlySourceIds:due,...(roundId ? {preserveSelectedSourceOrder:true,stopAtSlotEnd:true,allowEmptySelection:true,
+    onlySourceIds:due,...(roundId ? {prioritizeSelectedSources:true,stopAtSlotEnd:true,allowEmptySelection:true,
       onSourceTransportObservation:(observation: SourceTransportObservation)=>{
         const old=outcomes.find(row=>row.sourceId===observation.sourceId);
         const outcome:RetryOutcome=old??{sourceId:observation.sourceId};
@@ -86,7 +86,7 @@ try {
       retrySources:previous,nextRetryAt:Math.min(...previous.map(row=>row.retryAt))
     } : undefined;
   const receipt = {status:"SNAPSHOT_SAVED", slot, complete, quarantinedJobCount, unresolvedCoverage, ...handle,
-    manualIntervention:roundManualIntervention(slot,roundId,previousReceipt),
+    manualIntervention:roundManualIntervention(slot,roundId,previousReceipt,snapshots),
     ...retrySchedule,...(roundId ? {roundId} : {}),
     capturedSources,
     sources:results.map(row=>({sourceId:row.sourceId,status:row.status}))};

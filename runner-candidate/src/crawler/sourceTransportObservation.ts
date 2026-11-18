@@ -104,6 +104,8 @@ function observeResponse(observation: SourceTransportObservation | undefined, st
       !(status === 403 || status === 429 || status >= 500 && status <= 599)) return;
   const now = Date.now();
   const retryAfter = parseOfficialRetryAfter(rawRetryAfter, now);
+  // Keep accepted waits exact, including unusually long holds. The scheduler stores
+  // an absolute deadline; clamping it would authorize an earlier source request.
   recordActualHttpFailure(observation, status, now,
     retryAfter && "delayMs" in retryAfter ? now + retryAfter.delayMs : undefined);
 }

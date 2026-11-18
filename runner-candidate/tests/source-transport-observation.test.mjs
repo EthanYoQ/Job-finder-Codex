@@ -9,7 +9,7 @@ import { defaultHttpHtmlClient } from "../src/crawler/httpHtmlSourceFetch.ts";
 import { createChromiumDom } from "../src/crawler/local-browser/chromium-dom.mjs";
 import { createSourceFetchRouter } from "../src/crawler/sourceFetchRouter.ts";
 import { recordIsolatedSourceTransportObservation } from "../src/crawler/sourceTransportObservation.ts";
-import { buildRetrySchedule } from "../../pipeline/retry-schedule.ts";
+import { buildRetrySchedule, readRetrySources, selectDueSourceIds } from "../../pipeline/retry-schedule.ts";
 
 const liveResponse = (status, retryAfter) => fetchWithOfficialTimeout("https://careers.example.test/jobs", {}, {
   fetchImpl: async () => new Response("<h1>Unavailable</h1>", { status,
@@ -268,3 +268,26 @@ test("explicit browser navigation respects the same-source live retry deadline",
   assert.equal(observations.at(-1).locallyDeferred, true);
   assert.deepEqual(observations.at(-1).actualHttpStatuses, [503]);
 });
+
+for (const retryAfter of ["9999999999", "Fri, 31 Dec 9999 23:59:59 GMT"]) {
+  test(`extreme valid Retry-After ${retryAfter} remains exact through durable scheduling`, async t => {
+    const now = 1_800_000_000_000, sourceId = "source-extreme-retry", observations = [];
+    t.mock.method(Date, "now", () => now);
+    const deadline = /^\d+$/.test(retryAfter) ? now + Number(retryAfter) * 1000 : Date.parse(retryAfter);
+    await withSourceTransportObservation(sourceId, value => observations.push(value), async () => {
+      await liveResponse(503, retryAfter);
+      await assert.rejects(liveResponse(503), { code: "OFFICIAL_REQUEST_DEFERRED" });
+    });
+    assert.equal(observations.at(-1).retryAt, deadline);
+    assert.ok(Number.isSafeInteger(deadline));
+    assert.ok(Number.isFinite(new Date(deadline).getTime()));
+    const hashes = new Map([[sourceId, "a".repeat(64)]]);
+    const schedule = buildRetrySchedule({ sourceConfigHashes: hashes, completeSourceIds: new Set(),
+      previous: [], attemptedSourceIds: new Set([sourceId]), outcomes: observations, now });
+    const restored = readRetrySources(JSON.parse(JSON.stringify(schedule)), hashes);
+    assert.equal(restored[0].retryAt, deadline);
+    assert.deepEqual(selectDueSourceIds([sourceId], new Set(), restored, now + 7 * 24 * 60 * 60_000), []);
+    assert.deepEqual(selectDueSourceIds([sourceId], new Set(), restored, deadline - 1), []);
+    assert.deepEqual(selectDueSourceIds([sourceId], new Set(), restored, deadline), [sourceId]);
+  });
+}

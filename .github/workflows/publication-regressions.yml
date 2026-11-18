@@ -35,5 +35,5 @@ jobs:
           chrome="$(command -v google-chrome || command -v chromium)"
           PLAYWRIGHT_CHROMIUM_EXECUTABLE="$chrome" node --import tsx --test tests/pfizer-independent-isolation-browser.test.mjs
       - run: node --import tsx --test ../pipeline/frequency.test.mjs ../pipeline/round-scope.test.mjs ../pipeline/reader-contract.test.mjs ../pipeline/recover-manual.test.mjs tests/astellas-job-isolation.test.mjs
-      - run: node --import tsx --test ../pipeline/retry-schedule.test.mjs ../pipeline/run-slot.test.mjs ../pipeline/source-completion.test.mjs tests/source-transport-observation.test.mjs tests/isolated-validator-transport.test.mjs tests/novo-source-budget.test.mjs tests/sanofi-isolated-diagnostic.test.mjs
+      - run: node --import tsx --test ../pipeline/retry-schedule.test.mjs ../pipeline/run-slot.test.mjs ../pipeline/run-round-entry.test.mjs ../pipeline/source-completion.test.mjs tests/source-transport-observation.test.mjs tests/source-deferred-retry.test.mjs tests/isolated-validator-transport.test.mjs tests/novo-source-budget.test.mjs tests/sanofi-isolated-diagnostic.test.mjs
       - run: python3 ../pipeline/archive-inactive-snapshots.test.py

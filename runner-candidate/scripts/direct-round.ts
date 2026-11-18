@@ -99,7 +99,7 @@ export function canStartScheduledSource(windowStart: number, now = Date.now()): 
 }
 
 export async function runDirectRound(input: { db: PrismaClient; leaseDb: PortableLeaseDatabase; candidateId: string; workspaceRoot: string; onlySourceIds?:string[]; slot?: string | null;
-  preserveSelectedSourceOrder?: boolean; stopAtSlotEnd?: boolean; allowEmptySelection?: boolean;
+  prioritizeSelectedSources?: boolean; stopAtSlotEnd?: boolean; allowEmptySelection?: boolean;
   onSourceTransportObservation?: (observation: SourceTransportObservation) => void }) {
   const routes = await loadDirectPlans(), sourceIds = routes.map(row => row.sourceId);
   const selectedRoutes = input.allowEmptySelection && input.onlySourceIds?.length===0 ? [] : selectDirectRoutes(routes,input.onlySourceIds);
@@ -108,6 +108,8 @@ export async function runDirectRound(input: { db: PrismaClient; leaseDb: Portabl
   if (!input.candidateId.startsWith("instabox-")) throw Error("NEW_INSTABOX_CANDIDATE_REQUIRED");
   if (input.db === input.leaseDb) throw Error("SEPARATE_LEASE_CONNECTION_REQUIRED");
   return withPortableCrawlLease(input.leaseDb, lease => withWorkdayRequestPolicy(resolve(input.workspaceRoot), async () => {
+    // Scheduled entry accepts a registered candidate, not historical request/result IDs.
+    // The migration sidecar remains an audit input for manual-request admission only.
     const candidate = await input.db.releaseCandidate.findUniqueOrThrow({ where: { id: input.candidateId } });
     if (candidate.goalId !== "job-finder-instabox-migration") throw Error("NEW_INSTABOX_CANDIDATE_REQUIRED");
     if (!["BUILDING", "READY_FOR_QA", "RELEASED"].includes(candidate.status)) throw Error("CANDIDATE_NOT_ACTIVE");
@@ -120,7 +122,8 @@ export async function runDirectRound(input: { db: PrismaClient; leaseDb: Portabl
     const completedBySource = new Map(completion.filter(row=>row.complete).map(row=>[row.sourceId,row.batchId]));
     const portableFetch = createOwnedSourceQualityFetch(), certifiedFetch = withLocalOfficialDom(createHttpOnlyOfficialSourceFetch());
     const results = [];
-    const orderedRoutes = input.preserveSelectedSourceOrder && input.onlySourceIds
+    // Priority is retained within each group; Workday pacing still interleaves both groups.
+    const orderedRoutes = input.prioritizeSelectedSources && input.onlySourceIds
       ? input.onlySourceIds.map(sourceId => selectedRoutes.find(row => row.sourceId === sourceId)!)
       : selectedRoutes;
     for (const row of interleaveWorkday(orderedRoutes)) {

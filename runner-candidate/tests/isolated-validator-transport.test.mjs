@@ -44,6 +44,10 @@ test('successful real child returns its transport floor without changing the val
   const validation=await withSourceTransportObservation(input.sourceId,value=>observations.push(value),
     ()=>validate({...input,signal:AbortSignal.timeout(15_000)}));
   assert.equal(validation.sourceId,input.sourceId);
+  assert.equal(validation.companyId,input.companyId);
+  assert.equal(validation.sourceConfigSha256,input.sourceConfigSha256);
+  assert.deepEqual(validation.surfaceIds,input.surfaceIds);
+  assert.deepEqual(validation.channelIds,input.channelIds);
   const last=observations.at(-1);
   assert.deepEqual(last.actualHttpStatuses,[503]);
   assert.equal(last.retryAt-last.lastActualRequestAt,7_200_000);

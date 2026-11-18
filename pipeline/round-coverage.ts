@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR } from "../runner-candidate/src/crawler/novartisNativePartitions";
+import { NOVARTIS_PARTITION_AUDIT_LOCATOR, NOVARTIS_PARTITION_CAPTURE, NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR } from "../runner-candidate/src/crawler/novartisNativePartitions";
 import { dailySlotMs } from "./frequency.mjs";
 
 const pendingLossCodes = [
@@ -31,8 +31,8 @@ export async function readSourceCompletion(db:Pick<PrismaClient,"crawlBatchSourc
     lossLedgerEntries:{where:{details:{path:['code'],equals:'JOB_QUARANTINED'}}},
     evidenceArtifacts:{where:{OR:[
       {extractorLocator:NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR},
-      {sourceId:'source-novartis-social',extractorLocator:'novartis-partitions-audit',
-        captureToolName:'novartis-native-functional-partitions',captureToolVersion:{in:Array.from({length:10},(_,index)=>String(index+4))}}
+      {sourceId:'source-novartis-social',extractorLocator:NOVARTIS_PARTITION_AUDIT_LOCATOR,
+        captureToolName:NOVARTIS_PARTITION_CAPTURE.name,captureToolVersion:{in:Array.from({length:10},(_,index)=>String(index+4))}}
     ]}}
   }}},orderBy:[{finishedAt:"asc"},{id:"asc"}]});
   const latest=new Map(rows.map(row=>[row.sourceId,row]));
@@ -54,7 +54,7 @@ export async function readRoundCoverage(db:Pick<PrismaClient,"crawlBatchSourceRe
   const complete=sourceIds.every(id=>completion.some(row=>row.sourceId===id&&row.complete))&&results.every(row=>row.status!=="FAILED"&&
     (!("failedSourceCount" in row)||row.failedSourceCount===0&&row.blockedSourceCount===0));
   const quarantinedJobCount=captured.reduce((sum,row)=>sum+row.quarantinedJobCount,0);
-  const unresolvedCoverage=captured.some(row=>row.unresolvedCoverage);
+  const unresolvedCoverage=completion.some(row=>row.unresolvedCoverage);
   return {complete,quarantinedJobCount,unresolvedCoverage,
     capturedSources:completion.filter(row=>row.complete).map(({sourceId,batchId})=>({sourceId,batchId}))};
 }

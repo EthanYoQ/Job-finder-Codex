@@ -64,7 +64,7 @@ export async function runDirectManual(input: {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [flag, requestId, ...extra] = process.argv.slice(2);
   if ((flag !== "--request-id" && flag !== "--systemd-instance") || !requestId || extra.length) {
-    throw Error("Usage: direct-manual.ts --request-id <new-request-id>");
+    throw Error("Usage: direct-manual.ts --request-id <new-request-id> | --systemd-instance <instance>");
   }
   const recoverQueue = flag === "--systemd-instance" && requestId === MANUAL_RECOVERY_INSTANCE;
   if (!recoverQueue && !MANUAL_REQUEST_ID_PATTERN.test(requestId)) throw Error("INVALID_MANUAL_REQUEST_ID");

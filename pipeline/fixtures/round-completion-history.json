@@ -1,6 +1,8 @@
 {
   "roche": {
     "provenance": "20261117-pr75-full-source-evidence.json",
+    "provenanceSha256": "8668b989f9d40eaaf42d143c29dc548c4a366abe3ab0ef2a0ff3baab247defd7",
+    "provenanceBytes": 22841,
     "sourceResultId": "e6f4cc55-5e0b-4b72-954f-5d3df3022090--source-roche-china-social",
     "batchId": "e6f4cc55-5e0b-4b72-954f-5d3df3022090",
     "sourceId": "source-roche-china-social",
@@ -18,6 +20,8 @@
   },
   "rocheS22": {
     "provenance": "20261117-pr75-replay-roche-archive.json",
+    "provenanceSha256": "3ba299608a6642573056524f0ab8f3047187a241da38790adde951e7574e2afa",
+    "provenanceBytes": 265,
     "batchId": "2b812584-86a9-4d91-ab3b-8f6edfb30d1e",
     "responses": 319,
     "expected": 315,
@@ -34,6 +38,8 @@
   },
   "novartis": {
     "provenance": "20261117-pr75-novartis-capture.json",
+    "provenanceSha256": "bd7147f48cb39097b3766507d64f2941de3bb8d3ddf8c93f73c5b6cd60202c66",
+    "provenanceBytes": 516,
     "sourceResultId": "326f72a4-293d-44f7-9c27-2ed19a58bed4--source-novartis-social",
     "indexDeclaredTotal": 609,
     "primaryUniqueCount": 610,

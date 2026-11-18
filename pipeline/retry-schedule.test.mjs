@@ -32,6 +32,15 @@ test('legacy unattributed collection requires a genuine same-slot snapshot recei
   assert.equal(roundManualIntervention(slot,roundId,{...legacy,snapshotFile:undefined}),false);
 });
 
+test('legacy provenance uses the configured snapshots directory and rejects another root',()=>{
+  const slot='1794950460000',roundId='a'.repeat(32),sha256='b'.repeat(64);
+  const snapshots=resolve('.runtime/.cache/custom-collector/snapshots');
+  const legacy={slot,status:'SNAPSHOT_SAVED',sha256,snapshotFile:join(snapshots,`public-${sha256}.json`),capturedSources:[]};
+  assert.equal(roundManualIntervention(slot,roundId,legacy,snapshots),true);
+  assert.equal(roundManualIntervention(slot,roundId,legacy,resolve('.runtime/.cache/other/snapshots')),false);
+  assert.equal(roundManualIntervention(slot,roundId,{...legacy,snapshotFile:`public-${sha256}.json`},snapshots),false);
+});
+
 test('two-hour Retry-After survives receipt serialization and waits until the exact deadline',()=>{
   const retryAt=now+2*3600_000;
   const schedule=build({completeSourceIds:new Set(['source-novo','source-roche']),attemptedSourceIds:new Set(['source-amgen']),

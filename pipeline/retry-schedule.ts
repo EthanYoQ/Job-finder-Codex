@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { closeSync, fsyncSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, isAbsolute, resolve } from "node:path";
 
 const timestamp = z.number().int().min(0).max(8_640_000_000_000_000);
 export const roundIdSchema = z.string().regex(/^[a-f0-9]{32}$/);
@@ -28,7 +28,8 @@ export type RetryOutcome = {sourceId: string; retryAt?: number; lastActualReques
 export const sourceRetryBackoffMs = 40 * 60_000;
 
 /** A manual collection disqualifies only its own daily slot, including later automatic waves. */
-export function roundManualIntervention(slot: string | null, roundId: string | undefined, previous: unknown): boolean {
+export function roundManualIntervention(slot: string | null, roundId: string | undefined, previous: unknown,
+  snapshotsDirectory = "/data/job-finder/snapshots"): boolean {
   if (slot === null) return false;
   if (roundId === undefined) return true;
   if (!previous || typeof previous !== "object" || !("slot" in previous) || previous.slot !== slot) return false;
@@ -37,7 +38,8 @@ export function roundManualIntervention(slot: string | null, roundId: string | u
   // A genuine legacy receipt has no dispatch identity. Do not infer provenance from placeholder objects.
   return receipt.roundId === undefined && receipt.status === "SNAPSHOT_SAVED" &&
     typeof receipt.sha256 === "string" && /^[a-f0-9]{64}$/.test(receipt.sha256) &&
-    receipt.snapshotFile === `/data/job-finder/snapshots/public-${receipt.sha256}.json` &&
+    typeof receipt.snapshotFile === "string" && isAbsolute(receipt.snapshotFile) &&
+    resolve(receipt.snapshotFile) === resolve(snapshotsDirectory,`public-${receipt.sha256}.json`) &&
     Array.isArray(receipt.capturedSources);
 }
 

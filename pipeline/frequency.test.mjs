@@ -302,13 +302,41 @@ test('an obsolete pending publication cannot block the next Beijing slot or be i
   assert.ok(fixture.reports.some(row=>row.status==='OBSOLETE_PUBLICATION_RELEASED'));
 });
 
+test('an unfinished old round is released without waiting for its old remote job',async t=>{
+  const fixture=await refreshFixture(t,{complete:true});
+  const oldRoundId='4'.repeat(32);
+  await writeFile(fixture.stateFile,JSON.stringify({...fixture.legacy,
+    active:{slot:String(midnight),roundId:oldRoundId,jobId:'yesterdays-job',trigger:'timer'},
+    infrastructureRetryAt:next+60_000}));
+  assert.equal(await runRefresh({...fixture.options,now:next}),0);
+  assert.equal(fixture.jobs.size,1);
+  assert.equal(fixture.jobs.values().next().value.slot,String(next));
+  assert.notEqual(fixture.jobs.values().next().value.roundId,oldRoundId);
+  assert.ok(fixture.reports.some(row=>row.status==='OBSOLETE_ROUND_RELEASED'));
+});
+
+test('the remote wait is bounded by the current slot end',async t=>{
+  const fixture=await refreshFixture(t,{complete:true});
+  const execute=async(cli,args,options)=>{
+    if(args[0]==='jobs'){
+      assert.equal(args[args.indexOf('--timeout')+1],'360s');
+      assert.equal(options.timeout,361_000);
+    }
+    return fixture.options.execute(cli,args);
+  };
+  assert.equal(await runRefresh({...fixture.options,now:next-360_000,execute}),0);
+});
+
 test('a complete receipt with missing source identities cannot be published',async t=>{
   const fixture=await refreshFixture(t,{complete:true});
   fixture.receipt.capturedSources=[];
-  assert.equal(await runRefresh(fixture.options),75);
+  assert.equal(await runRefresh(fixture.options),76);
   assert.equal(fixture.snapshotPulls.length,0);
   assert.deepEqual((await fixture.readState()).records,[]);
   assert.ok(fixture.reports.some(row=>row.status==='ROUND_RECEIPT_SOURCE_COVERAGE_MISMATCH'));
+  const calls=fixture.calls.length;
+  assert.equal(await runRefresh({...fixture.options,now:midnight+10*60_000}),76);
+  assert.equal(fixture.calls.length,calls);
 });
 
 test('contradictory snapshot metadata is rejected before installation',async t=>{
@@ -316,7 +344,7 @@ test('contradictory snapshot metadata is rejected before installation',async t=>
   fixture.receipt.totalJobs++;
   let installations=0;
   const installSnapshot=async()=>{installations++;};
-  assert.equal(await runRefresh({...fixture.options,installSnapshot}),75);
+  assert.equal(await runRefresh({...fixture.options,installSnapshot}),76);
   assert.equal(installations,0);
   assert.ok(fixture.reports.some(row=>row.status==='ROUND_RECEIPT_SNAPSHOT_METADATA_MISMATCH'));
 });

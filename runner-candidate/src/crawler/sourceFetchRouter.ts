@@ -56,6 +56,9 @@ export function createSourceFetchRouter({
     }
     for (let retry = 0; retry < policy.maxRetries; retry += 1) {
       if (result.ok || result.sourceRetryExhausted || !isRetryableSourceTransportFailure(result.transportFailure)) return result;
+      const retryCode = result.transportFailure.code;
+      // Local deferral ends this acquisition. It is never a persisted HTTP retry reason.
+      if (retryCode === "OFFICIAL_REQUEST_DEFERRED") return result;
       const retryAfterMs = result.transportFailure.retryAfterMs;
       if (retryAfterMs !== undefined &&
         (!Number.isSafeInteger(retryAfterMs) || retryAfterMs < 0 || retryAfterMs > policy.backoffMs)) return result;
@@ -71,7 +74,7 @@ export function createSourceFetchRouter({
       const remainingBeforeRetry = currentOfficialSourceAttemptRemainingMs();
       if (remainingBeforeRetry !== undefined &&
         (!Number.isFinite(remainingBeforeRetry) || remainingBeforeRetry <= 0)) return result;
-      markSourceFetchRetry(attemptTracker, result.transportFailure.code);
+      markSourceFetchRetry(attemptTracker, retryCode);
       result = await delegate(plan);
     }
     return result;

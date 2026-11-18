@@ -25,7 +25,12 @@ test('the registered scheduler runs without the migration file and keeps source 
   const candidate = {id: 'instabox-timeout-test', goalId: 'job-finder-instabox-migration', status: 'BUILDING'};
   const lease = {signal: new AbortController().signal};
   const db = {
-    releaseCandidate: {findUniqueOrThrow: async () => candidate},
+    releaseCandidate: {findUniqueOrThrow: async ({where}) => {
+      if(where.id!==candidate.id)throw Error('CANDIDATE_NOT_REGISTERED');
+      return candidate;
+    }},
+    manualCrawlRequest: {findUnique: async () => {throw Error('LEGACY_REQUEST_REPLAY_FORBIDDEN');},
+      findMany: async () => {throw Error('LEGACY_REQUEST_REPLAY_FORBIDDEN');}},
     recruitmentSource: {findMany: async () => routes.map(({sourceId: id, companyId}) => ({id, companyId}))},
     crawlBatchSourceResult: {findFirst: async () => null, findMany: async ({where}) => {
       assert.equal(where.releaseCandidateId, candidate.id);
@@ -43,6 +48,9 @@ test('the registered scheduler runs without the migration file and keeps source 
   try {
     await assert.rejects(runDirectRound({db, leaseDb: {lease}, candidateId: 'old-candidate', workspaceRoot}),
       /NEW_INSTABOX_CANDIDATE_REQUIRED/);
+    await assert.rejects(runDirectRound({db, leaseDb: {lease}, candidateId: 'instabox-unregistered', workspaceRoot}),
+      /CANDIDATE_NOT_REGISTERED/);
+    assert.equal(calls.length,0);
     candidate.goalId = 'old-registration';
     await assert.rejects(runDirectRound({db, leaseDb: {lease}, candidateId: candidate.id, workspaceRoot}),
       /NEW_INSTABOX_CANDIDATE_REQUIRED/);
@@ -108,12 +116,20 @@ test('the registered scheduler runs without the migration file and keeps source 
     const dueOrder=['source-roche-china-social','source-pfizer-china-social','source-amgen-china-social'];
     const observations=[],onSourceTransportObservation=observation=>observations.push(observation);
     await runDirectRound({db,leaseDb:{lease},candidateId:candidate.id,workspaceRoot,slot,
-      onlySourceIds:dueOrder,preserveSelectedSourceOrder:true,onSourceTransportObservation});
+      onlySourceIds:dueOrder,prioritizeSelectedSources:true,onSourceTransportObservation});
     assert.deepEqual(calls.map(row=>row.sourceId),dueOrder);
     assert.ok(calls.every(({deps})=>deps.onSourceTransportObservation===onSourceTransportObservation));
     const observation={sourceId:dueOrder[0],observedAt:Date.now(),observedActualHttp:true,actualHttpStatuses:[429],locallyDeferred:false};
     calls[0].deps.onSourceTransportObservation(observation);
     assert.deepEqual(observations,[observation]);
+    calls.length=0;
+    const regular=routes.filter(row=>!workdayIds.has(row.sourceId)).slice(0,4).map(row=>row.sourceId);
+    await runDirectRound({db,leaseDb:{lease},candidateId:candidate.id,workspaceRoot,slot,
+      onlySourceIds:[...dueOrder,...regular],prioritizeSelectedSources:true});
+    assert.deepEqual(calls.filter(row=>workdayIds.has(row.sourceId)).map(row=>row.sourceId),dueOrder);
+    assert.deepEqual(calls.map(row=>row.sourceId),[
+      regular[0],dueOrder[0],regular[1],dueOrder[1],regular[2],dueOrder[2],regular[3]
+    ]);
   } finally {
     await rmdir(workspaceRoot);
   }

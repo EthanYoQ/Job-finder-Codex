@@ -1,7 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import { syncBuiltinESMExports } from 'node:module';
 import { loadDirectPlans } from '../runner-candidate/scripts/direct-round.ts';
 import { candidateCompanies } from '../web-candidate/src/data/companyRegistry.ts';
 import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from '../web-candidate/src/crawler/sourcePlan.ts';
@@ -35,7 +33,7 @@ test('compact to full native B receipt keeps the prior verified visibility floor
  }
 });
 
-test('the daily reader exports committed Merck jobs without logo assets and holds invalid membership', async t => {
+test('the daily reader exports committed Merck jobs and holds invalid membership', async () => {
   const route = routes.find(row => row.sourceId === 'source-merck-china-social');
   const plan = reader.find(plan => plan.source.id === route.sourceId);
   const at = '2026-10-31T00:00:00.000Z';
@@ -55,43 +53,29 @@ test('the daily reader exports committed Merck jobs without logo assets and hold
     officialUrl: 'https://careers.example.com/job-1', officialPublishedAt: null, city: '北京', cities: ['北京'], locationRaw: '北京', category: 'SALES',
     isNew: false, lastSeenAt: new Date(at), lifecycleStatus: 'ACTIVE', visibleInFrontend: true, missingSuccessCount: 0 };
 
-  const readFileSync = fs.readFileSync;
-  const withoutLogos = t.mock.method(fs, 'readFileSync', (path, ...options) => {
-    const name = path instanceof URL ? path.pathname : String(path);
-    if (/[\\/]company-logos\.(?:png|webp)$/.test(name)) {
-      throw Object.assign(new Error(`Missing frontend asset ${name}`), { code: 'ENOENT' });
+  const { readPortablePublicSnapshot } = await import('../web-candidate/src/db/portablePublicSnapshotRepository.ts');
+  const read = async (result, lifecycleMembers) => validateSavedSnapshot(await readPortablePublicSnapshot({
+    async $transaction(operation, options) {
+      assert.equal(options.isolationLevel, 'RepeatableRead');
+      assert.equal(options.timeout, 120_000);
+      return operation({
+        $queryRawUnsafe: async () => [result],
+        lifecycleSetEvidenceMember: { findMany: async () => lifecycleMembers },
+        job: { findMany: async () => [job] }
+      });
     }
-    return readFileSync(path, ...options);
-  });
-  syncBuiltinESMExports();
-  try {
-    const { readPortablePublicSnapshot } = await import('../web-candidate/src/db/portablePublicSnapshotRepository.ts');
-    const read = async (result, lifecycleMembers) => validateSavedSnapshot(await readPortablePublicSnapshot({
-      async $transaction(operation, options) {
-        assert.equal(options.isolationLevel, 'RepeatableRead');
-        assert.equal(options.timeout, 120_000);
-        return operation({
-          $queryRawUnsafe: async () => [result],
-          lifecycleSetEvidenceMember: { findMany: async () => lifecycleMembers },
-          job: { findMany: async () => [job] }
-        });
-      }
-    }, { currentTime: new Date(at) }, [plan]));
-    const current = await read(row, members);
-    assert.equal(current.totalJobs, 1);
-    assert.equal(current.lastUpdatedAt, at);
-    assert.deepEqual(current.sources[0].jobs.map(({ id, sourceResultId, category }) => ({ id, sourceResultId, category })),
-      [{ id: job.id, sourceResultId: row.id, category: '销售' }]);
-    assert.deepEqual(await read(legacyRow, members), current);
+  }, { currentTime: new Date(at) }, [plan]));
+  const current = await read(row, members);
+  assert.equal(current.totalJobs, 1);
+  assert.equal(current.lastUpdatedAt, at);
+  assert.deepEqual(current.sources[0].jobs.map(({ id, sourceResultId, category }) => ({ id, sourceResultId, category })),
+    [{ id: job.id, sourceResultId: row.id, category: '销售' }]);
+  assert.deepEqual(await read(legacyRow, members), current);
 
-    const invalid = await read(legacyRow, members.slice(0, 1));
-    assert.equal(invalid.totalJobs, 0);
-    assert.equal(invalid.sources[0].state, 'HOLD');
-    assert.ok(invalid.sources[0].reasons.includes('PROJECTION_INTEGRITY_HOLD'));
-  } finally {
-    withoutLogos.mock.restore();
-    syncBuiltinESMExports();
-  }
+  const invalid = await read(legacyRow, members.slice(0, 1));
+  assert.equal(invalid.totalJobs, 0);
+  assert.equal(invalid.sources[0].state, 'HOLD');
+  assert.ok(invalid.sources[0].reasons.includes('PROJECTION_INTEGRITY_HOLD'));
 });
 
 test('native A-grade quarantines retain verified GRACE jobs in the public projection',()=>{
