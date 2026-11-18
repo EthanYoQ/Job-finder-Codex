@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { fetchWithOfficialTimeout } from "../src/crawler/officialHttpRuntimeLimits.ts";
-import { withWorkdayRequestPolicy, workdayRetryAfterHeader } from "../src/crawler/workdayRequestPolicy.ts";
+import { assertWorkdayAvailable, recordWorkdayAccessResponse, withWorkdayRequestPolicy,
+  workdayRetryAfterHeader } from "../src/crawler/workdayRequestPolicy.ts";
 import { withSourceTransportObservation, retryableTransportFailureFromError,
   safeSourceTransportFailureReason } from "../src/crawler/sourceFetchFailure.ts";
 import { transportFailureDiagnosticBundle } from "../src/crawler/sourceFailureDiagnostics.ts";
@@ -21,7 +22,7 @@ const localCleanup = async t => {
   return directory;
 };
 
-test("a real 429 challenge retains its body and defers other tenants across collector restarts", async t => {
+test("a real 429 challenge retains its body and defers only its producing host across restarts", async t => {
   const directory = await localCleanup(t);
   const body = "<script src='/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1'></script>";
   const response = await withWorkdayRequestPolicy(directory, () => fetchWithOfficialTimeout(amgen, {}, {
@@ -33,26 +34,30 @@ test("a real 429 challenge retains its body and defers other tenants across coll
   assert.equal(response.headers.get("Retry-After"), "2700");
   assert.equal(workdayRetryAfterHeader(response), "2700");
   const cooldown = JSON.parse(await readFile(join(directory, "workday-cooldown.json"), "utf8"));
-  assert.equal(cooldown.family.status, 429);
+  const host = new URL(amgen).hostname;
+  assert.equal(cooldown.hosts[host].status, 429);
+  assert.equal(cooldown.family, undefined);
   const { stdout } = await promisify(execFile)(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `
     import { withWorkdayRequestPolicy } from "./src/crawler/workdayRequestPolicy.ts";
     import { fetchWithOfficialTimeout } from "./src/crawler/officialHttpRuntimeLimits.ts";
-    const [root, target, until] = process.argv.slice(1);
+    const [root, target, independent, until] = process.argv.slice(1);
     const attempts = [], seen = [];
     const fetchImpl = async url => { attempts.push(url); return new Response("ok"); };
     await withWorkdayRequestPolicy(root, async () => {
       try { await fetchWithOfficialTimeout(target, {}, {fetchImpl}); }
       catch (error) { seen.push(error.code, error.status, error.retryAfterMs > 2_400_000); }
-      await fetchWithOfficialTimeout("https://careers.amgen.com/en", {}, {fetchImpl});
+      try { await fetchWithOfficialTimeout(new URL("/en-US/Careers", target), {}, {fetchImpl}); }
+      catch (error) { seen.push(error.code); }
+      await fetchWithOfficialTimeout(independent, {}, {fetchImpl});
       Date.now = () => Number(until) + 1;
       await fetchWithOfficialTimeout(target, {}, {fetchImpl});
     });
     console.log(JSON.stringify({attempts, seen}));
-  `, directory, csl, String(cooldown.family.until)], {
+  `, directory, amgen, csl, String(cooldown.hosts[host].until)], {
     cwd: fileURLToPath(new URL("..", import.meta.url))
   });
   assert.deepEqual(JSON.parse(stdout), {
-    attempts: ["https://careers.amgen.com/en", csl], seen: ["WORKDAY_COOLDOWN", 429, true]
+    attempts: [csl, amgen], seen: ["WORKDAY_COOLDOWN", 429, true, "WORKDAY_COOLDOWN"]
   });
 });
 
@@ -121,7 +126,22 @@ test("cancellation while inspecting challenge bytes stays a rejected request", a
 });
 
 for (const status of [403, 429]) {
-  test(`a ${status} cooldown attributes the actual response and deferred source separately`, async t => {
+  test(`a ${status} challenge retains the exact forty-minute same-host floor`, async t => {
+    const directory = await localCleanup(t), now = 1_800_000_000_000;
+    t.mock.method(Date, "now", () => now);
+    await withWorkdayRequestPolicy(directory, async () => {
+      await fetchWithOfficialTimeout(amgen, {}, { fetchImpl: async () => new Response("challenge", {
+        status, headers: { "cf-mitigated": "challenge", "retry-after": "120" }
+      }) });
+      assert.throws(() => assertWorkdayAvailable(amgen), error => error.status === status && error.retryAfterMs === 2_400_000);
+      assert.doesNotThrow(() => assertWorkdayAvailable(csl));
+    });
+    const saved = JSON.parse(await readFile(join(directory, "workday-cooldown.json"), "utf8"));
+    assert.deepEqual(saved.hosts[new URL(amgen).hostname], { status, until: now + 2_400_000 });
+    assert.equal(saved.family, undefined);
+  });
+
+  test(`a ${status} cooldown attributes an actual response and same-host local deferral separately`, async t => {
     const directory = await localCleanup(t);
     const observations = [];
     let requests = 0;
@@ -135,7 +155,7 @@ for (const status of [403, 429]) {
         assert.equal((await fetchWithOfficialTimeout(amgen, {}, { fetchImpl })).status, status);
       });
       await withSourceTransportObservation("deferred-source", value => observations.push(value), async () => {
-        await assert.rejects(fetchWithOfficialTimeout(csl, {}, { fetchImpl }), error => {
+        await assert.rejects(fetchWithOfficialTimeout(amgen, {}, { fetchImpl }), error => {
           const failure = retryableTransportFailureFromError(error);
           assert.equal(failure.code, "OFFICIAL_REQUEST_DEFERRED");
           assert.equal(failure.deferredStatus, status);
@@ -169,3 +189,34 @@ for (const status of [403, 429]) {
     assert.ok(deferred.retryAt >= actual.retryAt);
   });
 }
+
+test("active legacy family deadlines survive restarts and new host observations without extension", async t => {
+  const directory = await localCleanup(t), file = join(directory, "workday-cooldown.json");
+  let now = 1_800_000_000_000, requests = 0;
+  t.mock.method(Date, "now", () => now);
+  const family = { status: 429, until: now + 40 * 60_000 };
+  await writeFile(file, JSON.stringify({ family, hosts: {} }));
+  const fetchImpl = async () => { requests++; return new Response("ready"); };
+  await withWorkdayRequestPolicy(directory, async () => {
+    await assert.rejects(fetchWithOfficialTimeout(csl, {}, { fetchImpl }), { code: "WORKDAY_COOLDOWN" });
+    // A response already in flight can still arrive while the legacy hold is active.
+    recordWorkdayAccessResponse(amgen, 403, new Headers({ "cf-mitigated": "challenge", "retry-after": "7200" }));
+  });
+  const written = JSON.parse(await readFile(file, "utf8"));
+  assert.deepEqual(written.family, family, "The old shared deadline is neither reset nor extended");
+  assert.equal(written.hosts[new URL(amgen).hostname].until, now + 7_200_000);
+  now = family.until - 1;
+  await withWorkdayRequestPolicy(directory, async () => {
+    await assert.rejects(fetchWithOfficialTimeout(csl, {}, { fetchImpl }), error =>
+      error.code === "WORKDAY_COOLDOWN" && error.retryAfterMs === 1);
+  });
+  assert.equal(requests, 0);
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), written, "Reading after restart does not rewrite state");
+  now = family.until;
+  await withWorkdayRequestPolicy(directory, async () => {
+    assert.equal((await fetchWithOfficialTimeout(csl, {}, { fetchImpl })).status, 200);
+    assert.throws(() => assertWorkdayAvailable(amgen), error =>
+      error.code === "WORKDAY_COOLDOWN" && error.status === 403 && error.retryAfterMs === 4_800_000);
+  });
+  assert.equal(requests, 1);
+});

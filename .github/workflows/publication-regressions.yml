@@ -29,7 +29,8 @@ jobs:
         run: ln -s runner-candidate/node_modules node_modules
       - run: npm exec -- prisma generate
       - run: npm run test:publication
-      - run: node --import tsx --test tests/beisen-detail-scope.test.mjs tests/direct-round-timeout.test.mjs tests/novo-job-isolation.test.mjs tests/roche-denied-detail-isolation.test.mjs tests/workday-job-isolation.test.mjs tests/workday-request-policy.test.mjs tests/amgen-job-isolation.test.mjs tests/pfizer-job-isolation.test.mjs tests/phenom-detail-isolation.test.mjs tests/lilly-closed-certificate.test.mjs
+      - run: node --import tsx --test tests/beisen-detail-scope.test.mjs tests/direct-round-timeout.test.mjs tests/novo-job-isolation.test.mjs tests/roche-denied-detail-isolation.test.mjs tests/workday-job-isolation.test.mjs tests/workday-request-policy.test.mjs tests/workday-host-scope.test.mjs tests/amgen-job-isolation.test.mjs tests/pfizer-job-isolation.test.mjs tests/phenom-detail-isolation.test.mjs tests/lilly-closed-certificate.test.mjs
+      - run: node --import tsx --test --test-name-pattern='Pfizer|cooldown' tests/isolated-validator-output.test.mjs
       - name: Verify Pfizer access handling in Chromium
         run: |
           chrome="$(command -v google-chrome || command -v chromium)"
