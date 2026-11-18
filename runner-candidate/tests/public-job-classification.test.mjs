@@ -21,6 +21,7 @@ const cases = [
   ["source-qilu-social", "小分子创新药分析总监或首席专家（CSO）（海内外招聘）(J10834)", "其他", undefined],
   ["source-qilu-social", "社会招聘资深专员/高级专员(J11149)", "职能", "人力资源"],
   ["source-hengrui-social", "RWE统计师-生物统计与编程部-中央医学事务部", "医学事务", undefined],
+  ["source-hengrui-social", "注册安全工程师-邛崃羊安", "生产/工程", "工程技术"],
 ];
 
 const oldJobs = cases.map(([sourceId, officialTitle], index) => ({
