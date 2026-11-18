@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assertFreshManualRequest } from '../scripts/direct-manual.ts';
+import { assertFreshManualRequest } from '../scripts/manual-request.ts';
 import { createManualSourceBatchExecutor } from '../src/crawler/manualSourceBatchExecutor.ts';
 import { runManualCrawlWorker } from '../src/crawler/manualCrawlWorker.ts';
 import { loadDirectPlans, identityForSource } from '../scripts/direct-round.ts';

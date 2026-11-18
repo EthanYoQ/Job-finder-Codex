@@ -11,6 +11,21 @@ type Cooldowns = { family?: Cooldown; hosts: Record<string, Cooldown> };
 type Scope = { file: string; nextRequestAt: number; cooldowns?: Cooldowns };
 
 const scopes = new AsyncLocalStorage<Scope>();
+export interface WorkdayTransportObservation {
+  kind: "HTTP_RESPONSE" | "LOCAL_DEFERRED";
+  observedAt: number;
+  status: AccessStatus;
+  retryAt?: number;
+}
+const transportObservers = new AsyncLocalStorage<(observation: WorkdayTransportObservation) => void>();
+
+export function withWorkdayTransportObservation<T>(
+  observe: (observation: WorkdayTransportObservation) => void,
+  run: () => Promise<T>
+): Promise<T> {
+  return transportObservers.run(observe, run);
+}
+
 const effectiveRetryHeaders = new WeakMap<Response, string>();
 const challengeCooldownMs = 40 * 60_000;
 const plainRateLimitCooldownMs = 60_000;
@@ -70,7 +85,11 @@ function assertAvailable(scope: Scope, host: string, now: number): void {
   const { family, hosts } = loadCooldowns(scope, now);
   const tenant = hosts[host];
   const cooldown = family && family.until >= (tenant?.until ?? 0) ? family : tenant;
-  if (activeCooldown(cooldown, now)) throw new WorkdayCooldownError(cooldown.status, cooldown.until - now);
+  if (activeCooldown(cooldown, now)) {
+    transportObservers.getStore()?.({ kind: "LOCAL_DEFERRED", observedAt: now,
+      status: cooldown.status, retryAt: cooldown.until });
+    throw new WorkdayCooldownError(cooldown.status, cooldown.until - now);
+  }
 }
 
 export function assertWorkdayAvailable(url: string): void {
@@ -112,14 +131,18 @@ export function recordWorkdayAccessResponse(url: string, status: number, headers
   const host = workdayHost(url);
   if (!host) return undefined;
   const challenge = headers.get("cf-mitigated") === "challenge" || challengeHtml;
-  if (!challenge && status === 403) return undefined;
   const now = Date.now();
+  if (!challenge && status === 403) {
+    transportObservers.getStore()?.({ kind: "HTTP_RESPONSE", observedAt: now, status });
+    return undefined;
+  }
   const retryAfter = parseOfficialRetryAfter(headers.get("retry-after"), now);
   const delayMs = Math.max(challenge ? challengeCooldownMs : plainRateLimitCooldownMs,
     retryAfter && "delayMs" in retryAfter ? retryAfter.delayMs : 0);
   const cooldowns = loadCooldowns(scope, now);
   const previous = challenge ? cooldowns.family : cooldowns.hosts[host];
   const until = Math.max(now + delayMs, previous?.until ?? 0);
+  transportObservers.getStore()?.({ kind: "HTTP_RESPONSE", observedAt: now, status, retryAt: until });
   if (previous?.until !== until) {
     const cooldown: Cooldown = { status, until };
     if (challenge) cooldowns.family = cooldown;

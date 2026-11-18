@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {candidateCompanies} from '../src/data/companyRegistry.ts';
 import {buildStagedSourceCrawlPlans} from '../src/crawler/sourcePlan.ts';
-import {acquireNovartisNativePartitions,replayNovartisNativePartitions} from '../src/crawler/novartisNativePartitions.ts';
+import {acquireNovartisNativePartitions,replayNovartisNativePartitions,NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR} from '../src/crawler/novartisNativePartitions.ts';
 import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
 import {CITY_PENDING} from '../src/domain/jobLocation.ts';
 import {legacySortEvidence} from './novartis-legacy-fixture.mjs';
@@ -16,11 +16,11 @@ const row=(id)=>`<tr><td class="views-field-field-job-title"><a href="${url(id)}
 const page=(ids,n=ids.length)=>`<div class="view-header">Showing ${n} results</div><table class="views-table"><tbody>${ids.length?ids.map(row).join(''):'<tr><td colspan="5" class="empty message">No content has been found.</td></tr>'}</tbody></table>`;
 const root=page([],2)+`<select name="functional_area[]">${fields.map(v=>`<option value="${v}">${v}</option>`).join('')}</select><select name="country[]"><option value="LOC_CN" selected>China</option></select><select name="field_job_posted_date"><option value="All" selected>All</option></select>`;
 const ids=['REQ-10000001','REQ-10000002','REQ-10000003'];
-async function capture(mode='present',location='Shanghai (Shanghai)',alternative='',primaryCountry='China'){
+async function capture(mode='present',location='Shanghai (Shanghai)',alternative='',primaryCountry='China',sourceTotal=2){
  const at=new Date().toISOString();const requests=[];
  const fetched=await acquireNovartisNativePartitions(plan,async req=>{requests.push(req.url);const u=new URL(req.url),field=u.searchParams.get('functional_area[0]');
  if(field)assert.equal(u.searchParams.get('order'),'发布日期');
- let html=req.url===plan.source.officialEntryUrl?root:field?page(field==='FCT_QA'?[ids[0]]:field==='FCT_RD'?[ids[1]]:[]):page(ids);
+ let html=req.url===plan.source.officialEntryUrl?root.replace('Showing 2 results',`Showing ${sourceTotal} results`):field?page(field==='FCT_QA'?[ids[0]]:field==='FCT_RD'?[ids[1]]:[]):page(ids);
  if(field==='FCT_RD'&&['duplicate-page','changing-total'].includes(mode)){
   const p=Number(u.searchParams.get('page')??0),ten=Array.from({length:10},(_,i)=>`REQ-${10000010+i}`),next=new URL(u);next.searchParams.set('page','1');
   html=page(p?(mode==='duplicate-page'?[ten[0]]:['REQ-10000020','REQ-10000021']):ten,p&&mode==='changing-total'?12:11)+
@@ -31,7 +31,14 @@ async function capture(mode='present',location='Shanghai (Shanghai)',alternative
 }
 const c=await capture();if(!c.fetched.ok)console.log(c.fetched.failureReason,c.fetched.fetchEvidence?.artifacts.map(a=>a.logicalKey));assert(c.fetched.ok);assert.equal(c.fetched.fetchEvidence.fetchCounts.validCount,3);
 const e=c.fetched.fetchEvidence;const audit=replayNovartisNativePartitions(plan,e).audit;assert.equal(audit.indexDeclaredTotal,2);assert.equal(audit.observedUniqueCount,3);assert(!c.requests.some(u=>u.includes('moseeker')));
-assert.equal(e.captureTool.version,'13');
+assert.equal(e.captureTool.version,'14');
+assert.equal(audit.noOmissionVerified,true);
+const drift=(await capture('present','Shanghai (Shanghai)','','China',1)).fetched;
+assert.equal(drift.ok,true);
+assert.equal(drift.fetchEvidence.artifacts.find(row=>row.logicalKey==='novartis-partitions-audit').extractorLocator,NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR);
+const version13=structuredClone(drift.fetchEvidence);version13.captureTool.version='13';
+version13.artifacts.find(row=>row.logicalKey==='novartis-partitions-audit').extractorLocator='novartis-partitions-audit';
+assert.equal(replayNovartisNativePartitions(plan,version13).audit.noOmissionVerified,false);
 const version9=structuredClone(e);version9.captureTool.version='9';assert.equal(replayNovartisNativePartitions(plan,version9).audit.observedUniqueCount,3);
 const siteLegacy=legacySortEvidence(e,'5','站点');
 assert.equal(replayNovartisNativePartitions(plan,siteLegacy).audit.observedUniqueCount,3);
@@ -106,7 +113,7 @@ test('archived default discovery exhaustion keeps closed partitions and marks ab
  assert.equal(fetched.ok,true,fetched.failureReason);
  assert.equal(calls.length,49,'Root, one closed primary partition and 47 existing default pages; no extra requests');
  const projected=replayNovartisNativePartitions(plan,fetched.fetchEvidence);
- assert.equal(fetched.fetchEvidence.captureTool.version,'13');
+ assert.equal(fetched.fetchEvidence.captureTool.version,'14');
  assert.equal(projected.counts.validCount,1);assert.equal(projected.unboundUnknown,true);
  assert.equal(projected.audit.noOmissionVerified,false);
  assert.ok(projected.audit.anomalyCodes.includes('NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED'));

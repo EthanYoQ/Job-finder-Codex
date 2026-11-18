@@ -8,6 +8,9 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { fetchWithOfficialTimeout } from "../src/crawler/officialHttpRuntimeLimits.ts";
 import { withWorkdayRequestPolicy, workdayRetryAfterHeader } from "../src/crawler/workdayRequestPolicy.ts";
+import { withSourceTransportObservation, retryableTransportFailureFromError,
+  safeSourceTransportFailureReason } from "../src/crawler/sourceFetchFailure.ts";
+import { transportFailureDiagnosticBundle } from "../src/crawler/sourceFailureDiagnostics.ts";
 
 const amgen = "https://amgen.wd1.myworkdayjobs.com/wday/cxs/amgen/Careers/jobs";
 const csl = "https://csl.wd1.myworkdayjobs.com/wday/cxs/csl/CSL_External/jobs";
@@ -116,3 +119,53 @@ test("cancellation while inspecting challenge bytes stays a rejected request", a
     }
   });
 });
+
+for (const status of [403, 429]) {
+  test(`a ${status} cooldown attributes the actual response and deferred source separately`, async t => {
+    const directory = await localCleanup(t);
+    const observations = [];
+    let requests = 0;
+    const fetchImpl = async () => {
+      requests++;
+      return new Response("challenge", { status,
+        headers: { "cf-mitigated": "challenge", "retry-after": "10800" } });
+    };
+    await withWorkdayRequestPolicy(directory, async () => {
+      await withSourceTransportObservation("actual-source", value => observations.push(value), async () => {
+        assert.equal((await fetchWithOfficialTimeout(amgen, {}, { fetchImpl })).status, status);
+      });
+      await withSourceTransportObservation("deferred-source", value => observations.push(value), async () => {
+        await assert.rejects(fetchWithOfficialTimeout(csl, {}, { fetchImpl }), error => {
+          const failure = retryableTransportFailureFromError(error);
+          assert.equal(failure.code, "OFFICIAL_REQUEST_DEFERRED");
+          assert.equal(failure.deferredStatus, status);
+          assert.ok(failure.retryAfterMs > 10_799_000);
+          assert.match(safeSourceTransportFailureReason(failure), new RegExp(`previous HTTP ${status}`));
+          assert.deepEqual(transportFailureDiagnosticBundle(failure, {
+            fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: []
+          }), {
+            failureCategory: "TEMPORARY_OFFICIAL_SOURCE_FAILURE", failureDiagnosticCode: "FETCH_FAILED_CLOSED",
+            fetchAttemptCount: 1, retryCount: 0, retryReasonCodes: []
+          });
+          return true;
+        });
+      });
+    });
+    assert.equal(requests, 1);
+    assert.ok(observations.length >= 4, "Deadline checkpoints precede the final source reports");
+    const actual = observations.filter(value => value.sourceId === "actual-source").at(-1);
+    const deferred = observations.filter(value => value.sourceId === "deferred-source").at(-1);
+    assert.equal(actual.sourceId, "actual-source");
+    assert.equal(actual.observedActualHttp, true);
+    assert.deepEqual(actual.actualHttpStatuses, [status]);
+    assert.equal(actual.locallyDeferred, false);
+    assert.equal(actual.retryAt, actual.lastActualRequestAt + 10_800_000);
+    assert.equal(deferred.sourceId, "deferred-source");
+    assert.equal(deferred.observedActualHttp, false);
+    assert.deepEqual(deferred.actualHttpStatuses, []);
+    assert.equal(deferred.lastActualRequestAt, undefined);
+    assert.equal(deferred.locallyDeferred, true);
+    assert.equal(deferred.deferredStatus, status);
+    assert.ok(deferred.retryAt >= actual.retryAt);
+  });
+}

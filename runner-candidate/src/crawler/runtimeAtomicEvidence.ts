@@ -155,7 +155,6 @@ export function verifyAtomicRuntimeCommitAttestation(commit: AtomicSourceEvidenc
   if(sealed.length!==current.length||!timingSafeEqual(sealed,current))throw new Error("ATOMIC_RUNTIME_COMMIT_ATTESTATION_INVALID");
 }
 
-/** Async replay is mandatory on the actual persistence route for Astellas. */
 export async function verifyAtomicRuntimeCommitForPersistence(commit:AtomicSourceEvidenceCommit):Promise<void> {
   verifyAtomicRuntimeCommitAttestation(commit);
   if(commit.sourceResult.sourceId==="source-astellas-china-social"&&commit.publicationPolicy==="SOURCE_ATOMIC_LAST_GOOD_V1"&&commit.sourceResult.completenessState==="VERIFIED"){

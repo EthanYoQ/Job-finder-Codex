@@ -47,7 +47,8 @@ import {
 } from "./runtimeBatchIdentity";
 import { isSourceDueForScheduledRun } from "./schedule";
 import { sourcePlanConfigSha256, validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
-import { safeSourceTransportFailureReason } from "./sourceFetchFailure";
+import { retryableTransportFailureFromError, safeSourceTransportFailureReason,
+  withSourceTransportObservation, type SourceTransportObservation } from "./sourceFetchFailure";
 import { sourceFetchDiagnostic } from "./sourceFetchDiagnostics";
 import {
   atomicEvidencePersistenceStage,
@@ -280,6 +281,7 @@ export interface RunP0CrawlBatchDeps {
   portableLease?: PortableCrawlLease;
   getFirstAcceptedCurrentPolicyReceipt?(sourceId: string, sourceConfigSha256: string): Promise<SourceQualityPublicationInput["firstAcceptedCurrentPolicyReceipt"]>;
   sourceAttemptTimeoutMs?: number;
+  onSourceTransportObservation?: (observation: SourceTransportObservation) => void;
   createBatchId?: () => string;
   workspaceRoot?: string;
   evidenceSubdirectory?: string;
@@ -326,6 +328,15 @@ async function captureIndependentTraversal(plan: SourceCrawlPlan, pending: { sou
       channelIds: pending.officialChannelIds,
       signal: deps.portableLease ? AbortSignal.any([controller.signal, deps.portableLease.signal]) : controller.signal
     });
+  } catch (error) {
+    if (plan.source.id === "source-sanofi-china-social") {
+      if (error instanceof Error && Object.isExtensible(error) && !("sourceFetchStage" in error)) {
+        Object.assign(error, { sourceFetchStage: "SANOFI_INDEPENDENT_TRAVERSAL" });
+      }
+      try { console.error(JSON.stringify(sourceFetchDiagnostic(plan.source.id, { error }))); }
+      catch { /* Reporting must preserve the original independent-capture failure. */ }
+    }
+    throw error;
   } finally { clearTimeout(timer); }
 }
 
@@ -485,13 +496,13 @@ export async function runP0CrawlBatch(
           failureCode:policyHold,failureReason:PORTABLE_SKIP_REASONS[policyHold]!},deps);
         terminalSourceIds.add(plan.source.id);skippedSourceCount+=1;continue;
       }
-      const recentObservations = await deps.getRecentObservations(plan.source.id);
-      const sourceState = toSourceScheduleState(plan.source.id, recentObservations);
-
       if (
         deps.identity.batchKind !== "FULL_RELEASE" &&
         !deps.force &&
-        !isSourceDueForScheduledRun(sourceState, batchStartedAt)
+        !isSourceDueForScheduledRun(
+          toSourceScheduleState(plan.source.id, await deps.getRecentObservations(plan.source.id)),
+          batchStartedAt
+        )
       ) {
         const pending = plannedBatch.sources.find((source) => source.sourceId === plan.source.id)!;
         await terminateRuntimeSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
@@ -526,19 +537,21 @@ export async function runP0CrawlBatch(
       let crawlResult: Awaited<ReturnType<typeof runSourceCrawl>>;
       let preCapturedValidation: BGradeIndependentTraversalValidation | undefined;
       try {
-        // Compact dual-chain certificates bind every main artifact after this DOM observation.
-        if (lastGoodMode && ["source-bayer-healthcare-social", "source-sanofi-china-social"].includes(plan.source.id)) {
-          markInitialSourceFetchAttempt(attemptTracker);
-          preCapturedValidation = await captureIndependentTraversal(plan, pending, deps, sourceTimeoutMs);
-        }
-        crawlResult = await runWithOfficialSourceAttemptTimeout(
-          () => {
-            const acquire = () => runSourceCrawl(plan, { fetch: deps.fetch,
-              isBaseline: !baselineCompletedBeforeCrawl, attemptTracker });
-            return deps.portableLease ? runWithOfficialSourceCancellation(deps.portableLease.signal, acquire) : acquire();
-          },
-          sourceTimeoutMs
-        );
+        crawlResult = await withSourceTransportObservation(plan.source.id, deps.onSourceTransportObservation, async () => {
+          // Compact dual-chain certificates bind every main artifact after this DOM observation.
+          if (lastGoodMode && ["source-bayer-healthcare-social", "source-sanofi-china-social"].includes(plan.source.id)) {
+            markInitialSourceFetchAttempt(attemptTracker);
+            preCapturedValidation = await captureIndependentTraversal(plan, pending, deps, sourceTimeoutMs);
+          }
+          return runWithOfficialSourceAttemptTimeout(
+            () => {
+              const acquire = () => runSourceCrawl(plan, { fetch: deps.fetch,
+                isBaseline: !baselineCompletedBeforeCrawl, attemptTracker });
+              return deps.portableLease ? runWithOfficialSourceCancellation(deps.portableLease.signal, acquire) : acquire();
+            },
+            sourceTimeoutMs
+          );
+        });
       } catch (error) {
         const sourceTimedOut = isOfficialSourceAttemptTimeout(error);
         if (sourceTimedOut || error instanceof SourceCrawlStageError && error.stage === "FETCH") {
@@ -548,6 +561,8 @@ export async function runP0CrawlBatch(
           adapterFailedSourceCount += 1;
         }
         const sourceError = error instanceof SourceCrawlStageError ? error.cause : error;
+        const transportFailure = error instanceof SourceCrawlStageError && error.stage === "ADAPTER"
+          ? undefined : retryableTransportFailureFromError(sourceError);
         sourceErrors.push(sourceError);
         await terminateRuntimeSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id, sourceId: plan.source.id,
@@ -559,10 +574,11 @@ export async function runP0CrawlBatch(
             ? "SOURCE_ATTEMPT_TIMEOUT"
             : error instanceof SourceCrawlStageError && error.stage === "ADAPTER"
               ? "SOURCE_ADAPTER_EXECUTION_FAILED"
-              : sourceExecutionFailureCode(sourceError),
+              : transportFailure ? "SOURCE_TRANSPORT_FAILED" : sourceExecutionFailureCode(sourceError),
           failureReason: sourceTimedOut
             ? "Source execution exceeded the per-source time limit before atomic evidence commit"
-            : "Source execution failed before atomic evidence commit",
+            : transportFailure ? safeSourceTransportFailureReason(transportFailure)
+              : "Source execution failed before atomic evidence commit",
           ...(sourceTimedOut
             ? sourceFailureDiagnosticBundle(
                 "SOURCE_TIME_LIMIT_REACHED",
@@ -575,7 +591,8 @@ export async function runP0CrawlBatch(
                   "ADAPTER_EXECUTION_FAILED",
                   attemptTracker
                 )
-              : sourceFailureDiagnosticBundle(
+              : transportFailure ? transportFailureDiagnosticBundle(transportFailure, attemptTracker)
+                : sourceFailureDiagnosticBundle(
                   "UNCLASSIFIED_SOURCE_FAILURE",
                   "FETCH_EXECUTION_FAILED",
                   attemptTracker

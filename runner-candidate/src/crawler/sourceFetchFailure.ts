@@ -1,4 +1,6 @@
 import { isWorkdayCooldownError } from "./workdayRequestPolicy";
+import { OfficialRequestDeferredError } from "./sourceTransportObservation";
+export { withSourceTransportObservation, type SourceTransportObservation } from "./sourceTransportObservation";
 import type { OfficialRetryAfter } from "./officialRetryAfter";
 export { parseOfficialRetryAfter, type OfficialRetryAfter } from "./officialRetryAfter";
 import {
@@ -23,15 +25,18 @@ export type SourceTransportFailureStage =
   | "PAGE";
 
 export interface SourceTransportFailure {
-  code: RetryableSourceTransportFailureCode;
+  code: RetryableSourceTransportFailureCode | "OFFICIAL_REQUEST_DEFERRED";
   retryable: true;
   stage?: SourceTransportFailureStage;
   /** A server minimum; the router never extends the configured backoff to fit it. */
   retryAfterMs?: number;
+  /** The historical status that caused a local deferral; no new HTTP response occurred. */
+  deferredStatus?: 403 | 429;
 }
 
 const RETRYABLE_FAILURE_CODE =
   /^(?:OFFICIAL_HTTP_TIMEOUT|OFFICIAL_NETWORK_ERROR|OFFICIAL_BROWSER_SESSION_ERROR|OFFICIAL_PAGINATION_SNAPSHOT_DRIFT|OFFICIAL_HTTP_429|OFFICIAL_HTTP_5\d\d)$/u;
+
 const RETRYABLE_NETWORK_ERROR_CODES = new Set([
   "EAI_AGAIN",
   "ECONNABORTED",
@@ -47,6 +52,7 @@ const RETRYABLE_NETWORK_ERROR_CODES = new Set([
   "UND_ERR_SOCKET"
 ]);
 
+/** Persisted in-wave retry reasons must match the database allowlist; local deferral is excluded. */
 export function isRetryableSourceTransportFailureCode(
   value: unknown
 ): value is RetryableSourceTransportFailureCode {
@@ -58,7 +64,7 @@ export function isRetryableSourceTransportFailure(
 ): failure is SourceTransportFailure {
   if (typeof failure !== "object" || failure === null || !("code" in failure) ||
     !("retryable" in failure) || failure.retryable !== true) return false;
-  return isRetryableSourceTransportFailureCode(failure.code) &&
+  return (failure.code === "OFFICIAL_REQUEST_DEFERRED" || isRetryableSourceTransportFailureCode(failure.code)) &&
     (!("retryAfterMs" in failure) ||
       (typeof failure.retryAfterMs === "number" && Number.isSafeInteger(failure.retryAfterMs) && failure.retryAfterMs >= 0));
 }
@@ -73,10 +79,13 @@ export function retryableHttpTransportFailure(status: number, retryAfter?: Offic
 
 export function retryableTransportFailureFromError(error: unknown): SourceTransportFailure | undefined {
   if (isOfficialSourceAttemptTimeout(error)) return undefined;
+  if (error instanceof OfficialRequestDeferredError) {
+    return { code: "OFFICIAL_REQUEST_DEFERRED", retryable: true,
+      retryAfterMs: Math.max(0, error.retryAt - Date.now()) };
+  }
   if (isWorkdayCooldownError(error)) {
-    return error.status === 429
-      ? { code: "OFFICIAL_HTTP_429", retryable: true, retryAfterMs: error.retryAfterMs }
-      : undefined;
+    return { code: "OFFICIAL_REQUEST_DEFERRED", retryable: true,
+      retryAfterMs: error.retryAfterMs, deferredStatus: error.status };
   }
   if (isOfficialHttpTimeout(error)) return { code: "OFFICIAL_HTTP_TIMEOUT", retryable: true };
   return RETRYABLE_NETWORK_ERROR_CODES.has(nestedErrorCode(error) ?? "")
@@ -87,6 +96,8 @@ export function retryableTransportFailureFromError(error: unknown): SourceTransp
 export function safeSourceTransportFailureReason(failure: SourceTransportFailure): string {
   if (!isRetryableSourceTransportFailure(failure)) return "Source transport failed";
   switch (failure.code) {
+    case "OFFICIAL_REQUEST_DEFERRED":
+      return `Official recruitment request deferred by an existing access cooldown${failure.deferredStatus ? ` (previous HTTP ${failure.deferredStatus})` : ""}`;
     case "OFFICIAL_HTTP_TIMEOUT":
       return "Official recruitment request timed out";
     case "OFFICIAL_NETWORK_ERROR":

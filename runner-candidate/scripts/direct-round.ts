@@ -13,6 +13,10 @@ import { describePortableRuntimeError } from "../src/crawler/portableRuntimeDiag
 import { recoverDirectBatches } from "./recover-direct";
 import { withLocalOfficialDom } from "../src/crawler/localOfficialSourceFetch";
 import { withWorkdayRequestPolicy } from "../src/crawler/workdayRequestPolicy";
+import type { SourceTransportObservation } from "../src/crawler/sourceFetchFailure";
+import { dailySlotMs, slotAt } from "../../pipeline/frequency.mjs";
+import { readSourceCompletion } from "../../pipeline/round-coverage";
+import { NOVO_NATIVE_RETRY } from "../src/crawler/novoNativeGatewayRetry";
 
 type Route = { sourceId: string; companyId: string; route: "PORTABLE" | "TRUE_A" | "TRUE_B"; sourceConfigSha256: string };
 const workdaySources = new Set([
@@ -90,31 +94,57 @@ export async function assertNoUnresolvedWrites(db: Pick<PrismaClient, "crawlBatc
   if (running) throw Error(`RECONCILE_RUNNING_BATCH:${running.id}`);
 }
 
-export async function runDirectRound(input: { db: PrismaClient; leaseDb: PortableLeaseDatabase; candidateId: string; workspaceRoot: string; onlySourceIds?:string[] }) {
+export function canStartScheduledSource(windowStart: number, now = Date.now()): boolean {
+  return now >= windowStart && now < windowStart + dailySlotMs;
+}
+
+export async function runDirectRound(input: { db: PrismaClient; leaseDb: PortableLeaseDatabase; candidateId: string; workspaceRoot: string; onlySourceIds?:string[]; slot?: string | null;
+  prioritizeSelectedSources?: boolean; stopAtSlotEnd?: boolean; allowEmptySelection?: boolean;
+  onSourceTransportObservation?: (observation: SourceTransportObservation) => void }) {
   const routes = await loadDirectPlans(), sourceIds = routes.map(row => row.sourceId);
-  const selectedRoutes = selectDirectRoutes(routes,input.onlySourceIds);
-  assertLegacyAuditState(JSON.parse(await readFile(resolve(input.workspaceRoot, "migration-state.json"), "utf8")), input.candidateId);
+  const selectedRoutes = input.allowEmptySelection && input.onlySourceIds?.length===0 ? [] : selectDirectRoutes(routes,input.onlySourceIds);
+  const windowStart = Number(input.slot ?? slotAt());
+  if (!Number.isSafeInteger(windowStart) || slotAt(windowStart) !== windowStart) throw Error("INVALID_SCHEDULE_SLOT");
+  if (!input.candidateId.startsWith("instabox-")) throw Error("NEW_INSTABOX_CANDIDATE_REQUIRED");
   if (input.db === input.leaseDb) throw Error("SEPARATE_LEASE_CONNECTION_REQUIRED");
   return withPortableCrawlLease(input.leaseDb, lease => withWorkdayRequestPolicy(resolve(input.workspaceRoot), async () => {
+    // Scheduled entry accepts a registered candidate, not historical request/result IDs.
+    // The migration sidecar remains an audit input for manual-request admission only.
+    const candidate = await input.db.releaseCandidate.findUniqueOrThrow({ where: { id: input.candidateId } });
+    if (candidate.goalId !== "job-finder-instabox-migration") throw Error("NEW_INSTABOX_CANDIDATE_REQUIRED");
+    if (!["BUILDING", "READY_FOR_QA", "RELEASED"].includes(candidate.status)) throw Error("CANDIDATE_NOT_ACTIVE");
     await recoverDirectBatches(input.db, lease, input.candidateId, sourceIds);
     await assertNoUnresolvedWrites(input.db, input.candidateId, sourceIds);
-    const candidate = await input.db.releaseCandidate.findUniqueOrThrow({ where: { id: input.candidateId } });
-    if (!["BUILDING", "READY_FOR_QA", "RELEASED"].includes(candidate.status)) throw Error("CANDIDATE_NOT_ACTIVE");
     const sources = await input.db.recruitmentSource.findMany({ where: { id: { in: sourceIds } }, select: { id: true, companyId: true } });
     if (routes.some(row => !sources.some(source => source.id === row.sourceId && source.companyId === row.companyId))) throw Error("RESTORED_SOURCE_CATALOG_REQUIRED");
+    const completion = await readSourceCompletion(input.db,candidate.id,String(windowStart),selectedRoutes.map(row=>row.sourceId),
+      new Map(selectedRoutes.map(row=>[row.sourceId,row.sourceConfigSha256])));
+    const completedBySource = new Map(completion.filter(row=>row.complete).map(row=>[row.sourceId,row.batchId]));
     const portableFetch = createOwnedSourceQualityFetch(), certifiedFetch = withLocalOfficialDom(createHttpOnlyOfficialSourceFetch());
     const results = [];
-    for (const row of interleaveWorkday(selectedRoutes)) {
+    // Priority is retained within each group; Workday pacing still interleaves both groups.
+    const orderedRoutes = input.prioritizeSelectedSources && input.onlySourceIds
+      ? input.onlySourceIds.map(sourceId => selectedRoutes.find(row => row.sourceId === sourceId)!)
+      : selectedRoutes;
+    for (const row of interleaveWorkday(orderedRoutes)) {
+      if (input.stopAtSlotEnd && !canStartScheduledSource(windowStart)) break;
+      const batchId = completedBySource.get(row.sourceId);
+      if (batchId) {
+        results.push({ sourceId: row.sourceId, route: row.route, batchId, status: "SKIPPED_ALREADY_COMMITTED_IN_WINDOW" });
+        continue;
+      }
       const portable = row.route === "PORTABLE";
       const runtime = createPrismaCrawlRuntimeDeps(input.db as never, portable ? { portablePlans: [row.plan] } : {});
       const workdayTimeout = pacedWorkdaySourceTimeout(row.sourceId);
       try {
         const result = await runP0CrawlBatch([row.plan], {
           db: input.db as never, ...runtime, identity: identityForSource(candidate, row.sourceId), now: () => new Date(),
-          publicationPolicy: "SOURCE_ATOMIC_LAST_GOOD_V1", portableLease: lease,
+          publicationPolicy: "SOURCE_ATOMIC_LAST_GOOD_V1", portableLease: lease, force: true,
+          ...(input.onSourceTransportObservation ? {onSourceTransportObservation:input.onSourceTransportObservation} : {}),
           ...(["source-johnson-innovative-medicine-social", "source-sanofi-china-social"].includes(row.sourceId) ? { sourceAttemptTimeoutMs: 30 * 60 * 1_000 } : {}),
           ...(workdayTimeout === undefined ? {} : { sourceAttemptTimeoutMs: workdayTimeout }),
           ...(row.sourceId === "source-novartis-social" ? { sourceAttemptTimeoutMs: 25 * 60 * 1_000 } : {}),
+          ...(row.sourceId === "source-novo-nordisk-china-social" ? { sourceAttemptTimeoutMs: NOVO_NATIVE_RETRY.sourceMs } : {}),
           ...(portable ? { sourceAdmissionPolicy: SOURCE_QUALITY_POLICY_ID } : {}),
           workspaceRoot: resolve(input.workspaceRoot), evidenceSubdirectory: "runtime-evidence",
           fetch: portable ? portableFetch : certifiedFetch

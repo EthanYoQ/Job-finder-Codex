@@ -12,7 +12,7 @@ import type { SourceCrawlPlan } from "./sourcePlan";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import type { SourceFetchFunction } from "./runSourceCrawl";
 import type { StrictProfileBoundSourcePolicy } from "./profileBoundSourceEvidence";
-import { retryableHttpTransportFailure, retryableTransportFailureFromError, safeSourceTransportFailureReason } from "./sourceFetchFailure";
+import { retryableHttpTransportFailure, retryableTransportFailureFromError, safeSourceTransportFailureReason, type SourceTransportFailureStage } from "./sourceFetchFailure";
 import type { WorkdayHttpResponse } from "./workdaySourceFetch";
 import { isWorkdayCooldownError } from "./workdayRequestPolicy";
 import {quarantineCompleteList,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
@@ -185,11 +185,14 @@ export function createAmgenManualWorkdaySourceFetch(deps: { http?: Http; now?: (
   return async plan => {
     const now = deps.now ?? (() => new Date()), startedAt = now().toISOString(), artifacts: SourceFetchArtifactDraft[] = []; let bytes = 0;
     let failedHttp: WorkdayHttpResponse | undefined;
+    let closedList: ReturnType<typeof parsePage>[] | undefined;
+    let stage: SourceTransportFailureStage = "ENTRY";
     try {
       assert(exactPlan(plan)); const http: Http = deps.http ?? (r => fetchWorkdayMainlandHttp(r.method === "POST" ? { ...r, method: "POST", body: r.body! } : { ...r, method: "GET" }));
       let blocked: WorkdayHttpResponse | undefined;
       const acquire = async (role: Role, index: number, req: Request) => {
         assert(!blocked);
+        stage = role === "lookup" ? "FACET_COUNTRY" : role === "list" && index === 1 ? "ENTRY" : "PAGE";
         const response = await http(req);
         if (response.status === 403 || response.status === 429) blocked = response;
         if (response.status !== 200 && (role === "list" || role === "lookup")) failedHttp = response;
@@ -202,7 +205,9 @@ export function createAmgenManualWorkdaySourceFetch(deps: { http?: Http; now?: (
       };
       const entry = await acquire("list", 1, request(AMGEN_NATIVE_ENTRY)), pages = [parsePage(entry, 1)]; pageBody(entry, 2);
       for (let i = 2; i <= pages[0]!.totalPages; i++) pages.push(parsePage(await acquire("list", i, request(PAGES, pageBody(entry, i))), i));
-      const rows = pages.flatMap(p => p.rows); assert(rows.length === pages[0]!.total && new Set(rows.map(r => r.id)).size === rows.length);
+      const rows = pages.flatMap(p => p.rows);
+      assert(pages.every(p => p.total === pages[0]!.total && p.totalPages === pages.length) && rows.length === pages[0]!.total && new Set(rows.map(r => r.id)).size === rows.length);
+      closedList = pages;
       const first = lookupPage(await acquire("lookup", 0, lookupRequest(0)), 0), catalog = [...first.rows];
       for (let i = 1; i < Math.ceil(first.total / 20); i++) catalog.push(...lookupPage(await acquire("lookup", i, lookupRequest(i)), i, first.total).rows);
       assert(catalog.length === first.total && new Set(catalog.map(r => r.req)).size === first.total && new Set(catalog.map(r => r.path)).size === first.total);
@@ -232,14 +237,30 @@ export function createAmgenManualWorkdaySourceFetch(deps: { http?: Http; now?: (
         completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: rows.length, completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT", completenessEvidenceUrl: AMGEN_NATIVE_ENTRY,
           completenessBlockerReason: "Amgen manual denominator and independent Workday lookup/detail replay required", totalPages: pages.length, pageSize: 12, pagesVisited: pages.length } };
     } catch (error) {
-      const transportFailure = failedHttp
+      const failure = failedHttp
         ? retryableHttpTransportFailure(failedHttp.status, failedHttp.retryAfter)
         : retryableTransportFailureFromError(error);
+      const transportFailure = failure ? { ...failure, stage } : undefined;
       const failureReason = isWorkdayCooldownError(error) ? error.message
         : transportFailure ? safeSourceTransportFailureReason(transportFailure)
         : failedHttp ? `Official JSON source returned HTTP ${failedHttp.status}` : FAILURE;
-      const fetchEvidence = artifacts.length ? parsePersistentSourceFetchEvidence({ captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts: artifacts.map(a => a.kind === "ORACLE_RESULT" ? a : { ...a, kind: "ATS_PAGE" }), pages: [], supportingArtifactOnlyFailure: { code: FAILURE },
-        fetchCounts: { rawCount: 0, parsedCount: 0, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] }) : undefined;
+      let fetchEvidence: PersistentSourceFetchEvidence | undefined;
+      if (closedList) {
+        const rawCount = closedList.reduce((count, page) => count + page.rows.length, 0), first = artifacts[0]!;
+        // A closed discovery list does not establish Workday identity or application eligibility.
+        fetchEvidence = parsePersistentSourceFetchEvidence({
+          captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts,
+          pages: closedList.map(page => pageTrace(page, artifacts.find(a => a.logicalKey === key("list", page.page))!, [])),
+          fetchCounts: { rawCount, parsedCount: rawCount, validCount: 0, parseDiscardCount: 0, validationDiscardCount: rawCount },
+          fetchLosses: closedList.flatMap(page => page.rows.map((_, recordIndex) => ({
+            stage: "VALIDATION", reason: "Amgen Workday binding was not completed", rawLocator: `${key("list", page.page)}#row:${recordIndex}`,
+            details: { code: "AMGEN_WORKDAY_BINDING_INCOMPLETE", pageSequence: page.page - 1, recordIndex }, recordedAt: first.capturedAt
+          })))
+        });
+      } else if (artifacts.length) {
+        fetchEvidence = parsePersistentSourceFetchEvidence({ captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts: artifacts.map(a => a.kind === "ORACLE_RESULT" ? a : { ...a, kind: "ATS_PAGE" }), pages: [], supportingArtifactOnlyFailure: { code: FAILURE },
+          fetchCounts: { rawCount: 0, parsedCount: 0, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] });
+      }
       return { ok: false, capturedAt: startedAt, failureReason, ...(transportFailure ? { transportFailure } : {}), ...(fetchEvidence ? { fetchEvidence } : {}) };
     }
   };
