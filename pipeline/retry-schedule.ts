@@ -103,8 +103,10 @@ export function buildRetrySchedule(input: {
     const old = previous.get(sourceId), outcome = outcomes.get(sourceId);
     const attempted = input.attemptedSourceIds.has(sourceId);
     const locallyDeferred = outcome?.locallyDeferred && !outcome.observedActualHttp;
+    const backoffStartedAt = outcome?.observedActualHttp && outcome.retryAt !== undefined
+      ? (outcome.lastActualRequestAt ?? input.now) : input.now;
     const retryAt = attempted
-      ? Math.max(old?.retryAt ?? 0, outcome?.retryAt ?? 0, locallyDeferred ? input.now : input.now + sourceRetryBackoffMs)
+      ? Math.max(old?.retryAt ?? 0, outcome?.retryAt ?? 0, locallyDeferred ? input.now : backoffStartedAt + sourceRetryBackoffMs)
       : old?.retryAt ?? input.now;
     const lastActualRequestAt = outcome?.lastActualRequestAt ?? old?.lastActualRequestAt;
     const actualRequestCount = outcome?.actualRequestCount === undefined ? old?.actualRequestCount
