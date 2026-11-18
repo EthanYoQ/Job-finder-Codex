@@ -140,13 +140,15 @@ export function recordWorkdayAccessResponse(url: string, status: number, headers
   const delayMs = Math.max(challenge ? challengeCooldownMs : plainRateLimitCooldownMs,
     retryAfter && "delayMs" in retryAfter ? retryAfter.delayMs : 0);
   const cooldowns = loadCooldowns(scope, now);
-  const previous = challenge ? cooldowns.family : cooldowns.hosts[host];
+  // New restrictions belong to the responding host. Existing family entries are
+  // still enforced by assertAvailable until their recorded deadline expires.
+  const previous = cooldowns.hosts[host];
   const until = Math.max(now + delayMs, previous?.until ?? 0);
-  transportObservers.getStore()?.({ kind: "HTTP_RESPONSE", observedAt: now, status, retryAt: until });
+  const retryAt = Math.max(until, cooldowns.family?.until ?? 0);
+  transportObservers.getStore()?.({ kind: "HTTP_RESPONSE", observedAt: now, status, retryAt });
   if (previous?.until !== until) {
     const cooldown: Cooldown = { status, until };
-    if (challenge) cooldowns.family = cooldown;
-    else cooldowns.hosts[host] = cooldown;
+    cooldowns.hosts[host] = cooldown;
     const temporary = scope.file + "." + randomUUID() + ".tmp";
     try {
       writeFileSync(temporary, JSON.stringify(cooldowns) + "\n", { flag: "wx", mode: 0o600 });
@@ -155,7 +157,7 @@ export function recordWorkdayAccessResponse(url: string, status: number, headers
       rmSync(temporary, { force: true });
     }
   }
-  return until - now;
+  return retryAt - now;
 }
 
 export function workdayRetryAfterHeader(response: Response): string | null {

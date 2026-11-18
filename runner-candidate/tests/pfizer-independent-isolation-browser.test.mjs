@@ -71,7 +71,8 @@ for(const encoding of ['identity','gzip'])test(`Pfizer stops waiting after a ${e
    error.bGradeIndependentTraversalFailureCode==='B_GRADE_OFFICIAL_ACCESS_RESTRICTED'&&error.sourceFetchStage==='PFIZER_PAGE_ADVANCE');
   assert.equal(nextRequests,1);
   await withWorkdayRequestPolicy(directory,async()=>{
-   assert.throws(()=>assertWorkdayAvailable('https://amgen.wd1.myworkdayjobs.com/Careers'),error=>error.status===429&&error.retryAfterMs>120_000);
+   assert.throws(()=>assertWorkdayAvailable(entry),error=>error.status===429&&error.retryAfterMs>120_000);
+   assert.doesNotThrow(()=>assertWorkdayAvailable('https://amgen.wd1.myworkdayjobs.com/Careers'));
   });
  } finally {
   clearTimeout(timer);

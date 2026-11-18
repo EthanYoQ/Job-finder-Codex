@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {gzipSync} from 'node:zlib';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {bGradeValidatorChildEnvironment,createIsolatedBGradeTraversalValidator,executeBGradeValidatorCommand,
@@ -70,7 +70,11 @@ test('Pfizer reloads a child cooldown and skips launching the isolated browser a
           `], env, signal);
       }, async () => assert.fail('Pfizer access restrictions must not be retried'));
       await assert.rejects(validate(input),{bGradeIndependentTraversalFailureCode:'B_GRADE_OFFICIAL_ACCESS_RESTRICTED'});
-      assert.throws(()=>assertWorkdayAvailable(otherUrl),{code:'WORKDAY_COOLDOWN'});
+      const saved=JSON.parse(await readFile(join(root,'workday-cooldown.json'),'utf8'));
+      assert.equal(saved.family,undefined);
+      assert.deepEqual(Object.keys(saved.hosts),[new URL(entryUrl).hostname]);
+      assert.throws(()=>assertWorkdayAvailable(entryUrl),{code:'WORKDAY_COOLDOWN'});
+      assert.doesNotThrow(()=>assertWorkdayAvailable(otherUrl));
       await assert.rejects(validate(input),{bGradeIndependentTraversalFailureCode:'B_GRADE_WORKDAY_COOLDOWN'});
       assert.equal(calls,1);
 
