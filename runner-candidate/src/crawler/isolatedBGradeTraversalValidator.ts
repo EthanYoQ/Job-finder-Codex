@@ -74,8 +74,8 @@ const RETRIABLE_VALIDATOR_FAILURE_CODES = new Set<string>([
 const VALIDATOR_RETRY_BACKOFF_MS = 10_000;
 const SANOFI_GZIP_PREFIX = "sanofi-b-grade-gzip-v1:";
 // Sanofi originals exceed the pipe budget as the list grows. The wire remains
-// bounded at 64 MiB; decoding has its own 128 MiB limit and preserves exact JSON.
-const SANOFI_DECODED_MAX_BYTES = 128 * 1024 * 1024;
+// bounded at 64 MiB; decoding has its own 256 MiB limit and preserves exact JSON.
+const SANOFI_DECODED_MAX_BYTES = 256 * 1024 * 1024;
 
 export function serializeBGradeValidatorSuccess(validation: BGradeIndependentTraversalValidation,
   transportObservation?: SourceTransportObservation): string {
