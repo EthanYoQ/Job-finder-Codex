@@ -23,6 +23,7 @@ export async function readSourceCompletion(db:Pick<PrismaClient,"crawlBatchSourc
     finishedAt:{gte:new Date(Number(slot)),lt:new Date(Number(slot)+dailySlotMs)},
     batch:{is:{kind:"SCHEDULED",ownerId:"direct-scheduler"}}
   },select:{sourceId:true,batchId:true,atomicCommitState:true,completenessState:true,
+    failureCode:true,transportState:true,adapterState:true,
     lossLedgerEntries:{where:{OR:[
       ...pendingLossCodes.map(code=>({details:{path:['code'],equals:code}})),
       {details:{path:['noteCode'],equals:'NO_OMISSION_NOT_VERIFIED'}},
@@ -35,7 +36,12 @@ export async function readSourceCompletion(db:Pick<PrismaClient,"crawlBatchSourc
         captureToolName:NOVARTIS_PARTITION_CAPTURE.name,captureToolVersion:{in:Array.from({length:10},(_,index)=>String(index+4))}}
     ]}}
   }}},orderBy:[{finishedAt:"asc"},{id:"asc"}]});
-  const latest=new Map(rows.map(row=>[row.sourceId,row]));
+  const latest=new Map<string,(typeof rows)[number]>();
+  for(const row of rows) {
+    if(row.failureCode==="SOURCE_NOT_DUE"&&row.transportState==="SKIPPED"&&row.adapterState==="SKIPPED"&&
+      row.atomicCommitState==="NOT_ATTEMPTED"&&row.completenessState==="FAILED")continue;
+    latest.set(row.sourceId,row);
+  }
   return [...latest.values()].map(row=>{
     const captured=row.atomicCommitState==='COMMITTED'&&row.completenessState==='VERIFIED';
     const quarantinedJobCount=row._count.lossLedgerEntries;
