@@ -111,15 +111,15 @@ test('actual child exceeding 64 MiB remains a single execution failure', async t
   assert.equal(executions, 1);
 });
 
-test('Sanofi transports 65 MiB of synthetic exact evidence without increasing the pipe limit',async()=>{
+test('Sanofi transports 129 MiB of synthetic exact evidence without increasing the pipe limit',async()=>{
   const moduleUrl=new URL('../src/crawler/isolatedBGradeTraversalValidator.ts',import.meta.url).href;
   const output=await executeBGradeValidatorCommand(process.execPath,
     ['--import','tsx','--input-type=module','-e',`import {serializeBGradeValidatorSuccess} from ${JSON.stringify(moduleUrl)};
-      process.stdout.write(serializeBGradeValidatorSuccess({sourceId:'source-sanofi-china-social',syntheticEvidence:'x'.repeat(65*1024*1024)}));`],
+      process.stdout.write(serializeBGradeValidatorSuccess({sourceId:'source-sanofi-china-social',syntheticEvidence:'x'.repeat(129*1024*1024)}));`],
     process.env,AbortSignal.timeout(30_000));
   assert.ok(Buffer.byteLength(output)<64*1024*1024);
   const decoded=decodeBGradeValidatorOutput(output,'source-sanofi-china-social');
-  assert.equal(decoded,JSON.stringify({decision:'SUCCEEDED',validation:{sourceId:'source-sanofi-china-social',syntheticEvidence:'x'.repeat(65*1024*1024)}}));
+  assert.equal(decoded,JSON.stringify({decision:'SUCCEEDED',validation:{sourceId:'source-sanofi-china-social',syntheticEvidence:'x'.repeat(129*1024*1024)}}));
 });
 
 test('Sanofi transport keeps legacy JSON and rejects wrong-source, corrupt and over-expanded output',()=>{
@@ -133,6 +133,11 @@ test('Sanofi transport keeps legacy JSON and rejects wrong-source, corrupt and o
   assert.throws(()=>decodeBGradeValidatorOutput(compressed,other.sourceId),/source mismatch/);
   assert.throws(()=>decodeBGradeValidatorOutput(compressed+'!',validation.sourceId),/Malformed/);
   assert.throws(()=>decodeBGradeValidatorOutput(compressed.slice(0,-8),validation.sourceId));
-  const oversized='sanofi-b-grade-gzip-v1:'+gzipSync(Buffer.alloc(128*1024*1024+1),{level:1}).toString('base64');
+  const oversized='sanofi-b-grade-gzip-v1:'+gzipSync(Buffer.alloc(256*1024*1024+1),{level:1}).toString('base64');
   assert.throws(()=>decodeBGradeValidatorOutput(oversized,validation.sourceId),{code:'ERR_BUFFER_TOO_LARGE'});
+});
+
+test('Sanofi serialization rejects exact evidence above the 256 MiB decoded budget',()=>{
+  assert.throws(()=>serializeBGradeValidatorSuccess({sourceId:'source-sanofi-china-social',
+    syntheticEvidence:'x'.repeat(256*1024*1024+1)}),/Sanofi validator decoded output limit exceeded/);
 });
