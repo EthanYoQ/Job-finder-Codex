@@ -18,7 +18,7 @@ export type AmgenManualWorkdayConfig = typeof AMGEN_MANUAL_WORKDAY_CONFIG;
 const ORIGIN = "https://careers.amgen.com", WD = "https://amgen.wd1.myworkdayjobs.com";
 const PAGES = `${ORIGIN}/en/search-jobs/resultspost`, LOOKUP = `${WD}/wday/cxs/amgen/Careers/jobs`;
 const CHAIN = `${ORIGIN}/en/location/china-jobs/87/1814991/2`, CHINA = "6cb77610a8a543aea2d6bc10457e35d4";
-const REPORT = "amgen-v2-binding-report", LIMIT = 32 * 1024 * 1024, WINDOW = 10 * 60 * 1000;
+const REPORT = "amgen-v2-binding-report", LIMIT = 32 * 1024 * 1024, WINDOW = 15 * 60 * 1000;
 const FAILURE = "AMGEN_MANUAL_WORKDAY_INVALID";
 type Request = { url: string; method: "GET" | "POST"; headers: Record<string, string>; body?: string };
 type Response = { body: string; status: number; finalUrl?: string; contentType?: string; capturedAt?: string };

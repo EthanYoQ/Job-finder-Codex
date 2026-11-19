@@ -407,3 +407,48 @@ test("Hansoh social search omits the four verified campus vacancies", () => {
   assert.equal(coverage.companies[0].state, "PUBLISHING");
   assert.equal(saved.companies[0].jobs.length, 7);
 });
+
+test("expanded unambiguous pharmaceutical role classifications leave ambiguous titles unchanged", () => {
+  const expandedCases = [
+    ["source-abbvie-china-social", "District Mgr - Medical Aesth", "销售", "销售管理"],
+    ["source-amgen-china-social", "District Manager-CV", "销售", "销售管理"],
+    ["source-pfizer-china-social", "零售地区经理", "销售", "销售管理"],
+    ["source-pfizer-china-social", "零售代表", "销售", "零售销售"],
+    ["source-kelun-social", "科伦嘉讯-省区经理（云贵）(J13395)", "销售", "销售管理"],
+    ["source-hengrui-social", "临床协调专员/高级专员", "临床运营", "临床研究执行"],
+    ["source-astrazeneca-social", "Global Study Lead", "临床运营", "临床研究执行"],
+    ["source-amgen-china-social", "Sr Associate Global Safety", "药物警戒/安全", "药物安全"],
+    ["source-astellas-china-social", "China Safety Officer", "药物警戒/安全", "药物安全"],
+    ["source-astrazeneca-social", "Safety Data Lead I", "药物警戒/安全", "药物安全"],
+    ["source-astrazeneca-social", "(Senior) Medical Science Manager (CVM)", "医学事务", "医学顾问"],
+    ["source-astellas-china-social", "Field Force Training Expert – China", "销售", "培训与赋能"],
+    ["source-astellas-china-social", "Lead, CMC Lead China", "研发/科学", "研发科学"],
+    ["source-fosun-pharma-social", "(高级)医药信息专员-肿瘤领域(J13593)", "销售", "医药销售"],
+    ["source-msd-china-social", "Asso. Pharmaceutical Information Manager, Onco", "销售", "医药销售"],
+    ["source-cttq-social", "推广专员（长春-肝病领域）(J16856)", "销售", "医药销售"],
+    ["source-daiichi-sankyo-china-social", "PV Physician-上海", "药物警戒/安全", "药物安全"],
+    ["source-qilu-social", "PV医生(J10733)", "药物警戒/安全", "药物安全"],
+    ["source-hengrui-social", "BBU 业务管理团队 省区准入经理 外招", "市场准入/政府事务", "准入与定价"],
+    ["source-hengrui-social", "BBU 业务管理团队 准入（KB）主管/经理（副本）", "市场准入/政府事务", "准入与定价"],
+    ["source-merck-china-social", "医学教育项目经理-北京", "医学事务", "医学顾问"],
+    ["source-fosun-pharma-social", "创新药专利事务副总监/总监(J14596)", "职能", "法务合规"],
+    ["source-astrazeneca-social", "Associate Director External Quality", "质量", "质量保证"],
+    ["source-merck-china-social", "Sourcing Manager", "供应链/采购", "采购"],
+    ["source-roche-china-social", "区域市场专员", "市场", "品牌市场"],
+    ["source-shanghai-pharma-social", "网络安全负责人(J13032)", "数据/IT", "信息技术"],
+    ["source-qilu-social", "JAVA开发顾问(J10922)", "数据/IT", "信息技术"],
+    ["source-qilu-social", "MES项目经理(J11159)", "数据/IT", "信息技术"],
+    ["source-viatris-social", "临床研究负责人", "临床运营", "临床研究执行"],
+    ["source-amgen-china-social", "Regional Manager-BI-North", "其他", undefined],
+  ];
+  const expandedJobs = expandedCases.map(([sourceId, officialTitle], id) => ({
+    ...oldJobs[0], id: `exp-${id}`, sourceId, officialTitle, title: officialTitle,
+  }));
+  const saved = { ...snapshot, companies: [{ ...snapshot.companies[0], jobs: expandedJobs }] };
+  const result = searchPortableSnapshot({ city: "全部城市" }, saved);
+  const byId = new Map(result.companies[0].jobs.map(job => [job.id, job]));
+  for (const [id, [, title, category, subcategory]] of expandedCases.entries()) {
+    const job = byId.get(`exp-${id}`);
+    assert.deepEqual([job.category, job.subcategory ?? undefined], [category, subcategory], title);
+  }
+});

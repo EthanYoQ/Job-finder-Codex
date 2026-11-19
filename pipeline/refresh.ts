@@ -77,7 +77,7 @@ function validateReceiptCoverage(receipt:Receipt, sourceIds:ReadonlySet<string>)
   if(listed.length!==sourceIds.size || new Set(listed).size!==sourceIds.size || listed.some(id=>!sourceIds.has(id)))
     throw Error("ROUND_RECEIPT_SOURCE_COVERAGE_MISMATCH");
   if(receipt.complete) {
-    if(receipt.retrySources.length || receipt.nextRetryAt!==undefined || receipt.unresolvedCoverage || receipt.quarantinedJobCount)
+    if(receipt.retrySources.length || receipt.nextRetryAt!==undefined)
       throw Error("ROUND_RECEIPT_INVALID_COMPLETION");
   } else if(!receipt.retrySources.length || receipt.nextRetryAt!==Math.min(...receipt.retrySources.map(row=>row.retryAt))) {
     throw Error("ROUND_RECEIPT_INVALID_RETRY_SCHEDULE");
@@ -143,16 +143,17 @@ async function refresh() {
   if(sourceIds.size!==36)throw Error("EXACT_36_SOURCE_CATALOG_REQUIRED");
   phase = "RESERVE_ROUND";
   const trigger=env.INVOCATION_ID && env.JOBFINDER_REFRESH_ORIGIN==="timer" ? "timer" : "manual";
-  if(!state.active) {
+  const newlyReserved=!state.active;
+  if(newlyReserved) {
     state.active={slot:currentSlot,roundId:randomBytes(16).toString("hex"),trigger};
     if(trigger==="timer" && !state.timerSlots.includes(currentSlot))state.timerSlots.push(currentSlot);
     delete state.dailyAttempt;
     await saveState();
-  } else if(trigger==="manual" && state.active.trigger==="timer") {
-    state.active.trigger="manual";
+  } else if(trigger==="manual" && state.active!.trigger==="timer") {
+    state.active!.trigger="manual";
     await saveState();
   }
-  const active=state.active, {slot,roundId}=active;
+  const active=state.active!, {slot,roundId}=active;
   retryInfrastructure=async()=>{
     state.infrastructureRetryAt=clock()+infrastructureBackoffMs;
     await saveState();
@@ -166,8 +167,10 @@ async function refresh() {
   let receipt=active.publication;
   if(!receipt) {
     await connectCollector();
-    phase = "READ_RECEIPT";
-    receipt=(await remoteReceipt(slot,roundId))??undefined;
+    if(!newlyReserved) {
+      phase = "READ_RECEIPT";
+      receipt=(await remoteReceipt(slot,roundId))??undefined;
+    }
     if(!receipt) {
       if(!active.jobId) {
         phase = "DISPATCH_ROUND";
@@ -255,7 +258,7 @@ async function refresh() {
     quarantinedJobCount:receipt.quarantinedJobCount,unresolvedCoverage:receipt.unresolvedCoverage,
     webReadback:true,capturedSourceIds:receipt.capturedSources.map(row=>row.sourceId),sha256:receipt.sha256,verifiedAt:new Date(verifiedAt).toISOString()});
   state.timerSlots=state.timerSlots.filter(value=>Number(value)>Number(slot)-8*dailySlotMs);
-  state.progress={slot,nextRetryAt:receipt.complete?null:receipt.nextRetryAt??null};
+  state.progress={slot,nextRetryAt:receipt.complete?null:receipt.nextRetryAt??(clock()+infrastructureBackoffMs)};
   delete state.active;
   delete state.infrastructureRetryAt;
   await saveState();

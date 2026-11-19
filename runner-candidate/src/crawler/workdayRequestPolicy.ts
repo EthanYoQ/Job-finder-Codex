@@ -1,14 +1,16 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { performance } from "node:perf_hooks";
 import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseOfficialRetryAfter } from "./officialRetryAfter";
 
 type AccessStatus = 403 | 429;
-type Cooldown = { status: AccessStatus; until: number };
+type Cooldown = { status: AccessStatus; until: number; hits?: number };
 type Cooldowns = { family?: Cooldown; hosts: Record<string, Cooldown> };
-type Scope = { file: string; nextRequestAt: number; cooldowns?: Cooldowns };
+export type WorkdayPolicyOptions = { minSpacingMs?: number; maxSpacingMs?: number };
+type Scope = { file: string; nextRequestAt: number; minSpacingMs: number; maxSpacingMs: number; cooldowns?: Cooldowns };
 
 const scopes = new AsyncLocalStorage<Scope>();
 export interface WorkdayTransportObservation {
@@ -27,8 +29,11 @@ export function withWorkdayTransportObservation<T>(
 }
 
 const effectiveRetryHeaders = new WeakMap<Response, string>();
-const challengeCooldownMs = 40 * 60_000;
+const defaultMinSpacingMs = 2_200;
+const defaultMaxSpacingMs = 3_200;
+const challengeCooldownStepsMs = [5 * 60_000, 10 * 60_000, 20 * 60_000, 30 * 60_000] as const;
 const plainRateLimitCooldownMs = 60_000;
+const maxStaleHostRetentionMs = 6 * 3600_000;
 
 export class WorkdayCooldownError extends Error {
   readonly code = "WORKDAY_COOLDOWN";
@@ -43,8 +48,20 @@ export function isWorkdayCooldownError(error: unknown): error is WorkdayCooldown
 }
 
 /** Scheduled and manual collector entries both hold the portable lease. */
-export function withWorkdayRequestPolicy<T>(stateRoot: string, run: () => Promise<T>): Promise<T> {
-  return scopes.run({ file: join(stateRoot, "workday-cooldown.json"), nextRequestAt: 0 }, run);
+export function withWorkdayRequestPolicy<T>(
+  stateRoot: string,
+  run: () => Promise<T>,
+  options: WorkdayPolicyOptions = {}
+): Promise<T> {
+  const minSpacingMs = options.minSpacingMs ?? defaultMinSpacingMs;
+  const maxSpacingMs = Math.max(minSpacingMs, options.maxSpacingMs ?? defaultMaxSpacingMs);
+  return scopes.run({ file: join(stateRoot, "workday-cooldown.json"), nextRequestAt: 0, minSpacingMs, maxSpacingMs }, run);
+}
+
+function nextSpacingMs(scope: Scope): number {
+  return scope.minSpacingMs >= scope.maxSpacingMs
+    ? scope.minSpacingMs
+    : randomInt(scope.minSpacingMs, scope.maxSpacingMs + 1);
 }
 
 export function currentWorkdayPolicyRoot(): string | undefined {
@@ -56,7 +73,7 @@ export function finishIsolatedWorkdayTraversal(): void {
   const scope = scopes.getStore();
   if (!scope) return;
   delete scope.cooldowns;
-  scope.nextRequestAt = Date.now() + randomInt(500, 1201);
+  scope.nextRequestAt = Math.max(scope.nextRequestAt, performance.now() + nextSpacingMs(scope));
 }
 
 function workdayHost(raw: string): string | undefined {
@@ -68,16 +85,31 @@ function activeCooldown(value: Cooldown | undefined, now: number): value is Cool
   return (value?.status === 403 || value?.status === 429) && Number.isSafeInteger(value.until) && value.until > now;
 }
 
+function retainedCooldown(value: Cooldown | undefined, now: number): value is Cooldown {
+  return (value?.status === 403 || value?.status === 429) && Number.isSafeInteger(value.until) &&
+    value.until + maxStaleHostRetentionMs > now;
+}
+
 function loadCooldowns(scope: Scope, now: number): Cooldowns {
   if (scope.cooldowns) return scope.cooldowns;
   try {
     const saved = JSON.parse(readFileSync(scope.file, "utf8")) as Cooldowns;
     const hosts = Object.fromEntries(Object.entries(saved.hosts ?? {}).filter(([host, value]) =>
-      host.endsWith(".myworkdayjobs.com") && activeCooldown(value, now)));
+      host.endsWith(".myworkdayjobs.com") && retainedCooldown(value, now)));
     return scope.cooldowns = { hosts, ...(activeCooldown(saved.family, now) ? { family: saved.family } : {}) };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     return scope.cooldowns = { hosts: {} };
+  }
+}
+
+function saveCooldowns(scope: Scope, cooldowns: Cooldowns): void {
+  const temporary = scope.file + "." + randomUUID() + ".tmp";
+  try {
+    writeFileSync(temporary, JSON.stringify(cooldowns) + "\n", { flag: "wx", mode: 0o600 });
+    renameSync(temporary, scope.file);
+  } finally {
+    rmSync(temporary, { force: true });
   }
 }
 
@@ -106,14 +138,14 @@ export async function waitForWorkdayRequest(url: string, signal?: AbortSignal): 
   if (!host) return;
   for (;;) {
     signal?.throwIfAborted();
-    const now = Date.now();
-    assertAvailable(scope, host, now);
-    const waitMs = scope.nextRequestAt - now;
+    assertAvailable(scope, host, Date.now());
+    const monoNow = performance.now();
+    const waitMs = scope.nextRequestAt - monoNow;
     if (waitMs <= 0) {
-      scope.nextRequestAt = now + randomInt(500, 1201);
+      scope.nextRequestAt = monoNow + nextSpacingMs(scope);
       return;
     }
-    await sleep(waitMs, undefined, { signal }).catch(error => {
+    await sleep(Math.ceil(waitMs), undefined, { signal }).catch(error => {
       signal?.throwIfAborted();
       throw error;
     });
@@ -137,25 +169,25 @@ export function recordWorkdayAccessResponse(url: string, status: number, headers
     return undefined;
   }
   const retryAfter = parseOfficialRetryAfter(headers.get("retry-after"), now);
-  const delayMs = Math.max(challenge ? challengeCooldownMs : plainRateLimitCooldownMs,
-    retryAfter && "delayMs" in retryAfter ? retryAfter.delayMs : 0);
   const cooldowns = loadCooldowns(scope, now);
   // New restrictions belong to the responding host. Existing family entries are
   // still enforced by assertAvailable until their recorded deadline expires.
   const previous = cooldowns.hosts[host];
+  const priorHits = previous?.hits ?? (previous && previous.until > now ? 1 : 0);
+  const hits = challenge
+    ? (previous && previous.until > now ? Math.max(priorHits, 1) : priorHits + 1)
+    : (previous?.hits ?? 0);
+  const baseDelayMs = challenge
+    ? challengeCooldownStepsMs[Math.min(Math.max(hits - 1, 0), challengeCooldownStepsMs.length - 1)]!
+    : plainRateLimitCooldownMs;
+  const delayMs = Math.max(baseDelayMs, retryAfter && "delayMs" in retryAfter ? retryAfter.delayMs : 0);
   const until = Math.max(now + delayMs, previous?.until ?? 0);
   const retryAt = Math.max(until, cooldowns.family?.until ?? 0);
   transportObservers.getStore()?.({ kind: "HTTP_RESPONSE", observedAt: now, status, retryAt });
-  if (previous?.until !== until) {
-    const cooldown: Cooldown = { status, until };
+  if (previous?.until !== until || (hits > 0 && previous?.hits !== hits)) {
+    const cooldown: Cooldown = { status, until, ...(hits > 0 ? { hits } : {}) };
     cooldowns.hosts[host] = cooldown;
-    const temporary = scope.file + "." + randomUUID() + ".tmp";
-    try {
-      writeFileSync(temporary, JSON.stringify(cooldowns) + "\n", { flag: "wx", mode: 0o600 });
-      renameSync(temporary, scope.file);
-    } finally {
-      rmSync(temporary, { force: true });
-    }
+    saveCooldowns(scope, cooldowns);
   }
   return retryAt - now;
 }
@@ -165,9 +197,23 @@ export function workdayRetryAfterHeader(response: Response): string | null {
 }
 
 export async function observeWorkdayResponse(url: string, response: Response, signal: AbortSignal): Promise<void> {
-  if (!scopes.getStore() || (response.status !== 429 && response.status !== 403) || !workdayHost(url)) return;
+  const scope = scopes.getStore();
+  if (!scope || !workdayHost(url)) return;
   const finalUrl = response.url || url;
-  if (!workdayHost(finalUrl)) return;
+  const finalHost = workdayHost(finalUrl);
+  if (!finalHost) return;
+  scope.nextRequestAt = Math.max(scope.nextRequestAt, performance.now() + nextSpacingMs(scope));
+  if (response.status >= 200 && response.status < 400) {
+    const now = Date.now();
+    const cooldowns = loadCooldowns(scope, now);
+    const existing = cooldowns.hosts[finalHost];
+    if (existing && !activeCooldown(existing, now)) {
+      delete cooldowns.hosts[finalHost];
+      saveCooldowns(scope, cooldowns);
+    }
+    return;
+  }
+  if (response.status !== 429 && response.status !== 403) return;
   const { headers } = response;
   let challengeHtml = false;
   if (headers.get("cf-mitigated") !== "challenge" && /^text\/html(?:;|$)/iu.test(headers.get("content-type") ?? "")) {

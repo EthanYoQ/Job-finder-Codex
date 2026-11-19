@@ -53,42 +53,44 @@ test('archived Roche 2 published + 308 quarantined is captured but remains incom
   assert.equal(completion.find(row=>row.sourceId===history.roche.sourceId).complete,false);
 });
 
-test('archived Roche S22 detail denial is a pending gap, with no quarantined-job inflation',async()=>{
+test('small quarantines and explicit pending losses complete capture while reporting audit flags',async()=>{
   const sample=history.rocheS22;
   assert.deepEqual([sample.responses,sample.expected,sample.jobs,sample.denied.length,sample.verified],[319,315,314,1,true]);
-  const sourceId=history.roche.sourceId;
-  const db=database([result(sourceId,{batchId:sample.batchId,losses:sample.denied.map(()=>loss('ROCHE_DETAIL_DENIED'))})]);
-  const coverage=await readRoundCoverage(db,candidateId,slot,[sourceId],success);
-  assert.equal(coverage.complete,false);
-  assert.equal(coverage.quarantinedJobCount,0);
-  assert.equal(coverage.unresolvedCoverage,true);
-  assert.equal((await readSourceCompletion(db,candidateId,slot,[sourceId]))[0].complete,false);
-});
+  const rocheId=history.roche.sourceId;
+  const rocheDb=database([result(rocheId,{batchId:sample.batchId,validCount:sample.jobs,losses:sample.denied.map(()=>loss('ROCHE_DETAIL_DENIED'))})]);
+  const rocheCov=await readRoundCoverage(rocheDb,candidateId,slot,[rocheId],success);
+  assert.equal(rocheCov.complete,true);
+  assert.equal(rocheCov.quarantinedJobCount,0);
+  assert.equal(rocheCov.unresolvedCoverage,true);
+  assert.deepEqual(rocheCov.capturedSources,[{sourceId:rocheId,batchId:sample.batchId}]);
 
-test('unresolved Novartis discovery and other explicit pending losses block completion',async()=>{
-  const cases=[result('source-novartis-social',{artifacts:[{extractorLocator:'novartis-default-discovery-exhausted'}]}),
+  const cases=[result('source-novartis-social',{validCount:646,artifacts:[{extractorLocator:'novartis-default-discovery-exhausted'}]}),
+    result('source-cspc-social',{validCount:26,losses:[loss('JOB_QUARANTINED'),loss('JOB_QUARANTINED')]}),
     ...['NOVO_DETAIL_INSUFFICIENT','SERVIER_WORKPLACE_COUNTRY_UNKNOWN','KELUN_GEOGRAPHY_UNKNOWN',
-      'MAINLAND_COUNTRY_UNRESOLVED','BIOGEN_LIST_GEOGRAPHY_UNRESOLVED'].map(code=>result(code,{losses:[loss(code)]}))];
+      'MAINLAND_COUNTRY_UNRESOLVED','BIOGEN_LIST_GEOGRAPHY_UNRESOLVED'].map(code=>result(code,{validCount:20,losses:[loss(code)]}))];
   for(const row of cases){
     const coverage=await readRoundCoverage(database([row]),candidateId,slot,[row.sourceId],success);
-    assert.equal(coverage.complete,false,row.sourceId);
-    assert.equal(coverage.unresolvedCoverage,true,row.sourceId);
+    assert.equal(coverage.complete,true,row.sourceId);
+    assert.deepEqual(coverage.capturedSources,[{sourceId:row.sourceId,batchId:row.batchId}],row.sourceId);
+    if(row.sourceId==='source-cspc-social')assert.equal(coverage.quarantinedJobCount,2);
+    else assert.equal(coverage.unresolvedCoverage,true,row.sourceId);
   }
 });
 
-test('archived Novartis root mismatch and legacy unmarked audits require a fresh capture',async()=>{
+test('archived Novartis audit versions report unresolvedCoverage while committed capture stays captured',async()=>{
   assert.deepEqual([history.novartis.indexDeclaredTotal,history.novartis.primaryUniqueCount,history.novartis.noOmissionVerified],[609,610,false]);
   const sourceId='source-novartis-social';
   const artifact={extractorLocator:'novartis-partitions-audit',captureToolName:'novartis-native-functional-partitions',captureToolVersion:'13'};
   for(const captureToolVersion of ['4','13']){
-    const row=result(sourceId,{id:history.novartis.sourceResultId,artifacts:[{...artifact,captureToolVersion}]});
+    const row=result(sourceId,{id:history.novartis.sourceResultId,validCount:610,artifacts:[{...artifact,captureToolVersion}]});
     const coverage=await readRoundCoverage(database([row]),candidateId,slot,[sourceId],success);
-    assert.equal(coverage.complete,false);assert.equal(coverage.unresolvedCoverage,true);
-    assert.deepEqual(coverage.capturedSources,[]);
+    assert.equal(coverage.complete,true);assert.equal(coverage.unresolvedCoverage,true);
+    assert.deepEqual(coverage.capturedSources,[{sourceId,batchId:row.batchId}]);
   }
   for(const patch of [{captureToolVersion:'14'},{captureToolName:'unrelated-capture-tool'}]){
-    const row=result(sourceId,{artifacts:[{...artifact,...patch}]});
-    assert.equal((await readRoundCoverage(database([row]),candidateId,slot,[sourceId],success)).complete,true);
+    const row=result(sourceId,{validCount:610,artifacts:[{...artifact,...patch}]});
+    const coverage=await readRoundCoverage(database([row]),candidateId,slot,[sourceId],success);
+    assert.equal(coverage.complete,true);assert.equal(coverage.unresolvedCoverage,false);
   }
 });
 
@@ -105,45 +107,53 @@ test('fresh verified zero-job results and definitive business exclusions are com
   }
 });
 
-test('latest result controls completion and an actual clean retry clears the previous gap',async()=>{
-  const healthy=result('source');
-  const partial=result('source',{id:'later',batchId:'later',finishedAt:new Date(Number(slot)+120_000),losses:[loss('JOB_QUARANTINED')]});
-  for(const latest of [partial,{...partial,losses:[],atomicCommitState:'NOT_ATTEMPTED',completenessState:'FAILED'}]){
-    assert.equal((await readSourceCompletion(database([healthy,latest]),candidateId,slot,['source']))[0].complete,false);
-  }
-  const recovered={...healthy,id:'recovered',batchId:'recovered',finishedAt:new Date(Number(slot)+180_000)};
-  const coverage=await readRoundCoverage(database([healthy,partial,recovered]),candidateId,slot,['source'],success);
+test('a committed capture within the slot is preserved across later failed retries unless replaced by a collapse',async()=>{
+  const sourceId='source-johnson-innovative-medicine-social';
+  const healthy=result(sourceId,{validCount:129,losses:[loss('JOB_QUARANTINED')]});
+  const transientFail=result(sourceId,{id:'later-fail',batchId:'later-fail',finishedAt:new Date(Number(slot)+120_000),
+    atomicCommitState:'NOT_ATTEMPTED',completenessState:'FAILED'});
+  const preserved=await readRoundCoverage(database([healthy,transientFail]),candidateId,slot,[sourceId],success);
+  assert.equal(preserved.complete,true);
+  assert.deepEqual(preserved.capturedSources,[{sourceId,batchId:healthy.batchId}]);
+  const collapse=result(sourceId,{id:'collapse',batchId:'collapse',validCount:0,finishedAt:new Date(Number(slot)+180_000),
+    losses:Array.from({length:20},()=>loss('JOB_QUARANTINED'))});
+  assert.equal((await readSourceCompletion(database([healthy,collapse]),candidateId,slot,[sourceId]))[0].complete,false);
+  const recovered=result(sourceId,{id:'recovered',batchId:'recovered',validCount:130,finishedAt:new Date(Number(slot)+240_000)});
+  const coverage=await readRoundCoverage(database([healthy,collapse,recovered]),candidateId,slot,[sourceId],success);
   assert.equal(coverage.complete,true);assert.equal(coverage.quarantinedJobCount,0);
-  assert.deepEqual(coverage.capturedSources,[{sourceId:'source',batchId:'recovered'}]);
-  const tie={...partial,finishedAt:healthy.finishedAt,id:'z-last'};
-  assert.equal((await readSourceCompletion(database([healthy,tie]),candidateId,slot,['source']))[0].complete,false);
+  assert.deepEqual(coverage.capturedSources,[{sourceId,batchId:'recovered'}]);
+  const failedAfterCollapse=result(sourceId,{id:'failed-after-collapse',batchId:'failed-after-collapse',
+    finishedAt:new Date(Number(slot)+210_000),atomicCommitState:'NOT_ATTEMPTED',completenessState:'FAILED',
+    artifacts:[{extractorLocator:'novartis-default-discovery-exhausted'}]});
+  const collapsePlusFail=await readRoundCoverage(database([healthy,collapse,failedAfterCollapse]),candidateId,slot,[sourceId],[]);
+  assert.equal(collapsePlusFail.complete,false);
+  assert.deepEqual(collapsePlusFail.capturedSources,[]);
+  assert.equal(collapsePlusFail.quarantinedJobCount,20);
+  assert.equal(collapsePlusFail.unresolvedCoverage,true);
+  const tie={...collapse,finishedAt:healthy.finishedAt,id:'z-last'};
+  assert.equal((await readSourceCompletion(database([healthy,tie]),candidateId,slot,[sourceId]))[0].complete,false);
 });
 
-test('failed latest results retain explicit unresolved coverage until a clean retry completes',async()=>{
-  for(const {sourceId,...pending} of [
-    {sourceId:'source-novartis-social',artifacts:[{extractorLocator:'novartis-default-discovery-exhausted'}]},
-    {sourceId:'source-roche-china-social',losses:[loss('ROCHE_DETAIL_DENIED')]},
-    {sourceId:'source-servier-china-social',losses:[loss('SERVIER_WORKPLACE_COUNTRY_UNKNOWN')]}]){
-    const healthy=result(sourceId);
-    const failed=result(sourceId,{id:'failed',batchId:'failed',atomicCommitState:'NOT_ATTEMPTED',
-      completenessState:'FAILED',finishedAt:new Date(Number(slot)+120_000),...pending});
-    const coverage=await readRoundCoverage(database([healthy,failed]),candidateId,slot,[sourceId],[]);
-    assert.equal(coverage.complete,false);assert.deepEqual(coverage.capturedSources,[]);
-    assert.equal(coverage.unresolvedCoverage,true);
-    assert.equal(coverage.quarantinedJobCount,0);
-    const recovered=result(sourceId,{id:'recovered',batchId:'recovered',finishedAt:new Date(Number(slot)+180_000)});
-    const fresh=await readRoundCoverage(database([healthy,failed,recovered]),candidateId,slot,[sourceId],success);
-    assert.equal(fresh.complete,true);assert.equal(fresh.unresolvedCoverage,false);
-    assert.deepEqual(fresh.capturedSources,[{sourceId,batchId:'recovered'}]);
-  }
-  const transportFailure=result('source-novartis-social',{atomicCommitState:'NOT_ATTEMPTED',completenessState:'FAILED'});
-  const coverage=await readRoundCoverage(database([transportFailure]),candidateId,slot,[transportFailure.sourceId],[]);
-  assert.equal(coverage.complete,false);assert.equal(coverage.unresolvedCoverage,false);
+test('pending failures retain unresolved coverage until a committed capture succeeds',async()=>{
+  const sourceId='source-novartis-social';
+  const failed=result(sourceId,{id:'failed',batchId:'failed',atomicCommitState:'NOT_ATTEMPTED',
+    completenessState:'FAILED',artifacts:[{extractorLocator:'novartis-default-discovery-exhausted'}]});
+  const coverage=await readRoundCoverage(database([failed]),candidateId,slot,[sourceId],[]);
+  assert.equal(coverage.complete,false);assert.deepEqual(coverage.capturedSources,[]);
+  assert.equal(coverage.unresolvedCoverage,true);
+  assert.equal(coverage.quarantinedJobCount,0);
+  const recovered=result(sourceId,{id:'recovered',batchId:'recovered',validCount:650,finishedAt:new Date(Number(slot)+180_000)});
+  const fresh=await readRoundCoverage(database([failed,recovered]),candidateId,slot,[sourceId],success);
+  assert.equal(fresh.complete,true);assert.equal(fresh.unresolvedCoverage,false);
+  assert.deepEqual(fresh.capturedSources,[{sourceId,batchId:'recovered'}]);
+  const transportFailure=result(sourceId,{atomicCommitState:'NOT_ATTEMPTED',completenessState:'FAILED'});
+  const onlyFail=await readRoundCoverage(database([transportFailure]),candidateId,slot,[sourceId],[]);
+  assert.equal(onlyFail.complete,false);assert.equal(onlyFail.unresolvedCoverage,false);
 });
 
-test('legacy scheduler no-op cannot hide a verified source or a genuine failed attempt',async()=>{
+test('legacy scheduler no-op leaves a verified capture intact while no-op alone is incomplete',async()=>{
   const sourceId='source-abbvie-china-social';
-  const accepted=result(sourceId);
+  const accepted=result(sourceId,{validCount:51});
   const noOp=result(sourceId,{id:'no-op',batchId:'no-op',finishedAt:new Date(Number(slot)+180_000),
     transportState:'SKIPPED',adapterState:'SKIPPED',failureCode:'SOURCE_NOT_DUE',
     atomicCommitState:'NOT_ATTEMPTED',completenessState:'FAILED'});
@@ -154,9 +164,12 @@ test('legacy scheduler no-op cannot hide a verified source or a genuine failed a
   assert.equal(complete.complete,true);
   assert.deepEqual(complete.capturedSources,[{sourceId,batchId:accepted.batchId}]);
   assert.deepEqual(await readSourceCompletion(database([noOp]),candidateId,slot,[sourceId]),[]);
-  const incomplete=await readRoundCoverage(database([accepted,noOp,failed]),candidateId,slot,[sourceId],[]);
-  assert.equal(incomplete.complete,false);
-  assert.deepEqual(incomplete.capturedSources,[]);
+  const afterTransient=await readRoundCoverage(database([accepted,noOp,failed]),candidateId,slot,[sourceId],[]);
+  assert.equal(afterTransient.complete,true);
+  assert.deepEqual(afterTransient.capturedSources,[{sourceId,batchId:accepted.batchId}]);
+  const onlyFailed=await readRoundCoverage(database([noOp,failed]),candidateId,slot,[sourceId],[]);
+  assert.equal(onlyFailed.complete,false);
+  assert.deepEqual(onlyFailed.capturedSources,[]);
 });
 
 test('candidate, slot, scheduler owner and config constrain completion',async()=>{

@@ -1,15 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {mkdir,mkdtemp,readFile,realpath,rm,writeFile} from 'node:fs/promises';
+import {mkdir,mkdtemp,readFile,realpath,rm,utimes,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {gunzipSync} from 'node:zlib';
 import {loadDirectPlans,selectDirectRoutes,runDirectRound} from '../runner-candidate/scripts/direct-round.ts';
 import {searchPortableSnapshot} from '../web-candidate/src/server/portablePublicationApi.ts';
 import {readRoundCoverage} from './round-coverage.ts';
 import {enrichSanofiPublicationClassification} from './sanofi-publication-classification.ts';
-import {selectRoundSnapshotHandle} from './snapshot-handle.ts';
+import {archiveInactiveSnapshots,selectRoundSnapshotHandle} from './snapshot-handle.ts';
 import {SOURCE_QUALITY_POLICY_ID} from '../web-candidate/src/crawler/sourceQualityAdmission.ts';
 import {PORTABLE_COVERAGE_POLICY_ID} from '../web-candidate/src/release/portableCoveragePolicy.ts';
 
@@ -54,13 +55,13 @@ test('three successful retries never reduce the 36-source completion denominator
   assert.equal(full.complete,true);assert.equal(full.capturedSources.length,36);
   assert.equal(full.quarantinedJobCount,0);
   const unresolved=await readRoundCoverage(database(sourceIds,0,true),'instabox-test',slot,sourceIds,results);
-  assert.equal(unresolved.complete,false);
+  assert.equal(unresolved.complete,true);
   assert.equal(unresolved.unresolvedCoverage,true);
   assert.equal(unresolved.quarantinedJobCount,0);
-  assert.equal(unresolved.capturedSources.length,35);
+  assert.equal(unresolved.capturedSources.length,36);
   const isolated=await readRoundCoverage(database(sourceIds,2),'instabox-test',slot,sourceIds,results);
-  assert.equal(isolated.complete,false);assert.equal(isolated.quarantinedJobCount,2);
-  assert.equal(isolated.capturedSources.length,35);
+  assert.equal(isolated.complete,true);assert.equal(isolated.quarantinedJobCount,2);
+  assert.equal(isolated.capturedSources.length,36);
   assert.equal((await readRoundCoverage(database(sourceIds),'instabox-test',slot,sourceIds,[{status:'FAILED'}])).complete,false);
   assert.equal((await readRoundCoverage(database(sourceIds),'instabox-test',null,sourceIds,results)).complete,false);
 });
@@ -78,13 +79,16 @@ test('Sanofi enrichment uses verified own-REQ metadata without changing public m
   };
   // Identity and head-meta excerpts from the archived a2f5b911 independent capture.
   const quality=row('R2877311','46635895744','m-and-s-analytical-expertise-and-transfer-manager-beijing','32102272','Quality');
+  const medical=row('R2877312','46635895745','medical-science-liaison','32115904','Medical');
+  const marketing=row('R2877313','46635895746','product-manager','32123712','Marketing');
+  const bd=row('R2877314','46635895747','bd-lead','32158656','Strategy &amp; Business Development');
   const training=row('R2875592','46350248512','dbu-commercial-intern','32102016','Human Resources');
   const duplicate=row('R9999901','9999901','duplicate','32102208','Sales');
   const conflict=row('R9999902','9999902','conflict','32102272','Sales');
   const otherId=row('R9999903','9999903','different-req','32102208','Sales');
   otherId.sourceJobId='sanofi-req:R9999904';
   const body=JSON.stringify({schemaVersion:'official-json-browser-network-traversal-v1',sourceId:tuple.sourceId,retrievalPath,
-    pages:[{rawRows:[quality,training,duplicate,duplicate,conflict,otherId]}]});
+    pages:[{rawRows:[quality,medical,marketing,bd,training,duplicate,duplicate,conflict,otherId]}]});
   const path=`outputs/p0-rc/instabox-test/runtime-evidence/artifacts/batch-test/${tuple.sourceId}/result-test/archive-test--${key}.bin`;
   await mkdir(dirname(join(workspaceRoot,path)),{recursive:true});
   await writeFile(join(workspaceRoot,path),body);
@@ -98,7 +102,9 @@ test('Sanofi enrichment uses verified own-REQ metadata without changing public m
   const job=(id,req,overrides={})=>({id,sourceId:tuple.sourceId,sourceResultId:tuple.sourceResultId,category:'其他',
     officialTitle:'M&S-Analytical Expertise and Transfer Manager-Beijing',officialUrl:`https://www.ajinga.com/ats/job-detail-new/13537/${req}/c/`,
     city:'北京',cities:['北京'],locationRaw:'北京市',officialPublishedAt:null,inGrace:false,...overrides});
-  const jobs=[job('quality','R2877311'),job('manual','R2877311',{categoryManuallyCorrected:true}),job('grace','R2877311',{inGrace:true}),
+  const jobs=[job('quality','R2877311'),job('medical','R2877312',{officialTitle:'Associate Partner'}),
+    job('marketing','R2877313',{officialTitle:'Product Lead'}),job('bd','R2877314',{officialTitle:'Partnership Lead'}),
+    job('manual','R2877311',{categoryManuallyCorrected:true}),job('grace','R2877311',{inGrace:true}),
     job('title-classified','R2877311',{officialTitle:'Sales Manager'}),job('old','R2877311',{sourceResultId:'old-result'}),
     job('unsupported','R2875592',{officialTitle:'DBU-Commercial Intern-天津'}),job('duplicate','R9999901'),job('conflict','R9999902'),job('other-id','R9999903')];
   const snapshot={sources:[{companyId:'company-sanofi-china',sourceId:tuple.sourceId,state:'PUBLISHING',selectedSourceResultId:tuple.sourceResultId,jobs}],
@@ -107,9 +113,14 @@ test('Sanofi enrichment uses verified own-REQ metadata without changing public m
   const baseline=structuredClone(snapshot);
   assert.equal(await enrichSanofiPublicationClassification(dbFor([{...rowMetadata,sha256:'0'.repeat(64)}]),workspaceRoot,snapshot),0);
   assert.deepEqual(snapshot,baseline);
-  assert.equal(await enrichSanofiPublicationClassification(dbFor([rowMetadata]),workspaceRoot,snapshot),1);
+  assert.equal(await enrichSanofiPublicationClassification(dbFor([rowMetadata]),workspaceRoot,snapshot),4);
+  const expectedJobs=[
+    {...jobs[0],category:'质量'},{...jobs[1],category:'医学事务'},
+    {...jobs[2],category:'市场'},{...jobs[3],category:'商务'},
+    ...jobs.slice(4)
+  ];
   for(const group of [...snapshot.sources,...snapshot.companies]) {
-    assert.deepEqual(group.jobs,[{...jobs[0],category:'质量'},...jobs.slice(1)]);
+    assert.deepEqual(group.jobs,expectedJobs);
   }
   assert.equal(snapshot.sources[0].jobs[0],snapshot.companies[0].jobs[0]);
   assert.equal(snapshot.totalJobs,jobs.length);
@@ -205,4 +216,36 @@ test('missing, corrupt, mismatched or unbound previous artifacts never authorize
   assert.equal((await selectRoundSnapshotHandle(fixture.directory,slot,fixture.fresh)).snapshotReused,false);
   await rm(latest);
   assert.equal((await selectRoundSnapshotHandle(fixture.directory,slot,fixture.fresh)).snapshotReused,false);
+});
+
+test('archiveInactiveSnapshots retains current + 4 newest raw, gzips older ones and prunes >30d archives',async t=>{
+  const cache=fileURLToPath(new URL('../.runtime/.cache/',import.meta.url));
+  await mkdir(cache,{recursive:true});
+  const dir=await mkdtemp(join(cache,'snapshot-archive-ts-'));
+  t.after(()=>rm(dir,{recursive:true,force:true}));
+  const now=Date.now();
+  const files=[];
+  for(let i=0;i<7;i++){
+    const data=JSON.stringify({i,pad:'x'.repeat(200)});
+    const sha=createHash('sha256').update(data).digest('hex');
+    const file=join(dir,`public-${sha}.json`);
+    await writeFile(file,data);
+    await utimes(file,(now-(7-i)*60_000)/1000,(now-(7-i)*60_000)/1000);
+    files.push({file,data,sha});
+  }
+  const staleGz=join(dir,`public-${'f'.repeat(64)}.json.gz`);
+  await writeFile(staleGz,Buffer.from('stale'));
+  await utimes(staleGz,(now-31*24*3600_000)/1000,(now-31*24*3600_000)/1000);
+  await archiveInactiveSnapshots(dir,files[0].file,now);
+  const {readdir}=await import('node:fs/promises');
+  const names=new Set(await readdir(dir));
+  assert.equal(names.has(staleGz.split(/[\\/]/).at(-1)),false);
+  assert.equal(names.has(files[0].file.split(/[\\/]/).at(-1)),true);
+  for(const item of files.slice(3)) assert.equal(names.has(item.file.split(/[\\/]/).at(-1)),true);
+  for(const item of files.slice(1,3)){
+    const base=item.file.split(/[\\/]/).at(-1);
+    assert.equal(names.has(base),false);
+    assert.equal(names.has(base+'.gz'),true);
+    assert.equal(gunzipSync(await readFile(item.file+'.gz')).toString('utf8'),item.data);
+  }
 });
