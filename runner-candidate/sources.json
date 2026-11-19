@@ -194,8 +194,8 @@
       "sourceId": "source-pfizer-china-social",
       "companyId": "company-pfizer-china",
       "companyName": "辉瑞中国",
-      "route": "TRUE_B",
-      "sourceConfigSha256": "84aaab8bad3579630eec1b12d3f09236755b3a25d0b7751ca8584a9a53a83413"
+      "route": "TRUE_A",
+      "sourceConfigSha256": "a4685a8c08e5b3623c9a7ca86a04acd5c3e63c275ee373e3f1f35bd5e369b34c"
     },
     {
       "sourceId": "source-qilu-social",

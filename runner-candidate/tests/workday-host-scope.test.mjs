@@ -8,17 +8,53 @@ import { buildStagedSourceCrawlPlans } from "../src/crawler/sourcePlan.ts";
 import { createWorkdaySourceFetch } from "../src/crawler/workdaySourceFetch.ts";
 import { runSourceCrawl } from "../src/crawler/runSourceCrawl.ts";
 import { withWorkdayRequestPolicy } from "../src/crawler/workdayRequestPolicy.ts";
+import { CSL_MAINLAND_POLICY } from "../src/crawler/workdayMainlandQuality.ts";
 import { withSourceTransportObservation } from "../src/crawler/sourceTransportObservation.ts";
 import { fetchWithOfficialTimeout } from "../src/crawler/officialHttpRuntimeLimits.ts";
 
 const plans = buildStagedSourceCrawlPlans(candidateCompanies);
-const restrictedPlan = plans.find(plan => plan.source.id === "source-pfizer-china-social");
+const baseCsl = plans.find(plan => plan.source.id === "source-csl-china-social");
 const independentPlan = plans.find(plan => plan.source.id === "source-biogen-china-social");
+const restrictedPlan = {
+  ...baseCsl,
+  company: {
+    ...baseCsl.company,
+    atsKind: "WORKDAY",
+    socialEntryUrl: "https://csl.wd1.myworkdayjobs.com/zh-CN/CSL_External"
+  },
+  source: {
+    ...baseCsl.source,
+    atsKind: "WORKDAY",
+    officialEntryUrl: "https://csl.wd1.myworkdayjobs.com/zh-CN/CSL_External",
+    officialChainEvidenceUrl: "https://www.csl.com/careers"
+  },
+  json: {
+    jobsPath: "jobPostings",
+    fields: {
+      sourceJobId: "sourceJobId",
+      officialTitle: "title",
+      officialUrl: "officialUrl",
+      locationRaw: "locationRaw",
+      cities: "cities"
+    },
+    defaultCategory: "其他"
+  },
+  workday: {
+    tenant: "csl",
+    site: "CSL_External",
+    appliedFacets: { locationCountry: ["6cb77610a8a543aea2d6bc10457e35d4"] },
+    pageSize: 20,
+    maxPages: 10,
+    mainlandQualityPolicy: CSL_MAINLAND_POLICY
+  }
+};
+delete restrictedPlan.profileBoundSource;
+delete restrictedPlan.executionAuthority;
 const restrictedHost = new URL(restrictedPlan.source.officialEntryUrl).hostname;
 const independentHost = new URL(independentPlan.source.officialEntryUrl).hostname;
 
 for (const status of [403, 429]) {
-  test(`Pfizer HTTP ${status} challenge retains response evidence while the separately authorized Biogen plan executes`, async t => {
+  test(`CSL Workday HTTP ${status} challenge retains response evidence while the separately authorized Biogen plan executes`, async t => {
     const root = await mkdtemp(join(tmpdir(), "workday-host-scope-"));
     t.after(() => rm(root, { recursive: true, force: true }));
     const body = "<html><script src='/cdn-cgi/challenge-platform/example'></script></html>";

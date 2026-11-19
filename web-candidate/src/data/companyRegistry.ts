@@ -273,10 +273,10 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "huirui",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "WORKDAY",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.pfizer.com.cn/",
-    socialEntryUrl: "https://pfizer.wd1.myworkdayjobs.com/PfizerCareers",
-    officialChainEvidenceUrl: "https://www.pfizer.com/about/careers/search-results"
+    socialEntryUrl: "https://www.pfizer.com/about/careers/search-results",
+    officialChainEvidenceUrl: "https://www.pfizer.com/about/careers"
   },
   {
     id: "company-astrazeneca",

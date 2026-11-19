@@ -2,6 +2,7 @@ import { createAmgenManualWorkdaySourceFetch } from "./amgenManualWorkdaySourceF
 import { createAmgenRadancySourceFetch } from "./amgenRadancySourceFetch";
 import { createAmgenNativeSourceFetch } from "./amgenNativeSourceFetch";
 import { createCslOfficialPortalSourceFetch } from "./cslOfficialPortalSourceFetch";
+import { createPfizerOfficialPortalSourceFetch } from "./pfizerOfficialPortalSourceFetch";
 import {createMsdAjingaSourceFetch} from "./msdAjingaSourceFetch";
 import { createQiluDualPartitionSourceFetch } from "./qiluDualPartitionSourceFetch";
 import { createLivzonCeccSourceFetch } from "./livzonCeccSourceFetch";
@@ -23,6 +24,7 @@ export function createProfileBoundSourceFetch(): SourceFetchFunction {
     "amgen-radancy-china": createAmgenRadancySourceFetch(),
     "amgen-native-china": createAmgenNativeSourceFetch(),
     "csl-official-portal": createCslOfficialPortalSourceFetch(),
+    "pfizer-official-portal": createPfizerOfficialPortalSourceFetch(),
     "msd-ajinga":createMsdAjingaSourceFetch(),
     "qilu-dual-official": createQiluDualPartitionSourceFetch(),
     "grifols-china-detail-scope": createGrifolsChinaSourceFetch(),
