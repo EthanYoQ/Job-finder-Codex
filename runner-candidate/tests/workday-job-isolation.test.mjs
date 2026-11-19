@@ -63,7 +63,7 @@ test('CSL official portal verifies multi-page ItemList, raw control chars in JSO
   const jsonLd=`{"@type":"JobPosting","title":"${item.title}","identifier":{"@type":"PropertyValue","name":"Job ID","value":"${item.reqId}"},"datePosted":"2026-11-18","description":"<p>Line 1\r\n\tLine 2 complete responsibilities.</p>","jobLocation":{"@type":"Place","address":{"@type":"PostalAddress","addressCountry":"CN","addressLocality":"${item.locality}","addressRegion":"${item.region}","streetAddress":"${item.street}"}}}`;
   return `<script type="application/ld+json">${jsonLd}</script><a href="${wdOrigin}${item.externalPath}/apply">Apply on Workday</a>`;
  }
- for(const mode of ['good','single-failure','rate-limit-first']){
+ for(const mode of ['good','single-failure','rate-limit-first','rate-limit-second','all-503','wrong-url-req']){
   const seen=[];
   const fetch=createCslOfficialPortalSourceFetch({now:()=>new Date(at),http:async({url})=>{
    seen.push(url);
@@ -71,16 +71,26 @@ test('CSL official portal verifies multi-page ItemList, raw control chars in JSO
    if(url===plan.source.officialEntryUrl)return {status:200,finalUrl:url,contentType:'text/html',capturedAt:at,body:listHtml(1)};
    if(url===`${plan.source.officialEntryUrl}&page=2`)return {status:200,finalUrl:url,contentType:'text/html',capturedAt:at,body:listHtml(2)};
    const item=jobs.find(j=>j.portalUrl===url);assert.ok(item,url);
-   if(item===jobs[0]&&mode!=='good'){
+   if(mode==='all-503'){
+    return {status:503,finalUrl:url,contentType:'text/html',capturedAt:at,body:'Unavailable'};
+   }
+   if(mode==='rate-limit-second'&&item===jobs[1]){
+    return {status:429,finalUrl:url,contentType:'text/html',capturedAt:at,body:'Unavailable',retryAfter:{value:'60',delayMs:60000}};
+   }
+   if(item===jobs[0]&&['single-failure','rate-limit-first'].includes(mode)){
     return {status:mode==='rate-limit-first'?429:503,finalUrl:url,contentType:'text/html',capturedAt:at,body:'Unavailable',...(mode==='rate-limit-first'?{retryAfter:{value:'60',delayMs:60000}}:{})};
+   }
+   if(item===jobs[0]&&mode==='wrong-url-req'){
+    return {status:200,finalUrl:url,contentType:'text/html',capturedAt:at,body:detailHtml({...item,reqId:'R-999999',externalPath:item.externalPath.replace('R-287778','R-999999')})};
    }
    return {status:200,finalUrl:url,contentType:'text/html',capturedAt:at,body:detailHtml(item)};
   }});
   const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
-  if(mode==='rate-limit-first'){
-   assert.equal(result.truth.transportSuccess,false);
-   assert.equal(result.transportFailure.code,'OFFICIAL_HTTP_429');
-   assert.equal(seen.length,3);
+  if(mode==='rate-limit-first'||mode==='rate-limit-second'||mode==='all-503'){
+   assert.equal(result.truth.transportSuccess,false,mode);
+   assert.equal(result.transportFailure?.code,mode==='all-503'?'OFFICIAL_HTTP_503':'OFFICIAL_HTTP_429',mode);
+   assert.equal(result.transportFailure?.retryable,true,mode);
+   assert.equal(seen.length,mode==='rate-limit-first'?3:4,mode);
    continue;
   }
   assert.equal(result.truth.completenessVerified,true,`${mode}: ${JSON.stringify({truth:result.truth,observation:result.observation})}`);
@@ -94,11 +104,44 @@ test('CSL official portal verifies multi-page ItemList, raw control chars in JSO
    assert.equal(result.jobs[1].sourceJobId,`workday:sha256:${createHash('sha256').update(jobs[1].externalPath).digest('hex')}`);
    assert.deepEqual(result.jobs[1].cities,[CITY_PENDING]);
    assert.equal(validateWebCslOfficialPortalEvidence(plan,result.fetchEvidence,result.jobs),true);
+   const swapped=structuredClone(result.fetchEvidence);
+   const altPath=jobs[0].externalPath.replace('R-287778','R-999999');
+   const altId=`workday:sha256:${createHash('sha256').update(altPath).digest('hex')}`;
+   const altJob={...result.jobs[0],sourceJobId:altId,officialUrl:`${wdOrigin}${altPath}`};
+   const detailArtifact=swapped.artifacts.find(a=>a.logicalKey==='csl-portal-detail-0000');
+   detailArtifact.body=detailArtifact.body.replaceAll('R-287778','R-999999');
+   const reportArtifact=swapped.artifacts.find(a=>a.logicalKey==='csl-official-portal-binding-report');
+   reportArtifact.body=reportArtifact.body.replaceAll('R-287778','R-999999');
+   swapped.pages[0].validJobIds=[`sha256:${createHash('sha256').update(altId).digest('hex')}`];
+   assert.equal(validateWebCslOfficialPortalEvidence(plan,swapped,[altJob,result.jobs[1]]),false);
   }else{
    assert.equal(result.jobs.length,1);
    assert.equal(result.fetchEvidence.jobQuarantines.length,1);
    const changed=structuredClone(result.fetchEvidence);changed.jobQuarantines[0].sourceJobId='wrong';
    assert.equal(replayStrictSourceQualityEvidence({plan,evidence:changed,paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs:result.jobs,capturedAt:at}),false);
   }
+ }
+});
+
+test('CSL official portal preserves HTTP 429 and Retry-After when response body exceeds byte limit',async()=>{
+ const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-csl-china-social');
+ const originalFetch=globalThis.fetch;
+ try{
+  for(const mode of ['declared','streamed']){
+   globalThis.fetch=async()=>{
+    const headers={'content-type':'text/html','retry-after':'60',...(mode==='declared'?{'content-length':'3000000'}:{})};
+    if(mode==='declared')return new Response('Rate limited',{status:429,headers});
+    const chunk=new Uint8Array(600_000).fill(65);
+    const body=new ReadableStream({start(controller){for(let i=0;i<4;i++)controller.enqueue(chunk);controller.close();}});
+    return new Response(body,{status:429,headers});
+   };
+   const fetch=createCslOfficialPortalSourceFetch({now:()=>new Date(at)});
+   const result=await fetch(plan);
+   assert.equal(result.ok,false,mode);
+   assert.deepEqual(result.transportFailure,{code:'OFFICIAL_HTTP_429',retryable:true,retryAfterMs:60000,stage:'ENTRY'},mode);
+   assert.equal(result.fetchEvidence,undefined,mode);
+  }
+ }finally{
+  globalThis.fetch=originalFetch;
  }
 });

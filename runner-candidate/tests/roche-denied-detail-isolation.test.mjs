@@ -7,7 +7,8 @@ import {CITY_PENDING} from '../src/domain/jobLocation.ts';
 import {candidateCompanies} from '../src/data/companyRegistry.ts';
 import {buildStagedSourceCrawlPlans} from '../src/crawler/sourcePlan.ts';
 import {createOfficialJsonSourceFetch} from '../src/crawler/officialJsonSourceFetch.ts';
-import {runSourceCrawl} from '../src/crawler/runSourceCrawl.ts';
+import {runSourceCrawl,replayStrictSourceQualityEvidence} from '../src/crawler/runSourceCrawl.ts';
+import {replayStrictSourceQualityEvidence as replayWebStrictSourceQualityEvidence} from '../../web-candidate/src/crawler/runSourceCrawl.ts';
 import {rocheDeniedDetail,rocheNativeDetailUrl,rochePhenomListDetail} from '../src/crawler/rocheChinaQuality.ts';
 import {persistentOfficialJsonJobId} from '../src/crawler/officialJsonEvidence.ts';
 import {archiveSourceEvidence,verifyArchivedSourceEvidence} from '../src/crawler/artifactArchive.ts';
@@ -43,31 +44,47 @@ test('Phenom-only Roche keeps mixed-location roles, Fuzhou pending, and quaranti
  const fuzhouRow={...raw,reqId:'202610-125687',jobId:'202610-125687',jobSeqNo:'ROCHGLOBAL202610125687EXTERNALZHCN',
   title:'Fuzhou Specialist',location:'抚州, 福建, 中国大陆',multi_location:['抚州, 福建, 中国大陆'],
   applyUrl:raw.applyUrl.replaceAll(raw.reqId,'202610-125687')};
+ const altFuzhouRow={...altRow,reqId:'202610-125688',jobId:'202610-125688',jobSeqNo:'ROCHGLOBAL202610125688EXTERNALZHCN',
+  title:'Combined Petaling Jaya and Fuzhou Role',
+  multi_location:['Petaling Jaya, 雪兰莪, 马来西亚','抚州, 福建, 中国大陆'],
+  applyUrl:altRow.applyUrl.replaceAll(altRow.reqId,'202610-125688')};
  const badRow={...raw,reqId:'202610-126799',jobId:'202610-126799',jobSeqNo:'ROCHGLOBAL202610126799EXTERNALZHCN',
   title:'',applyUrl:raw.applyUrl.replaceAll(raw.reqId,'202610-126799')};
  const wuxiRow={...raw,reqId:'202610-126800',jobId:'202610-126800',jobSeqNo:'ROCHGLOBAL202610126800EXTERNALZHCN',
   title:'Wuxi Rep',location:'无锡, 江苏, 中国大陆',multi_location:['无锡, 江苏, 中国大陆'],
   applyUrl:raw.applyUrl.replaceAll(raw.reqId,'202610-126800')};
  assert.deepEqual(rochePhenomListDetail(fuzhouRow)?.cities,[CITY_PENDING]);
+ assert.deepEqual(rochePhenomListDetail(altFuzhouRow)?.cities,[CITY_PENDING]);
  assert.deepEqual(rochePhenomListDetail(wuxiRow)?.cities,['无锡']);
 
- let posts=0,clock=0;const visited=[];
- const rows=[raw,altRow,fuzhouRow,wuxiRow,badRow];
- const fetch=createOfficialJsonSourceFetch({now:()=>new Date(clock++===0?started:'2026-10-02T12:00:03.000Z'),http:async request=>{
-  visited.push(request.url);
-  assert.ok(!request.url.includes('/wday/cxs/'),`Zero Workday calls allowed: ${request.url}`);
-  const body=request.method==='POST'?JSON.stringify({refineSearch:{totalHits:rows.length,data:{jobs:posts++===0?[]:rows,aggregations:posts===1?[{field:'country',value:{中国大陆:rows.length}}]:[]}}})
-   :'<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11-ds"};</script>';
-  return {status:200,body,finalUrl:request.url,capturedAt:request.url===plan.source.officialEntryUrl?'2026-10-02T12:00:01.000Z':'2026-10-02T12:00:02.000Z',contentType:request.method==='POST'?'application/json':'text/html'};
- }});
- const result=await runSourceCrawl(plan,{fetch});
+ const runRows=async(list)=>{
+  let posts=0,clock=0;const visited=[];
+  const fetch=createOfficialJsonSourceFetch({now:()=>new Date(clock++===0?started:'2026-10-02T12:00:03.000Z'),http:async request=>{
+   visited.push(request.url);
+   assert.ok(!request.url.includes('/wday/cxs/'),`Zero Workday calls allowed: ${request.url}`);
+   const body=request.method==='POST'?JSON.stringify({refineSearch:{totalHits:list.length,data:{jobs:posts++===0?[]:list,aggregations:posts===1?[{field:'country',value:{中国大陆:list.length}}]:[]}}})
+    :'<script>var phApp={"widgetApiEndpoint":"https://careers.roche.com/widgets","country":"cn","deviceType":"desktop","locale":"zh_cn","refNum":"ROCHGLOBAL","pageName":"search-results","pageId":"page11-ds"};</script>';
+   return {status:200,body,finalUrl:request.url,capturedAt:request.url===plan.source.officialEntryUrl?'2026-10-02T12:00:01.000Z':'2026-10-02T12:00:02.000Z',contentType:request.method==='POST'?'application/json':'text/html'};
+  }});
+  return runSourceCrawl(plan,{fetch});
+ };
+
+ const rows=[raw,altRow,fuzhouRow,altFuzhouRow,wuxiRow,badRow];
+ const result=await runRows(rows);
  assert.equal(result.truth.completenessVerified,true,JSON.stringify(result.observation));
- assert.equal(result.jobs.length,4);
+ assert.equal(result.jobs.length,5);
  assert.equal(result.jobs.find(j=>j.sourceJobId===persistentOfficialJsonJobId(fuzhouRow.jobSeqNo))?.cities[0],CITY_PENDING);
+ assert.equal(result.jobs.find(j=>j.sourceJobId===persistentOfficialJsonJobId(altFuzhouRow.jobSeqNo))?.cities[0],CITY_PENDING);
  assert.deepEqual(result.jobs.find(j=>j.sourceJobId===persistentOfficialJsonJobId(altRow.jobSeqNo))?.cities,['上海']);
  assert.deepEqual(result.jobs.find(j=>j.sourceJobId===persistentOfficialJsonJobId(wuxiRow.jobSeqNo))?.cities,['无锡']);
- assert.deepEqual(result.fetchEvidence.fetchCounts,{rawCount:5,parsedCount:5,validCount:4,parseDiscardCount:0,validationDiscardCount:1});
+ assert.deepEqual(result.fetchEvidence.fetchCounts,{rawCount:6,parsedCount:6,validCount:5,parseDiscardCount:0,validationDiscardCount:1});
  assert.equal(result.fetchEvidence.jobQuarantines.length,1);
+
+ const clean=await runRows([raw,altRow,fuzhouRow,altFuzhouRow,wuxiRow]);
+ assert.equal(clean.truth.completenessVerified,true,JSON.stringify(clean.observation));
+ assert.equal(clean.jobs.length,5);
+ assert.equal(replayStrictSourceQualityEvidence({plan,evidence:clean.fetchEvidence,paginationEvaluation:clean.paginationEvaluation,reconciliation:clean.reconciliation,jobs:clean.jobs,capturedAt:clean.jobs[0].evidence.capturedAt}),true);
+ assert.equal(replayWebStrictSourceQualityEvidence({plan,evidence:clean.fetchEvidence,paginationEvaluation:clean.paginationEvaluation,reconciliation:clean.reconciliation,jobs:clean.jobs,capturedAt:clean.jobs[0].evidence.capturedAt}),true);
 
  const oldAt='2026-10-01T12:00:00.000Z',at='2026-10-02T12:00:03.000Z';
  const identity={releaseCandidateId:'roche-isolation-test',commitSha:'a'.repeat(64),rosterSha256:'a'.repeat(64),sourcePlanSha256:'a'.repeat(64),sourceConfigSha256:'a'.repeat(64),adapterBundleSha256:'a'.repeat(64),batchKind:'SCHEDULED',ownerId:'test',expectedPlannedSourceIds:[plan.source.id],expectedPlannedSourceSetSha256:canonicalStringSetSha256([plan.source.id]),expectedPlannedSourceCount:1};
@@ -110,7 +127,10 @@ test('Roche Phenom-only rejects foreign-only rows and preserves rate-limit trans
  assert.equal(good.result.truth.completenessVerified,true);
  assert.equal(good.visited.length,4);
  const foreign=await runMock('foreign');
- assert.equal(foreign.result.truth.completenessVerified,false);
+ assert.equal(foreign.result.truth.completenessVerified,true);
+ assert.equal(foreign.result.jobs.length,1);
+ assert.equal(foreign.result.jobs.some(j=>j.sourceJobId===persistentOfficialJsonJobId(foreignOnly.jobSeqNo)),false);
+ assert.equal(foreign.result.fetchEvidence.jobQuarantines.length,1);
  const limited=await runMock('429');
  assert.equal(limited.result.truth.transportSuccess,false);
  assert.equal(limited.result.transportFailure?.code,'OFFICIAL_HTTP_429');

@@ -67,8 +67,8 @@ export function mergeRetrySources(...groups: readonly RetrySource[][]): RetrySou
   for (const rows of groups) for (const row of rows) {
     const old = merged.get(row.sourceId);
     const lastActualRequestAt = Math.max(old?.lastActualRequestAt ?? 0,row.lastActualRequestAt ?? 0);
-    const newerSlot = old?.slot !== undefined && row.slot !== undefined && row.slot > old.slot;
-    const olderSlot = old?.slot !== undefined && row.slot !== undefined && old.slot > row.slot;
+    const newerSlot = row.slot !== undefined && (old?.slot === undefined || row.slot > old.slot);
+    const olderSlot = old?.slot !== undefined && (row.slot === undefined || old.slot > row.slot);
     const slot = newerSlot ? row.slot : olderSlot ? old?.slot : row.slot ?? old?.slot;
     const actualRequestCount = newerSlot ? row.actualRequestCount
       : olderSlot ? old?.actualRequestCount
@@ -152,4 +152,13 @@ export function buildRetrySchedule(input: {
   });
   retrySourcesSchema.parse(retrySources);
   return {retrySources, ...(retrySources.length ? {nextRetryAt: Math.min(...retrySources.map(row => row.retryAt))} : {})};
+}
+
+export function shouldCountRoundRetryAttempt(row: {
+  status?: string;
+  transportSuccessfulSourceCount?: number;
+  transportFailedSourceCount?: number;
+}): boolean {
+  if (row.status === "SKIPPED_ALREADY_COMMITTED_IN_WINDOW") return false;
+  return (row.transportSuccessfulSourceCount ?? 0) > 0 || (row.transportFailedSourceCount ?? 0) > 0;
 }

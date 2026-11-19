@@ -59,12 +59,19 @@ const CSL_PORTAL_CITIES: Readonly<Record<string, string>> = {
 
 type Request = { url: string; method: "GET"; headers: Record<string, string> };
 type HttpResponse = { status: number; body: string; finalUrl?: string; contentType?: string; capturedAt?: string; retryAfter?: OfficialRetryAfter };
+type HttpStatusMeta = Pick<HttpResponse, "status" | "retryAfter">;
 type Http = (request: Request) => Promise<HttpResponse>;
 type Role = "list" | "detail";
 type ListRow = { url: string };
 type ParsedListPage = { page: number; total: number; start: number; end: number; hasNext: boolean; rows: ListRow[] };
 type ProjectedJob = { sourceJobId: string; title: string; officialUrl: string; locationRaw: string; cities: string[]; officialPublishedAt: string };
 type DetailBinding = { portalUrl: string; reqId: string; externalPath: string; officialUrl: string; officialPublishedAt: string };
+
+class PortalHttpBodyError extends Error {
+  constructor(message: string, readonly httpMeta: HttpStatusMeta) {
+    super(message);
+  }
+}
 
 const hash = (v: string | Uint8Array) => createHash("sha256").update(v).digest("hex");
 const clean = (v: string) => v.replace(/\s+/gu, " ").trim();
@@ -193,36 +200,48 @@ async function fetchPortalHttp(request: Request): Promise<HttpResponse> {
       signal: controller.signal,
       redirect: "error"
     });
-    const declared = response.headers.get("content-length");
-    if (declared && (!/^[0-9]+$/u.test(declared) || Number(declared) > BODY_LIMIT)) {
-      void response.body?.cancel().catch(() => undefined);
-      throw Error("CSL official portal response exceeds byte limit");
-    }
-    if (!response.body) throw Error("CSL official portal response body is missing");
-    reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let length = 0;
-    while (true) {
-      controller.signal.throwIfAborted();
-      const chunk = await reader.read();
-      controller.signal.throwIfAborted();
-      if (chunk.done) break;
-      length += chunk.value.byteLength;
-      if (length > BODY_LIMIT) {
-        void reader.cancel().catch(() => undefined);
-        throw Error("CSL official portal response exceeds byte limit");
-      }
-      chunks.push(chunk.value);
-    }
     const retryAfter = parseOfficialRetryAfter(response.headers.get("retry-after"), Date.now());
-    return {
+    const httpMeta: HttpStatusMeta = {
       status: response.status,
-      finalUrl: response.url,
-      contentType: response.headers.get("content-type") ?? "",
-      body: new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
-      capturedAt: new Date().toISOString(),
       ...(retryAfter && "delayMs" in retryAfter ? { retryAfter } : {})
     };
+    try {
+      const declared = response.headers.get("content-length");
+      if (declared && (!/^[0-9]+$/u.test(declared) || Number(declared) > BODY_LIMIT)) {
+        void response.body?.cancel().catch(() => undefined);
+        throw new PortalHttpBodyError("CSL official portal response exceeds byte limit", httpMeta);
+      }
+      if (!response.body) throw new PortalHttpBodyError("CSL official portal response body is missing", httpMeta);
+      reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let length = 0;
+      while (true) {
+        controller.signal.throwIfAborted();
+        const chunk = await reader.read();
+        controller.signal.throwIfAborted();
+        if (chunk.done) break;
+        length += chunk.value.byteLength;
+        if (length > BODY_LIMIT) {
+          void reader.cancel().catch(() => undefined);
+          throw new PortalHttpBodyError("CSL official portal response exceeds byte limit", httpMeta);
+        }
+        chunks.push(chunk.value);
+      }
+      return {
+        status: response.status,
+        finalUrl: response.url,
+        contentType: response.headers.get("content-type") ?? "",
+        body: new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
+        capturedAt: new Date().toISOString(),
+        ...(httpMeta.retryAfter ? { retryAfter: httpMeta.retryAfter } : {})
+      };
+    } catch (error) {
+      if (error instanceof PortalHttpBodyError) throw error;
+      if (httpMeta.status !== 200) {
+        throw new PortalHttpBodyError(error instanceof Error ? error.message : "Failed to read HTTP response body", httpMeta);
+      }
+      throw error;
+    }
   } finally {
     clearTimeout(deadline);
     source?.removeEventListener("abort", abort);
@@ -345,6 +364,9 @@ function projectDetail(html: string, row: ListRow): { job: ProjectedJob; binding
   const identifier = typeof schema.identifier === "string" ? schema.identifier : object(schema.identifier);
   const reqId = typeof identifier === "string" ? identifier : identifier.value;
   assert(typeof reqId === "string" && /^R-[1-9]\d*$/u.test(reqId));
+  const urlPath = new URL(row.url).pathname.replace(/\/+$/u, "");
+  const urlReqMatch = /(?:^|[/-])r-([1-9]\d*)$/iu.exec(urlPath);
+  assert(urlReqMatch && `R-${urlReqMatch[1]}` === reqId);
   const officialPublishedAt = normalizePublishedAt(schema.datePosted);
   const rawLocs = Array.isArray(schema.jobLocation) ? schema.jobLocation : [schema.jobLocation];
   assert(rawLocs.length > 0);
@@ -503,19 +525,33 @@ export function createCslOfficialPortalSourceFetch(deps: { http?: Http; now?: ()
   return async plan => {
     const now = deps.now ?? (() => new Date()), startedAt = now().toISOString(), artifacts: SourceFetchArtifactDraft[] = [];
     let bytes = 0;
-    let failedHttp: HttpResponse | undefined;
+    let failedHttp: HttpStatusMeta | undefined;
+    let firstDetailFailedHttp: HttpStatusMeta | undefined;
+    let firstDetailTransportError: unknown;
     let closedList: ParsedListPage[] | undefined;
     let stage: SourceTransportFailureStage = "ENTRY";
     try {
       assert(exactPlan(plan));
       const http: Http = deps.http ?? fetchPortalHttp;
-      let blocked: HttpResponse | undefined;
+      let blocked: HttpStatusMeta | undefined;
       const acquire = async (role: Role, index: number, req: Request) => {
         assert(!blocked);
         stage = role === "list" && index === 1 ? "ENTRY" : "PAGE";
-        const response = await http(req);
+        let response: HttpResponse;
+        try {
+          response = await http(req);
+        } catch (error) {
+          if (error instanceof PortalHttpBodyError) {
+            if (error.httpMeta.status === 403 || error.httpMeta.status === 429) blocked = error.httpMeta;
+            if (error.httpMeta.status !== 200 && role === "list") failedHttp = error.httpMeta;
+            if (error.httpMeta.status !== 200 && role === "detail" && !firstDetailFailedHttp) firstDetailFailedHttp = error.httpMeta;
+          }
+          if (role === "detail" && firstDetailTransportError === undefined) firstDetailTransportError = error;
+          throw error;
+        }
         if (response.status === 403 || response.status === 429) blocked = response;
         if (response.status !== 200 && role === "list") failedHttp = response;
+        if (response.status !== 200 && role === "detail" && !firstDetailFailedHttp) firstDetailFailedHttp = response;
         const a = makeArtifact(role, index, req, response, now().toISOString());
         bytes += Buffer.byteLength(a.body);
         assert(bytes <= LIMIT);
@@ -544,12 +580,16 @@ export function createCslOfficialPortalSourceFetch(deps: { http?: Http; now?: ()
           seenPaths.add(projected.binding.externalPath);
           bindings.push(projected.binding);
         } catch {
-          // Single-job failures isolate via quarantineCompleteList during replay unless all rows are blocked.
+          // Single-job failures isolate via quarantineCompleteList during replay unless blocked or all rows fail in transport.
         }
       }
-      if (blocked && bindings.length === 0) {
+      if (blocked) {
         failedHttp = blocked;
         throw Error(FAILURE);
+      }
+      if (rows.length > 0 && bindings.length === 0 && (firstDetailFailedHttp || firstDetailTransportError !== undefined)) {
+        if (firstDetailFailedHttp) failedHttp = firstDetailFailedHttp;
+        throw firstDetailTransportError instanceof Error ? firstDetailTransportError : Error(FAILURE);
       }
       const report = reportArtifact(rows.length, bindings, artifacts.at(-1)!.capturedAt);
       assert(bytes + Buffer.byteLength(report.body) <= LIMIT);

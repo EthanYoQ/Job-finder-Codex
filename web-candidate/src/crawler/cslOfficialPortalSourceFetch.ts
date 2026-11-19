@@ -340,6 +340,9 @@ function projectDetail(html: string, row: ListRow): { job: ProjectedJob; binding
   const identifier = typeof schema.identifier === "string" ? schema.identifier : object(schema.identifier);
   const reqId = typeof identifier === "string" ? identifier : identifier.value;
   assert(typeof reqId === "string" && /^R-[1-9]\d*$/u.test(reqId));
+  const urlPath = new URL(row.url).pathname.replace(/\/+$/u, "");
+  const urlReqMatch = /(?:^|[/-])r-([1-9]\d*)$/iu.exec(urlPath);
+  assert(urlReqMatch && `R-${urlReqMatch[1]}` === reqId);
   const officialPublishedAt = normalizePublishedAt(schema.datePosted);
   const rawLocs = Array.isArray(schema.jobLocation) ? schema.jobLocation : [schema.jobLocation];
   assert(rawLocs.length > 0);

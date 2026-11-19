@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildRetrySchedule,maxDailyTransientRetries,mergeRetrySources,readRetryCheckpoint,readRetrySources,retrySourcesSchema,roundIdSchema,roundManualIntervention,saveRetryCheckpoint,selectDueSourceIds,sourceRetryBackoffMs} from './retry-schedule.ts';
+import {buildRetrySchedule,maxDailyTransientRetries,mergeRetrySources,readRetryCheckpoint,readRetrySources,retrySourcesSchema,roundIdSchema,roundManualIntervention,saveRetryCheckpoint,selectDueSourceIds,shouldCountRoundRetryAttempt,sourceRetryBackoffMs} from './retry-schedule.ts';
 import {dailySlotMs,slotAt} from './frequency.mjs';
 import {canStartScheduledSource} from '../runner-candidate/scripts/direct-round.ts';
 import {mkdtemp,mkdir,rm,readdir} from 'node:fs/promises';
@@ -253,4 +253,34 @@ test('daily schedule allows two quick transient retries (5m -> 15m), defers chal
   assert.equal(nextDay.nextRetryAt,day2+5*60_000);
   assert.equal(nextDay.retrySources[0].actualRequestCount,1);
   assert.equal(nextDay.retrySources[0].slot,slot2);
+});
+
+test('mergeRetrySources isolates legacy slotless counts from slotted retry counts',()=>{
+  const slot=String(slotAt(now));
+  const t1=now+60_000,t2=now+120_000;
+  const legacy=[{sourceId:'source-jnj',retryAt:t2,actualRequestCount:5}];
+  const slottedWithCount=[{sourceId:'source-jnj',retryAt:t1,slot,actualRequestCount:1}];
+  const slottedNoCount=[{sourceId:'source-jnj',retryAt:t1,slot}];
+
+  assert.deepEqual(mergeRetrySources(legacy,slottedWithCount),[{sourceId:'source-jnj',retryAt:t2,slot,actualRequestCount:1}]);
+  assert.deepEqual(mergeRetrySources(slottedWithCount,legacy),[{sourceId:'source-jnj',retryAt:t2,slot,actualRequestCount:1}]);
+  assert.deepEqual(mergeRetrySources(legacy,slottedNoCount),[{sourceId:'source-jnj',retryAt:t2,slot}]);
+  assert.deepEqual(mergeRetrySources(slottedNoCount,legacy),[{sourceId:'source-jnj',retryAt:t2,slot}]);
+});
+
+test('pre-acquisition skips and errors do not consume the daily source retry budget',()=>{
+  const slot=String(slotAt(now));
+  assert.equal(shouldCountRoundRetryAttempt({status:'SKIPPED_ALREADY_COMMITTED_IN_WINDOW'}),false);
+  assert.equal(shouldCountRoundRetryAttempt({status:'FAILED'}),false);
+  assert.equal(shouldCountRoundRetryAttempt({status:'COMPLETED',skippedSourceCount:1,transportSuccessfulSourceCount:0,transportFailedSourceCount:0}),false);
+  assert.equal(shouldCountRoundRetryAttempt({status:'COMPLETED',transportFailedSourceCount:1}),true);
+  assert.equal(shouldCountRoundRetryAttempt({status:'COMPLETED',transportSuccessfulSourceCount:1}),true);
+
+  const schedule=buildRetrySchedule({
+    sourceConfigHashes:new Map([['source-jnj',hashes.get('source-roche')]]),
+    completeSourceIds:new Set(),previous:[],attemptedSourceIds:new Set(['source-jnj']),
+    outcomes:[],now,slot
+  });
+  assert.equal(schedule.nextRetryAt,now+5*60_000);
+  assert.equal(schedule.retrySources[0].actualRequestCount,undefined);
 });

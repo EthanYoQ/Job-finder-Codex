@@ -93,9 +93,32 @@ test('Amgen rejects partial, duplicate, or drifted multi-page Radancy lists and 
  });
 });
 
-test('Amgen retains a complete Radancy list and isolates individual detail failures with web validator parity',async()=>{
+test('Amgen preserves HTTP 429 and Retry-After when response body exceeds byte limit',async()=>{
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-amgen-china-social');
- for(const mode of ['good','503','429','wrong-id','transport','bad-list-title']){
+ const originalFetch=globalThis.fetch;
+ try{
+  for(const mode of ['declared','streamed']){
+   globalThis.fetch=async()=>{
+    const headers={'content-type':'text/html','retry-after':'60',...(mode==='declared'?{'content-length':'3000000'}:{})};
+    if(mode==='declared')return new Response('Rate limited',{status:429,headers});
+    const chunk=new Uint8Array(600_000).fill(65);
+    const body=new ReadableStream({start(controller){for(let i=0;i<4;i++)controller.enqueue(chunk);controller.close();}});
+    return new Response(body,{status:429,headers});
+   };
+   const fetch=createAmgenRadancySourceFetch({now:()=>new Date(at)});
+   const result=await fetch(plan);
+   assert.equal(result.ok,false,mode);
+   assert.deepEqual(result.transportFailure,{code:'OFFICIAL_HTTP_429',retryable:true,retryAfterMs:60000,stage:'ENTRY'},mode);
+   assert.equal(result.fetchEvidence,undefined,mode);
+  }
+ }finally{
+  globalThis.fetch=originalFetch;
+ }
+});
+
+test('Amgen retains a complete Radancy list, quarantines single non-challenge failures, and fails retryably on challenges or all-503 details',async()=>{
+ const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-amgen-china-social');
+ for(const mode of ['good','503','all-503','429','wrong-id','transport','bad-list-title']){
   const calls=[];
   const fetch=createAmgenRadancySourceFetch({now:()=>new Date(at),http:async({url})=>{
    calls.push(url);assert.ok(url.startsWith(origin),`Zero Workday requests allowed: ${url}`);
@@ -104,6 +127,7 @@ test('Amgen retains a complete Radancy list and isolates individual detail failu
     body=mode==='bad-list-title'?entry().replace(`<h3>${rows[1].title}</h3>`,'<h3></h3>'):entry();
    }else{
     const row=rows.find(r=>r.url===url);assert.ok(row,url);
+    if(mode==='all-503')status=503;
     if(row===rows[1]&&mode==='transport')throw Error('Synthetic unavailable');
     if(row===rows[1]&&['503','429'].includes(mode))status=Number(mode);
     body=status===200?detailHtml(row,mode==='wrong-id'&&row===rows[1]?'R-999':row.req):'Synthetic unavailable';
@@ -111,16 +135,24 @@ test('Amgen retains a complete Radancy list and isolates individual detail failu
    return {status,body,finalUrl:url,contentType,capturedAt:at};
   }});
   const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
+  if(mode==='429'||mode==='all-503'){
+   assert.equal(result.truth.transportSuccess,false,mode);
+   assert.equal(result.truth.completenessVerified,false,mode);
+   assert.equal(result.transportFailure?.code,mode==='429'?'OFFICIAL_HTTP_429':'OFFICIAL_HTTP_503',mode);
+   assert.equal(result.transportFailure?.retryable,true,mode);
+   assert.equal(result.fetchEvidence.pages.length,1,mode);
+   if(mode==='429')assert.equal(calls.some(url=>url===rows[2].url),false);
+   continue;
+  }
   assert.equal(result.truth.completenessVerified,true,`${mode}: ${JSON.stringify({truth:result.truth,observation:result.observation})}`);
-  assert.equal(result.jobs.length,mode==='good'?3:mode==='429'?1:2,mode);
+  assert.equal(result.jobs.length,mode==='good'?3:2,mode);
   if(mode==='good'){
    assert.equal(validateWebAmgenRadancyEvidence(plan,result.fetchEvidence,result.jobs),true);
    assert.equal(evaluatePaginationEvidence({evidence:result.fetchEvidence,expectedChannelIds:[],filteredOutput:true,allowPositiveOfficialTotalCountAfterAdapterReconciliation:true}).verifiedEligible,true);
   }else{
-   assert.equal(result.fetchEvidence.jobQuarantines.length,mode==='429'?2:1);
+   assert.equal(result.fetchEvidence.jobQuarantines.length,1);
    const changed=structuredClone(result.fetchEvidence);changed.jobQuarantines[0].code='FABRICATED';
    assert.equal(replayStrictSourceQualityEvidence({plan,evidence:changed,paginationEvaluation:result.paginationEvaluation,reconciliation:result.reconciliation,jobs:result.jobs,capturedAt:at}),false);
   }
-  if(mode==='429')assert.equal(calls.some(url=>url===rows[2].url),false);
  }
 });

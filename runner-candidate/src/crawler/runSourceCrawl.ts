@@ -2713,7 +2713,11 @@ function strictPhenomRequestContracts(
         if (rocheLosses.some(loss => loss.details.pageSequence === pageIndex && loss.details.recordIndex === recordIndex)) continue;
         const sourceJobId = strictPhenomPersistentSourceJobId(rawId);
         if (mainlandAlternativeOutputs.has(sourceJobId)) return false;
-        mainlandAlternativeOutputs.set(sourceJobId, { sourceJobId, ...alternative });
+        const rocheListProjection = preserveRochePhenomList ? rocheListOutputs.get(sourceJobId) : undefined;
+        if (preserveRochePhenomList && !rocheListProjection) return false;
+        mainlandAlternativeOutputs.set(sourceJobId, rocheListProjection
+          ? { sourceJobId, locationRaw: rocheListProjection.locationRaw, cities: rocheListProjection.cities }
+          : { sourceJobId, ...alternative });
         continue;
       }
       const presentInclude = facetScope?.includeField

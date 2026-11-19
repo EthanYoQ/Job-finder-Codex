@@ -3967,7 +3967,7 @@ async function fetchPhenomWidgets({
       );
     }
     artifacts.push(countryPreflight.artifact);
-    if (countryPreflight.envelope.totalHits !== countryCount ||!(preserveOrganonQuality||preserveLillyQuality||preserveMerckQuality||preserveUcbPostedDate||preserveRocheQuality)&&
+    if (countryPreflight.envelope.totalHits !== countryCount ||!(preserveOrganonQuality||preserveLillyQuality||preserveMerckQuality||preserveUcbPostedDate||preserveRocheQuality||preserveRochePhenomList)&&
       countryPreflight.envelope.jobs.some((raw) =>
         !isStrictRecord(raw) || !phenomRecordMatchesCountryFacet(
           raw,

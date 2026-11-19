@@ -17,7 +17,7 @@ import { validateSavedSnapshot } from "../web-candidate/src/server/savedPublicSn
 import { savePublicSnapshot } from "../web-candidate/src/server/public-snapshot-file.mjs";
 import { archiveInactiveSnapshots, selectRoundSnapshotHandle } from "./snapshot-handle";
 import { buildRetrySchedule, mergeRetrySources, readRetryCheckpoint, readRetrySources, roundIdSchema, roundManualIntervention, saveRetryCheckpoint,
-  selectDueSourceIds, type RetryOutcome } from "./retry-schedule";
+  selectDueSourceIds, shouldCountRoundRetryAttempt, type RetryOutcome } from "./retry-schedule";
 
 const run = promisify(execFile);
 const stateRoot = resolve(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder");
@@ -85,8 +85,11 @@ try {
   const attemptedSourceIds = new Set(results.filter(row=>row.status!=="SKIPPED_ALREADY_COMMITTED_IN_WINDOW").map(row=>row.sourceId));
   const capturedSet = new Set(capturedSources.map(row=>row.sourceId));
   const outcomeBySource = new Map<string, RetryOutcome>(outcomes.map(row => [row.sourceId, row.observedActualHttp ? { ...row, actualRequestCount: 1 } : row]));
-  for (const sourceId of attemptedSourceIds) {
-    if (!capturedSet.has(sourceId) && !outcomeBySource.has(sourceId)) outcomeBySource.set(sourceId, { sourceId, actualRequestCount: 1 });
+  for (const row of results) {
+    if (row.status !== "SKIPPED_ALREADY_COMMITTED_IN_WINDOW" && !capturedSet.has(row.sourceId) &&
+      !outcomeBySource.has(row.sourceId) && shouldCountRoundRetryAttempt(row)) {
+      outcomeBySource.set(row.sourceId, { sourceId: row.sourceId, actualRequestCount: 1 });
+    }
   }
   const finalOutcomes = [...outcomeBySource.values()];
   const retrySchedule = slot !== null ? buildRetrySchedule({sourceConfigHashes,
