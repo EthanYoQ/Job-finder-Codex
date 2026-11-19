@@ -4,7 +4,8 @@ import { loadDirectPlans } from '../runner-candidate/scripts/direct-round.ts';
 import { candidateCompanies } from '../web-candidate/src/data/companyRegistry.ts';
 import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from '../web-candidate/src/crawler/sourcePlan.ts';
 import { getSourceQualityPolicy } from '../web-candidate/src/crawler/sourceQualityAdmission.ts';
-import { selectPortableSourceSnapshots,verifiedMembers } from '../web-candidate/src/domain/portablePublicSnapshot.ts';
+import { selectPortableSourceSnapshots, verifiedMembers, projectPortableSourceJobs } from '../web-candidate/src/domain/portablePublicSnapshot.ts';
+import { hashJobPersistedProjection } from '../web-candidate/src/domain/jobProjectionDeltaReceipt.ts';
 import { validateSavedSnapshot } from '../web-candidate/src/server/savedPublicSnapshot.ts';
 import {hashCanonicalStringSet} from '../web-candidate/src/crawler/runtimeBatchIdentity.ts';
 import {createHash} from 'node:crypto';
@@ -99,4 +100,218 @@ test('portableCommittedResultsSql unpacks certificates once, gates observations,
   assert.match(sql, /NOT \(\([^)]*'SOURCE_NOT_DUE'[^)]*\) IS TRUE\) OR r\.id IN \(SELECT id FROM latest_not_due\)/);
   assert.match(sql, /CASE WHEN r\."atomicCommitState"='COMMITTED' AND r\."completenessState"='VERIFIED'\s+THEN \(SELECT coalesce\(jsonb_agg\(/);
   assert.match(sql, /LEFT JOIN LATERAL jsonb_to_record\(/);
+});
+
+test('Pfizer transition from prior B-grade to A-grade Delta preserves prior visibility and GRACE history', () => {
+  const route = routes.find(row => row.sourceId === 'source-pfizer-china-social');
+  const plan = reader.find(item => item.source.id === route.sourceId);
+  const priorAt = '2026-11-15T16:05:00.000Z';
+  const currentAt = '2026-11-19T16:05:00.000Z';
+  const priorHash = '84aaab8bad3579630eec1b12d3f09236755b3a25d0b7751ca8584a9a53a83413';
+  const sha = value => createHash('sha256').update(value).digest('hex');
+  const keptKey = `${route.sourceId}:kept`;
+  const graceKey = `${route.sourceId}:grace`;
+  const buildJobRow = (jobId, dedupeKey, missingSuccessCount, seenAt) => ({
+    id: jobId,
+    companyId: route.companyId,
+    sourceId: route.sourceId,
+    dedupeKey,
+    sourceJobId: jobId,
+    officialTitle: `Pfizer Role ${jobId}`,
+    officialUrl: `https://pfizer.wd1.myworkdayjobs.com/PfizerCareers/job/China/${jobId}`,
+    listUrl: plan.source.officialEntryUrl,
+    locationRaw: 'China - Shanghai - STIT',
+    city: '上海',
+    cities: ['上海'],
+    category: 'OTHER',
+    humanCorrectedCategory: null,
+    humanCorrectedTitle: null,
+    auxiliaryChineseTitle: null,
+    officialPublishedAt: null,
+    missingSuccessCount,
+    lifecycleStatus: 'ACTIVE',
+    visibleInFrontend: true,
+    isNew: false,
+    lastSeenAt: new Date(seenAt)
+  });
+  const keptRow = buildJobRow('kept', keptKey, 0, currentAt);
+  const graceRow = buildJobRow('grace', graceKey, 1, priorAt);
+
+  const priorRow = {
+    id: 'pfizer-b-grade-prior',
+    releaseCandidateId: 'instabox-synthetic',
+    batchId: 'pfizer-prior-batch',
+    sourceId: route.sourceId,
+    sourceConfigHash: priorHash,
+    transportState: 'SUCCEEDED',
+    adapterState: 'SUCCEEDED',
+    completenessState: 'VERIFIED',
+    atomicCommitState: 'COMMITTED',
+    failureCode: null,
+    failureReason: null,
+    blockerCode: null,
+    blockerReason: null,
+    startedAt: new Date(priorAt),
+    finishedAt: new Date(priorAt),
+    dedupeOutputCount: 2,
+    canonicalCurrentJobSetSha256: hashCanonicalStringSet([keptKey, graceKey]),
+    canonicalGraceJobSetSha256: hashCanonicalStringSet([]),
+    canonicalVisibleJobSetSha256: hashCanonicalStringSet([keptKey, graceKey]),
+    observations: [{ crawledAt: new Date(priorAt) }],
+    completenessCertificateSha256: 'b'.repeat(64),
+    completenessCertificate: {
+      schemaVersion: B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION,
+      counts: { finalUniqueJobCount: 2, validationDiscardCount: 0 },
+      mainTraversal: {
+        matchKeyKind: 'SOURCE_JOB_ID',
+        canonicalMatchKeySetSha256: hashCanonicalStringSet(['kept', 'grace'])
+      }
+    },
+    batch: { id: 'pfizer-prior-batch', releaseCandidateId: 'instabox-synthetic', kind: 'SCHEDULED', status: 'SUCCESS' }
+  };
+
+  const priorOnly = selectPortableSourceSnapshots([plan], [priorRow], { currentTime: new Date(priorAt) })[0];
+  assert.equal(priorOnly.state, 'PUBLISHING');
+  assert.equal(priorOnly.health, 'HEALTHY');
+  assert.equal(priorOnly.policyId, 'STRICT_PLAN_BOUND_INDEPENDENT_TRAVERSAL_REPLAY_V2');
+  assert.equal(priorOnly.selectedSourceResultId, priorRow.id);
+
+  const deltaRow = {
+    id: 'pfizer-a-grade-delta',
+    releaseCandidateId: 'instabox-synthetic',
+    batchId: 'pfizer-a-batch',
+    sourceId: route.sourceId,
+    sourceConfigHash: route.sourceConfigSha256,
+    transportState: 'SUCCEEDED',
+    adapterState: 'SUCCEEDED',
+    completenessState: 'VERIFIED',
+    atomicCommitState: 'COMMITTED',
+    failureCode: null,
+    failureReason: null,
+    blockerCode: null,
+    blockerReason: null,
+    startedAt: new Date(currentAt),
+    finishedAt: new Date(currentAt),
+    dedupeOutputCount: 1,
+    canonicalCurrentJobSetSha256: hashCanonicalStringSet([keptKey]),
+    canonicalGraceJobSetSha256: hashCanonicalStringSet([graceKey]),
+    canonicalVisibleJobSetSha256: hashCanonicalStringSet([keptKey, graceKey]),
+    observations: [{
+      observedFrom: new Date(currentAt),
+      observedTo: new Date(currentAt),
+      crawledAt: new Date(currentAt),
+      sourceId: route.sourceId,
+      sourceResultId: 'pfizer-a-grade-delta',
+      batchId: 'pfizer-a-batch',
+      releaseCandidateId: 'instabox-synthetic',
+      sourceConfigSha256: route.sourceConfigSha256,
+      adapterVersion: '1'.repeat(64),
+      successful: true,
+      transportSucceeded: true,
+      adapterSucceeded: true,
+      completenessVerified: true,
+      atomicCommitSucceeded: true,
+      canonicalOutputSha256: hashCanonicalStringSet([keptKey])
+    }],
+    adapterVersion: '1'.repeat(64),
+    canonicalOutputSetSha256: hashCanonicalStringSet([keptKey]),
+    completenessCertificateSha256: 'c'.repeat(64),
+    completenessCertificate: {
+      schemaVersion: 'job-projection-delta-receipt-v1',
+      binding: {
+        releaseCandidateId: 'instabox-synthetic',
+        batchId: 'pfizer-a-batch',
+        sourceResultId: 'pfizer-a-grade-delta',
+        sourceId: route.sourceId
+      },
+      verifiedAt: currentAt,
+      observedAt: currentAt,
+      members: [
+        ...(['CURRENT', 'VISIBLE'].map(setKind => ({
+          releaseCandidateId: 'instabox-synthetic',
+          batchId: 'pfizer-a-batch',
+          sourceId: route.sourceId,
+          sourceResultId: 'pfizer-a-grade-delta',
+          setKind,
+          jobKey: keptKey,
+          jobKeySha256: sha(keptKey),
+          lifecycleStatus: 'ACTIVE',
+          missingCount: 0,
+          jobProjectionSha256: hashJobPersistedProjection(keptRow),
+          lastPresentResultId: 'pfizer-a-grade-delta',
+          lastConfirmedObservedAt: currentAt,
+          lifecycleLastSeenAt: currentAt
+        }))),
+        ...(['GRACE', 'VISIBLE'].map(setKind => ({
+          releaseCandidateId: 'instabox-synthetic',
+          batchId: 'pfizer-a-batch',
+          sourceId: route.sourceId,
+          sourceResultId: 'pfizer-a-grade-delta',
+          setKind,
+          jobKey: graceKey,
+          jobKeySha256: sha(graceKey),
+          lifecycleStatus: 'ACTIVE',
+          missingCount: 1,
+          jobProjectionSha256: hashJobPersistedProjection(graceRow),
+          lastPresentResultId: priorRow.id,
+          lastConfirmedObservedAt: priorAt,
+          lifecycleLastSeenAt: priorAt
+        })))
+      ],
+      legacyCertificate: {
+        schemaVersion: 'a-grade-official-total-v2',
+        grade: 'A',
+        observedAt: currentAt,
+        counts: { finalUniqueJobCount: 1, validationDiscardCount: 0 }
+      }
+    },
+    batch: { id: 'pfizer-a-batch', releaseCandidateId: 'instabox-synthetic', kind: 'SCHEDULED', status: 'SUCCESS' }
+  };
+
+  const transitioned = selectPortableSourceSnapshots([plan], [priorRow, deltaRow], { currentTime: new Date(currentAt) })[0];
+  assert.equal(transitioned.state, 'PUBLISHING', JSON.stringify(transitioned.reasons));
+  assert.equal(transitioned.health, 'HEALTHY');
+  assert.equal(transitioned.policyId, 'STRICT_PLAN_BOUND_OFFICIAL_TOTAL_REPLAY_V1');
+  assert.equal(transitioned.selectedSourceResultId, deltaRow.id);
+  assert.equal(transitioned.visibilityFloor, currentAt);
+  const members = [
+    ['CURRENT', keptKey, 0],
+    ['GRACE', graceKey, 1],
+    ['VISIBLE', keptKey, 0],
+    ['VISIBLE', graceKey, 1]
+  ].map(([setKind, jobKey, missingCount]) => ({
+    releaseCandidateId: deltaRow.releaseCandidateId,
+    batchId: deltaRow.batchId,
+    sourceId: deltaRow.sourceId,
+    sourceResultId: deltaRow.id,
+    setKind,
+    jobKey,
+    jobKeySha256: sha(jobKey),
+    lifecycleStatus: 'ACTIVE',
+    missingCount
+  }));
+  const priorMembers = [
+    ['CURRENT', keptKey, 0],
+    ['CURRENT', graceKey, 0],
+    ['VISIBLE', keptKey, 0],
+    ['VISIBLE', graceKey, 0]
+  ].map(([setKind, jobKey, missingCount]) => ({
+    releaseCandidateId: priorRow.releaseCandidateId,
+    batchId: priorRow.batchId,
+    sourceId: priorRow.sourceId,
+    sourceResultId: priorRow.id,
+    setKind,
+    jobKey,
+    jobKeySha256: sha(jobKey),
+    lifecycleStatus: 'ACTIVE',
+    missingCount
+  }));
+  assert.deepEqual([...verifiedMembers(transitioned.selected, members).keys()], [keptKey, graceKey]);
+  const projected = projectPortableSourceJobs(transitioned, members, [keptRow, graceRow], { currentTime: new Date(currentAt) }, priorMembers);
+  assert.equal(projected.state, 'PUBLISHING', JSON.stringify(projected.reasons));
+  assert.equal(projected.visibleJobCount, 2);
+  assert.deepEqual(projected.jobs.map(job => job.id), ['grace', 'kept']);
+  const projectedGrace = projected.jobs.find(job => job.id === 'grace');
+  assert.equal(projectedGrace.inGrace, true);
+  assert.equal(projectedGrace.lastConfirmedObservedAt, priorAt);
 });

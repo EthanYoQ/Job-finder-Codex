@@ -13,10 +13,10 @@ const candidate = { id: 'synthetic-candidate', commitSha: 'a'.repeat(40), roster
   sourcePlanHash: 'c'.repeat(64), sourceConfigHash: 'd'.repeat(64), adapterBundleHash: 'e'.repeat(64) };
 const routes = await loadDirectPlans();
 
-test('catalog preserves all 36 original plans and the 20/12/4 admission split', () => {
+test('catalog preserves all 36 original plans and the 20/13/3 admission split', () => {
   assert.equal(routes.length, 36);
   assert.deepEqual(Object.fromEntries(['PORTABLE', 'TRUE_A', 'TRUE_B'].map(route => [route, routes.filter(row => row.route === route).length])),
-    { PORTABLE: 20, TRUE_A: 12, TRUE_B: 4 });
+    { PORTABLE: 20, TRUE_A: 13, TRUE_B: 3 });
   for (const row of routes) {
     validatePlannedSourceContract(identityForSource(candidate, row.sourceId), [row.sourceId]);
     assert.ok(row.route === 'PORTABLE' ? getSourceQualityPolicy(row.plan)

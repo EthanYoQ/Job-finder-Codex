@@ -28,7 +28,7 @@ const B_GRADE_PUBLIC_POLICY = "STRICT_PLAN_BOUND_INDEPENDENT_TRAVERSAL_REPLAY_V2
 // Only reviewed source-specific COMPLETE_PAGE_TRAVERSAL integrations are public here.
 const B_GRADE_PUBLIC_CONFIGS: Readonly<Record<string, string>> = Object.freeze(Object.fromEntries(
   buildStagedSourceCrawlPlans(candidateCompanies).filter(plan =>
-    ["source-pfizer-china-social", "source-bayer-healthcare-social", "source-servier-china-social", "source-sanofi-china-social"].includes(plan.source.id) &&
+    ["source-bayer-healthcare-social", "source-servier-china-social", "source-sanofi-china-social"].includes(plan.source.id) &&
     getPortableCoverageScope().requiredSourceIds.includes(plan.source.id) && requiresBGradeTraversalCertificate(plan))
     .map(plan => [plan.source.id, sourcePlanConfigSha256(plan)])));
 interface PublicReceipt {
@@ -129,6 +129,7 @@ function supportsPublicAGrade(plan: SourceCrawlPlan): boolean {
 }
 /** Merck's reviewed page-capacity change preserves the same China publication scope.
  * Old commits remain readable only under this exact successor; issuer policy stays current. */
+const PFIZER_PRIOR_B_GRADE_HASH = "84aaab8bad3579630eec1b12d3f09236755b3a25d0b7751ca8584a9a53a83413";
 const PRIOR_COMMITTED_CONFIG_HASHES: Readonly<Record<string, { current: string; prior: readonly string[] }>> = Object.freeze({
   "source-merck-china-social": {
     current: "1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212",
@@ -149,6 +150,10 @@ const PRIOR_COMMITTED_CONFIG_HASHES: Readonly<Record<string, { current: string; 
   "source-csl-china-social": {
     current: "deea9515efd3d9327c3dce84aaf48056c2114c037783b21293888b796a182854",
     prior: ["eb4583bc629171783b293f162837776c6f68e63b7e81cc40540b83aed6e06694"]
+  },
+  "source-pfizer-china-social": {
+    current: "44247af9aeabbb56f362594c2442bf609347ef0754533157fed387bc35bb8e81",
+    prior: [PFIZER_PRIOR_B_GRADE_HASH]
   }
 });
 
@@ -159,6 +164,13 @@ export function portableCommittedConfigHashes(plan: SourceCrawlPlan): readonly s
 }
 export function supportsPublicBGrade(plan: SourceCrawlPlan): boolean {
   return B_GRADE_PUBLIC_CONFIGS[plan.source.id] === sourcePlanConfigSha256(plan);
+}
+function isPriorPfizerBGradeCommit(row: PortableSourceResultRow, plan: SourceCrawlPlan, schemaVersion: unknown): boolean {
+  return plan.source.id === "source-pfizer-china-social" &&
+    supportsPublicAGrade(plan) &&
+    row.sourceConfigHash === PFIZER_PRIOR_B_GRADE_HASH &&
+    portableCommittedConfigHashes(plan).includes(row.sourceConfigHash) &&
+    isCurrentBGradeCertificateSchema(schemaVersion);
 }
 function observedAt(receipt: PublicReceipt, row: PortableSourceResultRow): string {
   return receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? receipt.observedAt! :
@@ -193,7 +205,7 @@ function claimedReceipt(row: PortableSourceResultRow, plan: SourceCrawlPlan): bo
   }
   return isJobProjectionDeltaReceipt(receipt) || receipt?.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA || receipt?.policyId === SOURCE_QUALITY_POLICY_ID ||
     receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION && supportsPublicAGrade(plan) ||
-    isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && supportsPublicBGrade(plan);
+    isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && (supportsPublicBGrade(plan) || isPriorPfizerBGradeCommit(row, plan, receipt?.schemaVersion));
 }
 function readCommittedSource(row: PortableSourceResultRow, plan: SourceCrawlPlan, now: Date): AcceptedPortableSource {
   const certificate = compactCommittedCertificate(row.completenessCertificate) as PublicReceipt & CommittedDelta & {legacyCertificate?: PublicReceipt};
@@ -203,7 +215,7 @@ function readCommittedSource(row: PortableSourceResultRow, plan: SourceCrawlPlan
   if (historicalSanofi) assertSanofiHistoricalPublicRow(row, plan);
   const supported = receipt?.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA ? receipt.policyId === getSourceQualityPolicy(plan) :
     receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? historicalSanofi || supportsPublicAGrade(plan) :
-    isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && supportsPublicBGrade(plan);
+    isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && (supportsPublicBGrade(plan) || isPriorPfizerBGradeCommit(row, plan, receipt?.schemaVersion));
   // Keep the read boundary and current publication rules; COMMITTED owns evidence admission.
   if (!supported || receipt.schemaVersion === BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION && plan.source.id !== "source-bayer-healthcare-social" || row.sourceId !== plan.source.id || (!historicalSanofi && !portableCommittedConfigHashes(plan).includes(row.sourceConfigHash)) ||
       row.batch.id !== row.batchId || row.batch.releaseCandidateId !== row.releaseCandidateId || row.batch.kind !== "SCHEDULED" ||

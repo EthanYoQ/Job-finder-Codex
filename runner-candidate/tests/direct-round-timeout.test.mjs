@@ -64,12 +64,11 @@ test('the registered scheduler runs without the migration file and keeps source 
     assert.deepEqual(Object.fromEntries(calls.filter(({deps}) => Object.hasOwn(deps, 'sourceAttemptTimeoutMs'))
       .map(({sourceId, deps}) => [sourceId, deps.sourceAttemptTimeoutMs])), {
       'source-johnson-innovative-medicine-social': 1_800_000,
-      'source-pfizer-china-social': 1_800_000,
       'source-sanofi-china-social': 1_800_000,
       'source-novartis-social': 1_500_000,
       'source-novo-nordisk-china-social': 1_200_000
     });
-    const workdayIds = new Set(['biogen', 'organon', 'pfizer']
+    const workdayIds = new Set(['biogen', 'organon']
       .map(company => 'source-' + company + '-china-social'));
     const workdayPositions = calls.flatMap(({sourceId}, index) => workdayIds.has(sourceId) ? [index] : []);
     assert.deepEqual(workdayPositions.map(index => calls[index].sourceId),
@@ -118,7 +117,7 @@ test('the registered scheduler runs without the migration file and keeps source 
       }
     }
     accepted.length=0;calls.length=0;
-    const dueOrder=['source-organon-china-social','source-pfizer-china-social','source-biogen-china-social'];
+    const dueOrder=['source-organon-china-social','source-biogen-china-social'];
     const observations=[],onSourceTransportObservation=observation=>observations.push(observation);
     await runDirectRound({db,leaseDb:{lease},candidateId:candidate.id,workspaceRoot,slot,
       onlySourceIds:dueOrder,prioritizeSelectedSources:true,onSourceTransportObservation});
@@ -133,7 +132,7 @@ test('the registered scheduler runs without the migration file and keeps source 
       onlySourceIds:[...dueOrder,...regular],prioritizeSelectedSources:true});
     assert.deepEqual(calls.filter(row=>workdayIds.has(row.sourceId)).map(row=>row.sourceId),dueOrder);
     assert.deepEqual(calls.map(row=>row.sourceId),[
-      regular[0],dueOrder[0],regular[1],dueOrder[1],regular[2],dueOrder[2],regular[3]
+      regular[0],regular[1],dueOrder[0],regular[2],dueOrder[1],regular[3]
     ]);
   } finally {
     await rmdir(workspaceRoot);

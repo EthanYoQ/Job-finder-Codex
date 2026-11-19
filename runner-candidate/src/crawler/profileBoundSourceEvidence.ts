@@ -4,6 +4,7 @@ import { getStrictAmgenManualWorkdayPolicy, validateStrictAmgenManualWorkdayEvid
 import { getStrictAmgenNativePolicy, isSafeAmgenNativeFailureCode, validateStrictAmgenNativeEvidence } from "./amgenNativeSourceFetch";
 import { getStrictAmgenRadancyPolicy, isSafeAmgenRadancyFailureCode, validateStrictAmgenRadancyEvidence } from "./amgenRadancySourceFetch";
 import { getStrictCslOfficialPortalPolicy, isSafeCslOfficialPortalFailureCode, validateStrictCslOfficialPortalEvidence } from "./cslOfficialPortalSourceFetch";
+import { getStrictPfizerOfficialPortalPolicy, isSafePfizerOfficialPortalFailureCode, validateStrictPfizerOfficialPortalEvidence } from "./pfizerOfficialPortalSourceFetch";
 import {getStrictMsdAjingaPolicy,validateStrictMsdAjingaEvidence} from "./msdAjingaSourceFetch";
 import { validateStrictQiluDualPartitionEvidence, getStrictQiluDualPartitionPolicy } from "./qiluDualPartitionSourceFetch";
 import { getStrictLivzonCeccNetworkPolicy, validateStrictLivzonCeccEvidence } from "./livzonCeccEvidenceVerifier";
@@ -68,6 +69,8 @@ export function validateStrictProfileBoundSourceEvidence(
       return validateStrictAmgenNativeEvidence(plan, evidence, outputJobs);
     case "csl-official-portal":
       return validateStrictCslOfficialPortalEvidence(plan, evidence, outputJobs);
+    case "pfizer-official-portal":
+      return validateStrictPfizerOfficialPortalEvidence(plan, evidence, outputJobs);
     case "msd-ajinga":return validateStrictMsdAjingaEvidence(plan,evidence,outputJobs);
     case "qilu-dual-official":
       return validateStrictQiluDualPartitionEvidence(plan, evidence, outputJobs);
@@ -133,6 +136,8 @@ export function getStrictProfileBoundSourcePolicy(
       return getStrictAmgenNativePolicy(plan);
     case "csl-official-portal":
       return getStrictCslOfficialPortalPolicy(plan);
+    case "pfizer-official-portal":
+      return getStrictPfizerOfficialPortalPolicy(plan);
     case "msd-ajinga":return getStrictMsdAjingaPolicy(plan);
     case "qilu-dual-official":
       return getStrictQiluDualPartitionPolicy(plan);
@@ -211,6 +216,8 @@ export function safeProfileBoundSourceFailureReason(
     plan.profileBoundSource?.kind === "amgen-native-china" && isSafeAmgenNativeFailureCode(failureReason)) return failureReason;
   if (plan.company.id === "company-csl-china" && plan.source.id === "source-csl-china-social" && plan.source.companyId === "company-csl-china" &&
     plan.profileBoundSource?.kind === "csl-official-portal" && isSafeCslOfficialPortalFailureCode(failureReason)) return failureReason;
+  if (plan.company.id === "company-pfizer-china" && plan.source.id === "source-pfizer-china-social" && plan.source.companyId === "company-pfizer-china" &&
+    plan.profileBoundSource?.kind === "pfizer-official-portal" && isSafePfizerOfficialPortalFailureCode(failureReason)) return failureReason;
   if (
     plan.company.id === "company-grifols-china" &&
     plan.source.id === "source-grifols-china-social" &&
