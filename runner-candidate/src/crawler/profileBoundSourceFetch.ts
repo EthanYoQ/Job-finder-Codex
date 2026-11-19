@@ -1,5 +1,7 @@
 import { createAmgenManualWorkdaySourceFetch } from "./amgenManualWorkdaySourceFetch";
+import { createAmgenRadancySourceFetch } from "./amgenRadancySourceFetch";
 import { createAmgenNativeSourceFetch } from "./amgenNativeSourceFetch";
+import { createCslOfficialPortalSourceFetch } from "./cslOfficialPortalSourceFetch";
 import {createMsdAjingaSourceFetch} from "./msdAjingaSourceFetch";
 import { createQiluDualPartitionSourceFetch } from "./qiluDualPartitionSourceFetch";
 import { createLivzonCeccSourceFetch } from "./livzonCeccSourceFetch";
@@ -18,7 +20,9 @@ import { createXinhuaOfficialAnnouncementSourceFetch } from "./xinhuaOfficialAnn
 export function createProfileBoundSourceFetch(): SourceFetchFunction {
   const delegates = {
     "amgen-manual-workday-lookup": createAmgenManualWorkdaySourceFetch(),
+    "amgen-radancy-china": createAmgenRadancySourceFetch(),
     "amgen-native-china": createAmgenNativeSourceFetch(),
+    "csl-official-portal": createCslOfficialPortalSourceFetch(),
     "msd-ajinga":createMsdAjingaSourceFetch(),
     "qilu-dual-official": createQiluDualPartitionSourceFetch(),
     "grifols-china-detail-scope": createGrifolsChinaSourceFetch(),

@@ -6,7 +6,7 @@ import { BI_API_URL, replayBiUiSemanticContract } from "./biUiSemanticContract";
 import { NOVO_NATIVE_HEADERS, novoNativeTimeoutArtifact, novoNativeTimeoutRetryArtifact } from "./novoNativeTimeout";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { NOVO_NATIVE_RETRY, novoNativeGatewayRetryAllowed, novoNativeGatewayFailureArtifact, novoNativeGatewayRetryStart, novoNativeGatewayRetryArtifact, delayNovoNativeRetry } from "./novoNativeGatewayRetry";
-import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheNativeDetailUrl, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
+import { ROCHE_NATIVE_DETAIL_POLICY, ROCHE_PHENOM_LIST_POLICY, rocheNativeDetail, rocheNativeDetailUrl, rochePhenomListDetail, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
 import { acquireBeisenDetailDates } from "./beisenDetailDates";
 import {isolateBeisenJobRows,beisenRawObservationId} from './beisenJobQuarantine';
 import {quarantineFetchLosses,quarantineCompleteList,jobQuarantineLoss,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
@@ -16,7 +16,7 @@ import {exactFosunHongKongOnlyScope,exactQiluUnitedStatesOrHongKongScope} from '
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
-import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
+import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, isLillyPhenomOnlyPlan, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyPhenomListProjection, lillyClosedLoss } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
 import { NOVO_CHINA_LOCATION_POLICY, NOVO_NATIVE_APPLICATION_POLICY, exactNovoChinaBootstrap, parseNovoChinaResponse, novoJobQuarantine, novoNativeDetailBase, novoNativeDetailHasSubstantiveDescription, novoIncompleteDetailIsBound, novoNativeApplicationUrl, novoApplicationStatus, novoClosedLoss, novoInsufficientDetailLoss } from "./novoChinaQuality";
 import { BMS_GEOGRAPHY_POLICY, bmsMainlandCities } from "./bmsMainlandGeography";
@@ -108,7 +108,7 @@ export type OfficialJsonFetchConfig =
       kind: "phenom";
       postedDatePolicy?: "UCB_PHENOM_POSTED_DATE_V1" | "MERCK_CHINA_PHENOM_POSTED_DATE_V1" | "ORGANON_PHENOM_POSTED_DATE_V1" | "LILLY_CHINA_PHENOM_POSTED_DATE_V1";
       cityScopePolicy?: "UCB_PRIMARY_CITY_AGREEMENT_V1" | "MERCK_CHINA_LOCATION_TITLE_PENDING_V2" | "ORGANON_MAINLAND_LOCATION_PENDING_V1" | "LILLY_CHINA_REVIEWED_LOCATION_PENDING_V1";
-      publicVisibilityPolicy?: "MERCK_CHINA_PUBLIC_VISIBILITY_V1" | "ORGANON_PUBLIC_VISIBILITY_V1" | "LILLY_CHINA_PUBLIC_VISIBILITY_V1";
+      publicVisibilityPolicy?: "MERCK_CHINA_PUBLIC_VISIBILITY_V1" | "ORGANON_PUBLIC_VISIBILITY_V1" | "LILLY_CHINA_PUBLIC_VISIBILITY_V1" | "LILLY_CHINA_PHENOM_ONLY_V1";
       detailBaseUrl: string;
       derivedDetailIdField?: "reqId" | "jobSeqNo";
       mixedLocationScopePolicy?: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1";
@@ -149,7 +149,7 @@ export type OfficialJsonFetchConfig =
       allowOmittedOffsetForSinglePage?: boolean;
       requestBoundOmittedOffsetPolicy?: "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" | "ORGANON_REQUEST_BOUND_OMITTED_OFFSET_V1";
       exactDuplicateReconciliationPolicy?: "ROCHE_IDENTICAL_CROSS_PAGE_V1";
-      nativeDetailPolicy?: typeof ROCHE_NATIVE_DETAIL_POLICY;
+      nativeDetailPolicy?: typeof ROCHE_NATIVE_DETAIL_POLICY | typeof ROCHE_PHENOM_LIST_POLICY;
       pageSize?: number;
       maxPages?: number;
     }
@@ -656,7 +656,7 @@ function attachOfficialJsonPageCapacity(
       ...evidence,
       pages: evidence.pages.map((page) => ({
         ...page,
-        requestedPageSize: config.kind === "phenom" && config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY
+        requestedPageSize: config.kind === "phenom" && (config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY || config.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY)
           ? page.requestedPageSize ?? requestedPageSize : requestedPageSize,
         returnedPageSize: explicitOfficialReturnedPageSize(config.kind, artifacts.get(page.artifactLogicalKey)?.body)
       }))
@@ -3830,6 +3830,7 @@ async function fetchPhenomWidgets({
     return failedWithEvidence(capturedAt, "Lilly China quality policy requires the exact source and bootstrap",
       phenomEntryFailureEvidence(unavailableEntryArtifact));
   }
+  const lillyPhenomOnly = preserveLillyQuality && isLillyPhenomOnlyPlan(plan);
   const preserveUcbPostedDate = !preserveMerckQuality && !preserveOrganonQuality && !preserveLillyQuality && requiresUcbPostedDate(plan);
   if (preserveUcbPostedDate && (!exactUcbPostedDatePlan(plan) || !exactUcbPostedDateBootstrap(pageConfig))) {
     return failedWithEvidence(capturedAt, "UCB posted-date policy requires the exact source and bootstrap",
@@ -3859,9 +3860,10 @@ async function fetchPhenomWidgets({
   }
 
   const preserveRocheQuality = exactRocheRequestBoundOmittedOffset && config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY;
-  if (config.nativeDetailPolicy !== undefined && !preserveRocheQuality) return failed(capturedAt, "Roche native detail policy is not bound to the exact source");
+  const preserveRochePhenomList = exactRocheRequestBoundOmittedOffset && config.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY;
+  if (config.nativeDetailPolicy !== undefined && !preserveRocheQuality && !preserveRochePhenomList) return failed(capturedAt, "Roche native detail policy is not bound to the exact source");
   // Bind normalized observation time to the retained entry response, as the A replay does.
-  if (preserveRocheQuality) capturedAt = entry.capturedAt!;
+  if (preserveRocheQuality || preserveRochePhenomList) capturedAt = entry.capturedAt!;
   const configLocator = phenomConfigLocator(pageConfig, widgetEndpoint);
   const entryArtifact = phenomArtifact({
     id: "phenom-entry-0000",
@@ -4112,7 +4114,7 @@ async function fetchPhenomWidgets({
   }
 
   // Keep equal postedDate values in one official response, without weakening cardinality checks.
-  if (preserveRocheQuality) pageSize = Math.max(pageSize, structuredExpectedTotal ?? 0);
+  if (preserveRocheQuality || preserveRochePhenomList) pageSize = Math.max(pageSize, structuredExpectedTotal ?? 0);
 
   for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
     const requestedOffset = pageIndex * pageSize;
@@ -4356,7 +4358,7 @@ async function fetchPhenomWidgets({
       if ((facetScope || sourceScopedChinaRequest) && phenomCountryIsMainlandChina(locationSelection.country) &&
         locationScopeInvalid) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
-        if(preserveMerckQuality||preserveUcbPostedDate||preserveLillyQuality||preserveOrganonQuality||preserveRocheQuality)continue;
+        if(preserveMerckQuality||preserveUcbPostedDate||preserveLillyQuality||preserveOrganonQuality||preserveRocheQuality||preserveRochePhenomList)continue;
         pages.push(phenomPageTrace({
           artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, returnedOffset,
           rawJobIds: rawIds, validJobIds: validIds,
@@ -4389,7 +4391,7 @@ async function fetchPhenomWidgets({
       );
       if (structuredScopeDrift) {
         recordPhenomLoss(losses, counts, "VALIDATION", "OUT_OF_SCOPE", rawLocator, pageIndex, recordIndex);
-        if(preserveMerckQuality||preserveUcbPostedDate||preserveLillyQuality||preserveOrganonQuality||preserveRocheQuality)continue;
+        if(preserveMerckQuality||preserveUcbPostedDate||preserveLillyQuality||preserveOrganonQuality||preserveRocheQuality||preserveRochePhenomList)continue;
         pages.push(phenomPageTrace({
           artifact, sequence: pageIndex, requestedOffset, requestedPageSize: pageSize, returnedOffset,
           rawJobIds: rawIds, validJobIds: validIds,
@@ -4493,7 +4495,36 @@ async function fetchPhenomWidgets({
     : undefined;
   const nativeQuarantines:JobQuarantine[]=[];
   if(losses.some(loss=>loss.details.code==='DUPLICATE_OFFICIAL_ID'))return phenomFailure(capturedAt,'Phenom duplicate identity prevents a complete list',artifacts,pages,counts,losses,declaredCompleteness);
-  if(preserveOrganonQuality||preserveRocheQuality||preserveLillyQuality){
+  if (preserveRochePhenomList) {
+    const rows = [...firstRawByOfficialId.values()].map(value => ({ ...value, raw: JSON.parse(value.serialized) as Record<string, unknown> }));
+    for (const artifact of artifacts) artifact.bodyRepresentation = "EXACT";
+    for (const { raw, pageIndex, recordIndex } of rows) {
+      const sourceJobId = persistentOfficialJsonJobId(raw.jobSeqNo as string);
+      const projected = rochePhenomListDetail(raw);
+      if (projected) {
+        Object.assign(jobs.find(job => job.sourceJobId === sourceJobId)!, projected);
+        continue;
+      }
+      nativeQuarantines.push(phenomJobQuarantine(raw, pageIndex, recordIndex, pages[pageIndex]!.artifactLogicalKey, "ROCHE_PHENOM_LIST_JOB_UNVERIFIED"));
+      const jobIndex = jobs.findIndex(job => job.sourceJobId === sourceJobId);
+      if (jobIndex >= 0) jobs.splice(jobIndex, 1);
+    }
+  }
+  if (lillyPhenomOnly) {
+    const rows = [...firstRawByOfficialId.values()].map(value => ({ ...value, raw: JSON.parse(value.serialized) as Record<string, unknown> }));
+    for (const { raw, pageIndex, recordIndex } of rows) {
+      const sourceJobId = persistentOfficialJsonJobId(raw.jobSeqNo as string);
+      const projected = lillyPhenomListProjection(raw);
+      if (projected) {
+        Object.assign(jobs.find(job => job.sourceJobId === sourceJobId)!, projected);
+        continue;
+      }
+      nativeQuarantines.push(phenomJobQuarantine(raw, pageIndex, recordIndex, pages[pageIndex]!.artifactLogicalKey, "LILLY_PHENOM_LIST_JOB_UNVERIFIED"));
+      const jobIndex = jobs.findIndex(job => job.sourceJobId === sourceJobId);
+      if (jobIndex >= 0) jobs.splice(jobIndex, 1);
+    }
+  }
+  if(preserveOrganonQuality||preserveRocheQuality||preserveLillyQuality&&!lillyPhenomOnly){
     const rows=[...firstRawByOfficialId.values()].map(value=>({...value,raw:JSON.parse(value.serialized) as Record<string,unknown>}));
     const listed=pages.flatMap(page=>JSON.parse(artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!.body as string).refineSearch.data.jobs);
     if(preserveOrganonQuality&&!organonKeywordCountryEquivalent(entry.body,listed))return phenomFailure(capturedAt,'ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD',artifacts,pages,counts,losses,declaredCompleteness);
@@ -4567,7 +4598,7 @@ async function fetchPhenomWidgets({
     return phenomFailure(capturedAt, safeOfficialJsonFailure(error, "Phenom pagination evidence is invalid"),
       artifacts, pages, counts, losses, declaredCompleteness);
   }
-  if(preserveMerckQuality||preserveUcbPostedDate||preserveLillyQuality||preserveOrganonQuality||preserveRocheQuality){
+  if(preserveMerckQuality||preserveUcbPostedDate||preserveLillyQuality||preserveOrganonQuality||preserveRocheQuality||preserveRochePhenomList){
     const listIsolated=quarantineFetchLosses(finalized.evidence,loss=>{
       if(['ROCHE_DETAIL_DENIED','LILLY_OFFICIAL_APPLICATION_CLOSED','ORGANON_OFFICIAL_APPLICATION_CLOSED'].includes(loss.details.code))return undefined;
       const sequence=loss.details.pageSequence,index=loss.details.recordIndex;if(sequence===undefined||index===undefined)return undefined;
@@ -4647,7 +4678,7 @@ function exactRocheRequestBoundOmittedOffsetPlan(
     config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
     config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1" &&
     (config.nativeDetailPolicy === undefined ? fields.officialPublishedAt === undefined :
-      config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY && fields.officialPublishedAt === "officialPublishedAt") &&
+      (config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY || config.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY) && fields.officialPublishedAt === "officialPublishedAt") &&
     (config.pageSize === 100 || config.pageSize === 250) && config.maxPages === 10 &&
     widgetEndpoint === "https://careers.roche.com/widgets" &&
     pageConfig.widgetApiEndpoint === "https://careers.roche.com/widgets" &&

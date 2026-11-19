@@ -6,7 +6,8 @@ import {candidateCompanies} from '../src/data/companyRegistry.ts';
 import {buildStagedSourceCrawlPlans} from '../src/crawler/sourcePlan.ts';
 import {createHttpHtmlSourceFetch} from '../src/crawler/httpHtmlSourceFetch.ts';
 import {validateStrictHtmlCompletenessProof} from '../src/crawler/strictHtmlCompletenessProof.ts';
-import {createAmgenManualWorkdaySourceFetch} from '../src/crawler/amgenManualWorkdaySourceFetch.ts';
+import {createHash} from 'node:crypto';
+import {createAmgenRadancySourceFetch} from '../src/crawler/amgenRadancySourceFetch.ts';
 import {AMGEN_NATIVE_ENTRY} from '../src/crawler/amgenNativeSourceFetch.ts';
 
 test('BMS mainland location formatting is not an admission whitelist',()=>{
@@ -21,31 +22,37 @@ test('BMS mainland location formatting is not an admission whitelist',()=>{
   assert.equal(bmsMainlandCities({locations:[location],standardizedLocations:[standardized]}),undefined);
 });
 
-test('Amgen keeps same-ID jobs when the official application title changes',async()=>{
+test('Amgen keeps same-ID jobs on official Radancy portal with zero Workday HTTP requests',async()=>{
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-amgen-china-social');
  const title='Biopharmaceutical Rep-Lianyungang',updated='Sr '+title,req='R-256178';
  const native='https://careers.amgen.com/en/job/lianyungang/role/87/123';
  const external='/job/China---Lianyungang/Biopharmaceutical-Rep-Lianyungang_R-256178-1';
- const application='https://amgen.wd1.myworkdayjobs.com/Careers'+external,countryId='6cb77610a8a543aea2d6bc10457e35d4';
+ const application='https://amgen.wd1.myworkdayjobs.com/Careers'+external;
  const description='<p>Official complete responsibilities and qualifications.</p>';
- const country={id:countryId,descriptor:'China'};
- const list=`<div id="search-filters" data-radius-unit-type="0"></div><section id="search-results" data-location="China" data-location-type="2" data-location-path="1814991" data-organization-ids="87" data-keywords="" data-total-job-results="1" data-total-pages="1" data-current-page="1" data-records-per-page="12" data-ajax-post-url="/en/search-jobs/resultspost" data-show-radius="False" data-latitude="35" data-longitude="105" data-facet-type="0" data-sort-direction="0"><ul id="search-results-jobs"><li><a data-job-id="123" href="${native}"><h3>${title}</h3></a><button class="js-save-job-btn" data-job-id="123" data-org-id="87"></button></li></ul><div class="pagination"><a class="next disabled" data-display-type="Jobs"></a></div></section>`;
- const schema={'@type':'JobPosting',url:native,title,identifier:req,hiringOrganization:{name:'Amgen'},description,jobLocation:[{address:{addressCountry:'China',addressLocality:'Lianyungang',addressRegion:'Jiangsu'}}]};
- const identity=`<link rel="canonical" href="${native}"><h1>${title}</h1><script type="application/ld+json">${JSON.stringify(schema)}</script>`;
- async function capture(delta={}){
-  const fetch=createAmgenManualWorkdaySourceFetch({http:async request=>{
-   let body,contentType='application/json';
-   if(request.url===AMGEN_NATIVE_ENTRY){body=list;contentType='text/html';}
-   else if(request.url===native){body=identity;contentType='text/html';}
-   else if(request.method==='POST')body=JSON.stringify({total:1,facets:[{facetParameter:'LocationCountry',values:[{...country,count:1}]}],jobPostings:[{title:updated,externalPath:external,locationsText:'China - Lianyungang',bulletFields:[req]}]});
-   else body=JSON.stringify({userAuthenticated:false,jobPostingInfo:{jobReqId:req,jobPostingId:external.split('/').at(-1),jobPostingSiteId:'Careers',externalUrl:application,title:updated,posted:true,canApply:true,country,jobRequisitionLocation:{descriptor:'China  - Field/Remote',country:{...country,alpha2Code:'CN'}},jobDescription:description,location:'China - Lianyungang',...delta}});
-   return {status:200,body,finalUrl:request.url,contentType,capturedAt:new Date().toISOString()};
+ const list=(rowTitle)=>`<div id="search-filters" data-radius-unit-type="0"></div><section id="search-results" data-location="China" data-location-type="2" data-location-path="1814991" data-organization-ids="87" data-keywords="" data-total-job-results="1" data-total-pages="1" data-current-page="1" data-records-per-page="12" data-ajax-post-url="/en/search-jobs/resultspost" data-show-radius="False" data-latitude="35" data-longitude="105" data-facet-type="0" data-sort-direction="0"><ul id="search-results-jobs"><li><a data-job-id="123" href="${native}"><h3>${rowTitle}</h3></a><button class="js-save-job-btn" data-job-id="123" data-org-id="87"></button></li></ul><div class="pagination"><a class="next disabled" data-display-type="Jobs"></a></div></section>`;
+ async function capture({rowTitle=updated,reqId=req,applyUrl=`${application}/apply`,country='China'}={}){
+  const seen=[];
+  const schema={'@type':'JobPosting',url:native,title:rowTitle,identifier:reqId,hiringOrganization:{name:'Amgen'},description,jobLocation:[{address:{addressCountry:country,addressLocality:'Lianyungang',addressRegion:'Jiangsu'}}]};
+  const detail=`<link rel="canonical" href="${native}"><h1>${rowTitle}</h1>${applyUrl?`<a class="job-apply" data-apply-url="${applyUrl}">Apply</a>`:''}<script type="application/ld+json">${JSON.stringify(schema)}</script>`;
+  const fetch=createAmgenRadancySourceFetch({http:async request=>{
+   seen.push(request.url);
+   assert.ok(!request.url.includes('myworkdayjobs.com'),`Unexpected Workday request: ${request.url}`);
+   return {status:200,body:request.url===AMGEN_NATIVE_ENTRY?list(rowTitle):detail,finalUrl:request.url,contentType:'text/html',capturedAt:new Date().toISOString()};
   }});
-  return fetch(plan);
+  return {result:await fetch(plan),seen};
  }
- const result=await capture();assert.equal(result.ok,true,result.failureReason);
+ const {result,seen}=await capture();assert.equal(result.ok,true,result.failureReason);
+ assert.equal(seen.length,2);
  assert.equal(result.payload.jobPostings[0].title,updated);
- for(const delta of [{jobReqId:'R-999'},{canApply:false},{country:{id:'other',descriptor:'Japan'}}])assert.equal((await capture(delta)).ok,false);
+ assert.equal(result.payload.jobPostings[0].officialUrl,application);
+ assert.equal(result.payload.jobPostings[0].sourceJobId,`workday:sha256:${createHash('sha256').update(external).digest('hex')}`);
+ assert.deepEqual(result.payload.jobPostings[0].cities,['连云港']);
+ for(const delta of [{reqId:'R-999'},{applyUrl:''},{country:'Japan'}]){
+  const bad=await capture(delta);
+  assert.equal(bad.result.ok,true);
+  assert.equal(bad.result.payload.jobPostings.length,0);
+  assert.equal(bad.result.fetchEvidence.jobQuarantines.length,1);
+ }
 });
 
 test('AstraZeneca follows the official page total past the historical 25-page cap',async()=>{

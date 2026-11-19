@@ -13,7 +13,7 @@ export const profile_lilly_china = {
               kind: "phenom",
               postedDatePolicy: "LILLY_CHINA_PHENOM_POSTED_DATE_V1",
               cityScopePolicy: "LILLY_CHINA_REVIEWED_LOCATION_PENDING_V1",
-              publicVisibilityPolicy: "LILLY_CHINA_PUBLIC_VISIBILITY_V1",
+              publicVisibilityPolicy: "LILLY_CHINA_PHENOM_ONLY_V1",
               detailBaseUrl: "https://careers.lilly.com/us/en/job",
               countryFilter: "China",
               allowedApplyOrigins: ["https://lilly.wd115.myworkdayjobs.com"],

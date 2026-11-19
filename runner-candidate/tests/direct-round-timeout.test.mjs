@@ -63,16 +63,13 @@ test('the registered scheduler runs without the migration file and keeps source 
     assert.equal(calls.length, 36);
     assert.deepEqual(Object.fromEntries(calls.filter(({deps}) => Object.hasOwn(deps, 'sourceAttemptTimeoutMs'))
       .map(({sourceId, deps}) => [sourceId, deps.sourceAttemptTimeoutMs])), {
-      'source-amgen-china-social': 900_000,
       'source-johnson-innovative-medicine-social': 1_800_000,
-      'source-lilly-china-social': 600_000,
       'source-pfizer-china-social': 1_800_000,
       'source-sanofi-china-social': 1_800_000,
       'source-novartis-social': 1_500_000,
-      'source-novo-nordisk-china-social': 1_200_000,
-      'source-roche-china-social': 1_800_000
+      'source-novo-nordisk-china-social': 1_200_000
     });
-    const workdayIds = new Set(['amgen', 'biogen', 'csl', 'lilly', 'organon', 'pfizer', 'roche']
+    const workdayIds = new Set(['biogen', 'organon', 'pfizer']
       .map(company => 'source-' + company + '-china-social'));
     const workdayPositions = calls.flatMap(({sourceId}, index) => workdayIds.has(sourceId) ? [index] : []);
     assert.deepEqual(workdayPositions.map(index => calls[index].sourceId),
@@ -121,7 +118,7 @@ test('the registered scheduler runs without the migration file and keeps source 
       }
     }
     accepted.length=0;calls.length=0;
-    const dueOrder=['source-roche-china-social','source-pfizer-china-social','source-amgen-china-social'];
+    const dueOrder=['source-organon-china-social','source-pfizer-china-social','source-biogen-china-social'];
     const observations=[],onSourceTransportObservation=observation=>observations.push(observation);
     await runDirectRound({db,leaseDb:{lease},candidateId:candidate.id,workspaceRoot,slot,
       onlySourceIds:dueOrder,prioritizeSelectedSources:true,onSourceTransportObservation});

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildRetrySchedule,mergeRetrySources,readRetryCheckpoint,readRetrySources,retrySourcesSchema,roundIdSchema,roundManualIntervention,saveRetryCheckpoint,selectDueSourceIds,sourceRetryBackoffMs} from './retry-schedule.ts';
+import {buildRetrySchedule,maxDailyTransientRetries,mergeRetrySources,readRetryCheckpoint,readRetrySources,retrySourcesSchema,roundIdSchema,roundManualIntervention,saveRetryCheckpoint,selectDueSourceIds,sourceRetryBackoffMs} from './retry-schedule.ts';
+import {dailySlotMs,slotAt} from './frequency.mjs';
 import {canStartScheduledSource} from '../runner-candidate/scripts/direct-round.ts';
 import {mkdtemp,mkdir,rm,readdir} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
@@ -187,9 +188,10 @@ test('source Retry-After checkpoint survives a crash before the wave receipt is 
   assert.equal(restored[0].lastActualRequestAt,now);
 });
 
-test('progressive retry backoff scales 5m -> 10m -> 20m -> 30m with repeated failed actual requests',()=>{
+test('progressive retry backoff scales 5m -> 15m and caps at 15m without a daily slot',()=>{
   assert.equal(sourceRetryBackoffMs,5*60_000);
-  const expected=[5,10,20,30,30];
+  assert.equal(maxDailyTransientRetries,2);
+  const expected=[5,15,15];
   let previous=[];
   for(const [attempt,minutes] of expected.entries()) {
     const schedule=buildRetrySchedule({
@@ -201,4 +203,54 @@ test('progressive retry backoff scales 5m -> 10m -> 20m -> 30m with repeated fai
     previous=schedule.retrySources;
     assert.equal(previous[0].actualRequestCount,attempt+1);
   }
+});
+
+test('daily schedule allows two quick transient retries (5m -> 15m), defers challenges to next 00:01, and resets count next day',()=>{
+  const slotNumber=slotAt(now),slot=String(slotNumber),nextSlotAt=slotNumber+dailySlotMs;
+  const targetHashes=new Map([['source-pfizer',hashes.get('source-amgen')],['source-jnj',hashes.get('source-roche')]]);
+
+  // Challenged (403/429) source defers immediately on first failure to tomorrow's 00:01 slot (or longer Retry-After).
+  const challenged=buildRetrySchedule({
+    sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:[],
+    attemptedSourceIds:new Set(['source-pfizer']),
+    outcomes:[{sourceId:'source-pfizer',observedActualHttp:true,challenged:true,actualRequestCount:1,lastActualRequestAt:now,retryAt:now+1800_000}],
+    now,slot
+  });
+  assert.equal(challenged.nextRetryAt,nextSlotAt);
+  assert.equal(challenged.retrySources[0].slot,slot);
+  const longChallenged=buildRetrySchedule({
+    sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:[],
+    attemptedSourceIds:new Set(['source-pfizer']),
+    outcomes:[{sourceId:'source-pfizer',observedActualHttp:true,challenged:true,actualRequestCount:1,lastActualRequestAt:now,retryAt:now+36*3600_000}],
+    now,slot
+  });
+  assert.equal(longChallenged.nextRetryAt,now+36*3600_000);
+
+  // Transient error retries at 5m, 15m, then after the 3rd attempt (2nd retry fails) defers to tomorrow's 00:01 slot.
+  let prev=[];
+  const expectedTargets=[now+5*60_000,now+15*60_000,nextSlotAt];
+  for(const [attempt,expectedTarget] of expectedTargets.entries()) {
+    const sched=buildRetrySchedule({
+      sourceConfigHashes:new Map([['source-jnj',hashes.get('source-roche')]]),
+      completeSourceIds:new Set(),previous:prev,attemptedSourceIds:new Set(['source-jnj']),
+      outcomes:[{sourceId:'source-jnj',observedActualHttp:true,actualRequestCount:1,lastActualRequestAt:now}],
+      now,slot
+    });
+    assert.equal(sched.nextRetryAt,expectedTarget,`scheduled attempt ${attempt}`);
+    prev=sched.retrySources;
+    assert.equal(prev[0].actualRequestCount,attempt+1);
+    assert.equal(prev[0].slot,slot);
+  }
+
+  // Rolling over to the next daily slot resets actualRequestCount back to 1 (5m first retry).
+  const day2=slotNumber+dailySlotMs+60_000,slot2=String(slotNumber+dailySlotMs);
+  const nextDay=buildRetrySchedule({
+    sourceConfigHashes:new Map([['source-jnj',hashes.get('source-roche')]]),
+    completeSourceIds:new Set(),previous:prev,attemptedSourceIds:new Set(['source-jnj']),
+    outcomes:[{sourceId:'source-jnj',observedActualHttp:true,actualRequestCount:1,lastActualRequestAt:day2}],
+    now:day2,slot:slot2
+  });
+  assert.equal(nextDay.nextRetryAt,day2+5*60_000);
+  assert.equal(nextDay.retrySources[0].actualRequestCount,1);
+  assert.equal(nextDay.retrySources[0].slot,slot2);
 });

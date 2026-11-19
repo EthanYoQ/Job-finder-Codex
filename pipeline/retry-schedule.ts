@@ -2,12 +2,15 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { closeSync, fsyncSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
+import { dailySlotMs } from "./frequency.mjs";
 
 const timestamp = z.number().int().min(0).max(8_640_000_000_000_000);
+const slotStringSchema = z.string().regex(/^\d{13}$/);
 export const roundIdSchema = z.string().regex(/^[a-f0-9]{32}$/);
 export const retrySourceSchema = z.object({
   sourceId: z.string().regex(/^source-[a-z0-9-]{1,100}$/),
   retryAt: timestamp,
+  slot: slotStringSchema.optional(),
   sourceConfigHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   lastActualRequestAt: timestamp.optional(),
   actualRequestCount: z.number().int().nonnegative().safe().optional()
@@ -24,11 +27,12 @@ export const retryReceiptFields = {
 };
 export type RetrySource = z.infer<typeof retrySourceSchema>;
 export type RetryOutcome = {sourceId: string; retryAt?: number; lastActualRequestAt?: number; actualRequestCount?: number;
-  observedActualHttp?: boolean; locallyDeferred?: boolean};
+  observedActualHttp?: boolean; locallyDeferred?: boolean; challenged?: boolean};
 export const sourceRetryBackoffMs = 5 * 60_000;
-const retryBackoffStepsMs = [5 * 60_000, 10 * 60_000, 20 * 60_000, 30 * 60_000] as const;
+export const maxDailyTransientRetries = 2;
+const retryBackoffStepsMs = [5 * 60_000, 15 * 60_000] as const;
 
-/** Progressive backoff starting at 5m, capped at 30m per source refusal chain. */
+/** Progressive backoff starting at 5m, stepping to 15m before deferring to the next daily slot. */
 export function backoffForFailureCount(priorActualRequests = 0): number {
   const index = Math.max(0, Math.min(priorActualRequests, retryBackoffStepsMs.length - 1));
   return retryBackoffStepsMs[index]!;
@@ -63,8 +67,20 @@ export function mergeRetrySources(...groups: readonly RetrySource[][]): RetrySou
   for (const rows of groups) for (const row of rows) {
     const old = merged.get(row.sourceId);
     const lastActualRequestAt = Math.max(old?.lastActualRequestAt ?? 0,row.lastActualRequestAt ?? 0);
-    merged.set(row.sourceId,{...old,...row,retryAt:Math.max(old?.retryAt??0,row.retryAt),
-      ...(lastActualRequestAt ? {lastActualRequestAt} : {})});
+    const newerSlot = old?.slot !== undefined && row.slot !== undefined && row.slot > old.slot;
+    const olderSlot = old?.slot !== undefined && row.slot !== undefined && old.slot > row.slot;
+    const slot = newerSlot ? row.slot : olderSlot ? old?.slot : row.slot ?? old?.slot;
+    const actualRequestCount = newerSlot ? row.actualRequestCount
+      : olderSlot ? old?.actualRequestCount
+      : row.actualRequestCount ?? old?.actualRequestCount;
+    const combined: RetrySource = {
+      ...old, ...row, retryAt: Math.max(old?.retryAt ?? 0, row.retryAt),
+      ...(slot === undefined ? {} : {slot}),
+      ...(lastActualRequestAt ? {lastActualRequestAt} : {})
+    };
+    if (actualRequestCount === undefined) delete combined.actualRequestCount;
+    else combined.actualRequestCount = actualRequestCount;
+    merged.set(row.sourceId, combined);
   }
   return retrySourcesSchema.parse([...merged.values()]);
 }
@@ -103,23 +119,34 @@ export function buildRetrySchedule(input: {
   attemptedSourceIds: ReadonlySet<string>;
   outcomes: readonly RetryOutcome[];
   now: number;
+  slot?: string | null;
 }): {retrySources: RetrySource[]; nextRetryAt?: number} {
   const previous = new Map(input.previous.map(row => [row.sourceId, row]));
   const outcomes = new Map(input.outcomes.map(row => [row.sourceId, row]));
+  const activeSlot = input.slot && slotStringSchema.safeParse(input.slot).success ? input.slot : undefined;
+  const nextSlotAt = activeSlot ? Number(activeSlot) + dailySlotMs : undefined;
   const retrySources = [...input.sourceConfigHashes].filter(([id]) => !input.completeSourceIds.has(id)).map(([sourceId, sourceConfigHash]) => {
     const old = previous.get(sourceId), outcome = outcomes.get(sourceId);
     const attempted = input.attemptedSourceIds.has(sourceId);
     const locallyDeferred = outcome?.locallyDeferred && !outcome.observedActualHttp;
+    const sameSlot = activeSlot !== undefined && old?.slot === activeSlot;
+    const priorRequestCount = activeSlot ? (sameSlot ? (old?.actualRequestCount ?? 0) : 0) : (old?.actualRequestCount ?? 0);
+    const actualRequestCount = outcome?.actualRequestCount === undefined
+      ? (activeSlot ? (sameSlot ? old?.actualRequestCount : undefined) : old?.actualRequestCount)
+      : priorRequestCount + outcome.actualRequestCount;
     const backoffStartedAt = outcome?.observedActualHttp && outcome.retryAt !== undefined
       ? (outcome.lastActualRequestAt ?? input.now) : input.now;
-    const backoffMs = backoffForFailureCount(old?.actualRequestCount);
+    const backoffMs = backoffForFailureCount(priorRequestCount);
+    const deferToNextDay = nextSlotAt !== undefined &&
+      (Boolean(outcome?.challenged) || (actualRequestCount ?? 0) > maxDailyTransientRetries);
     const retryAt = attempted
-      ? Math.max(old?.retryAt ?? 0, outcome?.retryAt ?? 0, locallyDeferred ? input.now : backoffStartedAt + backoffMs)
+      ? Math.max(old?.retryAt ?? 0, outcome?.retryAt ?? 0,
+          locallyDeferred ? input.now : deferToNextDay ? nextSlotAt : backoffStartedAt + backoffMs)
       : old?.retryAt ?? input.now;
     const lastActualRequestAt = outcome?.lastActualRequestAt ?? old?.lastActualRequestAt;
-    const actualRequestCount = outcome?.actualRequestCount === undefined ? old?.actualRequestCount
-      : (old?.actualRequestCount ?? 0) + outcome.actualRequestCount;
+    const slot = activeSlot && (attempted || sameSlot) ? activeSlot : !activeSlot ? old?.slot : undefined;
     return {sourceId, sourceConfigHash, retryAt,
+      ...(slot === undefined ? {} : {slot}),
       ...(lastActualRequestAt === undefined ? {} : {lastActualRequestAt}),
       ...(actualRequestCount === undefined ? {} : {actualRequestCount})};
   });
