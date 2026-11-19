@@ -129,10 +129,33 @@ function supportsPublicAGrade(plan: SourceCrawlPlan): boolean {
 }
 /** Merck's reviewed page-capacity change preserves the same China publication scope.
  * Old commits remain readable only under this exact successor; issuer policy stays current. */
+const PRIOR_COMMITTED_CONFIG_HASHES: Readonly<Record<string, { current: string; prior: readonly string[] }>> = Object.freeze({
+  "source-merck-china-social": {
+    current: "1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212",
+    prior: ["3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38"]
+  },
+  "source-roche-china-social": {
+    current: "d84047f262920676132c26481016cff2f60f52565d5389a1a0bf7d8701516d9c",
+    prior: ["d0e8002bbc03e3da46bbb02c30b533b5b968f38ac5db2c357c009de2eb4066ed"]
+  },
+  "source-lilly-china-social": {
+    current: "1869f5510dc347c72a64798730a11434068232a08c5ee4d1870335cf9dad12c6",
+    prior: ["34ac4d47a1b69389e567b53df64062f10ed50a1d34cb0b4876d3c9af85e68c97"]
+  },
+  "source-amgen-china-social": {
+    current: "2ca6edec5291679101ed23f0c3ee0a1963b1d9dee09aab5a63bd95108ad84672",
+    prior: ["1854166be2d563e3e9cc075df017d3f04e1f65e3b06186bb64c95a3c8676f6a6"]
+  },
+  "source-csl-china-social": {
+    current: "deea9515efd3d9327c3dce84aaf48056c2114c037783b21293888b796a182854",
+    prior: ["eb4583bc629171783b293f162837776c6f68e63b7e81cc40540b83aed6e06694"]
+  }
+});
+
 export function portableCommittedConfigHashes(plan: SourceCrawlPlan): readonly string[] {
   const current = sourcePlanConfigSha256(plan);
-  return plan.source.id === "source-merck-china-social" && current === "1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212"
-    ? [current, "3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38"] : [current];
+  const entry = PRIOR_COMMITTED_CONFIG_HASHES[plan.source.id];
+  return entry && entry.current === current ? [current, ...entry.prior] : [current];
 }
 export function supportsPublicBGrade(plan: SourceCrawlPlan): boolean {
   return B_GRADE_PUBLIC_CONFIGS[plan.source.id] === sourcePlanConfigSha256(plan);

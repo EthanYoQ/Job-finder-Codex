@@ -417,9 +417,9 @@ const CANDIDATE_SEEDS: CandidateSeed[] = [
     pinyinName: "csl",
     category: "FOREIGN_PHARMA",
     status: "VERIFIED_SCRAPABLE",
-    atsKind: "WORKDAY",
+    atsKind: "OFFICIAL_JSON",
     officialWebsiteUrl: "https://www.csl.com/",
-    socialEntryUrl: "https://csl.wd1.myworkdayjobs.com/zh-CN/CSL_External",
+    socialEntryUrl: "https://jobs.csl.com/en/jobs?country=china",
     officialChainEvidenceUrl: "https://www.csl.com/careers"
   },
   {

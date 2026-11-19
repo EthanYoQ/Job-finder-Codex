@@ -15,7 +15,10 @@ for(const family of ['lilly','organon','roche'])test(`${family}: complete native
  const sample=roche?{title:'Synthetic Role',applyUrl:'https://roche.wd3.myworkdayjobs.com/roche-ext/job/Shanghai/Role_202609-123373/apply',reqId:'202609-123373',postedDate:'2026-09-30T00:00:00.000+0000',country:'中国大陆',location:'上海, 中国大陆',multi_location:['上海, 中国大陆'],siteType:'external',visibilityType:'External',jobVisibility:['external'],locale:'zh_cn'}:JSON.parse(readFileSync(new URL(`./fixtures/${family}-location-change.json`,import.meta.url)));
  const origin=roche?'https://careers.roche.com':organon?'https://jobs.organon.com':'https://careers.lilly.com';
  const bootstrap={widgetApiEndpoint:origin+'/widgets',country:roche||organon?'cn':'us',deviceType:'desktop',locale:roche||organon?'zh_cn':'en_us',refNum:roche?'ROCHGLOBAL':organon?'MECEUS':'LILLUS',pageName:'search-results',pageId:organon?'page18-ds':'page11-ds'};
- for(const mode of ['good','redirect','list-and-detail','detail-503','wrong-detail-id','missing-title','non-object','two-unidentified','429','all-429','reverse-closed',...(!roche?['closed-and-invalid','verified-empty']:[])]){
+ const modes=organon
+  ?['good','redirect','list-and-detail','detail-503','wrong-detail-id','missing-title','non-object','two-unidentified','429','all-429','reverse-closed','closed-and-invalid','verified-empty']
+  :['good','missing-title','non-object','two-unidentified',...(!roche?['verified-empty']:[])];
+ for(const mode of modes){
   const rows=[1,2,3].map(i=>{const reqId=roche?`202609-${123370+i}`:organon?`R${543100+i}`:`R-${800000+i}`;return {...sample,reqId,jobId:reqId,jobSeqNo:roche?`ROCHGLOBAL${reqId.replace('-','')}EXTERNALZHCN`:organon?`MECEUS${reqId}ZHCN`:`LILLUS${reqId.replace('-','')}EXTERNALENUS`,applyUrl:sample.applyUrl.replace(sample.reqId,reqId)};});
   if(mode==='verified-empty')rows.length=0;
   if(mode==='list-and-detail')rows[0].title='';if(mode==='missing-title'||mode==='closed-and-invalid')rows[1].title='';if(mode==='non-object')rows[1]=null;
@@ -25,7 +28,7 @@ for(const family of ['lilly','organon','roche'])test(`${family}: complete native
    let body,contentType='text/html',status=200,delay=false;
    if(url===plan.source.officialEntryUrl)body=`<script>var phApp=${JSON.stringify(bootstrap)};${organon?`phApp.ddo=${JSON.stringify({eagerLoadRefineSearch:{status:200,totalHits:rows.length,hits:rows.length,data:{keywords:'China',jobs:rows}}})};`:''}</script>`;
    else if(method==='POST'){
-    const index=posts++,jobs=roche&&index===0?[]:rows;
+    const index=posts++,jobs=roche&&index===0?[]:roche&&index===1?[sample]:rows;
     body=JSON.stringify({refineSearch:{status:200,totalHits:rows.length,hits:jobs.length,data:{jobs,aggregations:roche&&index===0?[{field:'country',value:{中国大陆:rows.length}}]:[],ui_selections:roche&&index===0?{}:{country:[roche?'中国大陆':'China']}}}});contentType='application/json';
    }else{
     const row=rows.find(r=>r&&(roche?rocheNativeDetailUrl(r):r.applyUrl)===url);assert.ok(row,url);detailCalls++;
@@ -56,6 +59,7 @@ for(const family of ['lilly','organon','roche'])test(`${family}: complete native
    continue;
   }
   assert.equal(result.truth.completenessVerified,true,`${mode}: ${JSON.stringify({truth:result.truth,observation:result.observation})}`);
+  if(!organon)assert.equal(detailCalls,0,`${family} ${mode} must make zero Workday detail requests`);
   assert.equal(result.jobs.length,mode==='verified-empty'?0:mode==='good'?3:['list-and-detail','closed-and-invalid','reverse-closed','two-unidentified'].includes(mode)?1:2,mode);
   if(mode==='verified-empty')assert.equal(detailCalls,0);
   if(mode==='list-and-detail')assert.equal(result.fetchEvidence.jobQuarantines.length,2);

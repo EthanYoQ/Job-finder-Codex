@@ -12,13 +12,13 @@ import { withSourceTransportObservation } from "../src/crawler/sourceTransportOb
 import { fetchWithOfficialTimeout } from "../src/crawler/officialHttpRuntimeLimits.ts";
 
 const plans = buildStagedSourceCrawlPlans(candidateCompanies);
-const restrictedPlan = plans.find(plan => plan.source.id === "source-csl-china-social");
+const restrictedPlan = plans.find(plan => plan.source.id === "source-pfizer-china-social");
 const independentPlan = plans.find(plan => plan.source.id === "source-biogen-china-social");
 const restrictedHost = new URL(restrictedPlan.source.officialEntryUrl).hostname;
 const independentHost = new URL(independentPlan.source.officialEntryUrl).hostname;
 
 for (const status of [403, 429]) {
-  test(`CSL HTTP ${status} challenge retains response evidence while the separately authorized Biogen plan executes`, async t => {
+  test(`Pfizer HTTP ${status} challenge retains response evidence while the separately authorized Biogen plan executes`, async t => {
     const root = await mkdtemp(join(tmpdir(), "workday-host-scope-"));
     t.after(() => rm(root, { recursive: true, force: true }));
     const body = "<html><script src='/cdn-cgi/challenge-platform/example'></script></html>";

@@ -20,9 +20,7 @@ import { NOVO_NATIVE_RETRY } from "../src/crawler/novoNativeGatewayRetry";
 
 type Route = { sourceId: string; companyId: string; route: "PORTABLE" | "TRUE_A" | "TRUE_B"; sourceConfigSha256: string };
 const workdaySources = new Set([
-  "source-amgen-china-social", "source-biogen-china-social", "source-csl-china-social",
-  "source-lilly-china-social", "source-organon-china-social", "source-pfizer-china-social",
-  "source-roche-china-social"
+  "source-biogen-china-social", "source-organon-china-social", "source-pfizer-china-social"
 ]);
 
 function interleaveWorkday<T extends { sourceId: string }>(routes: readonly T[]): T[] {
@@ -40,9 +38,6 @@ function interleaveWorkday<T extends { sourceId: string }>(routes: readonly T[])
 }
 
 export function pacedWorkdaySourceTimeout(sourceId: string): number | undefined {
-  if (sourceId === "source-lilly-china-social") return 10 * 60_000;
-  if (sourceId === "source-amgen-china-social") return 15 * 60_000;
-  if (sourceId === "source-roche-china-social") return 30 * 60_000;
   if (sourceId === "source-pfizer-china-social") return 30 * 60_000;
   return undefined;
 }

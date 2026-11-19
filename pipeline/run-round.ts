@@ -17,7 +17,7 @@ import { validateSavedSnapshot } from "../web-candidate/src/server/savedPublicSn
 import { savePublicSnapshot } from "../web-candidate/src/server/public-snapshot-file.mjs";
 import { archiveInactiveSnapshots, selectRoundSnapshotHandle } from "./snapshot-handle";
 import { buildRetrySchedule, mergeRetrySources, readRetryCheckpoint, readRetrySources, roundIdSchema, roundManualIntervention, saveRetryCheckpoint,
-  selectDueSourceIds, type RetryOutcome } from "./retry-schedule";
+  selectDueSourceIds, shouldCountRoundRetryAttempt, type RetryOutcome } from "./retry-schedule";
 
 const run = promisify(execFile);
 const stateRoot = resolve(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder");
@@ -60,13 +60,15 @@ try {
         const outcome:RetryOutcome=old??{sourceId:observation.sourceId};
         outcome.observedActualHttp=!!outcome.observedActualHttp||observation.observedActualHttp;
         outcome.locallyDeferred=!!outcome.locallyDeferred||observation.locallyDeferred;
+        if(observation.observedActualHttp && observation.actualHttpStatuses.some(status=>status===403||status===429))
+          outcome.challenged=true;
         if(observation.retryAt!==undefined)outcome.retryAt=Math.max(outcome.retryAt??0,observation.retryAt);
         if(observation.observedActualHttp&&observation.lastActualRequestAt!==undefined)
           outcome.lastActualRequestAt=Math.max(outcome.lastActualRequestAt??0,observation.lastActualRequestAt);
         if(!old)outcomes.push(outcome);
         const observed=buildRetrySchedule({sourceConfigHashes,
           completeSourceIds:new Set(sourceIds.filter(id=>id!==observation.sourceId)),previous:checkpoint,
-          attemptedSourceIds:new Set([observation.sourceId]),outcomes:[outcome],now:Date.now()});
+          attemptedSourceIds:new Set([observation.sourceId]),outcomes:[outcome],now:Date.now(),slot});
         checkpoint=mergeRetrySources(checkpoint,observed.retrySources);
         saveRetryCheckpoint(checkpointFile,checkpoint);
       }} : {})});
@@ -80,10 +82,19 @@ try {
   if (!handle.snapshotReused) await savePublicSnapshot(handle.snapshotFile, snapshot);
   // The DB retains accepted captures even if the worker died before writing latest.json.
   const {complete,quarantinedJobCount,unresolvedCoverage,capturedSources} = await readRoundCoverage(db,candidateId,slot,sourceIds,results,sourceConfigHashes);
-  const finalOutcomes = outcomes.map(row => row.observedActualHttp ? { ...row, actualRequestCount: 1 } : row);
+  const attemptedSourceIds = new Set(results.filter(row=>row.status!=="SKIPPED_ALREADY_COMMITTED_IN_WINDOW").map(row=>row.sourceId));
+  const capturedSet = new Set(capturedSources.map(row=>row.sourceId));
+  const outcomeBySource = new Map<string, RetryOutcome>(outcomes.map(row => [row.sourceId, row.observedActualHttp ? { ...row, actualRequestCount: 1 } : row]));
+  for (const row of results) {
+    if (row.status !== "SKIPPED_ALREADY_COMMITTED_IN_WINDOW" && !capturedSet.has(row.sourceId) &&
+      !outcomeBySource.has(row.sourceId) && shouldCountRoundRetryAttempt(row)) {
+      outcomeBySource.set(row.sourceId, { sourceId: row.sourceId, actualRequestCount: 1 });
+    }
+  }
+  const finalOutcomes = [...outcomeBySource.values()];
   const retrySchedule = slot !== null ? buildRetrySchedule({sourceConfigHashes,
-    completeSourceIds:new Set(capturedSources.map(row=>row.sourceId)),
-    previous,attemptedSourceIds:new Set(results.filter(row=>row.status!=="SKIPPED_ALREADY_COMMITTED_IN_WINDOW").map(row=>row.sourceId)),outcomes:finalOutcomes,now:Date.now()}) : previous.length ? {
+    completeSourceIds:capturedSet,
+    previous,attemptedSourceIds,outcomes:finalOutcomes,now:Date.now(),slot}) : previous.length ? {
       retrySources:previous,nextRetryAt:Math.min(...previous.map(row=>row.retryAt))
     } : undefined;
   const receipt = {status:"SNAPSHOT_SAVED", slot, complete, quarantinedJobCount, unresolvedCoverage, ...handle,

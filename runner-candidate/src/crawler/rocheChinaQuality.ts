@@ -2,10 +2,17 @@ import { load } from "cheerio";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
-import { sensitiveOfficialJsonField, officialJsonRawLocator, persistentOfficialJsonJobId } from "./officialJsonEvidence";
+import {
+  explicitlyForeignOrNonMainlandLocation,
+  explicitlyGenericOrAmbiguousLocation,
+  sensitiveOfficialJsonField,
+  officialJsonRawLocator,
+  persistentOfficialJsonJobId
+} from "./officialJsonEvidence";
 import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 
 export const ROCHE_NATIVE_DETAIL_POLICY = "ROCHE_WORKDAY_NATIVE_V1" as const;
+export const ROCHE_PHENOM_LIST_POLICY = "ROCHE_PHENOM_LIST_V1" as const;
 const ORIGIN = "https://roche.wd3.myworkdayjobs.com";
 const record = (value: unknown): Record<string, unknown> | undefined =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
@@ -20,6 +27,11 @@ const CITIES: Record<string, string> = {
   Yinchuan:"银川", Xiamen:"厦门", Changchun:"长春", Maoming:"茂名", Chongqing:"重庆", Shijiazhuang:"石家庄",
   Shaoxing:"绍兴", Shaoyang:"邵阳", Kunming:"昆明"
 };
+const REVIEWED_ZH_CITIES = new Set<string>([
+  ...Object.values(CITIES),
+  "东莞", "大庆", "乐山", "宁德", "松原", "通化", "西宁", "喀什", "温州", "南通", "南宁", "呼和浩特", "合肥", "海口", "兰州", "珠海",
+  "无锡", "常州", "佛山", "烟台", "泉州", "福州"
+]);
 
 /** The listed native URL owns its entire publication path, including a returned -1 suffix. */
 export function rocheNativeDetailUrl(raw: Record<string, unknown>): string | undefined {
@@ -74,6 +86,34 @@ export function rocheNativeDetail(raw: Record<string, unknown>, artifact: Source
   // Native title is authoritative after exact identity binding; both titles remain in their exact artifacts.
   return { title: clean(info.title), officialUrl: raw.applyUrl as string, locationRaw: mainland.map(clean).join(" | "), cities,
     ...(officialPublishedAt ? {officialPublishedAt} : {}) };
+}
+
+/** Projects verified Roche China Phenom list rows directly without contacting Workday. */
+export function rochePhenomListDetail(raw: Record<string, unknown>):
+  { title: string; officialUrl: string; locationRaw: string; cities: string[]; officialPublishedAt?: string } | undefined {
+  if (!rocheNativeDetailUrl(raw) ||
+    !text(raw.title) || sensitiveOfficialJsonField({ title: raw.title }) ||
+    raw.siteType !== "external" || raw.visibilityType !== "External" || raw.locale !== "zh_cn" ||
+    !Array.isArray(raw.jobVisibility) || !raw.jobVisibility.includes("external") ||
+    !Array.isArray(raw.multi_location) || !raw.multi_location.length || !raw.multi_location.every(text)) return undefined;
+  const mainland = raw.multi_location.filter(value => /(?:^|,\s*)中国大陆$/u.test(value));
+  if (!mainland.length) return undefined;
+  const rawCities = mainland.map(value => clean(value.split(",")[0] ?? ""));
+  if (rawCities.some(city => !city || explicitlyForeignOrNonMainlandLocation(city))) return undefined;
+  // Preserve historical "抚州, 福建, 中国大陆" as CITY_PENDING so jobLocation maps the official Fuzhou label.
+  const hasFujianFuzhouTypo = mainland.some(value => /^抚州,\s*福建,\s*中国大陆$/u.test(clean(value)));
+  const cities = !hasFujianFuzhouTypo &&
+    rawCities.every(city => city !== "中国大陆" && !explicitlyGenericOrAmbiguousLocation(city) && REVIEWED_ZH_CITIES.has(city))
+    ? [...new Set(rawCities)]
+    : [CITY_PENDING];
+  const officialPublishedAt = phenomOfficialPostedDate(raw.postedDate);
+  return {
+    title: clean(raw.title),
+    officialUrl: raw.applyUrl as string,
+    locationRaw: mainland.map(clean).join(" | "),
+    cities,
+    ...(officialPublishedAt ? { officialPublishedAt } : {})
+  };
 }
 
 // An exact listed identity with an official denial retains its previous data.

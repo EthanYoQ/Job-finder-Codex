@@ -19,7 +19,7 @@ import { replayJnjCareersDomEvidence } from "./jnjCareersDomEvidence";
 import {applySanofiNativeProjection} from "./sanofiNativeQuality";
 import { isPfizerWorkdayTraversalPlan, replayPfizerWorkdayTraversal, PFIZER_PAGINATION_POLICY, PFIZER_CHANNEL } from "./pfizerWorkdayTraversal";
 import { isBayerMedicalTraversalPlan, replayBayerMedicalTraversal } from "./bayerMokaScope";
-import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
+import { ROCHE_NATIVE_DETAIL_POLICY, ROCHE_PHENOM_LIST_POLICY, rocheNativeDetail, rochePhenomListDetail, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
 import { mokaDetailLocations, mokaNativeListScope } from "./mokaSourceFetch";
 import { auditRedseaCandidateScope } from "./redseaCandidateScope";
 import { hasBeisenDetailDatePlan, replayBeisenDetailDates } from "./beisenDetailDates";
@@ -27,7 +27,7 @@ import { replayWorkdayMainlandQuality } from "./workdayMainlandQuality";
 import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap, organonBootstrapLocator } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
-import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
+import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, isLillyPhenomOnlyPlan, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyPhenomListProjection, lillyClosedLoss } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
 import { NOVO_CHINA_LOCATION_POLICY, exactNovoChinaQualityPlan, replayNovoChinaRows } from "./novoChinaQuality";
 import { bmsOfficialPostedDate, exactBmsPostedDatePlan } from "./bmsOfficialPostedDate";
@@ -659,7 +659,7 @@ function strictCompletenessGate(
     // strictPageRequestContracts above has already replayed the complete Yello
     // partition and its exact exclusion ledger. No other source inherits this opt-in.
     const yelloScopeProof = exactGileadPublicAgePlan(plan);
-    const rocheScopeProof = plan.source.id === "source-roche-china-social" && plan.adapterId === "official-json" && plan.officialJsonFetch?.kind === "phenom" && plan.officialJsonFetch.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY;
+    const rocheScopeProof = plan.source.id === "source-roche-china-social" && plan.adapterId === "official-json" && plan.officialJsonFetch?.kind === "phenom" && (plan.officialJsonFetch.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY || plan.officialJsonFetch.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY);
     const lillyScopeProof = exactLillyChinaQualityPlan(plan);
     const organonScopeProof = exactOrganonPostedDatePlan(plan);
     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
@@ -2294,6 +2294,7 @@ function strictPhenomRequestContracts(
   const organonLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   const preserveLillyQuality = requiresLillyChinaQuality(plan);
   if (preserveLillyQuality && (!exactLillyChinaQualityPlan(plan) || !exactLillyChinaBootstrap(pageConfig))) return false;
+  const lillyPhenomOnly = preserveLillyQuality && isLillyPhenomOnlyPlan(plan);
   const lillyOutputs = new Map<string, StrictUcbDateOutput>();
   const lillyIds = new Set<string>();
   const lillyLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
@@ -2307,10 +2308,12 @@ function strictPhenomRequestContracts(
     parsedEndpoint.pathname !== "/widgets" || parsedEndpoint.search || parsedEndpoint.hash) return false;
   const exactRocheRequestBoundOmittedOffset = strictExactRochePhenomPlan(plan, pageConfig, endpoint);
   const preserveRocheQuality = exactRocheRequestBoundOmittedOffset && config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY;
-  if (config.nativeDetailPolicy !== undefined && !preserveRocheQuality) return false;
+  const preserveRochePhenomList = exactRocheRequestBoundOmittedOffset && config.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY;
+  if (config.nativeDetailPolicy !== undefined && !preserveRocheQuality && !preserveRochePhenomList) return false;
   const rocheLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   const rocheOutputs = new Map<string, NonNullable<ReturnType<typeof rocheNativeDetail>>>();
-  if (preserveRocheQuality) {
+  const rocheListOutputs = new Map<string, NonNullable<ReturnType<typeof rochePhenomListDetail>>>();
+  if (preserveRocheQuality || preserveRochePhenomList) {
     const start = Date.parse(capturedAt);
     if (!entry || entry.capturedAt !== capturedAt || evidence.artifacts[0]?.logicalKey !== entry.logicalKey) return false;
     for (const artifact of evidence.artifacts.filter(a => a.logicalKey.startsWith("phenom-"))) {
@@ -2422,7 +2425,7 @@ function strictPhenomRequestContracts(
     selectedFields = { country: ["China"] };
   }
   // Keep equal postedDate values in one official response, without weakening cardinality checks.
-  if (preserveRocheQuality) pageSize = Math.max(pageSize, structuredExpectedTotal ?? 0);
+  if (preserveRocheQuality || preserveRochePhenomList) pageSize = Math.max(pageSize, structuredExpectedTotal ?? 0);
 
   const rocheExpectedTotal = exactRocheRequestBoundOmittedOffset ? structuredExpectedTotal : undefined;
   const rocheExpectedPageCount = rocheExpectedTotal === undefined
@@ -2430,6 +2433,7 @@ function strictPhenomRequestContracts(
     : rocheExpectedTotal === 0 ? 1 : Math.ceil(rocheExpectedTotal / pageSize);
   if (exactRocheRequestBoundOmittedOffset && (rocheExpectedPageCount === undefined ||
     evidence.pages.length !== rocheExpectedPageCount ||
+    (preserveRochePhenomList && nativeCount("roche") !== 0) ||
     evidence.artifacts.length !== evidence.pages.length + 3 + (preserveRocheQuality ? nativeCount('roche') : 0))) return false;
   const rocheExpectedOutputIds = new Set<string>();
   const rocheRawOfficialIds = new Set<string>();
@@ -2557,7 +2561,8 @@ function strictPhenomRequestContracts(
       if (total === undefined || envelope.totalHits !== total || page.sequence !== pageIndex ||
         page.artifactLogicalKey !== `phenom-page-${String(pageIndex).padStart(4, "0")}` ||
         evidence.pages.length !== Math.max(1, Math.ceil(total / pageSize)) ||
-        evidence.artifacts.length !== evidence.pages.length + 1 + nativeCount('lilly') || offset > total ||
+        (lillyPhenomOnly ? nativeCount("lilly") !== 0 : false) ||
+        evidence.artifacts.length !== evidence.pages.length + 1 + (lillyPhenomOnly ? 0 : nativeCount('lilly')) || offset > total ||
         envelope.jobs.length !== Math.min(pageSize, total - offset) ||
         (envelope.hasOwnFrom ? envelope.from !== offset || page.returnedOffset !== offset : page.returnedOffset !== null)) return false;
       const last = pageIndex === evidence.pages.length - 1;
@@ -2568,8 +2573,10 @@ function strictPhenomRequestContracts(
       for (const [recordIndex, value] of envelope.jobs.entries()) {
         const raw = strictRecord(value);
         const listCities = raw && lillyOfficialCities(raw);
-        const nativeArtifact = raw && artifacts.get(`lilly-detail-${raw.reqId}`);
-        const detail = raw && lillyNativeDetail(raw, nativeArtifact, capturedAt);
+        const nativeArtifact = !lillyPhenomOnly && raw ? artifacts.get(`lilly-detail-${raw.reqId}`) : undefined;
+        const detail = lillyPhenomOnly
+          ? (raw ? lillyPhenomListProjection(raw) : undefined)
+          : (raw ? lillyNativeDetail(raw, nativeArtifact, capturedAt) : undefined);
         const date = raw && lillyOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
         rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??[pageIndex,recordIndex,value]));
@@ -2578,7 +2585,7 @@ function strictPhenomRequestContracts(
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
         if (lillyIds.has(sourceJobId)) return false;
         lillyIds.add(sourceJobId);
-        if (detail.status === "CLOSED") {
+        if (!("cities" in detail)) {
           lillyLosses.push(lillyClosedLoss(raw, pageIndex, recordIndex, nativeArtifact!.capturedAt));
           continue;
         }
@@ -2673,6 +2680,11 @@ function strictPhenomRequestContracts(
           if (!native) return false;
           rocheOutputs.set(sourceJobId, native);
         }
+        if (preserveRochePhenomList) {
+          const projected = rochePhenomListDetail(record);
+          if (!projected) return false;
+          rocheListOutputs.set(sourceJobId, projected);
+        }
       }
       if (JSON.stringify(page.rawJobIds) !== JSON.stringify(expectedRawIds) ||
         JSON.stringify(page.validJobIds) !== JSON.stringify(expectedValidIds)) return false;
@@ -2701,7 +2713,11 @@ function strictPhenomRequestContracts(
         if (rocheLosses.some(loss => loss.details.pageSequence === pageIndex && loss.details.recordIndex === recordIndex)) continue;
         const sourceJobId = strictPhenomPersistentSourceJobId(rawId);
         if (mainlandAlternativeOutputs.has(sourceJobId)) return false;
-        mainlandAlternativeOutputs.set(sourceJobId, { sourceJobId, ...alternative });
+        const rocheListProjection = preserveRochePhenomList ? rocheListOutputs.get(sourceJobId) : undefined;
+        if (preserveRochePhenomList && !rocheListProjection) return false;
+        mainlandAlternativeOutputs.set(sourceJobId, rocheListProjection
+          ? { sourceJobId, locationRaw: rocheListProjection.locationRaw, cities: rocheListProjection.cities }
+          : { sourceJobId, ...alternative });
         continue;
       }
       const presentInclude = facetScope?.includeField
@@ -2750,6 +2766,19 @@ function strictPhenomRequestContracts(
     (!preserveRocheQuality || (rocheOutputs.size + rocheLosses.length+held.length === pageRawCount && evidence.artifacts.length === evidence.pages.length + 3 + nativeCount('roche') &&
       outputJobs.every(job => {
         const expected = job.sourceJobId && rocheOutputs.get(job.sourceJobId);
+        return expected && typeof job.isBaseline === "boolean" && isDeepStrictEqual(job, {
+          companyId: plan.company.id, sourceId: plan.source.id, sourceKind: "SOCIAL", atsKind: "OFFICIAL_JSON",
+          officialChineseCompanyName: plan.company.officialChineseName, officialTitle: expected.title,
+          officialUrl: expected.officialUrl, listUrl: canonicalPublicHttpUrl(plan.source.officialEntryUrl),
+          sourceJobId: job.sourceJobId, locationRaw: expected.locationRaw, cities: expected.cities, category: "其他",
+          ...(expected.officialPublishedAt ? {officialPublishedAt: expected.officialPublishedAt} : {}), isBaseline: job.isBaseline,
+          evidence: {officialEntryUrl: canonicalPublicHttpUrl(plan.source.officialEntryUrl),
+            officialChainEvidenceUrl: canonicalPublicHttpUrl(plan.source.officialChainEvidenceUrl!), capturedAt}
+        });
+      }))) &&
+    (!preserveRochePhenomList || (rocheListOutputs.size + held.length === pageRawCount && evidence.artifacts.length === evidence.pages.length + 3 &&
+      outputJobs.every(job => {
+        const expected = job.sourceJobId && rocheListOutputs.get(job.sourceJobId);
         return expected && typeof job.isBaseline === "boolean" && isDeepStrictEqual(job, {
           companyId: plan.company.id, sourceId: plan.source.id, sourceKind: "SOCIAL", atsKind: "OFFICIAL_JSON",
           officialChineseCompanyName: plan.company.officialChineseName, officialTitle: expected.title,
@@ -2978,7 +3007,7 @@ function strictExactRochePhenomPlan(
     config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
     config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1" &&
     (config.nativeDetailPolicy === undefined ? fields.officialPublishedAt === undefined :
-      config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY && fields.officialPublishedAt === "officialPublishedAt") &&
+      (config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY || config.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY) && fields.officialPublishedAt === "officialPublishedAt") &&
     (config.pageSize === 100 || config.pageSize === 250) && config.maxPages === 10 &&
     endpoint === "https://careers.roche.com/widgets" &&
     pageConfig.widgetApiEndpoint === "https://careers.roche.com/widgets" &&
@@ -4369,7 +4398,7 @@ function strictPlanUrlRules(plan: SourceCrawlPlan): StrictUrlRule[] | undefined 
       if (exactOrganonPostedDatePlan(plan)) {
         rules.push(prefixEndpointRule("organon-native-detail", new URL("https://organon.wd5.myworkdayjobs.com/SearchJobs/job/")));
       }
-      if (exactLillyChinaQualityPlan(plan)) {
+      if (exactLillyChinaQualityPlan(plan) && !isLillyPhenomOnlyPlan(plan)) {
         rules.push(prefixEndpointRule("lilly-native-detail", new URL("https://lilly.wd115.myworkdayjobs.com/LLY/job/")));
       }
       return rules;
@@ -4851,7 +4880,7 @@ function strictPositiveOfficialTotalReplayPolicy(
     if (strategy.exactDuplicateReconciliationPolicy !== undefined && !exactRocheDuplicatePolicy) return undefined;
     return {
       allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
-      ...(exactLillyChinaQualityPlan(plan) || exactOrganonPostedDatePlan(plan) || (plan.source.id === "source-roche-china-social" && strategy.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
+      ...(exactLillyChinaQualityPlan(plan) || exactOrganonPostedDatePlan(plan) || (plan.source.id === "source-roche-china-social" && (strategy.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY || strategy.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY)) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
       ...(exactRocheDuplicatePolicy ? { allowRawIdOverlapAcrossPages: true as const } : {})
     };
   }
