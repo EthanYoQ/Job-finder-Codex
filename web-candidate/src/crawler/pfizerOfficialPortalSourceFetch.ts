@@ -6,7 +6,12 @@ import type { OfficialJsonConfig } from "./adapters/types";
 import { WORKDAY_JSON_CONFIG } from "./companyRecruitmentProfiles/shared";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import { explicitlyForeignOrNonMainlandLocation, irreversibleOfficialJsonEvidenceId } from "./officialJsonEvidence";
-import { currentOfficialSourceAttemptSignal, fetchWithOfficialTimeout, officialHttpTimeoutMs } from "./officialHttpRuntimeLimits";
+import {
+  OfficialHttpTimeoutError,
+  currentOfficialSourceAttemptSignal,
+  fetchWithOfficialTimeout,
+  officialHttpTimeoutMs
+} from "./officialHttpRuntimeLimits";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import { PFIZER_OFFICIAL_LOCALITIES } from "./pfizerOfficialLocalities";
 import type { StrictProfileBoundSourcePolicy } from "./profileBoundSourceEvidence";
@@ -16,6 +21,12 @@ import {
   type PersistentSourceFetchEvidence,
   type SourceFetchArtifactDraft
 } from "./sourceFetchEvidence";
+import {
+  retryableHttpTransportFailure,
+  retryableTransportFailureFromError,
+  safeSourceTransportFailureReason,
+  type SourceTransportFailureStage
+} from "./sourceFetchFailure";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
@@ -50,16 +61,24 @@ const WINDOW = 30 * 60 * 1000;
 const FAILURE = "PFIZER_OFFICIAL_PORTAL_INVALID";
 const EXTERNAL_URL_RE = /^https:\/\/pfizer\.wd1\.myworkdayjobs\.com\/PfizerCareers(\/job\/[^?#]+)$/u;
 const MAINLAND_LOC_RE = /^(?:China|CHN) - [A-Za-z0-9][A-Za-z0-9 '\-()&]+(?: - [A-Za-z0-9][A-Za-z0-9 '\-()&]+)*$/u;
-const FOREIGN_HINT_RE = /Hong Kong|Macau|Macao|Taiwan|香港|澳门|台湾/iu;
+const FOREIGN_HINT_RE = /Hong Kong|Macau|Macao|Taiwan|Tai[\s-]*pei|Kao[\s-]*hsiung|Tai[\s-]*chung|Tai[\s-]*nan|Tao[\s-]*yuan|Hsin[\s-]*chu|Keelung|Chiayi|香港|澳门|澳門|台湾|臺灣|台北|臺北|新北|高雄|台中|臺中|台南|臺南|桃园|桃園|新竹|基隆|嘉义|嘉義/iu;
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 type Request = { url: string; method: "POST"; headers: Record<string, string>; body: string };
 type HttpResponse = { status: number; body: string; finalUrl?: string; contentType?: string; capturedAt?: string };
+type HttpStatusMeta = Pick<HttpResponse, "status">;
 type Http = (request: Request) => Promise<HttpResponse>;
 type Role = "list" | "terminal";
 type ParsedSearchPage = { page: number; declaredTotal: number; totalPages: number; rows: unknown[] };
 type ProjectedJob = { sourceJobId: string; title: string; officialUrl: string; locationRaw: string; cities: string[]; officialPublishedAt: string };
 type DetailBinding = { reqId: string; externalPath: string; officialUrl: string; officialPublishedAt: string };
+type JobQuarantine = NonNullable<PersistentSourceFetchEvidence["jobQuarantines"]>[number];
+
+class PortalHttpBodyError extends Error {
+  constructor(message: string, readonly httpMeta: HttpStatusMeta) {
+    super(message);
+  }
+}
 
 const hash = (v: string | Uint8Array) => createHash("sha256").update(v).digest("hex");
 const clean = (v: string) => v.replace(/\s+/gu, " ").trim();
@@ -91,12 +110,45 @@ const makeRequest = (page: number): Request => ({
 const paginationOptions = {
   expectedChannelIds: [] as string[],
   filteredOutput: true,
+  allowCompleteTraversalOfEmptyFirstPage: true as const,
   allowPositiveOfficialTotalCountAfterAdapterReconciliation: true as const,
-  allowCompleteTraversalOfEmptyFirstPage: true as const
+  allowIndependentlyVerifiedProfileBoundExclusions: true as const
 };
 
 export function isSafePfizerOfficialPortalFailureCode(value: unknown): value is string {
   return value === FAILURE;
+}
+
+function jobQuarantineLoss(row: JobQuarantine, recordedAt: string): PersistentSourceFetchEvidence["fetchLosses"][number] {
+  return {
+    stage: "VALIDATION",
+    reason: "Job could not be verified; preserve prior data",
+    rawLocator: row.rawLocator,
+    details: { code: "JOB_QUARANTINED", noteCode: row.code, pageSequence: row.pageSequence, recordIndex: row.recordIndex },
+    recordedAt
+  };
+}
+
+function quarantineCompleteList(evidence: PersistentSourceFetchEvidence, rows: JobQuarantine[]): PersistentSourceFetchEvidence {
+  if (!rows.length) return evidence;
+  const byPage = new Map<number, Set<string>>();
+  for (const row of rows) {
+    const page = evidence.pages[row.pageSequence], id = row.validJobId;
+    if (!page || page.rawJobIds[row.recordIndex] === undefined || !page.validJobIds.includes(id)) {
+      throw Error("JOB_QUARANTINE_LIST_POSITION_INVALID");
+    }
+    const own = byPage.get(row.pageSequence) ?? new Set<string>();
+    if (own.has(id)) throw Error("JOB_QUARANTINE_DUPLICATE_LIST_POSITION");
+    own.add(id);
+    byPage.set(row.pageSequence, own);
+  }
+  return parsePersistentSourceFetchEvidence({
+    ...evidence,
+    jobQuarantines: [...(evidence.jobQuarantines ?? []), ...rows].sort((a, b) => a.pageSequence - b.pageSequence || a.recordIndex - b.recordIndex),
+    pages: evidence.pages.map((page, i) => ({ ...page, validJobIds: page.validJobIds.filter(id => !byPage.get(i)?.has(id)) })),
+    fetchCounts: { ...evidence.fetchCounts, validCount: evidence.fetchCounts.validCount - rows.length, validationDiscardCount: evidence.fetchCounts.validationDiscardCount + rows.length },
+    fetchLosses: [...evidence.fetchLosses, ...rows.map(row => jobQuarantineLoss(row, evidence.pages[row.pageSequence]!.capturedAt))]
+  });
 }
 
 function normalizePublishedDate(value: unknown): string {
@@ -111,7 +163,7 @@ function normalizePublishedDate(value: unknown): string {
 async function fetchPortalHttp(request: Request): Promise<HttpResponse> {
   const controller = new AbortController(), source = currentOfficialSourceAttemptSignal();
   const abort = () => controller.abort(source?.reason);
-  const deadline = setTimeout(() => controller.abort(new Error("Pfizer official portal body deadline exceeded")), officialHttpTimeoutMs());
+  const deadline = setTimeout(() => controller.abort(new OfficialHttpTimeoutError()), officialHttpTimeoutMs());
   if (source?.aborted) abort(); else source?.addEventListener("abort", abort, { once: true });
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   const cancel = () => { void reader?.cancel(controller.signal.reason).catch(() => undefined); };
@@ -125,34 +177,43 @@ async function fetchPortalHttp(request: Request): Promise<HttpResponse> {
       signal: controller.signal,
       redirect: "error"
     });
-    const declared = response.headers.get("content-length");
-    if (declared && (!/^[0-9]+$/u.test(declared) || Number(declared) > BODY_LIMIT)) {
-      void response.body?.cancel().catch(() => undefined);
-      throw Error("Pfizer official portal response exceeds byte limit");
-    }
-    if (!response.body) throw Error("Pfizer official portal response body is missing");
-    reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let length = 0;
-    while (true) {
-      controller.signal.throwIfAborted();
-      const chunk = await reader.read();
-      controller.signal.throwIfAborted();
-      if (chunk.done) break;
-      length += chunk.value.byteLength;
-      if (length > BODY_LIMIT) {
-        void reader.cancel().catch(() => undefined);
-        throw Error("Pfizer official portal response exceeds byte limit");
+    const httpMeta: HttpStatusMeta = { status: response.status };
+    try {
+      const declared = response.headers.get("content-length");
+      if (declared && (!/^[0-9]+$/u.test(declared) || Number(declared) > BODY_LIMIT)) {
+        void response.body?.cancel().catch(() => undefined);
+        throw new PortalHttpBodyError("Pfizer official portal response exceeds byte limit", httpMeta);
       }
-      chunks.push(chunk.value);
+      if (!response.body) throw new PortalHttpBodyError("Pfizer official portal response body is missing", httpMeta);
+      reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let length = 0;
+      while (true) {
+        controller.signal.throwIfAborted();
+        const chunk = await reader.read();
+        controller.signal.throwIfAborted();
+        if (chunk.done) break;
+        length += chunk.value.byteLength;
+        if (length > BODY_LIMIT) {
+          void reader.cancel().catch(() => undefined);
+          throw new PortalHttpBodyError("Pfizer official portal response exceeds byte limit", httpMeta);
+        }
+        chunks.push(chunk.value);
+      }
+      return {
+        status: response.status,
+        finalUrl: response.url,
+        contentType: response.headers.get("content-type") ?? "",
+        body: new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
+        capturedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      if (error instanceof PortalHttpBodyError) throw error;
+      if (httpMeta.status !== 200) {
+        throw new PortalHttpBodyError(error instanceof Error ? error.message : "Failed to read HTTP response body", httpMeta);
+      }
+      throw error;
     }
-    return {
-      status: response.status,
-      finalUrl: response.url,
-      contentType: response.headers.get("content-type") ?? "",
-      body: new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
-      capturedAt: new Date().toISOString()
-    };
   } finally {
     clearTimeout(deadline);
     source?.removeEventListener("abort", abort);
@@ -171,8 +232,10 @@ function exactPlan(plan: SourceCrawlPlan): boolean {
 }
 
 function makeArtifact(role: Role, page: number, req: Request, response: HttpResponse, now: string): SourceFetchArtifactDraft {
-  assert(response.status === 200 && response.finalUrl === req.url && typeof response.body === "string" &&
-    Buffer.byteLength(response.body) <= BODY_LIMIT && /^application\/json(?:;|$)/iu.test(response.contentType ?? ""));
+  assert(Number.isInteger(response.status) && response.status >= 100 && response.status <= 599 && response.finalUrl === req.url &&
+    typeof response.body === "string" && Buffer.byteLength(response.body) <= BODY_LIMIT &&
+    typeof response.contentType === "string" && response.contentType.length > 0 &&
+    (response.status !== 200 || /^application\/json(?:;|$)/iu.test(response.contentType)));
   const capturedAt = response.capturedAt ?? now;
   assert(Number.isFinite(Date.parse(capturedAt)));
   const logicalKey = role === "list" ? pageKey(page) : TERMINAL_KEY;
@@ -182,8 +245,8 @@ function makeArtifact(role: Role, page: number, req: Request, response: HttpResp
     kind: role === "list" ? "PAGINATION_PAGE" : "ATS_API_RESPONSE",
     requestedUrl: req.url,
     finalUrl: req.url,
-    httpStatus: 200,
-    contentType: response.contentType!,
+    httpStatus: response.status,
+    contentType: response.contentType,
     capturedAt,
     body: response.body,
     bodyRepresentation: "EXACT",
@@ -257,6 +320,20 @@ function parseExternalPath(url: unknown, reqId?: string): string | undefined {
   }
 }
 
+function extractRowIdentity(raw: unknown): { reqId?: string; externalPath?: string; sourceJobId?: string; officialUrl?: string } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const row = raw as Record<string, unknown>;
+  const reqId = typeof row.jobRequisitionId === "string" && /^\d{7}$/u.test(row.jobRequisitionId) ? row.jobRequisitionId : undefined;
+  const externalPath = parseExternalPath(row.External_Posting_URL, reqId);
+  if (!externalPath) return reqId ? { reqId } : {};
+  return {
+    ...(reqId ? { reqId } : {}),
+    externalPath,
+    sourceJobId: `workday:sha256:${hash(externalPath)}`,
+    officialUrl: `${WD_SITE_PREFIX}${externalPath}`
+  };
+}
+
 function projectRow(raw: unknown): { job: ProjectedJob; binding: DetailBinding } {
   const row = object(raw);
   const reqId = row.jobRequisitionId;
@@ -309,7 +386,7 @@ function reportArtifact(total: number, bindings: DetailBinding[], capturedAt: st
   };
 }
 
-function pageTrace(page: ParsedSearchPage, artifact: SourceFetchArtifactDraft, jobs: readonly ProjectedJob[], rawIds: readonly string[]) {
+function pageTrace(page: ParsedSearchPage, artifact: SourceFetchArtifactDraft, jobs: readonly { sourceJobId: string }[], rawIds: readonly string[]) {
   const hasNext = page.declaredTotal > 0 && page.page < page.totalPages;
   return {
     artifactLogicalKey: artifact.logicalKey,
@@ -335,8 +412,9 @@ function pageTrace(page: ParsedSearchPage, artifact: SourceFetchArtifactDraft, j
 function assemble(
   artifacts: SourceFetchArtifactDraft[],
   pages: ParsedSearchPage[],
-  jobs: readonly ProjectedJob[],
-  rawIdsByPage: readonly string[][]
+  jobs: readonly { sourceJobId: string }[],
+  rawIdsByPage: readonly string[][],
+  quarantines: JobQuarantine[] = []
 ): PersistentSourceFetchEvidence {
   let offset = 0;
   const traces = pages.map((page, index) => {
@@ -345,23 +423,21 @@ function assemble(
     return pageTrace(page, artifacts.find(a => a.logicalKey === pageKey(page.page))!, selected, rawIdsByPage[index]!);
   });
   const first = artifacts[0]!;
-  return deriveCanonicalPaginationEvidence({
-    ...paginationOptions,
-    evidence: parsePersistentSourceFetchEvidence({
-      captureTool: { name: "pfizer-official-portal-http", version: "1" },
-      artifacts,
-      pages: traces,
-      declaredCompleteness: {
-        kind: "OFFICIAL_TOTAL_COUNT",
-        scope: "SOURCE",
-        value: pages[0]!.declaredTotal,
-        artifactLogicalKey: first.logicalKey,
-        extractorLocator: first.extractorLocator
-      },
-      fetchCounts: { rawCount: jobs.length, parsedCount: jobs.length, validCount: jobs.length, parseDiscardCount: 0, validationDiscardCount: 0 },
-      fetchLosses: []
-    })
+  const evidence = parsePersistentSourceFetchEvidence({
+    captureTool: { name: "pfizer-official-portal-http", version: "1" },
+    artifacts,
+    pages: traces,
+    declaredCompleteness: {
+      kind: "OFFICIAL_TOTAL_COUNT",
+      scope: "SOURCE",
+      value: pages[0]!.declaredTotal,
+      artifactLogicalKey: first.logicalKey,
+      extractorLocator: first.extractorLocator
+    },
+    fetchCounts: { rawCount: jobs.length, parsedCount: jobs.length, validCount: jobs.length, parseDiscardCount: 0, validationDiscardCount: 0 },
+    fetchLosses: []
   });
+  return deriveCanonicalPaginationEvidence({ ...paginationOptions, evidence: quarantineCompleteList(evidence, quarantines) });
 }
 
 function replay(artifacts: SourceFetchArtifactDraft[]) {
@@ -397,41 +473,85 @@ function replay(artifacts: SourceFetchArtifactDraft[]) {
   }
 
   const seenReqs = new Set<string>(), seenPaths = new Set<string>(), seenRawIds = new Set<string>();
-  const projected: ReturnType<typeof projectRow>[] = [];
+  const projected: ReturnType<typeof projectRow>[] = [], listJobs: Array<{ sourceJobId: string }> = [], quarantines: JobQuarantine[] = [];
   const rawIdsByPage: string[][] = [];
-  for (const page of pages) {
+  let globalIndex = 0;
+
+  for (const [pageIndex, page] of pages.entries()) {
     const pageRawIds: string[] = [];
-    for (const raw of page.rows) {
-      const candidate = projectRow(raw);
-      assert(!seenReqs.has(candidate.binding.reqId) && !seenPaths.has(candidate.binding.externalPath));
-      seenReqs.add(candidate.binding.reqId);
-      seenPaths.add(candidate.binding.externalPath);
-      const rawJobId = irreversibleOfficialJsonEvidenceId(candidate.binding.reqId);
+    for (let recordIndex = 0; recordIndex < page.rows.length; recordIndex++) {
+      const raw = page.rows[recordIndex];
+      const ident = extractRowIdentity(raw);
+      if (ident.reqId) {
+        assert(!seenReqs.has(ident.reqId));
+        seenReqs.add(ident.reqId);
+      }
+      if (ident.externalPath) {
+        assert(!seenPaths.has(ident.externalPath));
+        seenPaths.add(ident.externalPath);
+      }
+      const rawJobId = irreversibleOfficialJsonEvidenceId(ident.reqId ?? [pageIndex, recordIndex, raw]);
       assert(!seenRawIds.has(rawJobId));
       seenRawIds.add(rawJobId);
       pageRawIds.push(rawJobId);
-      projected.push(candidate);
+
+      let candidate: ReturnType<typeof projectRow> | undefined;
+      try {
+        candidate = projectRow(raw);
+      } catch {
+        // Single malformed/out-of-scope row isolates via quarantineCompleteList unless all rows fail.
+      }
+      if (candidate) {
+        projected.push(candidate);
+        listJobs.push(candidate.job);
+      } else {
+        const quarantineId = ident.sourceJobId ?? `unidentified:${globalIndex}`;
+        quarantines.push({
+          pageSequence: pageIndex,
+          recordIndex,
+          validJobId: irreversibleOfficialJsonEvidenceId(quarantineId),
+          rawLocator: `${pageKey(page.page)}#row:${recordIndex}`,
+          code: "PFIZER_OFFICIAL_PORTAL_JOB_UNVERIFIED",
+          ...(ident.sourceJobId && ident.officialUrl ? { sourceJobId: ident.sourceJobId, officialUrl: ident.officialUrl } : {})
+        });
+        listJobs.push({ sourceJobId: quarantineId });
+      }
+      globalIndex++;
     }
     rawIdsByPage.push(pageRawIds);
   }
 
+  assert(first.declaredTotal === 0 || projected.length > 0);
   assert(artifacts.length === consumed + 1);
   const report = reportArtifact(first.declaredTotal, projected.map(p => p.binding), artifacts[consumed - 1]!.capturedAt);
   assert(same(artifacts[consumed], report));
   const jobs = projected.map(p => p.job);
   assert(new Set(jobs.map(j => j.sourceJobId)).size === jobs.length);
-  return { evidence: assemble(artifacts, pages, jobs, rawIdsByPage), jobs, declaredTotal: first.declaredTotal, totalPages: pages.length };
+  return { evidence: assemble(artifacts, pages, listJobs, rawIdsByPage, quarantines), jobs, declaredTotal: first.declaredTotal, totalPages: pages.length };
 }
 
 export function createPfizerOfficialPortalSourceFetch(deps: { http?: Http; now?: () => Date } = {}): SourceFetchFunction {
   return async plan => {
     const now = deps.now ?? (() => new Date()), startedAt = now().toISOString(), artifacts: SourceFetchArtifactDraft[] = [];
     let bytes = 0;
+    let failedHttp: HttpStatusMeta | undefined;
+    let stage: SourceTransportFailureStage = "ENTRY";
     try {
       assert(exactPlan(plan));
       const http: Http = deps.http ?? fetchPortalHttp;
       const acquire = async (role: Role, pageNum: number, req: Request) => {
-        const a = makeArtifact(role, pageNum, req, await http(req), now().toISOString());
+        stage = role === "list" && pageNum === 1 ? "ENTRY" : "PAGE";
+        let response: HttpResponse;
+        try {
+          response = await http(req);
+        } catch (error) {
+          if (error instanceof PortalHttpBodyError && error.httpMeta.status !== 200) {
+            failedHttp = error.httpMeta;
+          }
+          throw error;
+        }
+        if (response.status !== 200) failedHttp = response;
+        const a = makeArtifact(role, pageNum, req, response, now().toISOString());
         bytes += Buffer.byteLength(a.body);
         assert(bytes <= LIMIT);
         artifacts.push(a);
@@ -448,7 +568,8 @@ export function createPfizerOfficialPortalSourceFetch(deps: { http?: Http; now?:
         parseTerminalPage(await acquire("terminal", first.totalPages + 1, makeRequest(first.totalPages + 1)));
       }
 
-      const report = reportArtifact(first.declaredTotal, replayBindings(artifacts), artifacts.at(-1)!.capturedAt);
+      const preBindings = replayForReport(artifacts);
+      const report = reportArtifact(first.declaredTotal, preBindings, artifacts.at(-1)!.capturedAt);
       assert(bytes + Buffer.byteLength(report.body) <= LIMIT);
       artifacts.push(report);
 
@@ -471,7 +592,13 @@ export function createPfizerOfficialPortalSourceFetch(deps: { http?: Http; now?:
           pagesVisited: result.totalPages
         }
       };
-    } catch {
+    } catch (error) {
+      const failure = failedHttp
+        ? retryableHttpTransportFailure(failedHttp.status)
+        : retryableTransportFailureFromError(error);
+      const transportFailure = failure ? { ...failure, stage } : undefined;
+      const failureReason = transportFailure ? safeSourceTransportFailureReason(transportFailure)
+        : failedHttp ? `Official JSON source returned HTTP ${failedHttp.status}` : FAILURE;
       const fetchEvidence = artifacts.length ? parsePersistentSourceFetchEvidence({
         captureTool: { name: "pfizer-official-portal-http", version: "1" },
         artifacts: artifacts.map(a => a.kind === "ORACLE_RESULT" ? a : { ...a, kind: "ATS_API_RESPONSE" }),
@@ -483,21 +610,28 @@ export function createPfizerOfficialPortalSourceFetch(deps: { http?: Http; now?:
       return {
         ok: false,
         capturedAt: startedAt,
-        failureReason: FAILURE,
+        failureReason,
+        ...(transportFailure ? { transportFailure } : {}),
         ...(fetchEvidence ? { fetchEvidence } : {})
       };
     }
   };
 }
 
-function replayBindings(artifacts: readonly SourceFetchArtifactDraft[]): DetailBinding[] {
+function replayForReport(artifacts: readonly SourceFetchArtifactDraft[]): DetailBinding[] {
   const bindings: DetailBinding[] = [];
   for (const a of artifacts) {
     if (!a.logicalKey.startsWith("pfizer-portal-list-")) continue;
     const data = object(parseJson(a.body as string).data);
     if (isEmptyPortalData(data)) continue;
     assert(Array.isArray(data.data));
-    for (const raw of data.data) bindings.push(projectRow(raw).binding);
+    for (const raw of data.data) {
+      try {
+        bindings.push(projectRow(raw).binding);
+      } catch {
+        // Invalid single rows are quarantined during full replay below.
+      }
+    }
   }
   return bindings;
 }
@@ -542,6 +676,7 @@ export function getStrictPfizerOfficialPortalPolicy(plan: SourceCrawlPlan): Stri
   if (!exactPlan(plan)) return undefined;
   return {
     allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
+    allowIndependentlyVerifiedProfileBoundExclusions: true,
     allowCompleteTraversalOfEmptyFirstPage: true,
     urlRules: [
       {

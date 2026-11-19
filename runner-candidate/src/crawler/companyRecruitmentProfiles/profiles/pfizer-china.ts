@@ -12,7 +12,8 @@ export const profile_pfizer_china = {
         profileBoundSource: {
           kind: "pfizer-official-portal",
           config: PFIZER_OFFICIAL_PORTAL_CONFIG
-        }
+        },
+        transientRetryPolicy: { maxRetries: 1, backoffMs: 10_000 }
       }
     }
   ]

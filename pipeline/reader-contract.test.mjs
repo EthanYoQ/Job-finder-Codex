@@ -4,7 +4,8 @@ import { loadDirectPlans } from '../runner-candidate/scripts/direct-round.ts';
 import { candidateCompanies } from '../web-candidate/src/data/companyRegistry.ts';
 import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from '../web-candidate/src/crawler/sourcePlan.ts';
 import { getSourceQualityPolicy } from '../web-candidate/src/crawler/sourceQualityAdmission.ts';
-import { selectPortableSourceSnapshots,verifiedMembers } from '../web-candidate/src/domain/portablePublicSnapshot.ts';
+import { selectPortableSourceSnapshots, verifiedMembers, projectPortableSourceJobs } from '../web-candidate/src/domain/portablePublicSnapshot.ts';
+import { hashJobPersistedProjection } from '../web-candidate/src/domain/jobProjectionDeltaReceipt.ts';
 import { validateSavedSnapshot } from '../web-candidate/src/server/savedPublicSnapshot.ts';
 import {hashCanonicalStringSet} from '../web-candidate/src/crawler/runtimeBatchIdentity.ts';
 import {createHash} from 'node:crypto';
@@ -108,6 +109,33 @@ test('Pfizer transition from prior B-grade to A-grade Delta preserves prior visi
   const currentAt = '2026-11-19T16:05:00.000Z';
   const priorHash = '84aaab8bad3579630eec1b12d3f09236755b3a25d0b7751ca8584a9a53a83413';
   const sha = value => createHash('sha256').update(value).digest('hex');
+  const keptKey = `${route.sourceId}:kept`;
+  const graceKey = `${route.sourceId}:grace`;
+  const buildJobRow = (jobId, dedupeKey, missingSuccessCount, seenAt) => ({
+    id: jobId,
+    companyId: route.companyId,
+    sourceId: route.sourceId,
+    dedupeKey,
+    sourceJobId: jobId,
+    officialTitle: `Pfizer Role ${jobId}`,
+    officialUrl: `https://pfizer.wd1.myworkdayjobs.com/PfizerCareers/job/China/${jobId}`,
+    listUrl: plan.source.officialEntryUrl,
+    locationRaw: 'China - Shanghai - STIT',
+    city: '上海',
+    cities: ['上海'],
+    category: 'OTHER',
+    humanCorrectedCategory: null,
+    humanCorrectedTitle: null,
+    auxiliaryChineseTitle: null,
+    officialPublishedAt: null,
+    missingSuccessCount,
+    lifecycleStatus: 'ACTIVE',
+    visibleInFrontend: true,
+    isNew: false,
+    lastSeenAt: new Date(seenAt)
+  });
+  const keptRow = buildJobRow('kept', keptKey, 0, currentAt);
+  const graceRow = buildJobRow('grace', graceKey, 1, priorAt);
 
   const priorRow = {
     id: 'pfizer-b-grade-prior',
@@ -126,9 +154,9 @@ test('Pfizer transition from prior B-grade to A-grade Delta preserves prior visi
     startedAt: new Date(priorAt),
     finishedAt: new Date(priorAt),
     dedupeOutputCount: 2,
-    canonicalCurrentJobSetSha256: hashCanonicalStringSet(['pfizer-kept', 'pfizer-grace']),
+    canonicalCurrentJobSetSha256: hashCanonicalStringSet([keptKey, graceKey]),
     canonicalGraceJobSetSha256: hashCanonicalStringSet([]),
-    canonicalVisibleJobSetSha256: hashCanonicalStringSet(['pfizer-kept', 'pfizer-grace']),
+    canonicalVisibleJobSetSha256: hashCanonicalStringSet([keptKey, graceKey]),
     observations: [{ crawledAt: new Date(priorAt) }],
     completenessCertificateSha256: 'b'.repeat(64),
     completenessCertificate: {
@@ -165,9 +193,9 @@ test('Pfizer transition from prior B-grade to A-grade Delta preserves prior visi
     startedAt: new Date(currentAt),
     finishedAt: new Date(currentAt),
     dedupeOutputCount: 1,
-    canonicalCurrentJobSetSha256: hashCanonicalStringSet(['pfizer-kept']),
-    canonicalGraceJobSetSha256: hashCanonicalStringSet(['pfizer-grace']),
-    canonicalVisibleJobSetSha256: hashCanonicalStringSet(['pfizer-kept', 'pfizer-grace']),
+    canonicalCurrentJobSetSha256: hashCanonicalStringSet([keptKey]),
+    canonicalGraceJobSetSha256: hashCanonicalStringSet([graceKey]),
+    canonicalVisibleJobSetSha256: hashCanonicalStringSet([keptKey, graceKey]),
     observations: [{
       observedFrom: new Date(currentAt),
       observedTo: new Date(currentAt),
@@ -183,10 +211,10 @@ test('Pfizer transition from prior B-grade to A-grade Delta preserves prior visi
       adapterSucceeded: true,
       completenessVerified: true,
       atomicCommitSucceeded: true,
-      canonicalOutputSha256: hashCanonicalStringSet(['pfizer-kept'])
+      canonicalOutputSha256: hashCanonicalStringSet([keptKey])
     }],
     adapterVersion: '1'.repeat(64),
-    canonicalOutputSetSha256: hashCanonicalStringSet(['pfizer-kept']),
+    canonicalOutputSetSha256: hashCanonicalStringSet([keptKey]),
     completenessCertificateSha256: 'c'.repeat(64),
     completenessCertificate: {
       schemaVersion: 'job-projection-delta-receipt-v1',
@@ -205,11 +233,11 @@ test('Pfizer transition from prior B-grade to A-grade Delta preserves prior visi
           sourceId: route.sourceId,
           sourceResultId: 'pfizer-a-grade-delta',
           setKind,
-          jobKey: 'pfizer-kept',
-          jobKeySha256: sha('pfizer-kept'),
+          jobKey: keptKey,
+          jobKeySha256: sha(keptKey),
           lifecycleStatus: 'ACTIVE',
           missingCount: 0,
-          jobProjectionSha256: sha('proj-kept'),
+          jobProjectionSha256: hashJobPersistedProjection(keptRow),
           lastPresentResultId: 'pfizer-a-grade-delta',
           lastConfirmedObservedAt: currentAt,
           lifecycleLastSeenAt: currentAt
@@ -220,11 +248,11 @@ test('Pfizer transition from prior B-grade to A-grade Delta preserves prior visi
           sourceId: route.sourceId,
           sourceResultId: 'pfizer-a-grade-delta',
           setKind,
-          jobKey: 'pfizer-grace',
-          jobKeySha256: sha('pfizer-grace'),
+          jobKey: graceKey,
+          jobKeySha256: sha(graceKey),
           lifecycleStatus: 'ACTIVE',
           missingCount: 1,
-          jobProjectionSha256: sha('proj-grace'),
+          jobProjectionSha256: hashJobPersistedProjection(graceRow),
           lastPresentResultId: priorRow.id,
           lastConfirmedObservedAt: priorAt,
           lifecycleLastSeenAt: priorAt
@@ -247,10 +275,10 @@ test('Pfizer transition from prior B-grade to A-grade Delta preserves prior visi
   assert.equal(transitioned.selectedSourceResultId, deltaRow.id);
   assert.equal(transitioned.visibilityFloor, currentAt);
   const members = [
-    ['CURRENT', 'pfizer-kept', 0],
-    ['GRACE', 'pfizer-grace', 1],
-    ['VISIBLE', 'pfizer-kept', 0],
-    ['VISIBLE', 'pfizer-grace', 1]
+    ['CURRENT', keptKey, 0],
+    ['GRACE', graceKey, 1],
+    ['VISIBLE', keptKey, 0],
+    ['VISIBLE', graceKey, 1]
   ].map(([setKind, jobKey, missingCount]) => ({
     releaseCandidateId: deltaRow.releaseCandidateId,
     batchId: deltaRow.batchId,
@@ -262,5 +290,28 @@ test('Pfizer transition from prior B-grade to A-grade Delta preserves prior visi
     lifecycleStatus: 'ACTIVE',
     missingCount
   }));
-  assert.deepEqual([...verifiedMembers(transitioned.selected, members).keys()], ['pfizer-kept', 'pfizer-grace']);
+  const priorMembers = [
+    ['CURRENT', keptKey, 0],
+    ['CURRENT', graceKey, 0],
+    ['VISIBLE', keptKey, 0],
+    ['VISIBLE', graceKey, 0]
+  ].map(([setKind, jobKey, missingCount]) => ({
+    releaseCandidateId: priorRow.releaseCandidateId,
+    batchId: priorRow.batchId,
+    sourceId: priorRow.sourceId,
+    sourceResultId: priorRow.id,
+    setKind,
+    jobKey,
+    jobKeySha256: sha(jobKey),
+    lifecycleStatus: 'ACTIVE',
+    missingCount
+  }));
+  assert.deepEqual([...verifiedMembers(transitioned.selected, members).keys()], [keptKey, graceKey]);
+  const projected = projectPortableSourceJobs(transitioned, members, [keptRow, graceRow], { currentTime: new Date(currentAt) }, priorMembers);
+  assert.equal(projected.state, 'PUBLISHING', JSON.stringify(projected.reasons));
+  assert.equal(projected.visibleJobCount, 2);
+  assert.deepEqual(projected.jobs.map(job => job.id), ['grace', 'kept']);
+  const projectedGrace = projected.jobs.find(job => job.id === 'grace');
+  assert.equal(projectedGrace.inGrace, true);
+  assert.equal(projectedGrace.lastConfirmedObservedAt, priorAt);
 });

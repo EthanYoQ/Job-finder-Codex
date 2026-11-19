@@ -7,7 +7,12 @@ import { WORKDAY_JSON_CONFIG } from "./companyRecruitmentProfiles/shared";
 import { JOB_QUARANTINE_PAGINATION, quarantineCompleteList, type JobQuarantine } from "./jobQuarantine";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import { explicitlyForeignOrNonMainlandLocation, irreversibleOfficialJsonEvidenceId } from "./officialJsonEvidence";
-import { currentOfficialSourceAttemptSignal, fetchWithOfficialTimeout, officialHttpTimeoutMs } from "./officialHttpRuntimeLimits";
+import {
+  OfficialHttpTimeoutError,
+  currentOfficialSourceAttemptSignal,
+  fetchWithOfficialTimeout,
+  officialHttpTimeoutMs
+} from "./officialHttpRuntimeLimits";
 import { parseOfficialRetryAfter, type OfficialRetryAfter } from "./officialRetryAfter";
 import { deriveCanonicalPaginationEvidence, evaluatePaginationEvidence } from "./paginationEvidence";
 import { PFIZER_OFFICIAL_LOCALITIES } from "./pfizerOfficialLocalities";
@@ -53,7 +58,7 @@ const WINDOW = 30 * 60 * 1000;
 const FAILURE = "PFIZER_OFFICIAL_PORTAL_INVALID";
 const EXTERNAL_URL_RE = /^https:\/\/pfizer\.wd1\.myworkdayjobs\.com\/PfizerCareers(\/job\/[^?#]+)$/u;
 const MAINLAND_LOC_RE = /^(?:China|CHN) - [A-Za-z0-9][A-Za-z0-9 '\-()&]+(?: - [A-Za-z0-9][A-Za-z0-9 '\-()&]+)*$/u;
-const FOREIGN_HINT_RE = /Hong Kong|Macau|Macao|Taiwan|香港|澳门|台湾/iu;
+const FOREIGN_HINT_RE = /Hong Kong|Macau|Macao|Taiwan|Tai[\s-]*pei|Kao[\s-]*hsiung|Tai[\s-]*chung|Tai[\s-]*nan|Tao[\s-]*yuan|Hsin[\s-]*chu|Keelung|Chiayi|香港|澳门|澳門|台湾|臺灣|台北|臺北|新北|高雄|台中|臺中|台南|臺南|桃园|桃園|新竹|基隆|嘉义|嘉義/iu;
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 type Request = { url: string; method: "POST"; headers: Record<string, string>; body: string };
@@ -121,7 +126,7 @@ function normalizePublishedDate(value: unknown): string {
 async function fetchPortalHttp(request: Request): Promise<HttpResponse> {
   const controller = new AbortController(), source = currentOfficialSourceAttemptSignal();
   const abort = () => controller.abort(source?.reason);
-  const deadline = setTimeout(() => controller.abort(new Error("Pfizer official portal body deadline exceeded")), officialHttpTimeoutMs());
+  const deadline = setTimeout(() => controller.abort(new OfficialHttpTimeoutError()), officialHttpTimeoutMs());
   if (source?.aborted) abort(); else source?.addEventListener("abort", abort, { once: true });
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   const cancel = () => { void reader?.cancel(controller.signal.reason).catch(() => undefined); };
@@ -138,7 +143,7 @@ async function fetchPortalHttp(request: Request): Promise<HttpResponse> {
     const retryAfter = parseOfficialRetryAfter(response.headers.get("retry-after"), Date.now());
     const httpMeta: HttpStatusMeta = {
       status: response.status,
-      ...(retryAfter && "delayMs" in retryAfter ? { retryAfter } : {})
+      ...(retryAfter ? { retryAfter } : {})
     };
     try {
       const declared = response.headers.get("content-length");

@@ -242,6 +242,20 @@ test('Pfizer official portal surfaces retryable 429/503 transport failures and r
   });
   assert.equal(unavailable.fetchEvidence.artifacts[0].httpStatus, 503);
 
+  const invalidRetryAfter = await createPfizerOfficialPortalSourceFetch({
+    now: () => new Date(at),
+    http: async req => ({
+      status: 429,
+      finalUrl: req.url,
+      contentType: 'text/html',
+      capturedAt: at,
+      body: 'Rate limited',
+      retryAfter: { invalid: true }
+    })
+  })(plan);
+  assert.equal(invalidRetryAfter.ok, false);
+  assert.equal(invalidRetryAfter.transportFailure, undefined);
+
   const oversized = await createPfizerOfficialPortalSourceFetch({
     now: () => new Date(at),
     http: async req => ({
@@ -264,21 +278,24 @@ test('Pfizer official portal rejects structural drift, duplicates, short pages, 
     drift: page => page === 1
       ? portalPagePayload(1, 52, make52().slice(0, 50))
       : portalPagePayload(2, 51, make52().slice(50, 51)),
-    dupReqId: () => {
+    dupReqId: page => {
+      if (page > 1) return portalPagePayload(page, 0, []);
       const r = make52().slice(0, 2);
       r[1] = portalRow(0, { External_Posting_URL: r[1].External_Posting_URL.replace(r[1].jobRequisitionId, r[0].jobRequisitionId) });
       return portalPagePayload(1, 2, r);
     },
-    dupUrl: () => ({
-      status: 200,
-      data: {
-        data: [portalRow(0), portalRow(1, { jobRequisitionId: 'invalid', External_Posting_URL: portalRow(0).External_Posting_URL })],
-        count: 2,
-        total_count: 1,
-        dependant_filters: { region: { China: 'China (2)' } },
-        keyword_search: ''
-      }
-    }),
+    dupUrl: page => page > 1
+      ? portalPagePayload(page, 0, [])
+      : {
+          status: 200,
+          data: {
+            data: [portalRow(0), portalRow(1, { jobRequisitionId: 'invalid', External_Posting_URL: portalRow(0).External_Posting_URL })],
+            count: 2,
+            total_count: 1,
+            dependant_filters: { region: { China: 'China (2)' } },
+            keyword_search: ''
+          }
+        },
     shortPage: () => ({
       status: 200,
       data: {
@@ -322,19 +339,20 @@ test('Pfizer official portal rejects structural drift, duplicates, short pages, 
   }
 });
 
-test('Pfizer official portal isolates a single malformed/foreign row via A-grade jobQuarantineLedger', async () => {
+test('Pfizer official portal isolates foreign and Taiwan localities via A-grade jobQuarantineLedger across runner and web', async () => {
   const { plan, sourceConfigSha256 } = (await loadDirectPlans()).find(p => p.sourceId === 'source-pfizer-china-social');
   const rows = [
     portalRow(0),
     portalRow(1, { Country: 'Japan', locationCountry: 'Japan' }),
-    portalRow(2)
+    portalRow(2, { primaryLocation: 'China - Fujian - Taipei', locations: 'China - Fujian - Taipei' }),
+    portalRow(3)
   ];
   let clock = Date.parse(at);
   const fetchPortal = createPfizerOfficialPortalSourceFetch({
     now: () => new Date(clock += 50),
     http: async req => {
       const { page } = JSON.parse(req.body);
-      const body = page === 1 ? portalPagePayload(1, 3, rows) : portalPagePayload(2, 0, []);
+      const body = page === 1 ? portalPagePayload(1, rows.length, rows) : portalPagePayload(page, 0, []);
       return {
         status: 200,
         finalUrl: req.url,
@@ -349,9 +367,10 @@ test('Pfizer official portal isolates a single malformed/foreign row via A-grade
   assert.equal(result.status, 'SUCCESS', JSON.stringify(result.observation));
   assert.equal(result.truth.completenessVerified, true);
   assert.equal(result.jobs.length, 2);
-  assert.equal(result.fetchEvidence.jobQuarantines?.length, 1);
-  assert.equal(result.fetchEvidence.jobQuarantines[0].recordIndex, 1);
+  assert.equal(result.fetchEvidence.jobQuarantines?.length, 2);
+  assert.deepEqual(result.fetchEvidence.jobQuarantines.map(q => q.recordIndex), [1, 2]);
   assert.equal(validateStrictPfizerOfficialPortalEvidence(plan, result.fetchEvidence, result.jobs), true);
+  assert.equal(validateStrictPfizerOfficialPortalEvidenceWeb(plan, result.fetchEvidence, result.jobs), true);
 
   const officialArtifact = result.fetchEvidence.artifacts.find(a => a.logicalKey === result.fetchEvidence.declaredCompleteness.artifactLogicalKey);
   const binding = { releaseCandidateId: 'synthetic-pfizer-quarantine', batchId: 'b-quarantine', sourceResultId: 'sr-quarantine', sourceConfigSha256 };
@@ -367,11 +386,12 @@ test('Pfizer official portal isolates a single malformed/foreign row via A-grade
     officialArtifactSha256: createHash('sha256').update(officialArtifact.body).digest('hex')
   });
   assert.equal(decision.status, 'CERTIFIED', JSON.stringify(decision));
-  assert.equal(decision.certificate.jobQuarantineLedger?.length, 1);
+  assert.equal(decision.certificate.jobQuarantineLedger?.length, 2);
 
   const tampered = structuredClone(result.fetchEvidence);
-  tampered.jobQuarantines[0].recordIndex = 2;
+  tampered.jobQuarantines[0].recordIndex = 3;
   assert.equal(validateStrictPfizerOfficialPortalEvidence(plan, tampered, result.jobs), false);
+  assert.equal(validateStrictPfizerOfficialPortalEvidenceWeb(plan, tampered, result.jobs), false);
 });
 
 test('Pfizer official portal batch commits A-grade snapshot and preserves last-good jobs on HTTP 429', async () => {

@@ -152,7 +152,7 @@ const PRIOR_COMMITTED_CONFIG_HASHES: Readonly<Record<string, { current: string; 
     prior: ["eb4583bc629171783b293f162837776c6f68e63b7e81cc40540b83aed6e06694"]
   },
   "source-pfizer-china-social": {
-    current: "a4685a8c08e5b3623c9a7ca86a04acd5c3e63c275ee373e3f1f35bd5e369b34c",
+    current: "44247af9aeabbb56f362594c2442bf609347ef0754533157fed387bc35bb8e81",
     prior: [PFIZER_PRIOR_B_GRADE_HASH]
   }
 });
