@@ -13,10 +13,20 @@ import type { JobCategory } from "../web-candidate/src/domain/search";
 
 const categories = new Map<string, JobCategory>([
   ["32102208:Sales", "销售"],
+  ["32123712:Marketing", "市场"],
+  ["32115904:Medical", "医学事务"],
   ["32102272:Quality", "质量"],
   ["32102144:Production", "生产/工程"],
   ["32158528:Engineering", "生产/工程"],
-  ["32116096:Supply Chain", "供应链/采购"]
+  ["32116096:Supply Chain", "供应链/采购"],
+  ["32122688:Market Access", "市场准入/政府事务"],
+  ["32124736:Public Affairs", "市场准入/政府事务"],
+  ["32251712:Commercial Excellence", "商务"],
+  ["32158656:Strategy & Business Development", "商务"],
+  ["32123456:Clinical Development", "研发/科学"],
+  ["32212160:Trade Channels", "渠道"],
+  ["32124864:Ethics & Business Integrity", "职能"],
+  ["32102080:Finance", "职能"]
 ]);
 const archiveSchema = z.object({
   schemaVersion: z.literal("official-json-browser-network-traversal-v1"),
@@ -101,7 +111,8 @@ export async function enrichSanofiPublicationClassification(
         if (category) replacements.set(job.id, { ...job, category });
       }
     });
-  } catch {
+  } catch (error) {
+    console.error(JSON.stringify({ status: "SANOFI_CLASSIFICATION_FAILED", message: error instanceof Error ? error.message : String(error) }));
     return 0;
   }
   if (replacements.size) {

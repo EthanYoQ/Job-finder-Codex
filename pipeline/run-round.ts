@@ -15,7 +15,7 @@ import type { SourceTransportObservation } from "../runner-candidate/src/crawler
 import { readPortablePublicSnapshot } from "../web-candidate/src/db/portablePublicSnapshotRepository";
 import { validateSavedSnapshot } from "../web-candidate/src/server/savedPublicSnapshot";
 import { savePublicSnapshot } from "../web-candidate/src/server/public-snapshot-file.mjs";
-import { selectRoundSnapshotHandle } from "./snapshot-handle";
+import { archiveInactiveSnapshots, selectRoundSnapshotHandle } from "./snapshot-handle";
 import { buildRetrySchedule, mergeRetrySources, readRetryCheckpoint, readRetrySources, roundIdSchema, roundManualIntervention, saveRetryCheckpoint,
   selectDueSourceIds, type RetryOutcome } from "./retry-schedule";
 
@@ -80,9 +80,10 @@ try {
   if (!handle.snapshotReused) await savePublicSnapshot(handle.snapshotFile, snapshot);
   // The DB retains accepted captures even if the worker died before writing latest.json.
   const {complete,quarantinedJobCount,unresolvedCoverage,capturedSources} = await readRoundCoverage(db,candidateId,slot,sourceIds,results,sourceConfigHashes);
-  const retrySchedule = roundId ? buildRetrySchedule({sourceConfigHashes,
+  const finalOutcomes = outcomes.map(row => row.observedActualHttp ? { ...row, actualRequestCount: 1 } : row);
+  const retrySchedule = slot !== null ? buildRetrySchedule({sourceConfigHashes,
     completeSourceIds:new Set(capturedSources.map(row=>row.sourceId)),
-    previous,attemptedSourceIds:new Set(results.filter(row=>row.status!=="SKIPPED_ALREADY_COMMITTED_IN_WINDOW").map(row=>row.sourceId)),outcomes,now:Date.now()}) : previous.length ? {
+    previous,attemptedSourceIds:new Set(results.filter(row=>row.status!=="SKIPPED_ALREADY_COMMITTED_IN_WINDOW").map(row=>row.sourceId)),outcomes:finalOutcomes,now:Date.now()}) : previous.length ? {
       retrySources:previous,nextRetryAt:Math.min(...previous.map(row=>row.retryAt))
     } : undefined;
   const receipt = {status:"SNAPSHOT_SAVED", slot, complete, quarantinedJobCount, unresolvedCoverage, ...handle,
@@ -92,8 +93,8 @@ try {
     sources:results.map(row=>({sourceId:row.sourceId,status:row.status}))};
   const temporary = join(snapshots, `latest-${randomUUID()}.tmp`);
   try {
-    const handle = await open(temporary, "wx", 0o600);
-    try {await handle.writeFile(JSON.stringify(receipt)+"\n"); await handle.sync();} finally {await handle.close();}
+    const fileHandle = await open(temporary, "wx", 0o600);
+    try {await fileHandle.writeFile(JSON.stringify(receipt)+"\n"); await fileHandle.sync();} finally {await fileHandle.close();}
     await rename(temporary, join(snapshots, "latest.json"));
     const directory = await open(snapshots, "r");
     try {await directory.sync();} finally {await directory.close();}
@@ -108,6 +109,12 @@ try {
       try {await directory.sync();} finally {await directory.close();}
     }
   } finally {await rm(temporary,{force:true});}
+  if (retrySchedule) saveRetryCheckpoint(checkpointFile, retrySchedule.retrySources);
+  try {
+    await archiveInactiveSnapshots(snapshots, handle.snapshotFile);
+  } catch (error) {
+    console.error(JSON.stringify({status:"SNAPSHOT_ARCHIVE_FAILED",diagnostic:describePortableRuntimeError(error)}));
+  }
   if (roundId) {
     // The newest 512 wave receipts suffice for dispatch recovery; also age out old days.
     const rounds = await Promise.all((await readdir(snapshots)).filter(name=>/^round-[a-f0-9]{32}\.json$/.test(name))

@@ -186,3 +186,19 @@ test('source Retry-After checkpoint survives a crash before the wave receipt is 
   assert.deepEqual(await readdir(root),['source-retry-checkpoint.json']);
   assert.equal(restored[0].lastActualRequestAt,now);
 });
+
+test('progressive retry backoff scales 5m -> 10m -> 20m -> 30m with repeated failed actual requests',()=>{
+  assert.equal(sourceRetryBackoffMs,5*60_000);
+  const expected=[5,10,20,30,30];
+  let previous=[];
+  for(const [attempt,minutes] of expected.entries()) {
+    const schedule=buildRetrySchedule({
+      sourceConfigHashes:new Map([['source-jnj',hashes.get('source-amgen')]]),
+      completeSourceIds:new Set(),previous,attemptedSourceIds:new Set(['source-jnj']),
+      outcomes:[{sourceId:'source-jnj',observedActualHttp:true,actualRequestCount:1,lastActualRequestAt:now}],now
+    });
+    assert.equal(schedule.nextRetryAt,now+minutes*60_000,`attempt ${attempt}`);
+    previous=schedule.retrySources;
+    assert.equal(previous[0].actualRequestCount,attempt+1);
+  }
+});

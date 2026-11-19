@@ -40,7 +40,9 @@ function interleaveWorkday<T extends { sourceId: string }>(routes: readonly T[])
 }
 
 export function pacedWorkdaySourceTimeout(sourceId: string): number | undefined {
-  if (sourceId === "source-roche-china-social") return 15 * 60_000;
+  if (sourceId === "source-lilly-china-social") return 10 * 60_000;
+  if (sourceId === "source-amgen-china-social") return 15 * 60_000;
+  if (sourceId === "source-roche-china-social") return 30 * 60_000;
   if (sourceId === "source-pfizer-china-social") return 30 * 60_000;
   return undefined;
 }

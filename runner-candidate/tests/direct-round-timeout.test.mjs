@@ -63,12 +63,14 @@ test('the registered scheduler runs without the migration file and keeps source 
     assert.equal(calls.length, 36);
     assert.deepEqual(Object.fromEntries(calls.filter(({deps}) => Object.hasOwn(deps, 'sourceAttemptTimeoutMs'))
       .map(({sourceId, deps}) => [sourceId, deps.sourceAttemptTimeoutMs])), {
+      'source-amgen-china-social': 900_000,
       'source-johnson-innovative-medicine-social': 1_800_000,
+      'source-lilly-china-social': 600_000,
       'source-pfizer-china-social': 1_800_000,
       'source-sanofi-china-social': 1_800_000,
       'source-novartis-social': 1_500_000,
       'source-novo-nordisk-china-social': 1_200_000,
-      'source-roche-china-social': 900_000
+      'source-roche-china-social': 1_800_000
     });
     const workdayIds = new Set(['amgen', 'biogen', 'csl', 'lilly', 'organon', 'pfizer', 'roche']
       .map(company => 'source-' + company + '-china-social'));
@@ -93,24 +95,30 @@ test('the registered scheduler runs without the migration file and keeps source 
       sourceId: current.sourceId, route: current.route, batchId: 'accepted-batch', status: 'SKIPPED_ALREADY_COMMITTED_IN_WINDOW'
     });
     for(const gap of [
-      {sourceId:'source-roche-china-social',quarantined:308,unresolved:0,lossLedgerEntries:[]},
-      {sourceId:'source-roche-china-social',quarantined:0,unresolved:0,lossLedgerEntries:[{id:'s22-denied'}]},
-      {sourceId:'source-novartis-social',quarantined:0,unresolved:1,lossLedgerEntries:[]}
+      {sourceId:'source-roche-china-social',quarantined:308,unresolved:0,lossLedgerEntries:[],validCount:2,rerun:true},
+      {sourceId:'source-roche-china-social',quarantined:0,unresolved:0,lossLedgerEntries:[{id:'s22-denied'}],validCount:314,rerun:false},
+      {sourceId:'source-novartis-social',quarantined:0,unresolved:1,lossLedgerEntries:[],validCount:646,rerun:false}
     ]){
       const route=routes.find(row=>row.sourceId===gap.sourceId);
       accepted.length=0;calls.length=0;
-      accepted.push({...completed,sourceId:route.sourceId,sourceConfigHash:route.sourceConfigSha256,batchId:'old-healthy'},
-        {...completed,sourceId:route.sourceId,sourceConfigHash:route.sourceConfigSha256,batchId:'latest-gap',
+      accepted.push({...completed,sourceId:route.sourceId,sourceConfigHash:route.sourceConfigSha256,batchId:'old-healthy',validCount:300},
+        {...completed,sourceId:route.sourceId,sourceConfigHash:route.sourceConfigSha256,batchId:'latest-gap',validCount:gap.validCount,
           lossLedgerEntries:gap.lossLedgerEntries,_count:{lossLedgerEntries:gap.quarantined,evidenceArtifacts:gap.unresolved}});
       const pending=await runDirectRound({db,leaseDb:{lease},candidateId:candidate.id,workspaceRoot,slot,onlySourceIds:[route.sourceId]});
-      assert.deepEqual(calls.map(row=>row.sourceId),[route.sourceId]);
-      assert.equal(pending[0].status,'SUCCESS');
-      accepted.push({...completed,sourceId:route.sourceId,sourceConfigHash:route.sourceConfigSha256,batchId:'recovered'});
-      calls.length=0;
-      const recovered=await runDirectRound({db,leaseDb:{lease},candidateId:candidate.id,workspaceRoot,slot,onlySourceIds:[route.sourceId]});
-      assert.equal(calls.length,0);
-      assert.equal(recovered[0].batchId,'recovered');
-      assert.equal(recovered[0].status,'SKIPPED_ALREADY_COMMITTED_IN_WINDOW');
+      if(gap.rerun){
+        assert.deepEqual(calls.map(row=>row.sourceId),[route.sourceId]);
+        assert.equal(pending[0].status,'SUCCESS');
+        accepted.push({...completed,sourceId:route.sourceId,sourceConfigHash:route.sourceConfigSha256,batchId:'recovered',validCount:315});
+        calls.length=0;
+        const recovered=await runDirectRound({db,leaseDb:{lease},candidateId:candidate.id,workspaceRoot,slot,onlySourceIds:[route.sourceId]});
+        assert.equal(calls.length,0);
+        assert.equal(recovered[0].batchId,'recovered');
+        assert.equal(recovered[0].status,'SKIPPED_ALREADY_COMMITTED_IN_WINDOW');
+      }else{
+        assert.equal(calls.length,0);
+        assert.equal(pending[0].batchId,'latest-gap');
+        assert.equal(pending[0].status,'SKIPPED_ALREADY_COMMITTED_IN_WINDOW');
+      }
     }
     accepted.length=0;calls.length=0;
     const dueOrder=['source-roche-china-social','source-pfizer-china-social','source-amgen-china-social'];

@@ -394,3 +394,23 @@ test('the executable returns the terminal exit code when state cannot be account
   assert.equal(result.status,76,result.stderr);
   assert.match(result.stderr,/SNAPSHOT_PATH_KEY_AND_VERIFY_URL_REQUIRED/);
 });
+
+test('a complete wave with audit unresolvedCoverage and quarantined jobs publishes without pre-dispatch pull',async t=>{
+  const fixture=await refreshFixture(t,{complete:true});
+  fixture.receipt.unresolvedCoverage=true;
+  fixture.receipt.quarantinedJobCount=4;
+  let dispatched=false;
+  const preDispatchPulls=[];
+  const origExecute=fixture.options.execute;
+  const execute=async(cli,args)=>{
+    if(args[0]==='exec')dispatched=true;
+    if(args[0]==='pull'&&!dispatched)preDispatchPulls.push(args[2]);
+    return origExecute(cli,args);
+  };
+  assert.equal(await runRefresh({...fixture.options,execute}),0,JSON.stringify(fixture.reports));
+  assert.equal(preDispatchPulls.some(p=>/\/round-[a-f0-9]{32}\.json$/.test(p)),false,
+    'Newly reserved round must not pre-pull non-existent round receipt');
+  assert.equal(fixture.reports.some(row=>row.status==='CLOUD_COMMAND_FAILED'),false);
+  assert.equal((await fixture.readState()).records[0].complete,true);
+  assert.equal((await fixture.readState()).progress.nextRetryAt,null);
+});

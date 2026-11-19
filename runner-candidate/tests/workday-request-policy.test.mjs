@@ -79,12 +79,29 @@ test("individual Workday 403 stays local, and ordinary 429 only defers its tenan
     await assert.rejects(fetchWithOfficialTimeout(amgen, {}, {fetchImpl}), {code: "WORKDAY_COOLDOWN"});
     assert.equal((await fetchWithOfficialTimeout(csl, {}, {fetchImpl})).status, 200);
     assert.equal(started.length, 3);
-    assert.ok(started[1] - started[0] >= 500);
-    assert.ok(started[2] - started[1] >= 500);
+    assert.ok(started[1] - started[0] >= 2_200);
+    assert.ok(started[2] - started[1] >= 2_200);
     const after = JSON.parse(await readFile(join(directory, "workday-cooldown.json"), "utf8"));
     assert.deepEqual(Object.keys(after.hosts), ["amgen.wd1.myworkdayjobs.com"]);
     assert.equal(after.family, undefined);
   });
+});
+
+test("post-response spacing waits >= 2.2s after an HTTP 200 completes", async t => {
+  const directory = await localCleanup(t);
+  const events = [];
+  await withWorkdayRequestPolicy(directory, async () => {
+    const fetchImpl = async () => {
+      events.push({ start: Date.now() });
+      await new Promise(resolve => setTimeout(resolve, 150));
+      events.at(-1).end = Date.now();
+      return new Response("ok");
+    };
+    await fetchWithOfficialTimeout(csl, {}, { fetchImpl });
+    await fetchWithOfficialTimeout(csl, {}, { fetchImpl });
+  });
+  assert.equal(events.length, 2);
+  assert.ok(events[1].start - events[0].end >= 2_150, `gap=${events[1].start - events[0].end}`);
 });
 
 test("source cancellation during pacing prevents the queued Workday dispatch", async t => {
@@ -126,19 +143,34 @@ test("cancellation while inspecting challenge bytes stays a rejected request", a
 });
 
 for (const status of [403, 429]) {
-  test(`a ${status} challenge retains the exact forty-minute same-host floor`, async t => {
-    const directory = await localCleanup(t), now = 1_800_000_000_000;
+  test(`a ${status} challenge scales 5m -> 10m -> 20m -> 30m and resets on HTTP 200`, async t => {
+    const directory = await localCleanup(t);
+    let now = 1_800_000_000_000;
     t.mock.method(Date, "now", () => now);
+    const expectedMinutes = [5, 10, 20, 30, 30];
+    for (const [index, minutes] of expectedMinutes.entries()) {
+      await withWorkdayRequestPolicy(directory, async () => {
+        await fetchWithOfficialTimeout(amgen, {}, { fetchImpl: async () => new Response("challenge", {
+          status, headers: { "cf-mitigated": "challenge", "retry-after": "120" }
+        }) });
+        assert.throws(() => assertWorkdayAvailable(amgen), error =>
+          error.status === status && error.retryAfterMs === minutes * 60_000, `step ${index}`);
+        assert.doesNotThrow(() => assertWorkdayAvailable(csl));
+      }, { minSpacingMs: 0, maxSpacingMs: 0 });
+      const saved = JSON.parse(await readFile(join(directory, "workday-cooldown.json"), "utf8"));
+      assert.deepEqual(saved.hosts[new URL(amgen).hostname], { status, until: now + minutes * 60_000, hits: index + 1 });
+      assert.equal(saved.family, undefined);
+      now += minutes * 60_000;
+    }
     await withWorkdayRequestPolicy(directory, async () => {
+      assert.equal((await fetchWithOfficialTimeout(amgen, {}, { fetchImpl: async () => new Response("ok") })).status, 200);
+      assert.doesNotThrow(() => assertWorkdayAvailable(amgen));
       await fetchWithOfficialTimeout(amgen, {}, { fetchImpl: async () => new Response("challenge", {
-        status, headers: { "cf-mitigated": "challenge", "retry-after": "120" }
+        status, headers: { "cf-mitigated": "challenge", "retry-after": "60" }
       }) });
-      assert.throws(() => assertWorkdayAvailable(amgen), error => error.status === status && error.retryAfterMs === 2_400_000);
-      assert.doesNotThrow(() => assertWorkdayAvailable(csl));
-    });
-    const saved = JSON.parse(await readFile(join(directory, "workday-cooldown.json"), "utf8"));
-    assert.deepEqual(saved.hosts[new URL(amgen).hostname], { status, until: now + 2_400_000 });
-    assert.equal(saved.family, undefined);
+      assert.throws(() => assertWorkdayAvailable(amgen), error =>
+        error.status === status && error.retryAfterMs === 5 * 60_000);
+    }, { minSpacingMs: 0, maxSpacingMs: 0 });
   });
 
   test(`a ${status} cooldown attributes an actual response and same-host local deferral separately`, async t => {

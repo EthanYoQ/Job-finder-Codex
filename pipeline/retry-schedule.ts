@@ -25,7 +25,14 @@ export const retryReceiptFields = {
 export type RetrySource = z.infer<typeof retrySourceSchema>;
 export type RetryOutcome = {sourceId: string; retryAt?: number; lastActualRequestAt?: number; actualRequestCount?: number;
   observedActualHttp?: boolean; locallyDeferred?: boolean};
-export const sourceRetryBackoffMs = 40 * 60_000;
+export const sourceRetryBackoffMs = 5 * 60_000;
+const retryBackoffStepsMs = [5 * 60_000, 10 * 60_000, 20 * 60_000, 30 * 60_000] as const;
+
+/** Progressive backoff starting at 5m, capped at 30m per source refusal chain. */
+export function backoffForFailureCount(priorActualRequests = 0): number {
+  const index = Math.max(0, Math.min(priorActualRequests, retryBackoffStepsMs.length - 1));
+  return retryBackoffStepsMs[index]!;
+}
 
 /** A manual collection disqualifies only its own daily slot, including later automatic waves. */
 export function roundManualIntervention(slot: string | null, roundId: string | undefined, previous: unknown,
@@ -105,8 +112,9 @@ export function buildRetrySchedule(input: {
     const locallyDeferred = outcome?.locallyDeferred && !outcome.observedActualHttp;
     const backoffStartedAt = outcome?.observedActualHttp && outcome.retryAt !== undefined
       ? (outcome.lastActualRequestAt ?? input.now) : input.now;
+    const backoffMs = backoffForFailureCount(old?.actualRequestCount);
     const retryAt = attempted
-      ? Math.max(old?.retryAt ?? 0, outcome?.retryAt ?? 0, locallyDeferred ? input.now : backoffStartedAt + sourceRetryBackoffMs)
+      ? Math.max(old?.retryAt ?? 0, outcome?.retryAt ?? 0, locallyDeferred ? input.now : backoffStartedAt + backoffMs)
       : old?.retryAt ?? input.now;
     const lastActualRequestAt = outcome?.lastActualRequestAt ?? old?.lastActualRequestAt;
     const actualRequestCount = outcome?.actualRequestCount === undefined ? old?.actualRequestCount

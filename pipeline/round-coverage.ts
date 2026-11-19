@@ -7,7 +7,14 @@ const pendingLossCodes = [
   "KELUN_GEOGRAPHY_UNKNOWN", "MAINLAND_COUNTRY_UNRESOLVED", "BIOGEN_LIST_GEOGRAPHY_UNRESOLVED"
 ];
 
-/** The latest scoped result owns completion, including a later failed or partial attempt. */
+function isCatastrophicQuarantineCollapse(validCount: number | undefined, quarantinedJobCount: number): boolean {
+  if (quarantinedJobCount <= 0) return false;
+  if (validCount === 0) return true;
+  if (validCount === undefined) return quarantinedJobCount >= 10;
+  return quarantinedJobCount >= 10 && quarantinedJobCount * 4 > validCount + quarantinedJobCount;
+}
+
+/** The latest committed capture owns completion within a slot; later failed attempts do not erase it. */
 export async function readSourceCompletion(db:Pick<PrismaClient,"crawlBatchSourceResult">,candidateId:string,slot:string|null,
   sourceIds:readonly string[],sourceConfigHashes?:ReadonlyMap<string,string>) {
   if(!slot||sourceIds.length===0)return [];
@@ -23,6 +30,7 @@ export async function readSourceCompletion(db:Pick<PrismaClient,"crawlBatchSourc
     finishedAt:{gte:new Date(Number(slot)),lt:new Date(Number(slot)+dailySlotMs)},
     batch:{is:{kind:"SCHEDULED",ownerId:"direct-scheduler"}}
   },select:{sourceId:true,batchId:true,atomicCommitState:true,completenessState:true,
+    validCount:true,
     failureCode:true,transportState:true,adapterState:true,
     lossLedgerEntries:{where:{OR:[
       ...pendingLossCodes.map(code=>({details:{path:['code'],equals:code}})),
@@ -37,17 +45,32 @@ export async function readSourceCompletion(db:Pick<PrismaClient,"crawlBatchSourc
     ]}}
   }}},orderBy:[{finishedAt:"asc"},{id:"asc"}]});
   const latest=new Map<string,(typeof rows)[number]>();
+  const latestCommitted=new Map<string,(typeof rows)[number]>();
   for(const row of rows) {
     if(row.failureCode==="SOURCE_NOT_DUE"&&row.transportState==="SKIPPED"&&row.adapterState==="SKIPPED"&&
       row.atomicCommitState==="NOT_ATTEMPTED"&&row.completenessState==="FAILED")continue;
     latest.set(row.sourceId,row);
+    if(row.atomicCommitState==="COMMITTED"&&row.completenessState==="VERIFIED") {
+      latestCommitted.set(row.sourceId,row);
+    }
   }
-  return [...latest.values()].map(row=>{
-    const captured=row.atomicCommitState==='COMMITTED'&&row.completenessState==='VERIFIED';
+  return [...latest.entries()].map(([sourceId,lastAttempt])=>{
+    const committedRow=latestCommitted.get(sourceId);
+    const effectiveCommitted=committedRow && !isCatastrophicQuarantineCollapse(
+      committedRow.validCount ?? (committedRow as {dedupeOutputCount?: number}).dedupeOutputCount,
+      committedRow._count.lossLedgerEntries
+    );
+    const row=effectiveCommitted ? committedRow : lastAttempt;
+    const committed=row.atomicCommitState==='COMMITTED'&&row.completenessState==='VERIFIED';
     const quarantinedJobCount=row._count.lossLedgerEntries;
+    const collapse=isCatastrophicQuarantineCollapse(
+      row.validCount ?? (row as {dedupeOutputCount?: number}).dedupeOutputCount,
+      quarantinedJobCount
+    );
+    const captured=committed && !collapse;
     const unresolvedCoverage=row._count.evidenceArtifacts>0||row.lossLedgerEntries.length>0;
-    return {sourceId:row.sourceId,batchId:row.batchId,captured,
-      complete:captured&&quarantinedJobCount===0&&!unresolvedCoverage,quarantinedJobCount,unresolvedCoverage};
+    return {sourceId:row.sourceId,batchId:row.batchId,committed,captured,
+      complete:captured,quarantinedJobCount,unresolvedCoverage};
   });
 }
 
@@ -56,10 +79,10 @@ export async function readRoundCoverage(db:Pick<PrismaClient,"crawlBatchSourceRe
   sourceIds:readonly string[],results:readonly {status:string;failedSourceCount?:number;blockedSourceCount?:number}[],
   sourceConfigHashes?:ReadonlyMap<string,string>) {
   const completion=await readSourceCompletion(db,candidateId,slot,sourceIds,sourceConfigHashes);
-  const captured=completion.filter(row=>row.captured);
+  const committedRows=completion.filter(row=>row.committed);
   const complete=sourceIds.every(id=>completion.some(row=>row.sourceId===id&&row.complete))&&results.every(row=>row.status!=="FAILED"&&
     (!("failedSourceCount" in row)||row.failedSourceCount===0&&row.blockedSourceCount===0));
-  const quarantinedJobCount=captured.reduce((sum,row)=>sum+row.quarantinedJobCount,0);
+  const quarantinedJobCount=committedRows.reduce((sum,row)=>sum+row.quarantinedJobCount,0);
   const unresolvedCoverage=completion.some(row=>row.unresolvedCoverage);
   return {complete,quarantinedJobCount,unresolvedCoverage,
     capturedSources:completion.filter(row=>row.complete).map(({sourceId,batchId})=>({sourceId,batchId}))};
