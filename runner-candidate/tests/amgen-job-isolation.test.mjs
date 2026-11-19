@@ -118,7 +118,7 @@ test('Amgen preserves HTTP 429 and Retry-After when response body exceeds byte l
 
 test('Amgen retains a complete Radancy list, quarantines single non-challenge failures, and fails retryably on challenges or all-503 details',async()=>{
  const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-amgen-china-social');
- for(const mode of ['good','503','all-503','429','wrong-id','transport','bad-list-title']){
+ for(const mode of ['good','503','all-503','404-then-503','429','wrong-id','transport','bad-list-title']){
   const calls=[];
   const fetch=createAmgenRadancySourceFetch({now:()=>new Date(at),http:async({url})=>{
    calls.push(url);assert.ok(url.startsWith(origin),`Zero Workday requests allowed: ${url}`);
@@ -128,6 +128,7 @@ test('Amgen retains a complete Radancy list, quarantines single non-challenge fa
    }else{
     const row=rows.find(r=>r.url===url);assert.ok(row,url);
     if(mode==='all-503')status=503;
+    if(mode==='404-then-503')status=row===rows[0]?404:503;
     if(row===rows[1]&&mode==='transport')throw Error('Synthetic unavailable');
     if(row===rows[1]&&['503','429'].includes(mode))status=Number(mode);
     body=status===200?detailHtml(row,mode==='wrong-id'&&row===rows[1]?'R-999':row.req):'Synthetic unavailable';
@@ -135,7 +136,7 @@ test('Amgen retains a complete Radancy list, quarantines single non-challenge fa
    return {status,body,finalUrl:url,contentType,capturedAt:at};
   }});
   const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
-  if(mode==='429'||mode==='all-503'){
+  if(mode==='429'||mode==='all-503'||mode==='404-then-503'){
    assert.equal(result.truth.transportSuccess,false,mode);
    assert.equal(result.truth.completenessVerified,false,mode);
    assert.equal(result.transportFailure?.code,mode==='429'?'OFFICIAL_HTTP_429':'OFFICIAL_HTTP_503',mode);

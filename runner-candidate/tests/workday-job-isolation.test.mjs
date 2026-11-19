@@ -63,7 +63,7 @@ test('CSL official portal verifies multi-page ItemList, raw control chars in JSO
   const jsonLd=`{"@type":"JobPosting","title":"${item.title}","identifier":{"@type":"PropertyValue","name":"Job ID","value":"${item.reqId}"},"datePosted":"2026-11-18","description":"<p>Line 1\r\n\tLine 2 complete responsibilities.</p>","jobLocation":{"@type":"Place","address":{"@type":"PostalAddress","addressCountry":"CN","addressLocality":"${item.locality}","addressRegion":"${item.region}","streetAddress":"${item.street}"}}}`;
   return `<script type="application/ld+json">${jsonLd}</script><a href="${wdOrigin}${item.externalPath}/apply">Apply on Workday</a>`;
  }
- for(const mode of ['good','single-failure','rate-limit-first','rate-limit-second','all-503','wrong-url-req']){
+ for(const mode of ['good','single-failure','rate-limit-first','rate-limit-second','all-503','404-then-503','wrong-url-req']){
   const seen=[];
   const fetch=createCslOfficialPortalSourceFetch({now:()=>new Date(at),http:async({url})=>{
    seen.push(url);
@@ -73,6 +73,9 @@ test('CSL official portal verifies multi-page ItemList, raw control chars in JSO
    const item=jobs.find(j=>j.portalUrl===url);assert.ok(item,url);
    if(mode==='all-503'){
     return {status:503,finalUrl:url,contentType:'text/html',capturedAt:at,body:'Unavailable'};
+   }
+   if(mode==='404-then-503'){
+    return {status:item===jobs[0]?404:503,finalUrl:url,contentType:'text/html',capturedAt:at,body:'Unavailable'};
    }
    if(mode==='rate-limit-second'&&item===jobs[1]){
     return {status:429,finalUrl:url,contentType:'text/html',capturedAt:at,body:'Unavailable',retryAfter:{value:'60',delayMs:60000}};
@@ -86,9 +89,9 @@ test('CSL official portal verifies multi-page ItemList, raw control chars in JSO
    return {status:200,finalUrl:url,contentType:'text/html',capturedAt:at,body:detailHtml(item)};
   }});
   const result=await runSourceCrawl(plan,{fetch,isBaseline:false});
-  if(mode==='rate-limit-first'||mode==='rate-limit-second'||mode==='all-503'){
+  if(mode==='rate-limit-first'||mode==='rate-limit-second'||mode==='all-503'||mode==='404-then-503'){
    assert.equal(result.truth.transportSuccess,false,mode);
-   assert.equal(result.transportFailure?.code,mode==='all-503'?'OFFICIAL_HTTP_503':'OFFICIAL_HTTP_429',mode);
+   assert.equal(result.transportFailure?.code,mode==='all-503'||mode==='404-then-503'?'OFFICIAL_HTTP_503':'OFFICIAL_HTTP_429',mode);
    assert.equal(result.transportFailure?.retryable,true,mode);
    assert.equal(seen.length,mode==='rate-limit-first'?3:4,mode);
    continue;

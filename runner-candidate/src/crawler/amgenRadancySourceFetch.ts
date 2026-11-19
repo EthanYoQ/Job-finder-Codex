@@ -311,13 +311,21 @@ export function createAmgenRadancySourceFetch(deps: { http?: Http; now?: () => D
     let bytes = 0;
     let failedHttp: HttpStatusMeta | undefined;
     let firstDetailFailedHttp: HttpStatusMeta | undefined;
+    let firstDetailRetryableHttp: HttpStatusMeta | undefined;
     let firstDetailTransportError: unknown;
+    let firstDetailRetryableTransportError: unknown;
     let closedList: ReturnType<typeof parsePage>[] | undefined;
     let stage: SourceTransportFailureStage = "ENTRY";
     try {
       assert(exactPlan(plan));
       const http: Http = deps.http ?? fetchPortalHttp;
       let blocked: HttpStatusMeta | undefined;
+      const recordDetailHttpFailure = (meta: HttpStatusMeta) => {
+        if (!firstDetailFailedHttp) firstDetailFailedHttp = meta;
+        if (!firstDetailRetryableHttp && retryableHttpTransportFailure(meta.status, meta.retryAfter)) {
+          firstDetailRetryableHttp = meta;
+        }
+      };
       const acquire = async (role: Role, index: number, req: Request) => {
         assert(!blocked);
         stage = role === "list" && index === 1 ? "ENTRY" : "PAGE";
@@ -328,14 +336,19 @@ export function createAmgenRadancySourceFetch(deps: { http?: Http; now?: () => D
           if (error instanceof PortalHttpBodyError) {
             if (error.httpMeta.status === 403 || error.httpMeta.status === 429) blocked = error.httpMeta;
             if (error.httpMeta.status !== 200 && role === "list") failedHttp = error.httpMeta;
-            if (error.httpMeta.status !== 200 && role === "detail" && !firstDetailFailedHttp) firstDetailFailedHttp = error.httpMeta;
+            if (error.httpMeta.status !== 200 && role === "detail") recordDetailHttpFailure(error.httpMeta);
           }
-          if (role === "detail" && firstDetailTransportError === undefined) firstDetailTransportError = error;
+          if (role === "detail") {
+            if (firstDetailTransportError === undefined) firstDetailTransportError = error;
+            if (firstDetailRetryableTransportError === undefined && retryableTransportFailureFromError(error)) {
+              firstDetailRetryableTransportError = error;
+            }
+          }
           throw error;
         }
         if (response.status === 403 || response.status === 429) blocked = response;
         if (response.status !== 200 && role === "list") failedHttp = response;
-        if (response.status !== 200 && role === "detail" && !firstDetailFailedHttp) firstDetailFailedHttp = response;
+        if (response.status !== 200 && role === "detail") recordDetailHttpFailure(response);
         const a = makeArtifact(role, index, req, response, now().toISOString());
         bytes += Buffer.byteLength(a.body);
         assert(bytes <= LIMIT);
@@ -368,6 +381,13 @@ export function createAmgenRadancySourceFetch(deps: { http?: Http; now?: () => D
         throw Error(FAILURE);
       }
       if (rows.length > 0 && bindings.length === 0 && (firstDetailFailedHttp || firstDetailTransportError !== undefined)) {
+        if (firstDetailRetryableHttp) {
+          failedHttp = firstDetailRetryableHttp;
+          throw Error(FAILURE);
+        }
+        if (firstDetailRetryableTransportError !== undefined) {
+          throw firstDetailRetryableTransportError instanceof Error ? firstDetailRetryableTransportError : Error(FAILURE);
+        }
         if (firstDetailFailedHttp) failedHttp = firstDetailFailedHttp;
         throw firstDetailTransportError instanceof Error ? firstDetailTransportError : Error(FAILURE);
       }
