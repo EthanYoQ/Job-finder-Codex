@@ -99,30 +99,40 @@ export function createJnjDomRuntime(cua, {failureDirectory=join(process.env.JOBF
         exact: true
       });
       sourceFetchStage = 'JNJ_HEADING_READY';
+      const checkHeadingDrift = async () => {
+        if (typeof list.playwright.evaluate !== 'function') return null;
+        const headings = await list.playwright.evaluate(() =>
+          Array.from(document.querySelectorAll('h1,h2,h3')).map(e => (e.textContent ?? '').replace(/\s+/g, ' ').trim())
+        ).catch(() => []);
+        const currentHeading = headings.find(text => /^Displaying \d+(?: to \d+)? of \d+ matching jobs$/.test(text));
+        const liveMatch = currentHeading && /^Displaying (\d+)(?: to (\d+))? of (\d+) matching jobs$/.exec(currentHeading);
+        if (!liveMatch || Number(liveMatch[3]) === total) return null;
+        const observedUrl = await list.url();
+        return {
+          file: 'jnj-list-page-' + page + '.json',
+          raw: raw({kind: 'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP', page, expectedUrl: listUrl(page), url: observedUrl, heading: currentHeading, expectedTotal: total, observedAt: new Date().toISOString()}),
+          failure: 'JNJ_DOM_PAGE_DRIFT:' + JSON.stringify({page, expectedUrl: listUrl(page), actualUrl: observedUrl, heading: currentHeading, expectedTotal: total})
+        };
+      };
       try {
         await waitOriginalDomVisible(headingLocator,deadline);
       } catch(headingError) {
         if(page>1 && typeof list.playwright.evaluate==='function' && typeof list.goto==='function') {
-          const headings=await list.playwright.evaluate(()=>
-            Array.from(document.querySelectorAll('h1,h2,h3')).map(e=>(e.textContent??'').replace(/\s+/g,' ').trim())
-          ).catch(()=>[]);
-          const currentHeading=headings.find(text=>/^Displaying \d+(?: to \d+)? of \d+ matching jobs$/.test(text));
-          const liveMatch=currentHeading && /^Displaying (\d+)(?: to (\d+))? of (\d+) matching jobs$/.exec(currentHeading);
-          if(liveMatch && Number(liveMatch[3])!==total) {
-            const observedUrl=await list.url();
-            return {
-              file:'jnj-list-page-'+page+'.json',
-              raw:raw({kind:'BROWSER_UI_DOM_OBSERVATION_NOT_HTTP',page,expectedUrl:listUrl(page),url:observedUrl,heading:currentHeading,expectedTotal:total,observedAt:new Date().toISOString()}),
-              failure:'JNJ_DOM_PAGE_DRIFT:'+JSON.stringify({page,expectedUrl:listUrl(page),actualUrl:observedUrl,heading:currentHeading,expectedTotal:total})
-            };
-          }
+          const driftBefore = await checkHeadingDrift();
+          if (driftBefore) return driftBefore;
           checkTime();
           sourceFetchStage = 'JNJ_RESULTS_READY';
           await list.goto(listUrl(page));
           await rejectTemporaryAccessFailure(list,'#js-job-search-results');
           await list.playwright.locator('#js-job-search-results').waitFor({state:'visible',timeoutMs:30000});
           sourceFetchStage = 'JNJ_HEADING_READY';
-          await waitOriginalDomVisible(headingLocator,deadline);
+          try {
+            await waitOriginalDomVisible(headingLocator,deadline);
+          } catch(retryHeadingError) {
+            const driftAfter = await checkHeadingDrift();
+            if (driftAfter) return driftAfter;
+            throw retryHeadingError;
+          }
         } else {
           throw headingError;
         }

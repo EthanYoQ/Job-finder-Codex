@@ -122,6 +122,14 @@ test('a committed capture within the slot is preserved across later failed retri
   const coverage=await readRoundCoverage(database([healthy,collapse,recovered]),candidateId,slot,[sourceId],success);
   assert.equal(coverage.complete,true);assert.equal(coverage.quarantinedJobCount,0);
   assert.deepEqual(coverage.capturedSources,[{sourceId,batchId:'recovered'}]);
+  const failedAfterCollapse=result(sourceId,{id:'failed-after-collapse',batchId:'failed-after-collapse',
+    finishedAt:new Date(Number(slot)+210_000),atomicCommitState:'NOT_ATTEMPTED',completenessState:'FAILED',
+    artifacts:[{extractorLocator:'novartis-default-discovery-exhausted'}]});
+  const collapsePlusFail=await readRoundCoverage(database([healthy,collapse,failedAfterCollapse]),candidateId,slot,[sourceId],[]);
+  assert.equal(collapsePlusFail.complete,false);
+  assert.deepEqual(collapsePlusFail.capturedSources,[]);
+  assert.equal(collapsePlusFail.quarantinedJobCount,20);
+  assert.equal(collapsePlusFail.unresolvedCoverage,true);
   const tie={...collapse,finishedAt:healthy.finishedAt,id:'z-last'};
   assert.equal((await readSourceCompletion(database([healthy,tie]),candidateId,slot,[sourceId]))[0].complete,false);
 });

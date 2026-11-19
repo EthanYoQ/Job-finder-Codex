@@ -204,8 +204,10 @@ export async function observeWorkdayResponse(url: string, response: Response, si
   if (!finalHost) return;
   scope.nextRequestAt = Math.max(scope.nextRequestAt, performance.now() + nextSpacingMs(scope));
   if (response.status >= 200 && response.status < 400) {
-    const cooldowns = loadCooldowns(scope, Date.now());
-    if (cooldowns.hosts[finalHost]) {
+    const now = Date.now();
+    const cooldowns = loadCooldowns(scope, now);
+    const existing = cooldowns.hosts[finalHost];
+    if (existing && !activeCooldown(existing, now)) {
       delete cooldowns.hosts[finalHost];
       saveCooldowns(scope, cooldowns);
     }

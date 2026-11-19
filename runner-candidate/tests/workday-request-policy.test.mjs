@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { fetchWithOfficialTimeout } from "../src/crawler/officialHttpRuntimeLimits.ts";
-import { assertWorkdayAvailable, recordWorkdayAccessResponse, withWorkdayRequestPolicy,
+import { assertWorkdayAvailable, observeWorkdayResponse, recordWorkdayAccessResponse, withWorkdayRequestPolicy,
   workdayRetryAfterHeader } from "../src/crawler/workdayRequestPolicy.ts";
 import { withSourceTransportObservation, retryableTransportFailureFromError,
   safeSourceTransportFailureReason } from "../src/crawler/sourceFetchFailure.ts";
@@ -170,6 +170,11 @@ for (const status of [403, 429]) {
       }) });
       assert.throws(() => assertWorkdayAvailable(amgen), error =>
         error.status === status && error.retryAfterMs === 5 * 60_000);
+      // An overlapping HTTP 200 completed before the active cooldown expires must NOT clear the active cooldown.
+      now += 60_000;
+      await observeWorkdayResponse(amgen, new Response("ok"), new AbortController().signal);
+      assert.throws(() => assertWorkdayAvailable(amgen), error =>
+        error.status === status && error.retryAfterMs === 4 * 60_000);
     }, { minSpacingMs: 0, maxSpacingMs: 0 });
   });
 

@@ -56,11 +56,7 @@ export async function readSourceCompletion(db:Pick<PrismaClient,"crawlBatchSourc
   }
   return [...latest.entries()].map(([sourceId,lastAttempt])=>{
     const committedRow=latestCommitted.get(sourceId);
-    const effectiveCommitted=committedRow && !isCatastrophicQuarantineCollapse(
-      committedRow.validCount ?? (committedRow as {dedupeOutputCount?: number}).dedupeOutputCount,
-      committedRow._count.lossLedgerEntries
-    );
-    const row=effectiveCommitted ? committedRow : lastAttempt;
+    const row=committedRow ?? lastAttempt;
     const committed=row.atomicCommitState==='COMMITTED'&&row.completenessState==='VERIFIED';
     const quarantinedJobCount=row._count.lossLedgerEntries;
     const collapse=isCatastrophicQuarantineCollapse(
@@ -68,7 +64,8 @@ export async function readSourceCompletion(db:Pick<PrismaClient,"crawlBatchSourc
       quarantinedJobCount
     );
     const captured=committed && !collapse;
-    const unresolvedCoverage=row._count.evidenceArtifacts>0||row.lossLedgerEntries.length>0;
+    const unresolvedCoverage=row._count.evidenceArtifacts>0||row.lossLedgerEntries.length>0||
+      (!captured && (lastAttempt._count.evidenceArtifacts>0||lastAttempt.lossLedgerEntries.length>0));
     return {sourceId:row.sourceId,batchId:row.batchId,committed,captured,
       complete:captured,quarantinedJobCount,unresolvedCoverage};
   });
