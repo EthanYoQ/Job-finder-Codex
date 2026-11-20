@@ -1,9 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { recoverQueuedManualPreviews } from './recover-manual.ts';
+import { MANUAL_RECOVERY_INSTANCE } from '../runner-candidate/scripts/manual-request.ts';
 
 const candidateId='instabox-synthetic';
 const registeredAt=new Date('2026-10-31T04:00:00Z');
@@ -20,14 +23,35 @@ async function fixture(t,requests){
   }};
 }
 
+test('the systemd template dispatches the reserved instance and keeps request IDs in preview mode',async t=>{
+  const {workspaceRoot}=await fixture(t,[]);
+  await writeFile(join(workspaceRoot,'migration-state.json'),'{}');
+  const unit=await readFile(new URL('./jobfinder-manual@.service',import.meta.url),'utf8');
+  const [, ...args]=unit.match(/^ExecStart=(.+)$/m)[1].trim().split(/\s+/);
+  const env={...process.env,DATABASE_URL:'postgresql://unused@127.0.0.1:1/unused',
+    JOBFINDER_CANDIDATE_ID:candidateId,JOBFINDER_STATE_ROOT:workspaceRoot};
+  const invoke=args=>spawnSync(process.execPath,args,{cwd:fileURLToPath(new URL('..',import.meta.url)),env,
+    timeout:10_000,encoding:'utf8'});
+  for(const [instance,status] of [[MANUAL_RECOVERY_INSTANCE,'MANUAL_QUEUE_CHECK_FAILED'],['new-request','MANUAL_PREVIEW_NOT_COMPLETED']]){
+    const result=invoke(args.map(arg=>arg==='%i'?instance:arg));
+    assert.equal(result.status,1,result.stderr);
+    assert.deepEqual(JSON.parse(result.stderr),{status,diagnostic:{type:'Error'}});
+    assert.equal(result.stdout,'');
+  }
+  const invalid=invoke([...args.slice(0,-2),'--request-id',MANUAL_RECOVERY_INSTANCE]);
+  assert.equal(invalid.status,1,invalid.stderr);
+  assert.match(invalid.stderr,/INVALID_MANUAL_REQUEST_ID/);
+});
+
 test('only a new queued request gets its fixed unit started; legacy and finished requests stay untouched',async t=>{
   const rows=[request('new'),request('legacy'),request('earlier',{createdAt:registeredAt}),
-    request('running',{status:'RUNNING'}),request('finished',{status:'SUCCESS'}),request('outside',{sourceId:'outside'}),request('bad/id')];
+    request('running',{status:'RUNNING'}),request('finished',{status:'SUCCESS'}),request('outside',{sourceId:'outside'}),
+    request('bad/id'),request(MANUAL_RECOVERY_INSTANCE)];
   const input=await fixture(t,rows),before=JSON.stringify(rows),inspected=[],started=[];
   const result=await recoverQueuedManualPreviews({...input,inspectUnit:async unit=>{inspected.push(unit);return inactive;},startUnit:async unit=>{started.push(unit);}});
   assert.deepEqual(inspected,['jobfinder-manual@new.service']);
   assert.deepEqual(started,inspected);
-  assert.equal(result.startRequestedCount,1);assert.equal(result.skippedCount,6);
+  assert.equal(result.startRequestedCount,1);assert.equal(result.skippedCount,7);
   assert.equal(JSON.stringify(rows),before);
 });
 

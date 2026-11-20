@@ -1,5 +1,6 @@
 import { companies, type CompanyResult, type JobResult } from "./jobData";
 import { SearchRequestSchema } from "../domain/search";
+import { classifyJob, matchesJobCategory } from "../domain/jobClassification";
 
 export { companies, type CompanyResult, type JobResult } from "./jobData";
 
@@ -25,7 +26,8 @@ function matchesKeyword(companyName: string, job: JobResult, keyword: string): b
     normalized(job.title).includes(keyword) ||
     normalized(job.officialTitle ?? "").includes(keyword) ||
     normalized(companyName).includes(keyword) ||
-    normalized(job.category).includes(keyword)
+    normalized(job.category).includes(keyword) ||
+    normalized(job.subcategory ?? "").includes(keyword)
   );
 }
 
@@ -49,14 +51,16 @@ export function filterJobs(filters: SearchFilters): CompanyResult[] {
   SearchRequestSchema.parse({ city });
 
   const keyword = normalized(filters.keyword);
-  const categories = new Set(filters.categories);
 
   return companies
     .map((company) => ({
       ...company,
-      jobs: company.jobs.filter((job) => {
+      jobs: company.jobs.map((job) => ({
+        ...job,
+        ...classifyJob({ officialTitle: job.officialTitle ?? job.title, category: job.category })
+      })).filter((job) => {
         const cityMatches = job.city === city || job.city === "全国" || job.city === "中国";
-        const categoryMatches = categories.size === 0 || categories.has(job.category);
+        const categoryMatches = matchesJobCategory(job, filters.categories);
         const newMatches = !filters.onlyNew || job.isNew;
 
         return cityMatches && categoryMatches && newMatches && matchesKeyword(company.companyName, job, keyword);

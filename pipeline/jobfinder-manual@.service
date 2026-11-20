@@ -8,6 +8,6 @@ WorkingDirectory=/data/job-finder/app
 EnvironmentFile=/data/job-finder/postgres.env
 EnvironmentFile=/data/job-finder/runtime.env
 Environment=JOBFINDER_STATE_ROOT=/data/job-finder
-ExecStart=/data/job-finder/app/bin/node --import tsx runner-candidate/scripts/direct-manual.ts --request-id %i
+ExecStart=/data/job-finder/app/bin/node --import tsx runner-candidate/scripts/direct-manual.ts --systemd-instance %i
 TimeoutStartSec=8h
 Restart=no

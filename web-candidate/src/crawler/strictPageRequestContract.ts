@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 export interface RequestContractV2Input {
   family: "workday" | "moka" | "phenom" | "beisen" | "hcm" | "html" | "xiuzheng" | "redsea" |
-    "msd-ajinga" | "livzon-cecc" | "sinopharm-iguopin" | "xinhua-official-announcements" | "eightfold" | "51job-coapi";
+    "msd-ajinga" | "livzon-cecc" | "sinopharm-iguopin" | "xinhua-official-announcements" | "eightfold" | "51job-coapi" | "pfizer-official-portal";
   role: string;
   method: "GET" | "POST";
   url: string;

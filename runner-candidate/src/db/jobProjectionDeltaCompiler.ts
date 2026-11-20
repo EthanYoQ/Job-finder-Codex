@@ -38,7 +38,7 @@ export function buildJobProjectionDeltaReceipt(input:{sourceResult:SourceTuple;
     let lastConfirmedObservedAt=observedAt,lastPresentResultId=source.id;
     const lifecycleLastSeenAt=iso(command.lastSeenAt);
     if(missingCount===1){
-      const previous=previousReceipt?.members.find(m=>m.jobKey===command.dedupeKey&&(m.setKind==="CURRENT"||(["source-novartis-social","source-pfizer-china-social","source-roche-china-social"].includes(source.sourceId)&&m.setKind==="GRACE")));
+      const previous=previousReceipt?.members.find(m=>m.jobKey===command.dedupeKey&&(m.setKind==="CURRENT"||m.setKind==="GRACE"));
       if(previous){lastConfirmedObservedAt=previous.lastConfirmedObservedAt;lastPresentResultId=previous.lastPresentResultId;
         if(lifecycleLastSeenAt!==previous.lifecycleLastSeenAt)throw Error("JOB_DELTA_GRACE_LIFECYCLE_ANCHOR");
       }else{

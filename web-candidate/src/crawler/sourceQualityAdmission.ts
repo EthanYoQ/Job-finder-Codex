@@ -29,7 +29,7 @@ const MAX_REVIEWED_CAPTURE_AGE_MS = 24 * 60 * 60 * 1000;
 const REVIEWED_CONFIGS: Readonly<Record<string, string>> = Object.freeze({
   "source-gilead-china-social": "bdb31408948240f810347b6ba217407b0b50c9327c9600b4115a2a7a0869e40c",
   "source-novo-nordisk-china-social": "40305820c3aa3f36e74f06873c0ddd1a52266cb74d277b3a36137c81fc5c604e",
-  "source-organon-china-social": "d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2",
+  "source-organon-china-social": "7530360f37f40c1df05d41622813666e217f42fb04751d410d42253f543ac8c8",
   "source-biogen-china-social": "47107a3a1f9dbd3411a1f9244866be7c4bc52422b94a1c92204dc66ac4340348",
   "source-merck-china-social": "1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212",
   "source-bms-china-social": "e0d783cbc8fc887e1697db6d86cb0abb8058ca6793cd32752055271c022ca137",

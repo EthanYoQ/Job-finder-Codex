@@ -15,15 +15,16 @@ import {buildJobDedupeKey} from '../src/crawler/normalizedJob.ts';
 import {withPortableCrawlLease} from '../src/crawler/portableCrawlLease.ts';
 import {selectPortableSourceSnapshots,projectPortableSourceJobs} from '../../web-candidate/src/domain/portablePublicSnapshot.ts';
 
-test('direct Novo publication keeps a known UNKNOWN in GRACE across rounds while committing proven jobs',async()=>{
+for(const mode of ['short-description','bound-empty-shell','unbound-empty-shell'])test(`Novo ${mode} preserves UNKNOWN without blocking proven jobs or publishing unbound pages`,async()=>{
   const workspaceRoot=await mkdtemp(join(tmpdir(),'novo-grace-'));
   const oldFetch=globalThis.fetch;
   let insufficient=false;
   globalThis.fetch=async url=>{
     const page=pages.get(String(url));
     assert.ok(page,`Unexpected synthetic URL: ${url}`);
-    const body=insufficient&&String(url)===detail(2)?page.body.replace(
-      'Develop synthetic laboratory procedures and maintain documented quality controls for research teams.','*'):page.body;
+    const body=insufficient&&String(url)===detail(2)?mode==='short-description'?page.body.replace(
+      'Develop synthetic laboratory procedures and maintain documented quality controls for research teams.','*'):
+      `<link rel="canonical" href="${mode==='bound-empty-shell'?detail(2):detail(1)}"><div id="careerjobdisplay"><h1></h1><div class="job-display-details right-column"></div></div>`:page.body;
     return {status:200,url:page.finalUrl,headers:new Headers({'content-type':page.contentType}),text:async()=>body};
   };
   try {

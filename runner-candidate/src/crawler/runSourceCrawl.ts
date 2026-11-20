@@ -1,7 +1,16 @@
+import {hasRedseaJobQuarantine,replayRedseaJobs} from './redseaJobQuarantine';
+import {mokaRawJobId,mokaQuarantineAt,mokaQuarantinedDetailKey} from './mokaJobQuarantine';
+import { CITY_PENDING } from "../domain/jobLocation";
+import {hasHtmlRowQuarantine,reviewHtmlJobRows,replayHtmlJobRows} from './htmlJobQuarantine';
+import {hasBeisenJobQuarantine,verifyBeisenListQuarantines} from './beisenJobQuarantine';
+import {hasWorkdayJobQuarantine,verifyWorkdayJobQuarantines} from './workdayJobQuarantine';
+import {hasPhenomJobQuarantine,phenomRawId,verifyPhenomJobQuarantines} from './phenomJobQuarantine';
+import { jobQuarantineLoss, jobQuarantineLossesMatch, JOB_QUARANTINE_PAGINATION } from './jobQuarantine';
+import { mainlandDisplayCities } from "./fosunScopeGeography";
+import { reviewedMainlandCity } from "./reviewedMainlandCity";
 import { hasNovartisPartitionEvidence, replayNovartisNativePartitions, NOVARTIS_PARTITION_PAGINATION } from "./novartisNativePartitions";
 import { reportSourceFetchFailure } from "./sourceFetchDiagnostics";
 import {isSanofiChinesePlan,replaySanofiChineseNative,SANOFI_CN_PAGINATION_POLICY} from "./sanofiChineseNative";
-import { isReviewedAbbvieLocation } from "./abbvieChinaRowScope";
 import { exactKelunMainlandPlan, replayKelunMainlandScope } from "./kelunMainlandScope";
 import { isServierTraversalPlan, replayServierTraversal } from "./servierMokaScope";
 import { hasNovartisOfficialPresencePlan, hasNovartisPresenceArtifacts, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
@@ -10,20 +19,20 @@ import { replayJnjCareersDomEvidence } from "./jnjCareersDomEvidence";
 import {applySanofiNativeProjection} from "./sanofiNativeQuality";
 import { isPfizerWorkdayTraversalPlan, replayPfizerWorkdayTraversal, PFIZER_PAGINATION_POLICY, PFIZER_CHANNEL } from "./pfizerWorkdayTraversal";
 import { isBayerMedicalTraversalPlan, replayBayerMedicalTraversal } from "./bayerMokaScope";
-import { ROCHE_NATIVE_DETAIL_POLICY, rocheNativeDetail, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
+import { ROCHE_NATIVE_DETAIL_POLICY, ROCHE_PHENOM_LIST_POLICY, rocheNativeDetail, rochePhenomListDetail, rocheDeniedDetail, rocheDeniedLoss } from "./rocheChinaQuality";
 import { mokaDetailLocations, mokaNativeListScope } from "./mokaSourceFetch";
 import { auditRedseaCandidateScope } from "./redseaCandidateScope";
 import { hasBeisenDetailDatePlan, replayBeisenDetailDates } from "./beisenDetailDates";
 import { replayWorkdayMainlandQuality } from "./workdayMainlandQuality";
-import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap, organonBootstrapLocator } from "./organonOfficialPostedDate";
+import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap, isOrganonPhenomOnlyPlan, organonBootstrapLocator } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
-import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyClosedLoss } from "./lillyChinaQuality";
+import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, isLillyPhenomOnlyPlan, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyPhenomListProjection, lillyClosedLoss } from "./lillyChinaQuality";
 import { requiresMerckChinaQuality, exactMerckChinaQualityPlan, exactMerckChinaBootstrap, merckOfficialCities, merckOfficialPostedDate, merckOfficialIdentity } from "./merckChinaQuality";
 import { NOVO_CHINA_LOCATION_POLICY, exactNovoChinaQualityPlan, replayNovoChinaRows } from "./novoChinaQuality";
 import { bmsOfficialPostedDate, exactBmsPostedDatePlan } from "./bmsOfficialPostedDate";
 import { replayBiogenListGeography } from "./biogenListGeographyGuard";
-import { projectEightfoldPcsxPosition } from "./officialJsonSourceFetch";
+import { projectEightfoldPcsxPosition,eightfoldJobQuarantine,cnstaffJobQuarantine,parseRedseaQueryPostList } from "./officialJsonSourceFetch";
 import { ucbOfficialCities, exactUcbPostedDatePlan, exactUcbPostedDateBootstrap, requiresUcbPostedDate, ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
 import { isDeepStrictEqual } from "node:util";
 import { hasAstellasPdfCityPlan, replayAstellasPdfCities } from "./astellasPdfCityAcquisition";
@@ -73,7 +82,7 @@ import {
 import type { SourceTransportFailure } from "./sourceFetchFailure";
 import type { RetryableSourceTransportFailureCode } from "./sourceFetchFailure";
 import { validateStrictHotjobLegacyEvidence } from "./hotjobLegacySourceFetch";
-import { attachYelloPublicAgeEvidence, parseYelloJobBoardResponse, yelloJobBoardBinding, yelloPublicAgeEvidence, yelloScopeExclusionLoss } from "./yelloJobBoardEvidence";
+import { attachYelloPublicAgeEvidence, parseYelloJobBoardResponse, yelloJobBoardBinding, yelloPublicAgeEvidence, yelloScopeExclusionLoss, yelloJobQuarantine } from "./yelloJobBoardEvidence";
 import { exactGileadPublicAgePlan } from "./gileadPublicAge";
 import { hasBiSemanticPlan, replayBiSemanticCompleteness } from "./biSemanticCompleteness";
 import { BI_API_URL, BI_SCRIPT_URL } from "./biUiSemanticContract";
@@ -261,7 +270,6 @@ export async function runSourceCrawl(
         crawledAt: new Date(fetchResult.capturedAt), successful: true, structuredJobCount: replay.jobs.length,
         stableRequiredFields: ["company", "title", "officialUrl", "location"],
         completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW",
-        ...(!replay.detailComplete || replay.scopeReviewRequired ? {completenessBlockerReason: replay.scopeReviewRequired ? "ASTRAZENECA_SOURCE_SCOPE_REVIEW" : "ASTRAZENECA_DETAIL_UNRESOLVED"} : {})
       }};
       return finalizeTruth(withFetchEvidence(result, fetchResult), fetchResult, plan);
     }
@@ -275,16 +283,34 @@ export async function runSourceCrawl(
       }};
       return finalizeTruth(withFetchEvidence(result,fetchResult),fetchResult,plan);
     }
+    if(hasHtmlRowQuarantine(plan)&&!hasAstellasPdfCityPlan(plan)&&fetchResult.fetchEvidence?.jobQuarantines?.length){
+      const reviewed=reviewHtmlJobRows(plan,fetchResult.fetchEvidence,fetchResult.capturedAt,deps.isBaseline??true);
+      const result:CrawlAdapterResult={status:'SUCCESS',...reconcileAdapterRows(reviewed.jobs.length,reviewed.jobs.length,reviewed.jobs,[]),observation:{
+        id:`${plan.source.id}:isolated-list:${fetchResult.capturedAt}`,sourceId:plan.source.id,crawledAt:new Date(fetchResult.capturedAt),successful:true,
+        structuredJobCount:reviewed.jobs.length,stableRequiredFields:['company','title','officialUrl','location'],completenessStatus:'NEEDS_MANUAL_COMPLETENESS_REVIEW'}};
+      return finalizeTruth(withFetchEvidence(result,fetchResult),fetchResult,plan);
+    }
     const htmlResult = reconcileResult(htmlTableAdapter.extract({
       ...baseInput, html: fetchResult.html, table: plan.table
     }), fetchResult);
+    projectHtmlSourceCities(plan, htmlResult.jobs);
     if (hasAstellasPdfCityPlan(plan) && fetchResult.fetchEvidence?.astellasPdfLocations) {
       const replay = await replayAstellasPdfCities(plan, fetchResult.fetchEvidence, fetchResult.capturedAt, deps.isBaseline ?? true);
-      htmlResult.jobs = replay.jobs;
+      const result:CrawlAdapterResult={status:'SUCCESS',...reconcileAdapterRows(replay.jobs.length,replay.jobs.length,replay.jobs,[]),observation:{...htmlResult.observation,successful:true,structuredJobCount:replay.jobs.length}};
+      return finalizeTruth(withFetchEvidence(result,fetchResult),fetchResult,plan);
     }
     return finalizeTruth(withFetchEvidence(htmlResult, fetchResult), fetchResult, plan);
   } catch (error) {
     throw new SourceCrawlStageError("ADAPTER", error);
+  }
+}
+
+function projectHtmlSourceCities(plan: SourceCrawlPlan, jobs: NormalizedJobRecord[]): void {
+  if (plan.source.id !== "source-novartis-social" && plan.source.id !== "source-kelun-social") return;
+  for (const job of jobs) {
+    const match = /^(.+?)\s*\(([^()]+)\)$/u.exec(job.locationRaw);
+    job.cities = plan.source.id === "source-kelun-social" ? mainlandDisplayCities([job.locationRaw.replaceAll("-", "·")]) :
+      [match ? reviewedMainlandCity(match[1]!.trim(), match[2]!.trim()) ?? CITY_PENDING : CITY_PENDING];
   }
 }
 
@@ -409,10 +435,6 @@ async function finalizeTruth(
     observation.completenessStatus = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
     observation.completenessBlockerReason = "ASTRAZENECA_DETAIL_EVIDENCE_REQUIRED";
   }
-  if (!completenessVerified && plan.source.id === "source-abbvie-china-social" &&
-      result.jobs.some(job => !isReviewedAbbvieLocation(job.locationRaw))) {
-    observation.completenessBlockerReason = "ABBVIE_UNRECOGNIZED_CITY_PROVINCE_PAIR";
-  }
   if (!completenessVerified && hasAstellasPdfCityPlan(plan)) {
     if (fetchResult.fetchEvidence?.astellasPdfLocations?.runtimeCapability.available === false) {
       observation.completenessStatus = "NEEDS_MANUAL_COMPLETENESS_REVIEW";
@@ -489,6 +511,13 @@ export function replayStrictSourceQualityEvidence(input: {
   jobs: readonly NormalizedJobRecord[];
   capturedAt: string;
 }): boolean {
+  if(hasRedseaJobQuarantine(input.plan)&&!replayRedseaJobs(input.plan,input.evidence,input.jobs,input.capturedAt))return false;
+  if(hasBeisenJobQuarantine(input.plan)&&input.evidence.jobQuarantines?.length&&!verifyBeisenListQuarantines(input.plan,input.evidence))return false;
+  if(hasWorkdayJobQuarantine(input.plan)&&input.evidence.jobQuarantines?.length&&!verifyWorkdayJobQuarantines(input.plan,input.evidence))return false;
+  if(hasPhenomJobQuarantine(input.plan)&&input.evidence.jobQuarantines?.length&&!verifyPhenomJobQuarantines(input.plan,input.evidence))return false;
+  if(hasHtmlRowQuarantine(input.plan)&&!hasAstellasPdfCityPlan(input.plan)&&input.evidence.jobQuarantines?.length){
+    try{if(!replayHtmlJobRows(input.plan,input.evidence,input.jobs,input.capturedAt))return false;}catch{return false;}
+  }
   if (hasNovartisPartitionEvidence(input.evidence)) {
     return strictCompletenessGate({ok:true,capturedAt:input.capturedAt,payload:null,fetchEvidence:input.evidence,
       paginationEvaluation:input.paginationEvaluation},input.reconciliation,input.plan,input.jobs);
@@ -510,7 +539,7 @@ export function replayStrictSourceQualityEvidence(input: {
   if (hasAstraZenecaDetailPlan(input.plan) || input.evidence.astraZenecaDetails) {
     try {
       const replay = replayAstraZenecaDetails(input.plan,input.evidence,input.capturedAt,input.jobs[0]?.isBaseline ?? true);
-      if (!replay.detailComplete || replay.scopeReviewRequired || !isDeepStrictEqual(replay.jobs,input.jobs)) return false;
+      if (!isDeepStrictEqual(replay.jobs,input.jobs)) return false;
       return strictCompletenessGate({ok:true,capturedAt:input.capturedAt,payload:null,fetchEvidence:replay.listEvidence,
         paginationEvaluation:input.paginationEvaluation},input.reconciliation,input.plan,input.jobs);
     } catch { return false; }
@@ -526,7 +555,7 @@ export async function replayStrictSourceQualityEvidenceAsync(input: Parameters<t
   if (!hasAstellasPdfCityPlan(input.plan)) return replayStrictSourceQualityEvidence(input);
   try {
     const replay = await replayAstellasPdfCities(input.plan,input.evidence,input.capturedAt,input.jobs[0]?.isBaseline ?? true);
-    if (!replay.runtimeAvailable || replay.hasUnreviewedLocation || !isDeepStrictEqual(replay.jobs,input.jobs)) return false;
+    if (!isDeepStrictEqual(replay.jobs,input.jobs)||!isDeepStrictEqual(replay.listEvidence.jobQuarantines,input.evidence.jobQuarantines)) return false;
     return strictCompletenessGate({ok:true,capturedAt:input.capturedAt,payload:null,fetchEvidence:replay.listEvidence,
       paginationEvaluation:input.paginationEvaluation},input.reconciliation,input.plan,input.jobs);
   } catch { return false; }
@@ -549,6 +578,7 @@ function strictCompletenessGate(
       const checked=replayNovartisNativePartitions(plan,evidence);
       const extracted=htmlTableAdapter.extract({company:plan.company,source:safeSourceClone(plan.source)!,html:checked.html,
         table:plan.table,capturedAt:fetchResult.capturedAt,isBaseline:outputJobs[0]?.isBaseline ?? true});
+      projectHtmlSourceCities(plan, extracted.jobs);
       const replay=evaluatePaginationEvidence({evidence,expectedChannelIds:[...new Set(checked.pages.map(p=>p.channelId!))],filteredOutput:true,...NOVARTIS_PARTITION_PAGINATION});
       return extracted.status==="SUCCESS"&&isDeepStrictEqual(assertAdapterReconciliation(extracted),ledger)&&ledger.adapterLosses.length===0&&ledger.collisionGroups.length===0&&isDeepStrictEqual(extracted.jobs,outputJobs)&&
         replay.safeCompleteness&&replay.verifiedEligible&&isDeepStrictEqual(replay,fetchResult.paginationEvaluation);
@@ -569,8 +599,7 @@ function strictCompletenessGate(
     // This source-local DOM proof retains original UI observations without
     // claiming network metadata. Every other source follows the existing gates.
     if (evidence.captureTool.name === JNJ_DOM_CAPTURE_TOOL.name) {
-      const replay = evaluatePaginationEvidence({ evidence, expectedChannelIds: [], filteredOutput: true,
-        allowPositiveOfficialTotalCountAfterAdapterReconciliation: true });
+      const replay = evaluatePaginationEvidence({ evidence, expectedChannelIds: [], filteredOutput: true,...JOB_QUARANTINE_PAGINATION });
       return replay.safeCompleteness && replay.verifiedEligible && replay.derivedAnomalyCodes.length === 0 &&
         replay.paginationTraceSha256 === fetchResult.paginationEvaluation.paginationTraceSha256 &&
         ledger.adapterLosses.length === 0 && ledger.collisionGroups.length === 0 &&
@@ -590,6 +619,7 @@ function strictCompletenessGate(
     if (plan.adapterId === "official-json" && plan.profileBoundSource && !profileBoundEvidenceValidated) {
       return strictGateTrace(plan, "PROFILE_BOUND_EVIDENCE");
     }
+    if(hasRedseaJobQuarantine(plan)&&!replayRedseaJobs(plan,evidence,outputJobs,fetchResult.capturedAt))return false;
     const novoProof = exactNovoChinaQualityPlan(plan) && replayNovoChinaRows(plan, evidence, outputJobs, fetchResult.capturedAt);
     let artifactUrlBindings: Map<string, StrictUrlRule[]> | undefined;
     if (configuredHtmlProof) {
@@ -600,8 +630,18 @@ function strictCompletenessGate(
       // Novo's supplemental native-detail → official-application redirects are bound per ID by the replay above.
       const msdAjingaProof = plan.adapterId === "official-json" && plan.profileBoundSource?.kind === "msd-ajinga" && profileBoundEvidenceValidated;
       // Ajinga's per-ID query URLs have already been replayed exactly against each raw list row.
-      const networkEvidence = novoProof ? {...evidence,artifacts:[evidence.artifacts[0]!]} : msdAjingaProof
-        ? {...evidence,artifacts:evidence.artifacts.filter(a=>!a.logicalKey.startsWith("msd-ajinga-detail-")&&!a.logicalKey.startsWith("msd-ajinga-apply-"))} : evidence;
+      const grifolsProof=plan.adapterId==='official-json'&&plan.profileBoundSource?.kind==='grifols-china-detail-scope'&&profileBoundEvidenceValidated;
+      const workdayHeldKeys=new Set(hasWorkdayJobQuarantine(plan)?evidence.jobQuarantines?.map(q=>`workday-detail-${String(q.pageSequence).padStart(4,'0')}-${String(q.recordIndex).padStart(4,'0')}`):[]);
+      if(hasPhenomJobQuarantine(plan))for(const q of evidence.jobQuarantines??[]){
+        const page=evidence.pages[q.pageSequence]!,artifact=evidence.artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
+        const raw=JSON.parse(artifact.body as string).refineSearch.data.jobs[q.recordIndex];
+        if(raw)for(const family of ['lilly','organon','roche'])workdayHeldKeys.add(`${family}-detail-${raw.reqId}`);
+      }
+      if(plan.adapterId==='official-json'&&plan.moka)for(const q of evidence.jobQuarantines??[])workdayHeldKeys.add(`moka-detail-${String(q.pageSequence).padStart(4,'0')}-${String(q.recordIndex).padStart(4,'0')}`);
+      const networkEvidence = novoProof ? {...evidence,artifacts:[evidence.artifacts[0]!]} : grifolsProof
+        ? {...evidence,artifacts:evidence.artifacts.filter(a=>!a.logicalKey.startsWith('grifols-detail-'))} : msdAjingaProof
+        ? {...evidence,artifacts:evidence.artifacts.filter(a=>!a.logicalKey.startsWith("msd-ajinga-detail-")&&!a.logicalKey.startsWith("msd-ajinga-apply-"))}
+        : workdayHeldKeys.size?{...evidence,artifacts:evidence.artifacts.filter(a=>!workdayHeldKeys.has(a.logicalKey))}:evidence;
       artifactUrlBindings = strictNetworkArtifactUrlBindings(networkEvidence, urlRules);
       if (!artifactUrlBindings) return strictGateTrace(plan, "ARTIFACT_URL_BINDING");
       if (!strictEvidenceArtifactPurposes(plan, evidence, artifactUrlBindings)) {
@@ -619,12 +659,15 @@ function strictCompletenessGate(
     // strictPageRequestContracts above has already replayed the complete Yello
     // partition and its exact exclusion ledger. No other source inherits this opt-in.
     const yelloScopeProof = exactGileadPublicAgePlan(plan);
-    const rocheScopeProof = plan.source.id === "source-roche-china-social" && plan.adapterId === "official-json" && plan.officialJsonFetch?.kind === "phenom" && plan.officialJsonFetch.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY;
+    const rocheScopeProof = plan.source.id === "source-roche-china-social" && plan.adapterId === "official-json" && plan.officialJsonFetch?.kind === "phenom" && (plan.officialJsonFetch.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY || plan.officialJsonFetch.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY);
     const lillyScopeProof = exactLillyChinaQualityPlan(plan);
     const organonScopeProof = exactOrganonPostedDatePlan(plan);
     const kelunScopeProof = exactKelunMainlandPlan(plan) && replayKelunMainlandScope(plan, evidence, outputJobs) !== undefined;
     const hasScopeExclusionProof = hasConfiguredScopeExclusionProof(plan);
-    if (evidence.fetchLosses.length > 0 && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !rocheScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
+    const quarantinedJobs = jobQuarantineLossesMatch(evidence)&&
+      (plan.adapterId==='official-json'&&!!plan.moka||kelunScopeProof||!!biProof||yelloScopeProof||hasAstraZenecaDetailPlan(plan)||hasRedseaJobQuarantine(plan)||hasBeisenJobQuarantine(plan)||hasWorkdayJobQuarantine(plan)||hasHtmlRowQuarantine(plan)||hasPhenomJobQuarantine(plan)||profileBoundEvidenceValidated||plan.adapterId==='official-json'&&(!!plan.hotjobLegacy||['eightfold-pcsx','cnstaff'].includes(plan.officialJsonFetch?.kind??'')));
+    const onlyQuarantinedLosses = quarantinedJobs && evidence.fetchLosses.every(loss=>loss.details.code==='JOB_QUARANTINED');
+    if (evidence.fetchLosses.length > 0 && !onlyQuarantinedLosses && !hasScopeExclusionProof && !profileBoundEvidenceValidated && !mokaScopeProof && !biProof && !novoProof && !yelloScopeProof && !rocheScopeProof && !lillyScopeProof && !organonScopeProof && !kelunScopeProof) {
       return strictGateTrace(plan, "UNPROVEN_FETCH_LOSS");
     }
     if (hasScopeExclusionProof && !validateStrictSourceScopeExclusionProof(plan, evidence, outputJobs)) {
@@ -643,7 +686,8 @@ function strictCompletenessGate(
       filteredOutput: true,
       ...(replayPolicy ?? {}),
       ...(htmlReplayPolicy ?? {}),
-      ...(htmlOfficialTotalReplayPolicy ?? {})
+      ...(htmlOfficialTotalReplayPolicy ?? {}),
+      ...(quarantinedJobs ? JOB_QUARANTINE_PAGINATION : {})
     });
     if (independentlyEvaluated.safeCompleteness !== true || independentlyEvaluated.verifiedEligible !== true ||
       independentlyEvaluated.paginationTraceSha256 !== fetchResult.paginationEvaluation.paginationTraceSha256 ||
@@ -682,7 +726,9 @@ function strictCompletenessGate(
         replayPolicy?.allowIndependentlyVerifiedProfileBoundExclusions === true &&
         declared.value === evidence.fetchCounts.rawCount &&
         ledger.rawInputCount === evidence.fetchCounts.validCount;
-      if (declared.value !== ledger.rawInputCount && !profileBoundExclusionReconciled) return strictGateTrace(plan, "OFFICIAL_TOTAL_COUNT");
+      const quarantinedTotalReconciled = onlyQuarantinedLosses && declared.value===evidence.fetchCounts.rawCount &&
+        declared.value===ledger.rawInputCount+(evidence.jobQuarantines?.length??0);
+      if (declared.value !== ledger.rawInputCount && !profileBoundExclusionReconciled && !quarantinedTotalReconciled) return strictGateTrace(plan, "OFFICIAL_TOTAL_COUNT");
       const configuredHtmlPositiveTotal = configuredHtmlProof && plan.adapterId === "html-table" &&
         plan.table.completenessProof?.kind === "OFFICIAL_TOTAL_PAGES" &&
         plan.table.pagination?.expectedJobCountSelector !== undefined;
@@ -932,9 +978,12 @@ function strictYelloRequestContracts(
   const rawIds = parsed.rows.map(row => irreversibleOfficialJsonEvidenceId([row.rowIndex, row.rawHtml])).sort(compare);
   const validIds = expectedSourceIds.map(id => irreversibleOfficialJsonEvidenceId(id)).sort(compare);
   if (!isDeepStrictEqual(rawIds, [...page.rawJobIds].sort(compare)) || !isDeepStrictEqual(validIds, [...page.validJobIds].sort(compare))) return false;
-  if (!isDeepStrictEqual(evidence.fetchLosses, parsed.excludedJobs.map(row => yelloScopeExclusionLoss(row, artifact))) ||
+  const quarantines=parsed.quarantinedJobs.map(yelloJobQuarantine);
+  if(!isDeepStrictEqual(evidence.jobQuarantines??[],quarantines))return false;
+  const expectedLosses=parsed.rows.flatMap(row=>row.scopeDecision==='EXCLUDED_HONG_KONG'?[yelloScopeExclusionLoss(row,artifact)]:row.scopeDecision==='QUARANTINED'?[jobQuarantineLoss(yelloJobQuarantine(row),artifact.capturedAt)]:[]);
+  if (!isDeepStrictEqual(evidence.fetchLosses, expectedLosses) ||
       !isDeepStrictEqual(evidence.fetchCounts, { rawCount: parsed.rows.length, parsedCount: parsed.rows.length,
-        validCount: parsed.jobs.length, parseDiscardCount: 0, validationDiscardCount: parsed.excludedJobs.length })) return false;
+        validCount: parsed.jobs.length, parseDiscardCount: 0, validationDiscardCount: parsed.excludedJobs.length+quarantines.length })) return false;
   const byId = new Map(outputJobs.map(job => [job.sourceJobId, job]));
   // Match the adapter's text cleanup; exact source spelling/whitespace remains bound by the row hash.
   const normalizedText = (value: string) => value.replace(/\s+/gu, " ").trim();
@@ -949,7 +998,7 @@ function strictYelloRequestContracts(
         job.evidence.capturedAt !== capturedAt || !isDeepStrictEqual(job.evidence.gileadPublicAge, yelloPublicAgeEvidence(row, row.rowIndex, artifact))) return false;
   }
   const declaration = evidence.declaredCompleteness;
-  return parsed.declaredTotal === parsed.rows.length && parsed.rows.length === parsed.jobs.length + parsed.excludedJobs.length &&
+  return parsed.declaredTotal === parsed.rows.length && parsed.rows.length === parsed.jobs.length + parsed.excludedJobs.length+quarantines.length &&
     page.rawJobIds.length === parsed.rows.length &&
     page.validJobIds.length === parsed.jobs.length && page.declaredTotal === parsed.declaredTotal &&
     page.declaredCount === parsed.declaredTotal && page.termination === "NEXT_ABSENT" &&
@@ -1119,12 +1168,10 @@ function strictRedseaRequestContracts(
     page.artifactLogicalKey !== apiArtifact.logicalKey || page.termination !== "NEXT_ABSENT" ||
     page.nextPageSignalBefore !== null || page.nextPageSignalAfter !== null) return false;
 
-  const root = strictUniqueJsonRecord(apiArtifact.body);
-  if (!root || root.state !== "1" || !Array.isArray(root.jsonList) ||
-    strictRedseaHasUnsafePaginationSignal(root, root.jsonList.length) ||
-    page.rawJobIds.length !== root.jsonList.length) return false;
   if (typeof listArtifact.body !== "string" || typeof apiArtifact.body !== "string") return false;
-  const candidateScope = auditRedseaCandidateScope(listArtifact.body, root.jsonList);
+  const parsed = parseRedseaQueryPostList(apiArtifact.body);
+  if (!parsed.ok || page.rawJobIds.length !== parsed.jobs.length) return false;
+  const candidateScope = auditRedseaCandidateScope(listArtifact.body, parsed.jobs);
   if (!candidateScope.complete) return false;
   const hasAbsentCandidates = candidateScope.unexplainedCandidateIds.length > 0;
   if (artifacts.size !== (hasAbsentCandidates ? 4 : 3)) return false;
@@ -1162,41 +1209,6 @@ function strictRedseaRequestContracts(
     declaration.scope === "CHANNEL" && declaration.channelId === channelQrId &&
     declaration.artifactLogicalKey === apiArtifact.logicalKey &&
     declaration.extractorLocator === apiArtifact.extractorLocator;
-}
-
-function strictRedseaHasUnsafePaginationSignal(root: Record<string, unknown>, rowCount: number): boolean {
-  const falseLike = (value: unknown) => value === undefined || value === null || value === false ||
-    value === "" || (typeof value === "string" && /^(?:false|0|null)$/iu.test(value.trim()));
-  for (const key of ["hasNext", "hasMore", "more", "next", "nextPage", "next_page", "nextCursor", "next_cursor"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) return true;
-  }
-  if (Object.prototype.hasOwnProperty.call(root, "page") && strictRecord(root.page)) return true;
-  const safeInteger = (value: unknown): number | undefined => {
-    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
-    if (typeof value === "string" && /^(?:0|[1-9][0-9]*)$/u.test(value.trim())) return Number(value.trim());
-    return undefined;
-  };
-  if (Object.prototype.hasOwnProperty.call(root, "total") && root.total !== "" && root.total !== null &&
-    root.total !== undefined && safeInteger(root.total) !== rowCount) return true;
-  for (const key of ["totalPages", "totalPage", "pageCount"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key]) && safeInteger(root[key]) !== 1) return true;
-  }
-  for (const key of ["currentPage", "pageNo", "pageNum", "pageIndex"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) {
-      const value = safeInteger(root[key]);
-      if (value !== 0 && value !== 1) return true;
-    }
-  }
-  for (const key of ["offset", "start"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key]) && safeInteger(root[key]) !== 0) return true;
-  }
-  for (const key of ["pageSize", "limit"] as const) {
-    if (Object.prototype.hasOwnProperty.call(root, key) && !falseLike(root[key])) {
-      const value = safeInteger(root[key]);
-      if (value === undefined || value < rowCount) return true;
-    }
-  }
-  return false;
 }
 
 function strictWorkdayRequestContracts(
@@ -2087,6 +2099,7 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
   if (isServierTraversalPlan(plan)) return replayServierTraversal(plan, evidence) !== undefined;
   if (isBayerMedicalTraversalPlan(plan)) return replayBayerMedicalTraversal(plan, evidence) !== undefined;
   const config = plan.moka!;
+  if(evidence.jobQuarantines?.length&&!jobQuarantineLossesMatch(evidence))return false;
   const listUrl = "https://app.mokahr.com/api/outer/ats-apply/website/jobs/v2";
   const detailUrl = "https://app.mokahr.com/api/outer/ats-apply/website/job";
   const entryArtifacts = evidence.artifacts.filter((artifact) => artifact.logicalKey === "moka-entry-0000");
@@ -2097,7 +2110,7 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
   if (!aesIv) return false;
   const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
   if (artifacts.size !== evidence.artifacts.length) return false;
-  const requiredDetails = new Map<string, string>();
+  const requiredDetails = new Map<string, string>(),heldDetails=new Set<string>();
   for (const page of evidence.pages) {
     const offset = page.sequence * 50;
     const expected = { sequence: page.sequence, requestedCursor: null, requestedOffset: offset,
@@ -2116,8 +2129,10 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
     const data = strictRecord(root?.data);
     if (!root || root.success !== true || !data || !Array.isArray(data.jobs)) return false;
     for (let recordIndex = 0; recordIndex < data.jobs.length; recordIndex += 1) {
-      const record = strictRecord(data.jobs[recordIndex]);
-      const jobId = strictMokaJobId(record);
+      const original=data.jobs[recordIndex],record = strictRecord(original);
+      const jobId = mokaRawJobId(original);
+      const q=mokaQuarantineAt(evidence,original,page.sequence,recordIndex);
+      if(q){const key=mokaQuarantinedDetailKey(evidence,q,jobId,config);if(key)heldDetails.add(key);continue;}
       if (!record || !jobId || !strictNonblankText(record.title)) continue;
       if (config.requisitionStatusPolicy && record.status !== "open") return false;
       if (config.hydrateMissingLocationsFromDetail && strictMokaCities(record.locations).length === 0) {
@@ -2126,7 +2141,7 @@ function strictMokaRequestContracts(plan: Extract<SourceCrawlPlan, { adapterId: 
       }
     }
   }
-  const detailArtifacts = evidence.artifacts.filter((candidate) => candidate.logicalKey.startsWith("moka-detail-"));
+  const detailArtifacts = evidence.artifacts.filter((candidate) => candidate.logicalKey.startsWith("moka-detail-")&&!heldDetails.has(candidate.logicalKey));
   if (detailArtifacts.length !== requiredDetails.size ||
     detailArtifacts.some((artifact) => !requiredDetails.has(artifact.logicalKey))) return false;
   for (const artifact of detailArtifacts) {
@@ -2242,6 +2257,10 @@ function strictPhenomRequestContracts(
 ): boolean {
   const config = plan.officialJsonFetch;
   if (config?.kind !== "phenom") return false;
+  const held=evidence.jobQuarantines??[];
+  const otherLosses=evidence.fetchLosses.filter(loss=>loss.details.code!=='JOB_QUARANTINED');
+  if(held.length&&!verifyPhenomJobQuarantines(plan,evidence))return false;
+  const nativeCount=(family:string)=>evidence.artifacts.filter(a=>a.logicalKey.startsWith(`${family}-detail-`)).length;
   if (config.mixedLocationScopePolicy !== undefined &&
     config.mixedLocationScopePolicy !== "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1") return false;
   const allowsMainlandAlternative =
@@ -2258,6 +2277,7 @@ function strictPhenomRequestContracts(
   const merckOutputs = new Map<string, StrictUcbDateOutput>();
   const preserveOrganonQuality = requiresOrganonPostedDate(plan);
   if (preserveOrganonQuality && (!exactOrganonPostedDatePlan(plan) || !exactOrganonPostedDateBootstrap(pageConfig))) return false;
+  const organonPhenomOnly = preserveOrganonQuality && isOrganonPhenomOnlyPlan(plan);
   // Exact Organon bootstrap provenance, including the source attempt's maximum
   // legal runtime window. Absent bodyRepresentation retains the legacy exact
   // bytes default; REDACTED bodies are already rejected above.
@@ -2270,11 +2290,12 @@ function strictPhenomRequestContracts(
     entry.extractorLocator !== organonBootstrapLocator(pageConfig))) return false;
   let organonPreviousCapture = organonEntryTime;
   const organonOutputs = new Map<string, StrictUcbDateOutput>();
-  const organonRows: Record<string,unknown>[] = [];
+  const organonRows: unknown[] = [];
   const organonIds = new Set<string>();
   const organonLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   const preserveLillyQuality = requiresLillyChinaQuality(plan);
   if (preserveLillyQuality && (!exactLillyChinaQualityPlan(plan) || !exactLillyChinaBootstrap(pageConfig))) return false;
+  const lillyPhenomOnly = preserveLillyQuality && isLillyPhenomOnlyPlan(plan);
   const lillyOutputs = new Map<string, StrictUcbDateOutput>();
   const lillyIds = new Set<string>();
   const lillyLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
@@ -2288,10 +2309,12 @@ function strictPhenomRequestContracts(
     parsedEndpoint.pathname !== "/widgets" || parsedEndpoint.search || parsedEndpoint.hash) return false;
   const exactRocheRequestBoundOmittedOffset = strictExactRochePhenomPlan(plan, pageConfig, endpoint);
   const preserveRocheQuality = exactRocheRequestBoundOmittedOffset && config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY;
-  if (config.nativeDetailPolicy !== undefined && !preserveRocheQuality) return false;
+  const preserveRochePhenomList = exactRocheRequestBoundOmittedOffset && config.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY;
+  if (config.nativeDetailPolicy !== undefined && !preserveRocheQuality && !preserveRochePhenomList) return false;
   const rocheLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
   const rocheOutputs = new Map<string, NonNullable<ReturnType<typeof rocheNativeDetail>>>();
-  if (preserveRocheQuality) {
+  const rocheListOutputs = new Map<string, NonNullable<ReturnType<typeof rochePhenomListDetail>>>();
+  if (preserveRocheQuality || preserveRochePhenomList) {
     const start = Date.parse(capturedAt);
     if (!entry || entry.capturedAt !== capturedAt || evidence.artifacts[0]?.logicalKey !== entry.logicalKey) return false;
     for (const artifact of evidence.artifacts.filter(a => a.logicalKey.startsWith("phenom-"))) {
@@ -2358,7 +2381,7 @@ function strictPhenomRequestContracts(
     if (!globalEnvelope || !countryEnvelope) return false;
     const globalCountries = strictGatePhenomAggregation(globalEnvelope.aggregations, "country");
     const countryCount = globalCountries?.get(facetScope.countryIncludeDescriptor);
-    if (countryCount === undefined || countryEnvelope.totalHits !== countryCount ||
+    if (countryCount === undefined || countryEnvelope.totalHits !== countryCount ||!hasPhenomJobQuarantine(plan)&&
       countryEnvelope.jobs.some((job) =>
         !strictPhenomRecordMatchesCountryFacet(
           strictRecord(job),
@@ -2403,7 +2426,7 @@ function strictPhenomRequestContracts(
     selectedFields = { country: ["China"] };
   }
   // Keep equal postedDate values in one official response, without weakening cardinality checks.
-  if (preserveRocheQuality) pageSize = Math.max(pageSize, structuredExpectedTotal ?? 0);
+  if (preserveRocheQuality || preserveRochePhenomList) pageSize = Math.max(pageSize, structuredExpectedTotal ?? 0);
 
   const rocheExpectedTotal = exactRocheRequestBoundOmittedOffset ? structuredExpectedTotal : undefined;
   const rocheExpectedPageCount = rocheExpectedTotal === undefined
@@ -2411,7 +2434,8 @@ function strictPhenomRequestContracts(
     : rocheExpectedTotal === 0 ? 1 : Math.ceil(rocheExpectedTotal / pageSize);
   if (exactRocheRequestBoundOmittedOffset && (rocheExpectedPageCount === undefined ||
     evidence.pages.length !== rocheExpectedPageCount ||
-    evidence.artifacts.length !== evidence.pages.length + 3 + (preserveRocheQuality ? rocheExpectedTotal! : 0))) return false;
+    (preserveRochePhenomList && nativeCount("roche") !== 0) ||
+    evidence.artifacts.length !== evidence.pages.length + 3 + (preserveRocheQuality ? nativeCount('roche') : 0))) return false;
   const rocheExpectedOutputIds = new Set<string>();
   const rocheRawOfficialIds = new Set<string>();
   const merckExpectedPageCount = merckPartitionReplay
@@ -2467,7 +2491,8 @@ function strictPhenomRequestContracts(
       if (total === undefined || envelope.totalHits !== total || page.sequence !== pageIndex ||
         page.artifactLogicalKey !== `phenom-page-${String(pageIndex).padStart(4, "0")}` ||
         evidence.pages.length !== Math.max(1, Math.ceil(total / pageSize)) ||
-        evidence.artifacts.length !== evidence.pages.length + 1 + total || offset > total ||
+        (organonPhenomOnly && nativeCount("organon") !== 0) ||
+        evidence.artifacts.length !== evidence.pages.length + 1 + nativeCount('organon') || offset > total ||
         envelope.jobs.length !== Math.min(pageSize, total - offset) ||
         (envelope.hasOwnFrom ? envelope.from !== offset || page.returnedOffset !== offset : page.returnedOffset !== null)) return false;
       const last = pageIndex === evidence.pages.length - 1;
@@ -2478,16 +2503,17 @@ function strictPhenomRequestContracts(
       for (const [recordIndex, value] of envelope.jobs.entries()) {
         const raw = strictRecord(value);
         const cities = raw && organonOfficialCities(raw);
-        const nativeArtifact = raw && artifacts.get(`organon-detail-${raw.reqId}`);
-        const native = raw && organonNativeDetail(raw, nativeArtifact, capturedAt);
+        const nativeArtifact = !organonPhenomOnly && raw ? artifacts.get(`organon-detail-${raw.reqId}`) : undefined;
+        const native = !organonPhenomOnly && raw ? organonNativeDetail(raw, nativeArtifact, capturedAt) : undefined;
         const date = raw && phenomOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        if (!raw || !cities || !date || !title || !organonOfficialIdentity(raw) || !native) return false;
-        organonRows.push(raw);
+        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??[pageIndex,recordIndex,value]));
+        organonRows.push(value);
+        if(held.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
+        if (!raw || !cities || !title || !organonOfficialIdentity(raw) || (!organonPhenomOnly && !native)) return false;
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
         if (organonIds.has(sourceJobId)) return false;
         organonIds.add(sourceJobId);
-        rawIds.push(irreversibleOfficialJsonEvidenceId(rawId));
         if (native === "CLOSED") {
           organonLosses.push(organonClosedLoss(raw, pageIndex, recordIndex, nativeArtifact!.capturedAt));
           continue;
@@ -2513,17 +2539,18 @@ function strictPhenomRequestContracts(
         page.nextPageSignalAfter !== (last ? null : `offset:${offset + pageSize}`) ||
         page.termination !== (total === 0 ? "EMPTY_PAGE" : last ? "NEXT_ABSENT" : "CONTINUE")) return false;
       const rawIds: string[] = [], validIds: string[] = [];
-      for (const value of envelope.jobs) {
+      for (const [recordIndex,value] of envelope.jobs.entries()) {
         const raw = strictRecord(value);
         const cities = raw && merckOfficialCities(raw);
         const date = raw && merckOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        if (!raw || !cities || !date || !title || !merckOfficialIdentity(raw)) return false;
+        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??[pageIndex,recordIndex,value]));
+        if(evidence.jobQuarantines?.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
+        if (!raw || !cities || !title || !merckOfficialIdentity(raw)) return false;
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
         if (merckOutputs.has(sourceJobId)) return false;
         merckOutputs.set(sourceJobId, {rawId, sourceJobId, cities, officialPublishedAt: date, title,
           officialUrl: `https://careers.emdgroup.com/us/en/job/${raw.reqId as string}`, locationRaw: raw.location as string});
-        rawIds.push(irreversibleOfficialJsonEvidenceId(rawId));
         validIds.push(irreversibleOfficialJsonEvidenceId(sourceJobId));
       }
       if (JSON.stringify(page.rawJobIds) !== JSON.stringify(rawIds) || JSON.stringify(page.validJobIds) !== JSON.stringify(validIds)) return false;
@@ -2536,7 +2563,8 @@ function strictPhenomRequestContracts(
       if (total === undefined || envelope.totalHits !== total || page.sequence !== pageIndex ||
         page.artifactLogicalKey !== `phenom-page-${String(pageIndex).padStart(4, "0")}` ||
         evidence.pages.length !== Math.max(1, Math.ceil(total / pageSize)) ||
-        evidence.artifacts.length !== evidence.pages.length + 1 + total || offset > total ||
+        (lillyPhenomOnly ? nativeCount("lilly") !== 0 : false) ||
+        evidence.artifacts.length !== evidence.pages.length + 1 + (lillyPhenomOnly ? 0 : nativeCount('lilly')) || offset > total ||
         envelope.jobs.length !== Math.min(pageSize, total - offset) ||
         (envelope.hasOwnFrom ? envelope.from !== offset || page.returnedOffset !== offset : page.returnedOffset !== null)) return false;
       const last = pageIndex === evidence.pages.length - 1;
@@ -2547,16 +2575,19 @@ function strictPhenomRequestContracts(
       for (const [recordIndex, value] of envelope.jobs.entries()) {
         const raw = strictRecord(value);
         const listCities = raw && lillyOfficialCities(raw);
-        const nativeArtifact = raw && artifacts.get(`lilly-detail-${raw.reqId}`);
-        const detail = raw && lillyNativeDetail(raw, nativeArtifact, capturedAt);
+        const nativeArtifact = !lillyPhenomOnly && raw ? artifacts.get(`lilly-detail-${raw.reqId}`) : undefined;
+        const detail = lillyPhenomOnly
+          ? (raw ? lillyPhenomListProjection(raw) : undefined)
+          : (raw ? lillyNativeDetail(raw, nativeArtifact, capturedAt) : undefined);
         const date = raw && lillyOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
-        if (!raw || !listCities || !detail || !date || !title) return false;
+        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??[pageIndex,recordIndex,value]));
+        if(held.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
+        if (!raw || !listCities || !detail || !title) return false;
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
         if (lillyIds.has(sourceJobId)) return false;
         lillyIds.add(sourceJobId);
-        rawIds.push(irreversibleOfficialJsonEvidenceId(rawId));
-        if (detail.status === "CLOSED") {
+        if (!("cities" in detail)) {
           lillyLosses.push(lillyClosedLoss(raw, pageIndex, recordIndex, nativeArtifact!.capturedAt));
           continue;
         }
@@ -2575,11 +2606,12 @@ function strictPhenomRequestContracts(
         page.returnedOffset !== (omittedSinglePage ? null : offset)) return false;
       const rawIds: string[] = [];
       const validIds: string[] = [];
-      for (const raw of envelope.jobs) {
+      for (const [recordIndex,raw] of envelope.jobs.entries()) {
+        rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(raw)??[pageIndex,recordIndex,raw]));
+        if(evidence.jobQuarantines?.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
         const expectedOutput = strictUcbDateOutput(raw);
         if (!expectedOutput || ucbOutputs.has(expectedOutput.sourceJobId)) return false;
         ucbOutputs.set(expectedOutput.sourceJobId, expectedOutput);
-        rawIds.push(irreversibleOfficialJsonEvidenceId(expectedOutput.rawId));
         validIds.push(irreversibleOfficialJsonEvidenceId(expectedOutput.sourceJobId));
       }
       if (JSON.stringify(page.rawJobIds) !== JSON.stringify(rawIds) ||
@@ -2596,11 +2628,11 @@ function strictPhenomRequestContracts(
         envelope.jobs.length !== Math.min(pageSize, merckPartitionReplay.expectedTotal - offset)) return false;
       const expectedRawIds: string[] = [];
       const expectedValidIds: string[] = [];
-      for (const raw of envelope.jobs) {
+      for (const [recordIndex,raw] of envelope.jobs.entries()) {
         const record = strictRecord(raw);
         const rawId = record ? strictPhenomOfficialId(record.jobSeqNo) ??
           strictPhenomOfficialId(record.reqId) ?? strictPhenomOfficialId(record.jobId) : undefined;
-        const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? raw);
+        const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? [pageIndex,recordIndex,raw]);
         if (!expectedRawIds.includes(rawEvidenceId)) expectedRawIds.push(rawEvidenceId);
         if (!record || !rawId || !safeOfficialJsonId(rawId) ||
           !merckPartitionReplay.expectedRawIds.has(rawId) || merckReturnedRawIds.has(rawId)) return false;
@@ -2629,8 +2661,9 @@ function strictPhenomRequestContracts(
         const record = strictRecord(raw);
         const rawId = record ? strictPhenomOfficialId(record.jobSeqNo) ??
           strictPhenomOfficialId(record.reqId) ?? strictPhenomOfficialId(record.jobId) : undefined;
-        const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? raw);
+        const rawEvidenceId = irreversibleOfficialJsonEvidenceId(rawId ?? [pageIndex,recordIndex,raw]);
         if (!expectedRawIds.includes(rawEvidenceId)) expectedRawIds.push(rawEvidenceId);
+        if(held.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
         if (!record || !rawId || !safeOfficialJsonId(rawId)) return false;
         const sourceJobId = persistentOfficialJsonJobId(rawId);
         const validEvidenceId = irreversibleOfficialJsonEvidenceId(sourceJobId);
@@ -2649,6 +2682,11 @@ function strictPhenomRequestContracts(
           if (!native) return false;
           rocheOutputs.set(sourceJobId, native);
         }
+        if (preserveRochePhenomList) {
+          const projected = rochePhenomListDetail(record);
+          if (!projected) return false;
+          rocheListOutputs.set(sourceJobId, projected);
+        }
       }
       if (JSON.stringify(page.rawJobIds) !== JSON.stringify(expectedRawIds) ||
         JSON.stringify(page.validJobIds) !== JSON.stringify(expectedValidIds)) return false;
@@ -2662,7 +2700,8 @@ function strictPhenomRequestContracts(
         page.nextPageSignalAfter !== expectedNextAfter || page.termination !== expectedTermination) return false;
     }
     const expectedCountry = facetScope?.countryIncludeDescriptor ?? "China";
-    for (const job of envelope.jobs) {
+    for (const [recordIndex,job] of envelope.jobs.entries()) {
+      if(evidence.jobQuarantines?.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
       const record = strictRecord(job);
       if (!record) return false;
       if (strictPhenomRecordHasGenericLocation(record)) return false;
@@ -2673,9 +2712,14 @@ function strictPhenomRequestContracts(
         const rawId = strictNonblankText(record.jobSeqNo) ?? strictNonblankText(record.reqId) ??
           strictNonblankText(record.jobId);
         if (!alternative || !rawId) return false;
+        if (rocheLosses.some(loss => loss.details.pageSequence === pageIndex && loss.details.recordIndex === recordIndex)) continue;
         const sourceJobId = strictPhenomPersistentSourceJobId(rawId);
         if (mainlandAlternativeOutputs.has(sourceJobId)) return false;
-        mainlandAlternativeOutputs.set(sourceJobId, { sourceJobId, ...alternative });
+        const rocheListProjection = preserveRochePhenomList ? rocheListOutputs.get(sourceJobId) : undefined;
+        if (preserveRochePhenomList && !rocheListProjection) return false;
+        mainlandAlternativeOutputs.set(sourceJobId, rocheListProjection
+          ? { sourceJobId, locationRaw: rocheListProjection.locationRaw, cities: rocheListProjection.cities }
+          : { sourceJobId, ...alternative });
         continue;
       }
       const presentInclude = facetScope?.includeField
@@ -2697,12 +2741,12 @@ function strictPhenomRequestContracts(
   }
   const rocheReplayMatches = !exactRocheRequestBoundOmittedOffset ||
     (rocheExpectedTotal !== undefined && pageRawCount === rocheExpectedTotal &&
-      rocheExpectedOutputIds.size + rocheLosses.length === rocheExpectedTotal &&
+      rocheExpectedOutputIds.size + rocheLosses.length+held.length === rocheExpectedTotal &&
       evidence.fetchCounts.rawCount === rocheExpectedTotal &&
       evidence.fetchCounts.parsedCount === rocheExpectedTotal &&
-      evidence.fetchCounts.validCount === rocheExpectedTotal - rocheLosses.length &&
-      evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === rocheLosses.length &&
-      isDeepStrictEqual(evidence.fetchLosses,rocheLosses) && outputJobs.length === rocheExpectedOutputIds.size &&
+      evidence.fetchCounts.validCount === rocheExpectedOutputIds.size &&
+      evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === rocheLosses.length+held.length &&
+      isDeepStrictEqual(otherLosses,rocheLosses) && outputJobs.length === rocheExpectedOutputIds.size &&
       outputJobs.every((job) => job.companyId === plan.company.id && job.sourceId === plan.source.id &&
         typeof job.sourceJobId === "string" && rocheExpectedOutputIds.has(job.sourceJobId)) &&
       new Set(outputJobs.map((job) => job.sourceJobId)).size === outputJobs.length);
@@ -2721,7 +2765,7 @@ function strictPhenomRequestContracts(
   return evidence.declaredCompleteness?.kind === "OFFICIAL_TOTAL_COUNT" &&
     evidence.declaredCompleteness.value === pageRawCount &&
     rocheReplayMatches &&
-    (!preserveRocheQuality || (rocheOutputs.size + rocheLosses.length === pageRawCount && evidence.artifacts.length === evidence.pages.length + 3 + pageRawCount &&
+    (!preserveRocheQuality || (rocheOutputs.size + rocheLosses.length+held.length === pageRawCount && evidence.artifacts.length === evidence.pages.length + 3 + nativeCount('roche') &&
       outputJobs.every(job => {
         const expected = job.sourceJobId && rocheOutputs.get(job.sourceJobId);
         return expected && typeof job.isBaseline === "boolean" && isDeepStrictEqual(job, {
@@ -2734,13 +2778,26 @@ function strictPhenomRequestContracts(
             officialChainEvidenceUrl: canonicalPublicHttpUrl(plan.source.officialChainEvidenceUrl!), capturedAt}
         });
       }))) &&
+    (!preserveRochePhenomList || (rocheListOutputs.size + held.length === pageRawCount && evidence.artifacts.length === evidence.pages.length + 3 &&
+      outputJobs.every(job => {
+        const expected = job.sourceJobId && rocheListOutputs.get(job.sourceJobId);
+        return expected && typeof job.isBaseline === "boolean" && isDeepStrictEqual(job, {
+          companyId: plan.company.id, sourceId: plan.source.id, sourceKind: "SOCIAL", atsKind: "OFFICIAL_JSON",
+          officialChineseCompanyName: plan.company.officialChineseName, officialTitle: expected.title,
+          officialUrl: expected.officialUrl, listUrl: canonicalPublicHttpUrl(plan.source.officialEntryUrl),
+          sourceJobId: job.sourceJobId, locationRaw: expected.locationRaw, cities: expected.cities, category: "其他",
+          ...(expected.officialPublishedAt ? {officialPublishedAt: expected.officialPublishedAt} : {}), isBaseline: job.isBaseline,
+          evidence: {officialEntryUrl: canonicalPublicHttpUrl(plan.source.officialEntryUrl),
+            officialChainEvidenceUrl: canonicalPublicHttpUrl(plan.source.officialChainEvidenceUrl!), capturedAt}
+        });
+      }))) &&
     merckReplayMatches &&
     (!preserveOrganonQuality || (organonKeywordCountryEquivalent(entry!.body, organonRows) &&
-      organonIds.size === pageRawCount && organonOutputs.size + organonLosses.length === pageRawCount &&
+      organonIds.size+held.length === pageRawCount && organonOutputs.size + organonLosses.length+held.length === pageRawCount &&
       outputJobs.length === organonOutputs.size && new Set(outputJobs.map(job => job.sourceJobId)).size === organonOutputs.size &&
       evidence.fetchCounts.rawCount === pageRawCount && evidence.fetchCounts.parsedCount === pageRawCount &&
       evidence.fetchCounts.validCount === organonOutputs.size && evidence.fetchCounts.parseDiscardCount === 0 &&
-      evidence.fetchCounts.validationDiscardCount === organonLosses.length && isDeepStrictEqual(evidence.fetchLosses, organonLosses) &&
+      evidence.fetchCounts.validationDiscardCount === organonLosses.length+held.length && isDeepStrictEqual(otherLosses, organonLosses) &&
       outputJobs.every(job => {
         const expected = job.sourceJobId && organonOutputs.get(job.sourceJobId);
         return expected && typeof job.isBaseline === "boolean" && isDeepStrictEqual(job, {
@@ -2748,16 +2805,16 @@ function strictPhenomRequestContracts(
           officialChineseCompanyName: plan.company.officialChineseName, officialTitle: expected.title,
           officialUrl: expected.officialUrl, listUrl: canonicalPublicHttpUrl(plan.source.officialEntryUrl),
           sourceJobId: expected.sourceJobId, locationRaw: expected.locationRaw, cities: expected.cities, category: "其他",
-          officialPublishedAt: expected.officialPublishedAt, isBaseline: job.isBaseline,
+          ...(expected.officialPublishedAt === undefined ? {} : {officialPublishedAt: expected.officialPublishedAt}), isBaseline: job.isBaseline,
           evidence: { officialEntryUrl: canonicalPublicHttpUrl(plan.source.officialEntryUrl),
             officialChainEvidenceUrl: canonicalPublicHttpUrl(plan.source.officialChainEvidenceUrl!), capturedAt }
         });
       }))) &&
-    (!preserveMerckQuality || (merckOutputs.size === pageRawCount && outputJobs.length === pageRawCount &&
-      new Set(outputJobs.map(job => job.sourceJobId)).size === pageRawCount &&
+    (!preserveMerckQuality || (merckOutputs.size+(evidence.jobQuarantines?.length??0) === pageRawCount && outputJobs.length === merckOutputs.size &&
+      new Set(outputJobs.map(job => job.sourceJobId)).size === merckOutputs.size &&
       evidence.fetchCounts.rawCount === pageRawCount && evidence.fetchCounts.parsedCount === pageRawCount &&
-      evidence.fetchCounts.validCount === pageRawCount && evidence.fetchCounts.parseDiscardCount === 0 &&
-      evidence.fetchCounts.validationDiscardCount === 0 && evidence.fetchLosses.length === 0 &&
+      evidence.fetchCounts.validCount === merckOutputs.size && evidence.fetchCounts.parseDiscardCount === 0 &&
+      evidence.fetchCounts.validationDiscardCount ===(evidence.jobQuarantines?.length??0) && evidence.fetchLosses.length ===(evidence.jobQuarantines?.length??0) &&
       outputJobs.every(job => {
         const expected = job.sourceJobId && merckOutputs.get(job.sourceJobId);
         return expected && job.companyId === plan.company.id && job.sourceId === plan.source.id &&
@@ -2765,11 +2822,11 @@ function strictPhenomRequestContracts(
           job.officialTitle === expected.title && job.officialUrl === expected.officialUrl &&
           job.locationRaw === expected.locationRaw && JSON.stringify(job.cities) === JSON.stringify(expected.cities);
       }))) &&
-    (!preserveLillyQuality || (lillyIds.size === pageRawCount && lillyOutputs.size + lillyLosses.length === pageRawCount &&
+    (!preserveLillyQuality || (lillyIds.size+held.length === pageRawCount && lillyOutputs.size + lillyLosses.length+held.length === pageRawCount &&
       outputJobs.length === lillyOutputs.size && new Set(outputJobs.map(job => job.sourceJobId)).size === lillyOutputs.size &&
       evidence.fetchCounts.rawCount === pageRawCount && evidence.fetchCounts.parsedCount === pageRawCount &&
       evidence.fetchCounts.validCount === lillyOutputs.size && evidence.fetchCounts.parseDiscardCount === 0 &&
-      evidence.fetchCounts.validationDiscardCount === lillyLosses.length && isDeepStrictEqual(evidence.fetchLosses, lillyLosses) &&
+      evidence.fetchCounts.validationDiscardCount === lillyLosses.length+held.length && isDeepStrictEqual(otherLosses, lillyLosses) &&
       outputJobs.every(job => {
         const expected = job.sourceJobId && lillyOutputs.get(job.sourceJobId);
         const publicEntry = new URL(plan.source.officialEntryUrl); publicEntry.search = "";
@@ -2780,16 +2837,16 @@ function strictPhenomRequestContracts(
           sourceKind: "SOCIAL", atsKind: "OFFICIAL_JSON", officialChineseCompanyName: plan.company.officialChineseName,
           officialTitle: expected.title, officialUrl: expected.officialUrl, listUrl: publicEntry.toString(),
           locationRaw: expected.locationRaw, cities: expected.cities, category: "其他",
-          officialPublishedAt: expected.officialPublishedAt, isBaseline: job.isBaseline,
+          ...(expected.officialPublishedAt === undefined ? {} : {officialPublishedAt: expected.officialPublishedAt}), isBaseline: job.isBaseline,
           evidence: {officialEntryUrl: publicEntry.toString(),
             officialChainEvidenceUrl: plan.source.officialChainEvidenceUrl, capturedAt}
         });
       }))) &&
-    (!preserveUcbPostedDate || (ucbOutputs.size === pageRawCount && outputJobs.length === pageRawCount &&
-      new Set(outputJobs.map(job => job.sourceJobId)).size === pageRawCount &&
+    (!preserveUcbPostedDate || (ucbOutputs.size+(evidence.jobQuarantines?.length??0) === pageRawCount && outputJobs.length === ucbOutputs.size &&
+      new Set(outputJobs.map(job => job.sourceJobId)).size === ucbOutputs.size &&
       evidence.fetchCounts.rawCount === pageRawCount && evidence.fetchCounts.parsedCount === pageRawCount &&
-      evidence.fetchCounts.validCount === pageRawCount && evidence.fetchCounts.parseDiscardCount === 0 &&
-      evidence.fetchCounts.validationDiscardCount === 0 && evidence.fetchLosses.length === 0 &&
+      evidence.fetchCounts.validCount === ucbOutputs.size && evidence.fetchCounts.parseDiscardCount === 0 &&
+      evidence.fetchCounts.validationDiscardCount ===(evidence.jobQuarantines?.length??0) && evidence.fetchLosses.length ===(evidence.jobQuarantines?.length??0) &&
       outputJobs.every(job => {
         const expected = job.sourceJobId && ucbOutputs.get(job.sourceJobId);
         return expected && job.companyId === plan.company.id && job.sourceId === plan.source.id &&
@@ -2805,7 +2862,7 @@ function strictPhenomRequestContracts(
 }
 
 type StrictUcbDateOutput = {
-  rawId: string; sourceJobId: string; officialPublishedAt: string;
+  rawId: string; sourceJobId: string; officialPublishedAt: string | undefined;
   title: string; officialUrl: string; locationRaw: string; cities: string[];
 };
 
@@ -2818,7 +2875,7 @@ function strictUcbDateOutput(value: unknown): StrictUcbDateOutput | undefined {
   const primary = strictPhenomPrimaryLocation(raw);
   const city = strictNonblankText(raw.city);
   const officialPublishedAt = ucbOfficialPostedDate(raw.postedDate);
-  if (!rawId || !safeOfficialJsonId(rawId) || !title || !primary || !officialPublishedAt ||
+  if (!rawId || !safeOfficialJsonId(rawId) || !title || !primary ||
     explicitlyForeignOrNonMainlandLocation(primary) || explicitlyGenericOrAmbiguousLocation(primary) ||
     strictUcbLocationHasAmbiguousSegments(primary) ||
     (city && (explicitlyForeignOrNonMainlandLocation(city) || explicitlyGenericOrAmbiguousLocation(city)))) return undefined;
@@ -2952,7 +3009,7 @@ function strictExactRochePhenomPlan(
     config.requestBoundOmittedOffsetPolicy === "ROCHE_REQUEST_BOUND_OMITTED_OFFSET_V1" &&
     config.exactDuplicateReconciliationPolicy === "ROCHE_IDENTICAL_CROSS_PAGE_V1" &&
     (config.nativeDetailPolicy === undefined ? fields.officialPublishedAt === undefined :
-      config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY && fields.officialPublishedAt === "officialPublishedAt") &&
+      (config.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY || config.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY) && fields.officialPublishedAt === "officialPublishedAt") &&
     (config.pageSize === 100 || config.pageSize === 250) && config.maxPages === 10 &&
     endpoint === "https://careers.roche.com/widgets" &&
     pageConfig.widgetApiEndpoint === "https://careers.roche.com/widgets" &&
@@ -3789,8 +3846,8 @@ function strictEightfoldDateReplay(
   const config = plan.officialJsonFetch;
   if (!strictEightfoldPlanBinding(plan) || config?.kind !== "eightfold-pcsx" ||
     evidence.pages.length === 0 || evidence.pages.length > config.maxPages! ||
-    evidence.artifacts.length !== evidence.pages.length || evidence.fetchLosses.length > 0) return strictGateTrace(plan, "BMS_DATE_INPUT");
-  const expected = new Map<string, ReturnType<typeof projectEightfoldPcsxPosition> & { officialPublishedAt: string }>();
+    evidence.artifacts.length !== evidence.pages.length ||evidence.fetchLosses.length>0&&(!jobQuarantineLossesMatch(evidence)||evidence.fetchLosses.some(loss=>loss.details.code!=='JOB_QUARANTINED'))) return strictGateTrace(plan, "BMS_DATE_INPUT");
+  const expected = new Map<string, NonNullable<ReturnType<typeof projectEightfoldPcsxPosition>>>();
   let total: number | undefined;
   let declarationLocator: string | undefined;
   const clean = (value: string) => value.replace(/\s+/gu, " ").trim();
@@ -3816,16 +3873,20 @@ function strictEightfoldDateReplay(
     if (data.positions.length !== Math.min(config.pageSize!, total - offset) ||
       page.returnedPageSize !== null) return strictGateTrace(plan, "BMS_DATE_PAGE_SIZE");
     const rawIds: string[] = [], validIds: string[] = [];
-    for (const value of data.positions) {
+    for (const [recordIndex,value] of data.positions.entries()) {
       const raw = strictRecord(value);
       const projection = raw && projectEightfoldPcsxPosition(raw, new URL(config.detailBaseUrl), config.cityScopePolicy);
       const officialPublishedAt = raw && bmsOfficialPostedDate(raw.postedTs);
-      if (!projection || !officialPublishedAt || expected.has(projection.sourceJobId)) return strictGateTrace(plan, "BMS_DATE_ROW");
-      expected.set(projection.sourceJobId, { ...projection, officialPublishedAt });
-      rawIds.push(irreversibleOfficialJsonEvidenceId(projection.rawId));
+      const rawId = raw && (typeof raw.id === "number" || typeof raw.id === "boolean" ? String(raw.id) : strictNonblankText(raw.id));
+      rawIds.push(irreversibleOfficialJsonEvidenceId(rawId ?? [index,recordIndex,value]));
+      const quarantine=evidence.jobQuarantines?.find(q=>q.pageSequence===index&&q.recordIndex===recordIndex);
+      if(!projection){if(!quarantine||!isDeepStrictEqual(quarantine,eightfoldJobQuarantine(value,new URL(config.detailBaseUrl),index,recordIndex,logicalKey,quarantine.code)))return strictGateTrace(plan,'BMS_QUARANTINE_INVALID');continue;}
+      if(quarantine)return false;
+      if (!projection || expected.has(projection.sourceJobId)) return strictGateTrace(plan, "BMS_DATE_ROW");
+      expected.set(projection.sourceJobId, { ...projection, ...(officialPublishedAt === undefined ? {} : {officialPublishedAt}) });
       validIds.push(irreversibleOfficialJsonEvidenceId(projection.sourceJobId));
     }
-    const hasNext = expected.size < total;
+    const hasNext = offset+data.positions.length < total;
     if (JSON.stringify(page.rawJobIds) !== JSON.stringify(rawIds) || JSON.stringify(page.validJobIds) !== JSON.stringify(validIds) ||
       page.declaredTotal !== total || page.declaredCount !== null || page.declaredPages !== null ||
       page.nextPageSignalBefore !== (index === 0 ? null : `start:${offset}`) ||
@@ -3833,10 +3894,10 @@ function strictEightfoldDateReplay(
       page.termination !== (hasNext ? "CONTINUE" : "NEXT_ABSENT")) return strictGateTrace(plan, "BMS_DATE_PAGE_IDS");
     if (index === 0) declarationLocator = artifact.extractorLocator;
   }
-  const valid = total !== undefined && expected.size === total && outputJobs.length === total &&
-    new Set(outputJobs.map(job => job.sourceJobId)).size === total &&
-    evidence.fetchCounts.rawCount === total && evidence.fetchCounts.parsedCount === total && evidence.fetchCounts.validCount === total &&
-    evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount === 0 &&
+  const valid = total !== undefined && expected.size+(evidence.jobQuarantines?.length??0) === total && outputJobs.length === expected.size &&
+    new Set(outputJobs.map(job => job.sourceJobId)).size === expected.size &&
+    evidence.fetchCounts.rawCount === total && evidence.fetchCounts.parsedCount === total && evidence.fetchCounts.validCount === expected.size &&
+    evidence.fetchCounts.parseDiscardCount === 0 && evidence.fetchCounts.validationDiscardCount ===(evidence.jobQuarantines?.length??0) &&
     strictGateOfficialTotalDeclaration(evidence, total, evidence.pages[0]!.artifactLogicalKey, declarationLocator!) &&
     outputJobs.every(job => {
       const raw = job.sourceJobId && expected.get(job.sourceJobId);
@@ -3997,6 +4058,7 @@ function strictCnstaffRequestContracts(
   const config = plan.officialJsonFetch;
   if (config?.kind !== "cnstaff" || evidence.pages.length === 0 ||
     evidence.artifacts.length !== evidence.pages.length || evidence.pages.length > config.maxPages!) return strictGateTrace(plan, "CNSTAFF_ENVELOPE");
+  if(evidence.jobQuarantines?.length&&!jobQuarantineLossesMatch(evidence))return false;
   const artifacts = new Map(evidence.artifacts.map((artifact) => [artifact.logicalKey, artifact]));
   if (artifacts.size !== evidence.artifacts.length) return strictGateTrace(plan, "CNSTAFF_ARTIFACT_KEYS");
   let officialTotal: number | undefined;
@@ -4041,6 +4103,12 @@ function strictCnstaffRequestContracts(
     const validIds: string[] = [];
     for (let rowIndex = 0; rowIndex < root.list.length; rowIndex += 1) {
       const raw = root.list[rowIndex];
+      const quarantine=evidence.jobQuarantines?.find(q=>q.pageSequence===index&&q.recordIndex===rowIndex);
+      if(quarantine){
+        if(!isDeepStrictEqual(quarantine,cnstaffJobQuarantine(raw,plan.source.officialEntryUrl,index,rowIndex,logicalKey,quarantine.code)))return false;
+        const row=strictRecord(raw),id=row?(strictGateString(row.job_publish_id)??strictGateString(row.job_id)):undefined;
+        rawIds.push(strictGateEvidenceId(id??[index,rowIndex,raw]));continue;
+      }
       const parsed = strictCnstaffChinaRecord(raw);
       if (!parsed || rawIds.includes(strictGateEvidenceId(parsed.officialId)) ||
         validIds.includes(strictGateEvidenceId(strictGatePersistentJobId(parsed.officialId)))) {
@@ -4329,10 +4397,10 @@ function strictPlanUrlRules(plan: SourceCrawlPlan): StrictUrlRule[] | undefined 
       if (plan.source.id === "source-roche-china-social" && strategy.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY) {
         rules.push(prefixEndpointRule("roche-native-detail", new URL("https://roche.wd3.myworkdayjobs.com/wday/cxs/roche/roche-ext/job/")));
       }
-      if (exactOrganonPostedDatePlan(plan)) {
+      if (exactOrganonPostedDatePlan(plan) && !isOrganonPhenomOnlyPlan(plan)) {
         rules.push(prefixEndpointRule("organon-native-detail", new URL("https://organon.wd5.myworkdayjobs.com/SearchJobs/job/")));
       }
-      if (exactLillyChinaQualityPlan(plan)) {
+      if (exactLillyChinaQualityPlan(plan) && !isLillyPhenomOnlyPlan(plan)) {
         rules.push(prefixEndpointRule("lilly-native-detail", new URL("https://lilly.wd115.myworkdayjobs.com/LLY/job/")));
       }
       return rules;
@@ -4814,7 +4882,7 @@ function strictPositiveOfficialTotalReplayPolicy(
     if (strategy.exactDuplicateReconciliationPolicy !== undefined && !exactRocheDuplicatePolicy) return undefined;
     return {
       allowPositiveOfficialTotalCountAfterAdapterReconciliation: true,
-      ...(exactLillyChinaQualityPlan(plan) || exactOrganonPostedDatePlan(plan) || (plan.source.id === "source-roche-china-social" && strategy.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
+      ...(exactLillyChinaQualityPlan(plan) || exactOrganonPostedDatePlan(plan) || (plan.source.id === "source-roche-china-social" && (strategy.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY || strategy.nativeDetailPolicy === ROCHE_PHENOM_LIST_POLICY)) ? { allowIndependentlyVerifiedProfileBoundExclusions: true as const } : {}),
       ...(exactRocheDuplicatePolicy ? { allowRawIdOverlapAcrossPages: true as const } : {})
     };
   }

@@ -1,8 +1,9 @@
 import { createAstraZenecaDetailSourceFetch, hasAstraZenecaDetailPlan } from "./astraZenecaDetailAcquisition";
 import { readFile } from "node:fs/promises";
 import { deserialize } from "node:v8";
-import { join } from "node:path";
+import { resolve } from "node:path";
 import { acquireAstellasPdfCities, hasAstellasPdfCityPlan } from "./astellasPdfCityAcquisition";
+import { inspectAstellasPdfRuntime, type AstellasPdfRuntimeCapability } from "./astellasPdfLocations";
 import { getPortableSourceCoverageHold } from "../release/portableSourceCoverageHolds";
 import { createPresenceCheckedHttpHtmlSourceFetch } from "./httpHtmlSourceFetch";
 import { hasNovartisOfficialPresencePlan, replayNovartisOfficialPresence } from "./novartisOfficialPresence";
@@ -10,7 +11,7 @@ import type { AtomicSourceEvidenceCommit, AtomicEvidenceArtifactInput, AtomicPag
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { assertAdapterReconciliation } from "./adapters/reconciliation";
-import { assertVerifiedArchivedEvidenceMetadata, verifyArchivedSourceEvidence, type ArchivedEvidenceArtifact } from "./artifactArchive";
+import { assertVerifiedArchivedEvidenceMetadata, verifyArchivedSourceEvidence, type ArchivedEvidenceArtifact, type VerifyArchivedEvidenceRequest } from "./artifactArchive";
 import { createMokaSourceFetch } from "./mokaSourceFetch";
 import { createWorkdaySourceFetch } from "./workdaySourceFetch";
 import { createHotjobWecruitSourceFetch } from "./hotjobWecruitSourceFetch";
@@ -36,11 +37,11 @@ const captureAgeLimitMs = (sourceId:string,retained:boolean) =>
   retained&&LONG_RETAINED_CAPTURE_SOURCES.has(sourceId)?MAX_REVIEWED_CAPTURE_AGE_MS:MAX_ISSUANCE_AGE_MS;
 // Reviewed configurations, not live counts or IDs. A profile edit requires an explicit review here.
 const REVIEWED_CONFIGS: Readonly<Record<string, string>> = Object.freeze({
-  "source-csl-china-social": "eb4583bc629171783b293f162837776c6f68e63b7e81cc40540b83aed6e06694",
+  "source-csl-china-social": "deea9515efd3d9327c3dce84aaf48056c2114c037783b21293888b796a182854",
   "source-gilead-china-social": "bdb31408948240f810347b6ba217407b0b50c9327c9600b4115a2a7a0869e40c",
   "source-novo-nordisk-china-social": "40305820c3aa3f36e74f06873c0ddd1a52266cb74d277b3a36137c81fc5c604e",
-  "source-organon-china-social": "d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2",
-  "source-lilly-china-social": "34ac4d47a1b69389e567b53df64062f10ed50a1d34cb0b4876d3c9af85e68c97",
+  "source-organon-china-social": "7530360f37f40c1df05d41622813666e217f42fb04751d410d42253f543ac8c8",
+  "source-lilly-china-social": "1869f5510dc347c72a64798730a11434068232a08c5ee4d1870335cf9dad12c6",
   "source-biogen-china-social": "47107a3a1f9dbd3411a1f9244866be7c4bc52422b94a1c92204dc66ac4340348",
   "source-merck-china-social": "1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212",
   "source-bms-china-social": "e0d783cbc8fc887e1697db6d86cb0abb8058ca6793cd32752055271c022ca137",
@@ -97,8 +98,12 @@ interface OwnedAcquisition {
   evidenceSha256:string;fetched:SourceFetchResult;boundTuple?:string;
   accepted?:Extract<SourceQualityAdmission,{status:"ACCEPTED"}>;
 }
+interface AstellasArchiveProof {
+  archive: VerifyArchivedEvidenceRequest;
+  runtimeCapability: AstellasPdfRuntimeCapability;
+}
 const acquisitions = new WeakMap<PersistentSourceFetchEvidence, OwnedAcquisition>();
-const issuedArchiveReplays = new WeakMap<object, SourceQualityAdmissionInput>();
+const issuedAstellasArchives = new WeakMap<Extract<SourceQualityAdmission,{status:"ACCEPTED"}>, AstellasArchiveProof>();
 const issued = new WeakMap<object,{receiptSha256:string;resultSha256:string;planSha256:string}>();
 
 export function getSourceQualityPolicy(plan:SourceCrawlPlan): typeof SOURCE_QUALITY_POLICY_ID | null {
@@ -233,14 +238,25 @@ export async function issueSourceQualityAdmission(input:SourceQualityAdmissionIn
         digest(replay.observation)!==digest(result.observation)) return reject("SOURCE_OUTPUT_OR_LEDGER_MISMATCH");
   } catch { return reject("SOURCE_QUALITY_REPLAY_FAILED"); }
   let artifacts:ArchivedEvidenceArtifact[];
+  let astellasArchiveProof: AstellasArchiveProof | undefined;
   try {
     artifacts=structuredClone([...archiveInput.artifacts]);
     const drafts=[...evidence.artifacts,...(result.priorTransportAttempts??[]).flatMap(a=>a.fetchEvidence?.artifacts??[])];
-    const request={...archiveInput,artifacts,...binding,sourceId:plan.source.id};
+    const request={...archiveInput,workspaceRoot:resolve(archiveInput.workspaceRoot),artifacts,...binding,sourceId:plan.source.id};
     assertVerifiedArchivedEvidenceMetadata(request,drafts.map(draft=>({...draft,
       id:artifacts.find(a=>a.logicalKey===draft.logicalKey)?.id??"missing"})));
-    await verifyArchivedSourceEvidence(request);
-    if (hasAstellasPdfCityPlan(plan)) await replayAstellasArchivedSourceQuality({...input,plan,result,archive:archiveInput});
+    const archivedEvidence = hasAstellasPdfCityPlan(plan) ? structuredClone(evidence) : undefined;
+    await verifyArchivedSourceEvidence(request, archivedEvidence && ((artifact, bytes) => {
+      const draft = archivedEvidence.artifacts.find(candidate => candidate.logicalKey === artifact.logicalKey);
+      if (draft) draft.body = typeof draft.body === "string" ? bytes.toString("utf8") : new Uint8Array(bytes);
+    }));
+    if (archivedEvidence) {
+      const runtimeCapability = archivedEvidence.astellasPdfLocations?.runtimeCapability;
+      if (!runtimeCapability || !result.paginationEvaluation || !await replayStrictSourceQualityEvidenceAsync({plan,evidence:archivedEvidence,
+        paginationEvaluation:result.paginationEvaluation,reconciliation:assertAdapterReconciliation(result),
+        jobs:result.jobs,capturedAt:result.observation.crawledAt.toISOString()})) throw Error("ASTELLAS_ARCHIVED_REPLAY_FAILED");
+      astellasArchiveProof = { archive: request, runtimeCapability };
+    }
   } catch { return reject("ARCHIVE_VERIFICATION_FAILED"); }
   if (digest(input.result.fetchEvidence)!==owned.evidenceSha256) return reject("ACQUISITION_MUTATED");
   if (!fresh(owned,new Date(),owned.sourceId)) return reject("ACQUISITION_NOT_FRESH");
@@ -269,32 +285,20 @@ export async function issueSourceQualityAdmission(input:SourceQualityAdmissionIn
   });
   const decision:Extract<SourceQualityAdmission,{status:"ACCEPTED"}>={status:"ACCEPTED",receipt,receiptSha256:digest(receipt)};
   verifySourceQualityReceipt({receipt,receiptSha256:decision.receiptSha256,expected:binding});
-  if (hasAstellasPdfCityPlan(plan)) issuedArchiveReplays.set(decision,structuredClone({...input,plan,result,archive:archiveInput}));
+  if (astellasArchiveProof) issuedAstellasArchives.set(decision,astellasArchiveProof);
   deepFreeze(decision);issued.set(decision,{receiptSha256:decision.receiptSha256,resultSha256,planSha256});owned.accepted=decision;
   return decision;
 }
 
-/** Re-read the verified physical archive, bind bytes to the owned drafts, and
- * rederive locations again. Called at issuance and immediately before DB writes. */
-async function replayAstellasArchivedSourceQuality(input:SourceQualityAdmissionInput):Promise<void> {
-  const evidence=parsePersistentSourceFetchEvidence(structuredClone(input.result.fetchEvidence));
-  for(const draft of evidence.artifacts){
-    const archived=input.archive.artifacts.find(a=>a.logicalKey===draft.logicalKey);
-    if(!archived)throw Error("ASTELLAS_ARCHIVED_ARTIFACT_MISSING");
-    const bytes=await readFile(join(input.archive.workspaceRoot,archived.path));
-    if(bytes.byteLength!==archived.byteCount||createHash("sha256").update(bytes).digest("hex")!==archived.sha256)throw Error("ASTELLAS_ARCHIVED_BYTES_CHANGED");
-    draft.body=typeof draft.body==="string"?bytes.toString("utf8"):bytes;
-  }
-  if(!input.result.paginationEvaluation||!await replayStrictSourceQualityEvidenceAsync({plan:input.plan,evidence,
-    paginationEvaluation:input.result.paginationEvaluation,reconciliation:assertAdapterReconciliation(input.result),
-    jobs:input.result.jobs,capturedAt:input.result.observation.crawledAt.toISOString()}))throw Error("ASTELLAS_ARCHIVED_REPLAY_FAILED");
-}
 export async function verifyIssuedSourceQualityArchiveForPersistence(admission:SourceQualityAdmission):Promise<void> {
   if(admission.status!=="ACCEPTED"||admission.receipt.binding.sourceId!=="source-astellas-china-social")return;
-  const input=issuedArchiveReplays.get(admission);
-  if(!input)throw Error("ASTELLAS_ISSUED_ARCHIVE_REPLAY_REQUIRED");
-  await verifyArchivedSourceEvidence({...input.archive,artifacts:[...input.archive.artifacts],...input.binding,sourceId:input.plan.source.id});
-  await replayAstellasArchivedSourceQuality(input);
+  const proof=issuedAstellasArchives.get(admission);
+  if(!proof)throw Error("ASTELLAS_ISSUED_ARCHIVE_REPLAY_REQUIRED");
+  if (proof.runtimeCapability.available) {
+    const runtime=await inspectAstellasPdfRuntime();
+    if (!runtime.available || runtime.parserVersion!==proof.runtimeCapability.parserVersion) throw Error("ASTELLAS_ARCHIVED_REPLAY_FAILED");
+  }
+  await verifyArchivedSourceEvidence(proof.archive);
 }
 
 /** Durable integrity/binding validation, not authentication of a new acquisition.

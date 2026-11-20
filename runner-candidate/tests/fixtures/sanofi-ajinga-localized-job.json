@@ -1,0 +1,59 @@
+{
+  "provenance": {
+    "kind": "REAL_FAILURE_FIELD_PROJECTION",
+    "originalPath": "/data/job-finder/diagnostics/sanofi/sanofi-ajinga-R2877922-7cd68172-7bab-4832-89ac-5ec41ad775ee.json",
+    "originalSha256": "1724e5a6250aa94421fea4d1146a273bc10307d25ef6a6690ff6d2e0c7f8e022",
+    "capturedAt": "2026-11-09T11:09:29.446Z",
+    "batchId": null,
+    "note": "The existing failed-job diagnostic does not record a batch ID. Replay fields and original response timestamps are retained; bodies are projections, not byte-exact production evidence. The unused entry body and unrelated ATS fields are omitted."
+  },
+  "start": "2026-11-09T11:08:12.561Z",
+  "detail": {
+    "reqId": "R2877922",
+    "title": "心血管和移植事业部-地区经理-潍坊",
+    "description": "●地点:潍坊关于工作作为我们普药事业部的地区经理,您将加入团队,转变全球慢性病和特药疾病的医疗保健服务方式。在GeneralMedicines中,您将帮助推动糖尿病、移植和免疫学领域取得有意义的成果—以患者应得的规模和紧迫性。准备好开始了吗?关于赛诺菲:我们是一家以研发为驱动、以AI为动力的生物制药公司,致力于改善人们的生活并实现令人信服的增长。我们对免疫系统的深入理解以及创新的产品管线使我们能够发明药物和疫苗,为全球数百万人提供治疗和保护。我们共同追寻科学的奇迹,改善人们的生活。职责描述:˗制定并执行公司在指定区域或地区的业务计划,监督和辅导医药代表分析和制定详细的执行计划。˗跨部门合作协调以推进品牌战略在区域内的实施。˗监督和辅导医药代表提供高质量的产品信息传递,学术推广和相关的反馈。˗计划和实施与医药代表的协访。˗参与医药代表的选拔、招聘和培训/辅导工作。˗定期评估医药代表的绩效,帮助他们制定个人发展计划,建立合理的人才梯队。˗积极参与和推进合规项目,以身作则,传递合规文化。遵守所覆盖或拜访的医疗机构仅需同的与医药代表或医药企业相关人员有关的规章制度。任职资格˗教育背景:具有医学、药学或相关专业,本科及以上学历˗工作经验:5年以上制药行业工作经验,1年以上管理经验,过往有较好绩效˗具备业务规划、团队管理、沟通协调能关键技能˗具备主动进取、自我认知、结果导向,良好的学习敏锐度,韧性,主人翁意识等特质˗具备高度的合规意识为什么选择我们?●帮助塑造慢性和复杂疾病的未来护理,如aT1D、2型糖尿病、移植和心血管疾病。●在全球范围内产生有意义的影响:我们的药物每年覆盖超过1亿人。●成为一个更简单、数字和AI驱动型企业的一部分,重新思考我们如何工作以及与世界互动。●将大胆的想法转化为突破性的发布,计划在2030年及以后采用多种新疗法。●拓展您的职业发展平台,提供跨职能部门、地区和整个产品生命周期的机会。●以强大的协作文化和共同目标为后盾,将全球规模与当地专业知识相结合。●促进创新,改善结果,减轻对医疗保健系统的压力,并扩大全球可及范围。●一个不仅在改变治疗方式,还在思考下一步并使之成为现实的团队。●加入一个以多元化、公平和包容为核心的工作场所,通过员工资源小组和领导力项目来庆祝每一个声音。追寻发展。探索菲凡。加入赛诺菲,步入科学新纪元-在这里,您的成长可以像我们所做的工作一样具有变革性。我们投资于您,让您能够更进一步,思考更快捷,做出前所未有的成就。您将帮助推动边界,挑战常规,为我们服务的社区构建更智能的解决方案。准备好追寻科学奇迹并改善人们的生活吗?让我们一起追寻发展,探索菲凡。在赛诺菲,我们向所有人提供平等机会,无论种族、肤色、血统、宗教、性别、国籍、性取向、年龄、公民身份、婚姻状况、残疾、性别认同、受保护的退伍军人身份或其他受法律保护的特征",
+    "applyUrl": "https://www.ajinga.com/ats/job-detail-new/13537/R2877922/c/?show_policy_popup=1&aj_source=sanofi_careersite&aj_code=radancyjoblist",
+    "countryScope": "MAINLAND"
+  },
+  "artifacts": [
+    {
+      "id": "sanofi-ajinga-entry-R2877922",
+      "logicalKey": "sanofi-ajinga-entry-R2877922",
+      "kind": "ATS_PAGE",
+      "requestedUrl": "https://www.ajinga.com/ats/job-detail-new/13537/R2877922/c/?show_policy_popup=sha256%3A6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b&aj_source=sha256%3A700f040afee9f72ce6b233b2e202df89e4315423552a74c1b322d6939cd1e873&aj_code=sha256%3A8b193483edac27935fedf9ccf288ed60895ac89153755b4bce7b9b13c79f9655",
+      "finalUrl": "https://www.ajinga.com/recruiting/company/13537/job/221794/job-detail?show_policy_popup=sha256%3A6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b&aj_code=sha256%3A8b193483edac27935fedf9ccf288ed60895ac89153755b4bce7b9b13c79f9655&aj_source=sha256%3A700f040afee9f72ce6b233b2e202df89e4315423552a74c1b322d6939cd1e873",
+      "httpStatus": 200,
+      "contentType": "text/html",
+      "capturedAt": "2026-11-09T11:09:28.630Z",
+      "bodyRepresentation": "EXACT",
+      "extractorLocator": "sanofi-native-ajinga-entry-v1|request-contract-v2|sha256:35042ab2084c1aaf2c2e55c68fbfb6a748ec5bbb951b5a976112586cbdac683c",
+      "body": ""
+    },
+    {
+      "id": "sanofi-ajinga-info-R2877922",
+      "logicalKey": "sanofi-ajinga-info-R2877922",
+      "kind": "ATS_API_RESPONSE",
+      "requestedUrl": "https://www.ajinga.com/django_rest/job-detail/info/221794/?job_id=sha256%3A8f7c506ca5cb0a381d3f31be4295edd337445eeec919987baab13f1c9e679f1d&company_id=sha256%3A22d87226467336764e175f49f4e1b53babd58ca4eb6ec98fc5254813e035e142&aj_source=sha256%3A700f040afee9f72ce6b233b2e202df89e4315423552a74c1b322d6939cd1e873&aj_code=sha256%3A8b193483edac27935fedf9ccf288ed60895ac89153755b4bce7b9b13c79f9655",
+      "finalUrl": "https://www.ajinga.com/django_rest/job-detail/info/221794/?job_id=sha256%3A8f7c506ca5cb0a381d3f31be4295edd337445eeec919987baab13f1c9e679f1d&company_id=sha256%3A22d87226467336764e175f49f4e1b53babd58ca4eb6ec98fc5254813e035e142&aj_source=sha256%3A700f040afee9f72ce6b233b2e202df89e4315423552a74c1b322d6939cd1e873&aj_code=sha256%3A8b193483edac27935fedf9ccf288ed60895ac89153755b4bce7b9b13c79f9655",
+      "httpStatus": 200,
+      "contentType": "application/json",
+      "capturedAt": "2026-11-09T11:09:29.196Z",
+      "bodyRepresentation": "EXACT",
+      "extractorLocator": "sanofi-native-ajinga-info-v1|request-contract-v2|sha256:af1180b03e56e3f452e6f63e7dfe2831517a04b59d77e99726c6f9585b5fe843",
+      "body": "{\"code\":200,\"data\":{\"data\":{\"is_in_china\":true,\"company\":{\"id\":13965,\"root_company\":{\"id\":13537}},\"job\":{\"id\":221794,\"root_company_id\":13537,\"company\":{\"id\":13965},\"i18n_name\":\"R2877922 District Manager\",\"description\":\"职责描述：\\n\\n˗ 制定并执行公司在指定区域或地区的业务计划, 监督和辅导医药代表分析和制定详细的执行计划。\\n\\n˗ 跨部门合作协调以推进品牌战略在区域内的实施。\\n\\n˗ 监督和辅导医药代表提供高质量的产品信息传递，学术推广和相关的反馈。\\n\\n˗ 计划和实施与医药代表的协访。\\n\\n˗ 参与医药代表的选拔、招聘和培训/辅导工作。\\n\\n˗ 定期评估医药代表的绩效，帮助他们制定个人发展计划，建立合理的人才梯队。\\n\\n˗ 积极参与和推进合规项目，以身作则，传递合规文化。遵守所覆盖或拜访的医疗机构仅需同的与医药代表或医药企业相关人员有关的规章制度。\\n\\n\\n任职资格\\n\\n˗ 教育背景：具有医学、药学或相关专业，本科及以上学历\\n\\n˗ 工作经验：5年以上制药行业工作经验，1年以上管理经验，过往有较好绩效\\n\\n˗ 具备业务规划、团队管理、沟通协调能关键技能\\n\\n˗ 具备主动进取、自我认知、结果导向，良好的学习敏锐度，韧性，主人翁意识等特质\\n\\n˗ 具备高度的合规意识\",\"short_unique_id\":\"dTKdYwyiG\",\"job_visibility\":\"IE\",\"job_locations\":[{\"city\":{\"cn_name\":\"潍坊市\"}}]}}}}"
+    },
+    {
+      "id": "sanofi-ajinga-status-R2877922",
+      "logicalKey": "sanofi-ajinga-status-R2877922",
+      "kind": "ATS_API_RESPONSE",
+      "requestedUrl": "https://www.ajinga.com/django_rest/job-detail/apply-status/?short_id=sha256%3A1d1f03328a2ac2317a14477c4124c6182ff08dbf75a1ef1eb33f7efb7df3afc9",
+      "finalUrl": "https://www.ajinga.com/django_rest/job-detail/apply-status/?short_id=sha256%3A1d1f03328a2ac2317a14477c4124c6182ff08dbf75a1ef1eb33f7efb7df3afc9",
+      "httpStatus": 200,
+      "contentType": "application/json",
+      "capturedAt": "2026-11-09T11:09:29.444Z",
+      "bodyRepresentation": "EXACT",
+      "extractorLocator": "sanofi-native-ajinga-status-v1|request-contract-v2|sha256:f1ff02761770136696258fb81a2220cb0205efa08f73d001f964690fbffb0b56",
+      "body": "{\"code\": 200, \"data\": {\"show_apply\": 1, \"normal_share_url\": \"https://www.ajinga.com/recruiting/company/13965/job/221794/job-detail\"}}"
+    }
+  ]
+}

@@ -1,3 +1,5 @@
+import {mokaRawJobId,mokaRawObservationId,mokaQuarantineAt,mokaQuarantinedDetailKey} from './mokaJobQuarantine';
+import {jobQuarantineLossesMatch} from './jobQuarantine';
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { load } from "cheerio";
@@ -6,7 +8,7 @@ import type { NormalizedJobRecord } from "./normalizedJob";
 import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import { sanitizeEvidenceHttpUrl } from "./sourceFetchEvidence";
 import { requestContractV2Locator } from "./strictPageRequestContract";
-import { isHengruiMainlandLocation } from "./hengruiMainlandGeography";
+import { hasMainlandCountryLocation, mokaDisplayCities } from "./hengruiMainlandGeography";
 import { MOKA_JSON_CONFIG } from "./companyRecruitmentProfiles/shared";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { decryptBayerArtifact } from "./bayerMokaScope";
@@ -57,7 +59,7 @@ export function servierIndependentDetailScope(identity: { id: string; title: str
   if (detail.id !== identity.id || !/^[0-9a-f-]{36}$/u.test(identity.id) || detail.orgId !== "shiweiya" ||
       detail.siteId !== undefined && String(detail.siteId) !== "47734" || typeof detail.title !== "string" ||
       clean(detail.title) !== clean(identity.title) || !clean(identity.title) || detail.status !== "open" ||
-      typeof detail.jobDescription !== "string" || load(detail.jobDescription).text().trim().length < 20 ||
+      typeof detail.jobDescription !== "string" || !load(detail.jobDescription).text().trim() ||
       !Array.isArray(detail.locations)) throw Error("Servier detail identity, activity or body is unresolved");
   assertServierOpenActivity(detail);
   const locations = detail.locations;
@@ -75,14 +77,32 @@ export function servierIndependentDetailScope(identity: { id: string; title: str
   if (!locations.every(candidate => {
     const location = record(candidate);
     if (!location || location.country !== "中国" || location.countryDescription !== undefined && location.countryDescription !== "中国") return false;
-    // Two official district tuples are still mainland locations. Preserve their original labels.
-    const district = location.cityName === "朝阳区" && location.cityId === 110105 && location.provinceName === "北京市" &&
-      (location.provinceId === undefined || location.provinceId === 110000) ||
-      location.cityName === "下城区（旧）" && location.cityId === 330103 && location.provinceName === "浙江" &&
-      (location.provinceId === undefined || location.provinceId === 330000);
-    return isHengruiMainlandLocation(location) || district;
+    return hasMainlandCountryLocation(location) || servierDistrictCity(location) !== undefined;
   })) throw Error("Servier detail has unreviewed or conflicting mainland geography");
   return { locations: locations as Record<string, unknown>[], unknownGeography: false };
+}
+
+function servierDistrictCity(location: Record<string, unknown>): string | undefined {
+  if (location.country !== "中国" || location.countryDescription !== undefined && location.countryDescription !== "中国") return undefined;
+  const districts = [
+    ["朝阳区", 110105, "北京市", 110000, "北京"],
+    ["下城区（旧）", 330103, "浙江", 330000, "杭州"]
+  ] as const;
+  return districts.find(([district, cityId, province, provinceId]) =>
+    location.cityName === district && location.cityId === cityId &&
+    (location.provinceName === province || location.provinceName === undefined && location.provinceId === provinceId) &&
+    (location.provinceId === undefined || location.provinceId === provinceId)
+  )?.[4];
+}
+
+export function servierDisplayCities(locations: unknown): string[] {
+  if (!Array.isArray(locations)) return [];
+  return mokaDisplayCities(locations.map(candidate => {
+    const location = record(candidate);
+    if (!location) return candidate;
+    const city = servierDistrictCity(location);
+    return city ? { ...location, cityName: city } : location;
+  }));
 }
 
 export function decodeServierArtifact(artifact: Pick<SourceFetchArtifactDraft, "body">, iv: string): Record<string, unknown> {
@@ -99,6 +119,7 @@ export function replayServierTraversal(
   try {
     if (!isServierTraversalPlan(plan) || plan.executionAuthority !== "STAGED" || evidence.supportingArtifactOnlyFailure ||
         !evidence.pages.length) return undefined;
+    if(evidence.jobQuarantines?.length&&!jobQuarantineLossesMatch(evidence))return;
     const artifacts = new Map(evidence.artifacts.map(a => [a.logicalKey, a]));
     const entry = artifacts.get("moka-entry-0000");
     if (artifacts.size !== evidence.artifacts.length || !entry || !exactArtifact(entry, SERVIER_MOKA_CAMPAIGN, "OFFICIAL_COMPANY_PAGE")) return undefined;
@@ -136,10 +157,13 @@ export function replayServierTraversal(
           page.responseFingerprintSha256 !== hash(textBody(artifact))) return undefined;
       const rawIds: string[] = [], validIds: string[] = [];
       for (let i = 0; i < data.jobs.length; i++) {
-        const raw = record(data.jobs[i]);
-        if (!raw || typeof raw.id !== "string" || seen.has(raw.id)) return undefined;
-        seen.add(raw.id);
-        const evidenceId = `sha256:${hash(JSON.stringify(raw.id))}`; rawIds.push(evidenceId);
+        const original=data.jobs[i],raw=record(original),id=mokaRawJobId(original);
+        if(id){if(seen.has(id))return;seen.add(id);}
+        rawIds.push(mokaRawObservationId(original,sequence,i));
+        const q=mokaQuarantineAt(evidence,original,sequence,i);
+        if(q){const key=mokaQuarantinedDetailKey(evidence,q,id,(plan as Extract<SourceCrawlPlan,{adapterId:'official-json'}>).moka!);if(key)used.add(key);continue;}
+        if(!raw||typeof raw.id!=='string')return;
+        const evidenceId = `sha256:${hash(JSON.stringify(raw.id))}`;
         const key = `moka-detail-${String(sequence).padStart(4, "0")}-${String(i).padStart(4, "0")}`, detailArtifact = artifacts.get(key);
         const detailLocator = requestContractV2Locator(`moka-detail-v2|request:jobId64=${Buffer.from(raw.id).toString("base64url")}`, {
           family: "moka", role: "detail", method: "POST", url: SERVIER_MOKA_DETAIL,
@@ -167,8 +191,8 @@ export function replayServierTraversal(
           (page.nextPageSignalBefore ?? null) !== (sequence ? String(offset) : null) ||
           (page.nextPageSignalAfter ?? null) !== (last ? null : String(offset + 50))) return undefined;
     }
-    if (used.size !== artifacts.size || rawCount !== officialTotal || rawCount !== seen.size || excludedCount !== losses.size ||
-        !isDeepStrictEqual(evidence.fetchCounts, { rawCount, parsedCount: rawCount, validCount: expected.size, parseDiscardCount: 0, validationDiscardCount: excludedCount })) return undefined;
+    if (used.size !== artifacts.size || rawCount !== officialTotal || rawCount !== seen.size+(evidence.jobQuarantines?.filter(q=>!q.sourceJobId).length??0) || excludedCount+(evidence.jobQuarantines?.length??0) !== losses.size ||
+        !isDeepStrictEqual(evidence.fetchCounts, { rawCount, parsedCount: rawCount, validCount: expected.size, parseDiscardCount: 0, validationDiscardCount: excludedCount+(evidence.jobQuarantines?.length??0) })) return undefined;
     if (outputJobs) {
       if (outputJobs.length !== expected.size || new Set(outputJobs.map(j => j.sourceJobId)).size !== outputJobs.length) return undefined;
       for (const job of outputJobs) {
@@ -178,7 +202,7 @@ export function replayServierTraversal(
         if (job.companyId !== plan.company.id || job.sourceId !== plan.source.id || job.sourceKind !== "SOCIAL" || job.atsKind !== "MOKA" ||
             job.officialChineseCompanyName !== plan.company.officialChineseName || job.category !== "其他" || job.auxiliaryChineseTitle !== undefined ||
             job.officialTitle !== String(item.raw.title).replace(/\s+/gu, " ").trim() || job.officialUrl !== `${SERVIER_MOKA_CAMPAIGN}#/job/${encodeURIComponent(String(item.raw.id))}` ||
-            job.locationRaw !== cities.join("、") || !isDeepStrictEqual(job.cities, cities) || job.officialPublishedAt !== undefined ||
+            job.locationRaw !== cities.join("、") || !isDeepStrictEqual(job.cities, servierDisplayCities(item.locations)) || job.officialPublishedAt !== undefined ||
             job.listUrl !== SERVIER_MOKA_CAMPAIGN) return undefined;
       }
     }

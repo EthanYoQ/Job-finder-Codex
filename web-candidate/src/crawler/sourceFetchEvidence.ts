@@ -192,6 +192,15 @@ const lossSchema = z.object({
 }).strict();
 
 const sourceFetchEvidenceSchema = z.object({
+  jobQuarantines: z.array(z.object({
+    sourceJobId: NON_EMPTY.optional(),
+    officialUrl: httpUrl.optional(),
+    rawLocator: NON_EMPTY,
+    pageSequence: z.number().int().nonnegative().safe(),
+    recordIndex: z.number().int().nonnegative().safe(),
+    validJobId: NON_EMPTY,
+    code: MACHINE_CODE
+  }).strict()).optional(),
   astraZenecaDetails: astraZenecaDetailEnvelopeSchema.optional(),
   astellasPdfLocations: astellasPdfCityEnvelopeSchema.optional(),
   captureTool: captureToolSchema,

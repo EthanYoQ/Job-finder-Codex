@@ -9,6 +9,7 @@ import {
   currentOfficialSourceAttemptSignal
 } from "./officialHttpRuntimeLimits";
 import { isRetryableSourceTransportFailure } from "./sourceFetchFailure";
+import { currentSourceTransportRetryAt, withSourceTransportObservation } from "./sourceTransportObservation";
 
 export interface SourceFetchRouterDeps {
   moka: SourceFetchFunction;
@@ -33,7 +34,7 @@ export function createSourceFetchRouter({
   fallback,
   delay = defaultDelay
 }: SourceFetchRouterDeps): SourceFetchFunction {
-  return async (plan, suppliedAttemptTracker) => {
+  return (plan, suppliedAttemptTracker) => withSourceTransportObservation(plan.source.id, undefined, async () => {
     const attemptTracker = suppliedAttemptTracker ?? createSourceFetchAttemptTracker();
     markInitialSourceFetchAttempt(attemptTracker);
     const delegate = routeSourceFetcher(plan, {
@@ -55,9 +56,13 @@ export function createSourceFetchRouter({
     }
     for (let retry = 0; retry < policy.maxRetries; retry += 1) {
       if (result.ok || result.sourceRetryExhausted || !isRetryableSourceTransportFailure(result.transportFailure)) return result;
+      const retryCode = result.transportFailure.code;
+      // Local deferral ends this acquisition. It is never a persisted HTTP retry reason.
+      if (retryCode === "OFFICIAL_REQUEST_DEFERRED") return result;
       const retryAfterMs = result.transportFailure.retryAfterMs;
       if (retryAfterMs !== undefined &&
         (!Number.isSafeInteger(retryAfterMs) || retryAfterMs < 0 || retryAfterMs > policy.backoffMs)) return result;
+      if ((currentSourceTransportRetryAt() ?? 0) > Date.now() + policy.backoffMs) return result;
       const signal = currentOfficialSourceAttemptSignal();
       if (signal?.aborted) return result;
       const remainingBeforeDelay = currentOfficialSourceAttemptRemainingMs();
@@ -65,14 +70,15 @@ export function createSourceFetchRouter({
         (!Number.isFinite(remainingBeforeDelay) || remainingBeforeDelay <= policy.backoffMs)) return result;
       await delay(policy.backoffMs);
       if (signal?.aborted) return result;
+      if ((currentSourceTransportRetryAt() ?? 0) > Date.now()) return result;
       const remainingBeforeRetry = currentOfficialSourceAttemptRemainingMs();
       if (remainingBeforeRetry !== undefined &&
         (!Number.isFinite(remainingBeforeRetry) || remainingBeforeRetry <= 0)) return result;
-      markSourceFetchRetry(attemptTracker, result.transportFailure.code);
+      markSourceFetchRetry(attemptTracker, retryCode);
       result = await delegate(plan);
     }
     return result;
-  };
+  });
 }
 
 function routeSourceFetcher(

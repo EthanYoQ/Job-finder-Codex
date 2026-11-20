@@ -2,6 +2,9 @@ import { JNJ_DOM_CAPTURE_TOOL } from "./jnjCareersDomContract";
 import { replayJnjCareersDomEvidence } from "./jnjCareersDomEvidence";
 import { getStrictAmgenManualWorkdayPolicy, validateStrictAmgenManualWorkdayEvidence } from "./amgenManualWorkdaySourceFetch";
 import { getStrictAmgenNativePolicy, isSafeAmgenNativeFailureCode, validateStrictAmgenNativeEvidence } from "./amgenNativeSourceFetch";
+import { getStrictAmgenRadancyPolicy, isSafeAmgenRadancyFailureCode, validateStrictAmgenRadancyEvidence } from "./amgenRadancySourceFetch";
+import { getStrictCslOfficialPortalPolicy, isSafeCslOfficialPortalFailureCode, validateStrictCslOfficialPortalEvidence } from "./cslOfficialPortalSourceFetch";
+import { getStrictPfizerOfficialPortalPolicy, isSafePfizerOfficialPortalFailureCode, validateStrictPfizerOfficialPortalEvidence } from "./pfizerOfficialPortalSourceFetch";
 import {getStrictMsdAjingaPolicy,validateStrictMsdAjingaEvidence} from "./msdAjingaSourceFetch";
 import { validateStrictQiluDualPartitionEvidence, getStrictQiluDualPartitionPolicy } from "./qiluDualPartitionSourceFetch";
 import { getStrictLivzonCeccNetworkPolicy, validateStrictLivzonCeccEvidence } from "./livzonCeccEvidenceVerifier";
@@ -60,8 +63,14 @@ export function validateStrictProfileBoundSourceEvidence(
   switch (plan.profileBoundSource.kind) {
     case "amgen-manual-workday-lookup":
       return validateStrictAmgenManualWorkdayEvidence(plan, evidence, outputJobs);
+    case "amgen-radancy-china":
+      return validateStrictAmgenRadancyEvidence(plan, evidence, outputJobs);
     case "amgen-native-china":
       return validateStrictAmgenNativeEvidence(plan, evidence, outputJobs);
+    case "csl-official-portal":
+      return validateStrictCslOfficialPortalEvidence(plan, evidence, outputJobs);
+    case "pfizer-official-portal":
+      return validateStrictPfizerOfficialPortalEvidence(plan, evidence, outputJobs);
     case "msd-ajinga":return validateStrictMsdAjingaEvidence(plan,evidence,outputJobs);
     case "qilu-dual-official":
       return validateStrictQiluDualPartitionEvidence(plan, evidence, outputJobs);
@@ -121,8 +130,14 @@ export function getStrictProfileBoundSourcePolicy(
   switch (plan.profileBoundSource.kind) {
     case "amgen-manual-workday-lookup":
       return getStrictAmgenManualWorkdayPolicy(plan);
+    case "amgen-radancy-china":
+      return getStrictAmgenRadancyPolicy(plan);
     case "amgen-native-china":
       return getStrictAmgenNativePolicy(plan);
+    case "csl-official-portal":
+      return getStrictCslOfficialPortalPolicy(plan);
+    case "pfizer-official-portal":
+      return getStrictPfizerOfficialPortalPolicy(plan);
     case "msd-ajinga":return getStrictMsdAjingaPolicy(plan);
     case "qilu-dual-official":
       return getStrictQiluDualPartitionPolicy(plan);
@@ -196,7 +211,13 @@ export function safeProfileBoundSourceFailureReason(
   if (plan.company.id === "company-amgen-china" && plan.source.id === "source-amgen-china-social" && plan.source.companyId === "company-amgen-china" &&
     plan.profileBoundSource?.kind === "amgen-manual-workday-lookup" && failureReason === "AMGEN_MANUAL_WORKDAY_INVALID") return failureReason;
   if (plan.company.id === "company-amgen-china" && plan.source.id === "source-amgen-china-social" && plan.source.companyId === "company-amgen-china" &&
+    plan.profileBoundSource?.kind === "amgen-radancy-china" && isSafeAmgenRadancyFailureCode(failureReason)) return failureReason;
+  if (plan.company.id === "company-amgen-china" && plan.source.id === "source-amgen-china-social" && plan.source.companyId === "company-amgen-china" &&
     plan.profileBoundSource?.kind === "amgen-native-china" && isSafeAmgenNativeFailureCode(failureReason)) return failureReason;
+  if (plan.company.id === "company-csl-china" && plan.source.id === "source-csl-china-social" && plan.source.companyId === "company-csl-china" &&
+    plan.profileBoundSource?.kind === "csl-official-portal" && isSafeCslOfficialPortalFailureCode(failureReason)) return failureReason;
+  if (plan.company.id === "company-pfizer-china" && plan.source.id === "source-pfizer-china-social" && plan.source.companyId === "company-pfizer-china" &&
+    plan.profileBoundSource?.kind === "pfizer-official-portal" && isSafePfizerOfficialPortalFailureCode(failureReason)) return failureReason;
   if (
     plan.company.id === "company-grifols-china" &&
     plan.source.id === "source-grifols-china-social" &&

@@ -411,7 +411,10 @@ function validateTerminalEvents(
       throw new Error("NEXT_ABSENT termination is inconsistent with a remaining next-page signal");
     }
     if (page.termination === "DECLARED_TOTAL_REACHED") {
-      const observed = new Set(comparable.flatMap((candidate) => candidate.validJobIds)).size;
+      // A failed detail does not undo a list row already observed on a complete page.
+      const quarantines=jobQuarantineLossesMatch(evidence)?evidence.jobQuarantines!:[];
+      const observed = new Set(comparable.flatMap(candidate=>[...candidate.validJobIds,
+        ...quarantines.filter(row=>row.pageSequence===candidate.sequence).map(row=>row.validJobId)])).size;
       if (page.declaredTotal === null || page.declaredTotal === undefined || page.declaredTotal !== observed) {
         throw new Error("DECLARED_TOTAL_REACHED termination is inconsistent with page valid-ID count");
       }
@@ -537,3 +540,4 @@ function compareUtf8(left: string, right: string): number {
 function traceRecord(page: RepositoryPaginationDraft): Record<string, unknown> {
   return { ...page, capturedAt: page.capturedAt.toISOString() };
 }
+import {jobQuarantineLossesMatch} from './jobQuarantine';

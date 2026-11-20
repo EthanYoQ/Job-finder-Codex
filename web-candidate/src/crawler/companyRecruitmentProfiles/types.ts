@@ -33,7 +33,10 @@ export interface MokaFetchConfig {
 
 export type ProfileBoundSourceConfig =
   | { kind: "amgen-manual-workday-lookup"; config: import("../amgenManualWorkdaySourceFetch").AmgenManualWorkdayConfig; expectedChannelIds?: readonly string[] }
+  | { kind: "amgen-radancy-china"; config: import("../amgenRadancySourceFetch").AmgenRadancyConfig; expectedChannelIds?: readonly string[] }
   | { kind: "amgen-native-china"; config: import("../amgenNativeSourceFetch").AmgenNativeConfig; expectedChannelIds?: readonly string[] }
+  | { kind: "csl-official-portal"; config: import("../cslOfficialPortalSourceFetch").CslOfficialPortalConfig; expectedChannelIds?: readonly string[] }
+  | { kind: "pfizer-official-portal"; config: import("../pfizerOfficialPortalSourceFetch").PfizerOfficialPortalConfig; expectedChannelIds?: readonly string[] }
   | {kind:"msd-ajinga";config:MsdAjingaConfig;expectedChannelIds?:readonly string[];}
   | { kind: "qilu-dual-official"; config: QiluDualPartitionConfig; expectedChannelIds: readonly ["qilu-marketing", "qilu-non-marketing"] }
   | {

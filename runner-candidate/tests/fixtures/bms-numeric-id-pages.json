@@ -1,0 +1,35 @@
+[
+  {"status":200,"data":{"count":27,"positions":[
+    {"id":137483136452,"name":"Senior Account Executive, IO","positionUrl":"/careers/job/137483136452","locations":["Field - China"],"standardizedLocations":["CN"],"postedTs":1793750400},
+    {"id":137484250382,"name":"Account Executive，IO","positionUrl":"/careers/job/137484250382","locations":["Field - China - CN"],"standardizedLocations":["CN"],"postedTs":1793577600},
+    {"id":137483636962,"name":"Account Executive","positionUrl":"/careers/job/137483636962","locations":["Field - China - CN"],"standardizedLocations":["CN"],"postedTs":1793836800},
+    {"id":137484307619,"name":"Account Executive, IO","positionUrl":"/careers/job/137484307619","locations":["Field - China - CN"],"standardizedLocations":["CN"],"postedTs":1793750400},
+    {"id":137482059410,"name":"Account Executive","positionUrl":"/careers/job/137482059410","locations":["Field - China"],"standardizedLocations":["CN"],"postedTs":1793577600},
+    {"id":137484127711,"name":"Sr. Medical Information Communication Specialist","positionUrl":"/careers/job/137484127711","locations":["Field - China - CN"],"standardizedLocations":["CN"],"postedTs":1793059200},
+    {"id":137484307682,"name":"Senior CRA","positionUrl":"/careers/job/137484307682","locations":["Field - China - CN"],"standardizedLocations":["CN"],"postedTs":1793750400},
+    {"id":137484120135,"name":"l0 Account Executive","positionUrl":"/careers/job/137484120135","locations":["Taiyuan - CN"],"standardizedLocations":["Taiyuan, Shanxi, CN"],"postedTs":1793059200},
+    {"id":137482757395,"name":"Medical Information Communication Specialist","positionUrl":"/careers/job/137482757395","locations":["Zhengzhou - CN"],"standardizedLocations":["Zhengzhou, Henan, CN"],"postedTs":1793577600},
+    {"id":137482105934,"name":"Sr. Medical Information Communication Specialist","positionUrl":"/careers/job/137482105934","locations":["Zhengzhou - CN"],"standardizedLocations":["Zhengzhou, Henan, CN"],"postedTs":1793577600}
+  ]}},
+  {"status":200,"data":{"count":27,"positions":[
+    {"id":137484350598,"name":"SMICS","positionUrl":"/careers/job/137484350598","locations":["Zhengzhou - CN"],"standardizedLocations":["Zhengzhou, Henan, CN"],"postedTs":1793923200},
+    {"id":137483811573,"name":"CRA Ⅱ","positionUrl":"/careers/job/137483811573","locations":["Beijing - CN"],"standardizedLocations":["Beijing, Beijing, CN"],"postedTs":1793491200},
+    {"id":137483285776,"name":"CRA I/ II","positionUrl":"/careers/job/137483285776","locations":["Beijing - CN"],"standardizedLocations":["Beijing, Beijing, CN"],"postedTs":1793750400},
+    {"id":137478703013,"name":"Director, Global Policy & Government Affairs","positionUrl":"/careers/job/137478703013","locations":["Beijing - CN"],"standardizedLocations":["Beijing, Beijing, CN"],"postedTs":1793750400},
+    {"id":137484278648,"name":"Regulatory Manager","positionUrl":"/careers/job/137484278648","locations":["Beijing - CN"],"standardizedLocations":["Beijing, Beijing, CN"],"postedTs":1793664000},
+    {"id":137484304161,"name":"IO Account Executive","positionUrl":"/careers/job/137484304161","locations":["Jinan - CN"],"standardizedLocations":["Jinan, Shandong, CN"],"postedTs":1793750400},
+    {"id":137484304162,"name":"IO Account Executive","positionUrl":"/careers/job/137484304162","locations":["Tianjin - CN"],"standardizedLocations":["Tianjin,CN"],"postedTs":1793750400},
+    {"id":137483498818,"name":"Sotyktu Sr. Medical Information Communication Specialist","positionUrl":"/careers/job/137483498818","locations":["Hangzhou - CN"],"standardizedLocations":["Hangzhou, Zhejiang, CN"],"postedTs":1793836800},
+    {"id":137483097770,"name":"Clinical Rearch Aossicate II","positionUrl":"/careers/job/137483097770","locations":["Guangzhou - CN"],"standardizedLocations":["Guangzhou, Guangdong Province, CN"],"postedTs":1793145600},
+    {"id":137484090549,"name":"Sotyktu AM","positionUrl":"/careers/job/137484090549","locations":["Guangzhou - CN"],"standardizedLocations":["Guangzhou, Guangdong Province, CN"],"postedTs":1792972800}
+  ]}},
+  {"status":200,"data":{"count":27,"positions":[
+    {"id":137483687470,"name":"Senior Clinical Research Physician","positionUrl":"/careers/job/137483687470","locations":["Shanghai - CN"],"standardizedLocations":["Shanghai, Shanghai, CN"],"postedTs":1790726400},
+    {"id":137483688707,"name":"Director, Precision Medicine – China","positionUrl":"/careers/job/137483688707","locations":["Shanghai - CN"],"standardizedLocations":["Shanghai, Shanghai, CN"],"postedTs":1790726400},
+    {"id":137482718274,"name":"People Consultant(HR service center)","positionUrl":"/careers/job/137482718274","locations":["Shanghai - CN"],"standardizedLocations":["Shanghai, Shanghai, CN"],"postedTs":1792368000},
+    {"id":137482233511,"name":"Research Investigator","positionUrl":"/careers/job/137482233511","locations":["Shanghai - CN"],"standardizedLocations":["Shanghai, Shanghai, CN"],"postedTs":1793318400},
+    {"id":137483486818,"name":"Hematology TAH","positionUrl":"/careers/job/137483486818","locations":["Shanghai - CN"],"standardizedLocations":["Shanghai, Shanghai, CN"],"postedTs":1791763200},
+    {"id":137484251885,"name":"Account Executive","positionUrl":"/careers/job/137484251885","locations":["Ningbo - CN"],"standardizedLocations":["Ningbo, Zhejiang, CN"],"postedTs":1793577600},
+    {"id":137484090954,"name":"Mava  Account Executive","positionUrl":"/careers/job/137484090954","locations":["Changchun - CN"],"standardizedLocations":["Changchun, Jilin, CN"],"postedTs":1792972800}
+  ]}}
+]

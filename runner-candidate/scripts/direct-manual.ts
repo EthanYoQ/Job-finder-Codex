@@ -7,7 +7,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { isIP } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
-import { assertLegacyAuditState, identityForSource, loadDirectPlans } from "./direct-round";
+import { assertLegacyAuditState, identityForSource, loadDirectPlans, pacedWorkdaySourceTimeout } from "./direct-round";
+import { assertFreshManualRequest, MANUAL_RECOVERY_INSTANCE, MANUAL_REQUEST_ID_PATTERN } from "./manual-request";
 import { withPortableCrawlLease, PortableCrawlLeaseError, type PortableLeaseDatabase } from "../src/crawler/portableCrawlLease";
 import { createPortableFencedRuntimeDatabase } from "../src/db/portableRuntimeDatabase";
 import { createManualCrawlRequestRepository } from "../src/db/manualCrawlRequestRepository";
@@ -19,17 +20,8 @@ import { createHttpOnlyOfficialSourceFetch } from "../src/crawler/sourceQualityA
 import { withLocalOfficialDom } from "../src/crawler/localOfficialSourceFetch";
 import { runWithOfficialSourceCancellation } from "../src/crawler/officialHttpRuntimeLimits";
 import { runIsolatedBGradeTraversalValidator } from "../src/crawler/isolatedBGradeTraversalValidator";
+import { withWorkdayRequestPolicy } from "../src/crawler/workdayRequestPolicy";
 import { describePortableRuntimeError } from "../src/crawler/portableRuntimeDiagnostics";
-
-export function assertFreshManualRequest(input: {
-  request: { id: string; sourceId: string; createdAt: Date; status: string };
-  registeredAt: Date; sourceIds: string[]; unresolvedRequests: Array<{ kind?: string; id?: string }>;
-}) {
-  if (input.unresolvedRequests.some(row => row.kind === "MANUAL_REQUEST" && row.id === input.request.id) ||
-      !(input.request.createdAt.getTime() > input.registeredAt.getTime())) throw Error("LEGACY_MANUAL_REQUEST_FORBIDDEN");
-  if (!input.sourceIds.includes(input.request.sourceId)) throw Error("MANUAL_SOURCE_OUT_OF_SCOPE");
-  if (input.request.status !== "QUEUED") throw Error("MANUAL_REQUEST_NOT_FRESH_QUEUED");
-}
 
 /** One explicit request, original preview-only semantics, no queue scan or replay. */
 export async function runDirectManual(input: {
@@ -45,17 +37,19 @@ export async function runDirectManual(input: {
   assertFreshManualRequest({ request, registeredAt: candidate.createdAt,
     sourceIds: routes.map(row => row.sourceId), unresolvedRequests: audit.unresolvedRequests });
   const { plan } = routes.find(row => row.sourceId === request.sourceId)!;
-  return withPortableCrawlLease(input.leaseDb, async lease => {
+  return withPortableCrawlLease(input.leaseDb, lease => withWorkdayRequestPolicy(resolve(input.workspaceRoot), async () => {
     const db = createPortableFencedRuntimeDatabase(input.db, lease);
     const repository = createManualCrawlRequestRepository({ db: db as never,
       queuedRequest: { id: request.id, createdAfter: candidate.createdAt },
       resolveClaimableSourceIds: async () => [request.sourceId] });
     const runtime = createPrismaCrawlRuntimeDeps(db as never);
+    const workdayTimeout = pacedWorkdaySourceTimeout(request.sourceId);
     const execute = createManualSourceBatchExecutor({ plans: [plan],
       baseIdentity: identityForSource(candidate, request.sourceId), db: db as never,
       fetch: withLocalOfficialDom(createHttpOnlyOfficialSourceFetch()), now: () => new Date(), runtimeDeps: runtime,
       runP0CrawlBatch: (plans, deps) => runWithOfficialSourceCancellation(lease.signal, () => runP0CrawlBatch(plans, {
-        ...deps, ...runtime, workspaceRoot: resolve(input.workspaceRoot), evidenceSubdirectory: "runtime-evidence",
+        ...deps, ...runtime, ...(workdayTimeout === undefined ? {} : { sourceAttemptTimeoutMs: workdayTimeout }),
+        workspaceRoot: resolve(input.workspaceRoot), evidenceSubdirectory: "runtime-evidence",
         runIndependentTraversalValidator: args => runIsolatedBGradeTraversalValidator({ ...args,
           signal: args.signal ? AbortSignal.any([args.signal, lease.signal]) : lease.signal })
       })) });
@@ -64,12 +58,16 @@ export async function runDirectManual(input: {
       ownerId: `direct-manual-${randomUUID()}`, signal: lease.signal, stopWhenIdle: true,
       onOperationalError: event => { errors.push(event.code); } });
     return { ...result, errors, requestId: request.id, mode: "PREVIEW_ONLY" as const };
-  });
+  }));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [flag, requestId, ...extra] = process.argv.slice(2);
-  if (flag !== "--request-id" || !requestId || !/^[a-zA-Z0-9_-]{1,128}$/.test(requestId) || extra.length) throw Error("Usage: direct-manual.ts --request-id <new-request-id>");
+  if ((flag !== "--request-id" && flag !== "--systemd-instance") || !requestId || extra.length) {
+    throw Error("Usage: direct-manual.ts --request-id <new-request-id> | --systemd-instance <instance>");
+  }
+  const recoverQueue = flag === "--systemd-instance" && requestId === MANUAL_RECOVERY_INSTANCE;
+  if (!recoverQueue && !MANUAL_REQUEST_ID_PATTERN.test(requestId)) throw Error("INVALID_MANUAL_REQUEST_ID");
   const candidateId = process.env.JOBFINDER_CANDIDATE_ID;
   if (!candidateId) throw Error("REGISTERED_CANDIDATE_ID_REQUIRED");
   const workspaceRoot = resolve(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder");
@@ -87,21 +85,28 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       databaseUrl = url.href;
     }
     db = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
-    leaseDb = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
-    let result;
-    for (;;) {
-      try { result = await runDirectManual({ db, leaseDb, candidateId, requestId, workspaceRoot }); break; }
-      catch (error) {
-        // BUSY proves acquisition did not happen; no request has been claimed.
-        // Any uncertain acquisition or execution error exits without a replay.
-        if (!(error instanceof PortableCrawlLeaseError) || error.code !== "CRAWL_LEASE_BUSY") throw error;
-        await delay(30_000);
+    if (recoverQueue) {
+      const { recoverQueuedManualPreviews } = await import("../../pipeline/recover-manual");
+      const result = await recoverQueuedManualPreviews({ db, candidateId, workspaceRoot });
+      if (result.queuedCount) console.error(JSON.stringify({ status: "MANUAL_QUEUE_CHECKED", ...result }));
+    } else {
+      leaseDb = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+      let result;
+      for (;;) {
+        try { result = await runDirectManual({ db, leaseDb, candidateId, requestId, workspaceRoot }); break; }
+        catch (error) {
+          // BUSY proves acquisition did not happen; no request has been claimed.
+          // Any uncertain acquisition or execution error exits without a replay.
+          if (!(error instanceof PortableCrawlLeaseError) || error.code !== "CRAWL_LEASE_BUSY") throw error;
+          await delay(30_000);
+        }
       }
+      console.log(JSON.stringify(result));
+      process.exitCode = result.claimedCount === 1 && result.successCount === 1 && result.errors.length === 0 ? 0 : 1;
     }
-    console.log(JSON.stringify(result));
-    process.exitCode = result.claimedCount === 1 && result.successCount === 1 && result.errors.length === 0 ? 0 : 1;
   } catch (error) {
-    console.error(JSON.stringify({ status: "MANUAL_PREVIEW_NOT_COMPLETED", diagnostic: describePortableRuntimeError(error) }));
+    console.error(JSON.stringify({ status: recoverQueue ? "MANUAL_QUEUE_CHECK_FAILED" : "MANUAL_PREVIEW_NOT_COMPLETED",
+      diagnostic: describePortableRuntimeError(error) }));
     process.exitCode = 1;
   } finally { await Promise.allSettled([db?.$disconnect(), leaseDb?.$disconnect()]); }
 }

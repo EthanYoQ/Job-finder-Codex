@@ -1,5 +1,7 @@
-import { reportSourceFetchFailure } from "./sourceFetchDiagnostics";
+import { reportSourceFetchFailure, sourceFetchDiagnostic } from "./sourceFetchDiagnostics";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { spawn, type ChildProcess } from "node:child_process";
+import { gzipSync, gunzipSync } from "node:zlib";
 import { z } from "zod";
 import {
   parseBGradeIndependentTraversalValidation,
@@ -11,6 +13,10 @@ import {
   tagBGradeIndependentTraversalFailure
 } from "./independentTraversalDiagnostics";
 import { productionTsxProcessArgs } from "../ops/productionTsxProcess";
+import {
+  currentWorkdayPolicyRoot, finishIsolatedWorkdayTraversal, isWorkdayCooldownError, waitForWorkdayRequest
+} from "./workdayRequestPolicy";
+import { currentSourceTransportRetryAt, recordIsolatedSourceTransportObservation, type SourceTransportObservation } from "./sourceTransportObservation";
 
 type ValidatorInput = Parameters<typeof runBGradeIndependentTraversalValidator>[0];
 type ExecuteValidatorProcess = (
@@ -18,16 +24,45 @@ type ExecuteValidatorProcess = (
   signal: AbortSignal | undefined
 ) => Promise<string>;
 
+const safeTimestamp = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const transportObservationSchema = z.object({
+  sourceId: z.string().regex(/^source-[a-z0-9-]{1,100}$/u),
+  observedAt: safeTimestamp,
+  observedActualHttp: z.boolean(),
+  actualHttpStatuses: z.array(z.number().int().refine(status => status === 403 || status === 429 || status >= 500 && status <= 599)).max(102),
+  lastActualRequestAt: safeTimestamp.optional(),
+  locallyDeferred: z.boolean(),
+  deferredStatus: z.union([z.literal(403), z.literal(429)]).optional(),
+  retryAt: safeTimestamp.optional(),
+  retryAfterMs: safeTimestamp.optional()
+}).strict().refine(value => value.observedActualHttp === (value.actualHttpStatuses.length > 0) &&
+  (value.observedActualHttp ? value.lastActualRequestAt !== undefined && value.lastActualRequestAt <= value.observedAt : value.lastActualRequestAt === undefined) &&
+  (value.locallyDeferred || value.deferredStatus === undefined))
+  .transform((value): SourceTransportObservation => ({ sourceId: value.sourceId, observedAt: value.observedAt,
+    observedActualHttp: value.observedActualHttp, actualHttpStatuses: value.actualHttpStatuses, locallyDeferred: value.locallyDeferred,
+    ...(value.lastActualRequestAt === undefined ? {} : { lastActualRequestAt: value.lastActualRequestAt }),
+    ...(value.deferredStatus === undefined ? {} : { deferredStatus: value.deferredStatus }),
+    ...(value.retryAt === undefined ? {} : { retryAt: value.retryAt }),
+    ...(value.retryAfterMs === undefined ? {} : { retryAfterMs: value.retryAfterMs }) }));
+const TRANSPORT_OBSERVATION_PREFIX = "JOBFINDER_SOURCE_TRANSPORT_OBSERVATION:";
+const TRANSPORT_OBSERVATION_MAX_BYTES = 4096;
+
+export function serializeBGradeTransportObservation(observation: SourceTransportObservation): string {
+  return TRANSPORT_OBSERVATION_PREFIX + JSON.stringify(transportObservationSchema.parse(observation)) + "\n";
+}
+
 const processResponseSchema = z.discriminatedUnion("decision", [
   z.object({
     decision: z.literal("SUCCEEDED"),
-    validation: z.unknown()
+    validation: z.unknown(),
+    transportObservation: transportObservationSchema.optional()
   }).strict(),
   z.object({
     decision: z.literal("FAILED"),
     failureCode: z.enum(B_GRADE_INDEPENDENT_TRAVERSAL_FAILURE_CODES),
     diagnostic: z.record(z.unknown()).optional(),
-    message: z.string().min(1).max(2_000)
+    message: z.string().min(1).max(2_000),
+    transportObservation: transportObservationSchema.optional()
   }).strict()
 ]);
 
@@ -37,6 +72,27 @@ const RETRIABLE_VALIDATOR_FAILURE_CODES = new Set<string>([
   "B_GRADE_REQUEST_PROTOCOL_FAILED"
 ] as const);
 const VALIDATOR_RETRY_BACKOFF_MS = 10_000;
+const SANOFI_GZIP_PREFIX = "sanofi-b-grade-gzip-v1:";
+// Sanofi originals exceed the pipe budget as the list grows. The wire remains
+// bounded at 64 MiB; decoding has its own 256 MiB limit and preserves exact JSON.
+const SANOFI_DECODED_MAX_BYTES = 256 * 1024 * 1024;
+
+export function serializeBGradeValidatorSuccess(validation: BGradeIndependentTraversalValidation,
+  transportObservation?: SourceTransportObservation): string {
+  const output = JSON.stringify({ decision: "SUCCEEDED", validation,
+    ...(transportObservation ? { transportObservation: transportObservationSchema.parse(transportObservation) } : {}) });
+  if (validation.sourceId !== "source-sanofi-china-social") return output;
+  if (Buffer.byteLength(output) > SANOFI_DECODED_MAX_BYTES) throw new Error("Sanofi validator decoded output limit exceeded");
+  return SANOFI_GZIP_PREFIX + gzipSync(output, { level: 1 }).toString("base64");
+}
+
+export function decodeBGradeValidatorOutput(output: string, sourceId: string): string {
+  if (!output.startsWith(SANOFI_GZIP_PREFIX)) return output;
+  if (sourceId !== "source-sanofi-china-social") throw new Error("Compressed validator output source mismatch");
+  const encoded = output.slice(SANOFI_GZIP_PREFIX.length), compressed = Buffer.from(encoded, "base64");
+  if (compressed.toString("base64") !== encoded) throw new Error("Malformed compressed validator output");
+  return gunzipSync(compressed, { maxOutputLength: SANOFI_DECODED_MAX_BYTES }).toString("utf8");
+}
 
 type RetryDelay = (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 
@@ -46,29 +102,54 @@ export function createIsolatedBGradeTraversalValidator(
 ): (input: ValidatorInput) => Promise<BGradeIndependentTraversalValidation> {
   return async (input) => {
     const { signal, ...serializableInput } = input;
+    const pfizer = input.sourceId === "source-pfizer-china-social";
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       let output: string;
       try {
-        output = await execute(serializableInput, signal);
+        if (pfizer) await waitForWorkdayRequest(input.entryUrl, signal);
+        const pending = execute(serializableInput, signal);
+        output = await (pfizer ? pending.finally(finishIsolatedWorkdayTraversal) : pending);
       } catch (error) {
         reportSourceFetchFailure(input.sourceId, {error});
         if (signal?.aborted) {
           throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
         }
-        throw tagBGradeIndependentTraversalFailure(error, "B_GRADE_VALIDATOR_EXECUTION_FAILED");
+        throw tagBGradeIndependentTraversalFailure(error,
+          isWorkdayCooldownError(error) ? "B_GRADE_WORKDAY_COOLDOWN" : "B_GRADE_VALIDATOR_EXECUTION_FAILED");
       }
       if (signal?.aborted) {
         throw tagBGradeIndependentTraversalFailure(signal.reason, "B_GRADE_VALIDATOR_ABORTED");
       }
-      const response = processResponseSchema.parse(JSON.parse(output));
+      const response = processResponseSchema.parse(JSON.parse(decodeBGradeValidatorOutput(output, input.sourceId)));
+      if (response.transportObservation) {
+        if (response.transportObservation.sourceId !== input.sourceId) throw new Error("Isolated transport observation source mismatch");
+        recordIsolatedSourceTransportObservation(response.transportObservation);
+      }
       if (response.decision === "FAILED") {
         if (response.diagnostic) console.error(JSON.stringify(response.diagnostic));
         const maxAttempts = response.failureCode === "B_GRADE_BROWSER_READINESS_FAILED" ? 3 : 2;
-        if (attempt < maxAttempts && RETRIABLE_VALIDATOR_FAILURE_CODES.has(response.failureCode)) {
+        if (attempt < maxAttempts && RETRIABLE_VALIDATOR_FAILURE_CODES.has(response.failureCode) &&
+            Math.max(response.transportObservation?.retryAt ?? 0, currentSourceTransportRetryAt() ?? 0) <= Date.now()) {
           await awaitRetryDelay(delay, signal);
           continue;
         }
-        throw tagBGradeIndependentTraversalFailure(new Error(response.message), response.failureCode);
+        const failure = new Error(response.message);
+        if (input.sourceId === "source-sanofi-china-social" && response.diagnostic?.sourceId === input.sourceId) {
+          const diagnostic = response.diagnostic;
+          const safe = sourceFetchDiagnostic(input.sourceId, { error: Object.assign(new Error(""), {
+            sourceFetchStage: typeof diagnostic.stage === "string" && diagnostic.stage.startsWith("SANOFI_") ? diagnostic.stage : undefined,
+            sourcePage: diagnostic.page, sourceJobId: diagnostic.sourceJobId,
+            privateCapture: diagnostic.privateCapture, privateCaptureUnavailable: diagnostic.privateCaptureUnavailable
+          }) });
+          Object.assign(failure, {
+            ...("stage" in safe ? { sourceFetchStage: safe.stage } : {}),
+            ...("page" in safe ? { sourcePage: safe.page } : {}),
+            ...("sourceJobId" in safe ? { sourceJobId: safe.sourceJobId } : {}),
+            ...("privateCapture" in safe ? { privateCapture: safe.privateCapture } : {}),
+            ...("privateCaptureUnavailable" in safe ? { privateCaptureUnavailable: safe.privateCaptureUnavailable } : {})
+          });
+        }
+        throw tagBGradeIndependentTraversalFailure(failure, response.failureCode);
       }
       const validation = parseBGradeIndependentTraversalValidation(response.validation);
       if (validation.sourceId !== input.sourceId || validation.companyId !== input.companyId ||
@@ -152,8 +233,10 @@ export function bGradeValidatorChildEnvironment(
   const environment = Object.fromEntries(Object.entries(parentEnvironment).filter(
     ([key]) => CHILD_ENVIRONMENT_ALLOWLIST.has(key.toUpperCase())
   ));
+  const workdayRoot = input.sourceId === "source-pfizer-china-social" ? currentWorkdayPolicyRoot() : undefined;
   return {
     ...environment,
+    ...(workdayRoot ? { JOBFINDER_WORKDAY_POLICY_ROOT: workdayRoot } : {}),
     JOB_FINDER_B_GRADE_VALIDATOR_INPUT: JSON.stringify(input)
   };
 }
@@ -163,15 +246,19 @@ export async function executeBGradeValidatorCommand(
   args: readonly string[],
   environment: NodeJS.ProcessEnv,
   signal: AbortSignal | undefined,
-  forceKillGraceMs = CHILD_FORCE_KILL_GRACE_MS
+  forceKillGraceMs = CHILD_FORCE_KILL_GRACE_MS,
+  onTransportObservation?: (observation: SourceTransportObservation) => void
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     let forceKillTimer: NodeJS.Timeout | undefined;
     let child: ChildProcess;
     let spawnError: Error | undefined;
     let outputLimitError: Error | undefined;
+    let observationError: Error | undefined;
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
+    let observationLine = "";
+    let skippingOversizedLine = false;
     let outputBytes = 0;
     const cleanup = () => {
       signal?.removeEventListener("abort", abortChild);
@@ -205,7 +292,35 @@ export async function executeBGradeValidatorCommand(
       target.push(bytes);
     };
     child.stdout?.on("data", collect(stdoutChunks));
-    child.stderr?.on("data", collect(stderrChunks));
+    child.stderr?.on("data", (chunk: Buffer | string) => {
+      collect(stderrChunks)(chunk);
+      if (!onTransportObservation) return;
+      for (const character of chunk.toString()) {
+        if (character === "\n") {
+          if (!skippingOversizedLine && observationLine.startsWith(TRANSPORT_OBSERVATION_PREFIX)) {
+            let value: unknown;
+            try { value = JSON.parse(observationLine.slice(TRANSPORT_OBSERVATION_PREFIX.length)); }
+            catch { value = undefined; }
+            const parsed = transportObservationSchema.safeParse(value);
+            if (parsed.success) {
+              try { onTransportObservation(parsed.data); }
+              catch (error) {
+                observationError = error instanceof Error ? error : new Error("Isolated transport observation callback failed");
+                signalValidatorProcessTree(child, "SIGKILL");
+              }
+            }
+          }
+          observationLine = "";
+          skippingOversizedLine = false;
+        } else if (!skippingOversizedLine) {
+          observationLine += character;
+          if (observationLine.length > TRANSPORT_OBSERVATION_MAX_BYTES) {
+            observationLine = "";
+            skippingOversizedLine = true;
+          }
+        }
+      }
+    });
     child.once("error", (error) => {
       spawnError = error;
     });
@@ -214,6 +329,7 @@ export async function executeBGradeValidatorCommand(
         signalValidatorProcessTree(child, "SIGKILL");
       }
       cleanup();
+      if (observationError) { reject(observationError); return; }
       const output = Buffer.concat(stdoutChunks).toString("utf8").trim();
       const error = outputLimitError ?? spawnError ?? (code === 0
         ? undefined
@@ -267,7 +383,11 @@ async function executeProductionValidator(
     process.execPath,
     productionTsxProcessArgs("scripts/p0-b-grade-validator.ts"),
     bGradeValidatorChildEnvironment(process.env, input),
-    signal
+    signal,
+    CHILD_FORCE_KILL_GRACE_MS,
+    AsyncLocalStorage.bind(observation => {
+      if (observation.sourceId === input.sourceId) recordIsolatedSourceTransportObservation(observation);
+    })
   );
 }
 

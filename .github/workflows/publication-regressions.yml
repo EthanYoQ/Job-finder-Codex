@@ -1,0 +1,44 @@
+name: Publication regressions
+
+on:
+  pull_request:
+    branches: [fix/novartis-native-title-sort-20261103]
+  push:
+    branches: [fix/novartis-native-title-sort-20261103]
+
+permissions:
+  contents: read
+
+jobs:
+  offline-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: runner-candidate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: runner-candidate/package-lock.json
+      - run: npm ci
+      - name: Resolve shared runner and web dependencies
+        working-directory: .
+        run: ln -s runner-candidate/node_modules node_modules
+      - run: npm exec -- prisma generate
+      - run: npm exec -- tsc --noEmit -p ../web-candidate/tsconfig.json
+      - run: npm run check:routes
+      - run: npm run test:offline
+      - run: node --import tsx --test tests/organon-phenom-only.test.mjs tests/official-json-transport-retry.test.mjs tests/source-location-changes.test.mjs
+      - run: npm run test:publication
+      - run: node --import tsx --test tests/beisen-detail-scope.test.mjs tests/direct-round-timeout.test.mjs tests/novo-job-isolation.test.mjs tests/roche-denied-detail-isolation.test.mjs tests/workday-job-isolation.test.mjs tests/workday-request-policy.test.mjs tests/workday-host-scope.test.mjs tests/amgen-job-isolation.test.mjs tests/pfizer-job-isolation.test.mjs tests/phenom-detail-isolation.test.mjs tests/lilly-closed-certificate.test.mjs
+      - run: node --import tsx --test --test-name-pattern='Pfizer|cooldown' tests/isolated-validator-output.test.mjs
+      - name: Verify Pfizer access handling in Chromium
+        run: |
+          chrome="$(command -v google-chrome || command -v chromium)"
+          PLAYWRIGHT_CHROMIUM_EXECUTABLE="$chrome" node --import tsx --test tests/pfizer-independent-isolation-browser.test.mjs
+      - run: node --import tsx --test ../pipeline/frequency.test.mjs ../pipeline/round-scope.test.mjs ../pipeline/reader-contract.test.mjs ../pipeline/recover-manual.test.mjs tests/astellas-job-isolation.test.mjs
+      - run: node --import tsx --test ../pipeline/retry-schedule.test.mjs ../pipeline/run-slot.test.mjs ../pipeline/run-round-entry.test.mjs ../pipeline/source-completion.test.mjs tests/source-transport-observation.test.mjs tests/source-deferred-retry.test.mjs tests/isolated-validator-transport.test.mjs tests/novo-source-budget.test.mjs tests/sanofi-isolated-diagnostic.test.mjs
+      - run: python3 ../pipeline/archive-inactive-snapshots.test.py

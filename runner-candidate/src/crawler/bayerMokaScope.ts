@@ -1,3 +1,7 @@
+import {mokaRawJobId,mokaRawObservationId,mokaQuarantineAt,mokaQuarantinedDetailKey} from './mokaJobQuarantine';
+import {jobQuarantineLossesMatch} from './jobQuarantine';
+import { mokaPublishedAtIso } from "./mokaSourceFetch";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { createDecipheriv, createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { load } from "cheerio";
@@ -6,7 +10,7 @@ import type { NormalizedJobRecord } from "./normalizedJob";
 import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import { sanitizeEvidenceHttpUrl } from "./sourceFetchEvidence";
 import { requestContractV2Locator } from "./strictPageRequestContract";
-import { isHengruiMainlandLocation } from "./hengruiMainlandGeography";
+import { hasMainlandCountryLocation, mokaDisplayCities } from "./hengruiMainlandGeography";
 import { reviewedMainlandCityLabel } from "./reviewedMainlandCity";
 import { MOKA_RECENT_JSON_CONFIG } from "./companyRecruitmentProfiles/shared";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
@@ -47,7 +51,7 @@ export function bayerDetailScope(raw: Record<string, unknown>, detail: Record<st
   if (typeof raw.id !== "string" || !raw.id || raw.id !== detail.id || raw.orgId !== "bayer" || detail.orgId !== "bayer" ||
       (detail.siteId !== undefined && String(detail.siteId) !== "148387") || raw.title !== detail.title ||
       typeof raw.title !== "string" || !raw.title.trim() || raw.status !== detail.status ||
-      raw.publishedAt !== detail.publishedAt || raw.showIsCampus !== false) throw new Error("Bayer list/detail identity mismatch");
+      raw.showIsCampus !== false) throw new Error("Bayer list/detail identity mismatch");
   return bayerIndependentDetailScope({ id: String(raw.id), title: String(raw.title) }, detail);
 }
 
@@ -75,13 +79,14 @@ export function bayerIndependentDetailScope(dom: { id: string; title: string }, 
   let locations: unknown = detail.locations;
   if (Array.isArray(locations) && locations.length === 0) {
     const city = reviewedMainlandCityLabel(value("289157", "城市") ?? "", value("290891", "国家")!);
-    if (!city) throw new Error("Bayer missing location lacks a reviewed official city field");
-    locations = [{ cityName: city, country: "中国" }];
+    const originalCity=value("289157", "城市");
+    if (country !== "China" || !originalCity || explicitlyForeignOrNonMainlandLocation(originalCity)) throw new Error("Bayer missing location lacks official China evidence");
+    locations = [{ cityName: city ?? originalCity, country: "中国" }];
   }
   if (!Array.isArray(locations) || !locations.length || !locations.every(l => {
     const loc = record(l);
     return loc && (loc.countryDescription === undefined || loc.countryDescription === "中国") &&
-      (isHengruiMainlandLocation(loc) || loc.country === "中国" && loc.cityName === "启东市" &&
+      (hasMainlandCountryLocation(loc) || loc.country === "中国" && loc.cityName === "启东市" &&
         loc.cityId === 320681 && loc.provinceName === "江苏");
   })) throw new Error("Bayer detail has unreviewed or conflicting mainland location evidence");
   return { locations: locations as Record<string, unknown>[], paused };
@@ -94,6 +99,7 @@ export function replayBayerMedicalTraversal(
   try {
     if (!isBayerMedicalTraversalPlan(plan) || plan.executionAuthority !== "STAGED" || evidence.supportingArtifactOnlyFailure ||
         !evidence.pages.length) return undefined;
+    if(evidence.jobQuarantines?.length&&!jobQuarantineLossesMatch(evidence))return;
     const artifacts = new Map(evidence.artifacts.map(a => [a.logicalKey, a]));
     const entry = artifacts.get("moka-entry-0000");
     if (artifacts.size !== evidence.artifacts.length || !entry || !exactArtifact(entry, BAYER_MOKA_CAMPAIGN, "OFFICIAL_COMPANY_PAGE")) return undefined;
@@ -131,10 +137,13 @@ export function replayBayerMedicalTraversal(
           page.responseFingerprintSha256 !== hash(textBody(artifact))) return undefined;
       const rawIds: string[] = [], validIds: string[] = [];
       for (let i = 0; i < data.jobs.length; i++) {
-        const raw = record(data.jobs[i]);
-        if (!raw || typeof raw.id !== "string" || seen.has(raw.id)) return undefined;
-        seen.add(raw.id);
-        const evidenceId = `sha256:${hash(JSON.stringify(raw.id))}`; rawIds.push(evidenceId);
+        const original=data.jobs[i],raw=record(original),id=mokaRawJobId(original);
+        if(id){if(seen.has(id))return;seen.add(id);}
+        rawIds.push(mokaRawObservationId(original,sequence,i));
+        const q=mokaQuarantineAt(evidence,original,sequence,i);
+        if(q){const key=mokaQuarantinedDetailKey(evidence,q,id,(plan as Extract<SourceCrawlPlan,{adapterId:'official-json'}>).moka!);if(key)used.add(key);continue;}
+        if(!raw||typeof raw.id!=='string')return;
+        const evidenceId = `sha256:${hash(JSON.stringify(raw.id))}`;
         const key = `moka-detail-${String(sequence).padStart(4, "0")}-${String(i).padStart(4, "0")}`, detailArtifact = artifacts.get(key);
         const detailLocator = requestContractV2Locator(`moka-detail-v2|request:jobId64=${Buffer.from(raw.id).toString("base64url")}`, {
           family: "moka", role: "detail", method: "POST", url: BAYER_MOKA_DETAIL,
@@ -162,18 +171,18 @@ export function replayBayerMedicalTraversal(
           (page.nextPageSignalBefore ?? null) !== (sequence ? String(offset) : null) ||
           (page.nextPageSignalAfter ?? null) !== (last ? null : String(offset + 50))) return undefined;
     }
-    if (used.size !== artifacts.size || rawCount !== officialTotal || rawCount !== seen.size || excludedCount !== losses.size ||
-        !isDeepStrictEqual(evidence.fetchCounts, { rawCount, parsedCount: rawCount, validCount: expected.size, parseDiscardCount: 0, validationDiscardCount: excludedCount })) return undefined;
+    if (used.size !== artifacts.size || rawCount !== officialTotal || rawCount !== seen.size+(evidence.jobQuarantines?.filter(q=>!q.sourceJobId).length??0) || excludedCount+(evidence.jobQuarantines?.length??0) !== losses.size ||
+        !isDeepStrictEqual(evidence.fetchCounts, { rawCount, parsedCount: rawCount, validCount: expected.size, parseDiscardCount: 0, validationDiscardCount: excludedCount+(evidence.jobQuarantines?.length??0) })) return undefined;
     if (outputJobs) {
       if (outputJobs.length !== expected.size || new Set(outputJobs.map(j => j.sourceJobId)).size !== outputJobs.length) return undefined;
       for (const job of outputJobs) {
         const item = job.sourceJobId && expected.get(job.sourceJobId);
         if (!item) return undefined;
         const cities = item.locations.map(l => String(l.cityName ?? l.provinceName ?? l.country).replace(/\s+/gu, " ").trim());
-        const published = String(item.raw.publishedAt);
+        const published = mokaPublishedAtIso(item.raw.publishedAt);
         if (job.companyId !== plan.company.id || job.sourceId !== plan.source.id || job.sourceKind !== "SOCIAL" || job.atsKind !== "MOKA" ||
             job.officialTitle !== String(item.raw.title).replace(/\s+/gu, " ").trim() || job.officialUrl !== `${BAYER_MOKA_CAMPAIGN}#/job/${encodeURIComponent(String(item.raw.id))}` ||
-            job.locationRaw !== cities.join("、") || !isDeepStrictEqual(job.cities, cities) || job.officialPublishedAt !== new Date(`${published}+08:00`).toISOString() ||
+            job.locationRaw !== cities.join("、") || !isDeepStrictEqual(job.cities, mokaDisplayCities(item.locations)) || job.officialPublishedAt !== (published === undefined ? undefined : new Date(published).toISOString()) ||
             job.listUrl !== BAYER_MOKA_CAMPAIGN) return undefined;
       }
     }

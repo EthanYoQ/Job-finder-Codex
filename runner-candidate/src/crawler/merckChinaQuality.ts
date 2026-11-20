@@ -1,3 +1,5 @@
+import { phenomMainlandGeography, phenomPrimaryLocationAgrees } from "./phenomMainlandGeography";
+import { reviewedMainlandCity } from "./reviewedMainlandCity";
 import { isHengruiMainlandLocation } from "./hengruiMainlandGeography";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
@@ -49,13 +51,6 @@ export function exactMerckChinaBootstrap(config: {
     config.pageName === "search-results" && config.pageId === "page18-ds";
 }
 
-// Retained official fields only. New fields require review, including shadow geography such as workLocations.
-const RAW_FIELDS = new Set([
-  "descriptionTeaser", "state", "siteType", "multi_category", "reqId", "city", "latitude", "multi_location", "roleLevel",
-  "applyUrl", "externalApply", "cityState", "country", "visibilityType", "longitude", "jobId", "locale", "title", "jobSeqNo",
-  "postedDate", "dateCreated", "cityStateCountry", "jobVisibility", "location", "category", "ml_skills", "ml_job_parser",
-  "isMultiLocation", "multi_location_array", "isMultiCategory", "multi_category_array", "badge", "type"
-]);
 const MAINLAND_LOCATIONS = [
   ["Shanghai", "Shanghai", "上海", "31.22222", "121.45806"],
   ["Beijing", "Beijing", "北京", "39.9075", "116.39723"],
@@ -66,29 +61,13 @@ const MAINLAND_LOCATIONS = [
   ["Shenzhen", "Guangdong", "深圳", "22.54554", "114.0683"]
 ] as const;
 function record(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
-function exactFields(value: Record<string, unknown>, fields: string[]): boolean {
-  return Object.keys(value).length === fields.length && fields.every(field => Object.hasOwn(value, field));
-}
-
-/** Every redundant geography value must agree with one reviewed mainland locality.
- * Coordinates corroborate the retained named locality; they never infer another city. */
+/** Preserve China-scoped rows even when coordinates or city vocabulary change. */
 export function merckOfficialCities(raw: Record<string, unknown>): string[] | undefined {
-  if (Object.keys(raw).some(field => !RAW_FIELDS.has(field)) || raw.country !== "China" || raw.isMultiLocation !== false) return undefined;
-  // Official municipality-only Shanghai evidence proves China, not an exact job city.
-  const municipalityOnly = raw.city === "" && raw.state === "Shanghai";
-  const pair = MAINLAND_LOCATIONS.find(([city, state]) => (municipalityOnly ? city === "Shanghai" : raw.city === city) && raw.state === state);
-  if (!pair) return undefined;
-  const [city, state, chineseCity, latitude, longitude] = pair;
-  const location = municipalityOnly ? `${state}, China` : `${city}, ${state}, China`;
-  if (raw.location !== location || raw.cityStateCountry !== location || raw.cityState !== (municipalityOnly ? state : `${city}, ${state}`) ||
-    raw.latitude !== latitude || raw.longitude !== longitude || !Array.isArray(raw.multi_location) ||
-    raw.multi_location.length !== 1 || raw.multi_location[0] !== location || !Array.isArray(raw.multi_location_array) ||
-    raw.multi_location_array.length !== 1) return undefined;
-  const alternative = raw.multi_location_array[0];
-  if (!record(alternative) || !exactFields(alternative, ["location", "latlong"]) || alternative.location !== location ||
-    !record(alternative.latlong) || !exactFields(alternative.latlong, ["lat", "lon"]) ||
-    alternative.latlong.lat !== Number(latitude) || alternative.latlong.lon !== Number(longitude)) return undefined;
-  return merckTitleCityScope(raw, municipalityOnly ? CITY_PENDING : chineseCity);
+  if (!phenomMainlandGeography(raw)) return undefined;
+  const pair = MAINLAND_LOCATIONS.find(([city, state]) => raw.city === city && raw.state === state);
+  const city = pair?.[2] ?? (typeof raw.city === "string" && typeof raw.state === "string"
+    ? reviewedMainlandCity(raw.city, raw.state) : undefined) ?? CITY_PENDING;
+  return merckTitleCityScope(raw, phenomPrimaryLocationAgrees(raw) ? city : CITY_PENDING);
 }
 
 /** The retained feed derives its detail URL from the exact official requisition identity. */
@@ -120,9 +99,6 @@ const REVIEWED_NON_LOCATION_SUFFIXES = new Set([
 const UNREVIEWED_LOCATION_LABEL = /(?:工作地点|工作城市|办公地点|办公城市|工作地[：:]|(?:work|job|office)\s+location|\blocation\s*[:：]|\bbased\s+(?:in|at)\b|\bremote\b)/iu;
 
 const TITLE_ENGLISH_CITIES: ReadonlyMap<string, string> = new Map(MAINLAND_LOCATIONS.map(([english, , chinese]) => [english, chinese]));
-const DESCRIPTION_TEXT_FIELDS = new Set([
-  "descriptionTeaser", "descriptionTeaser_first200", "descriptionTeaser_keyword", "descriptionTeaser_ats"
-]);
 function mainlandTitleCity(value: string): string | undefined {
   return isHengruiMainlandLocation({ country: "China", cityName: value }) ? value.replace(/市$/u, "") : TITLE_ENGLISH_CITIES.get(value);
 }
@@ -137,13 +113,13 @@ function merckTitleCityScope(raw: Record<string, unknown>, structuredCity: strin
   const texts: unknown[] = [raw.title];
   if (Object.hasOwn(raw, "descriptionTeaser")) texts.push(raw.descriptionTeaser);
   if (Object.hasOwn(raw, "ml_job_parser")) {
-    if (!record(raw.ml_job_parser) || Object.keys(raw.ml_job_parser).some(key => !DESCRIPTION_TEXT_FIELDS.has(key))) return undefined;
-    texts.push(...Object.values(raw.ml_job_parser));
+    if (record(raw.ml_job_parser)) texts.push(...Object.values(raw.ml_job_parser).filter(value => typeof value === "string"));
   }
+  let pending = false;
   const mentionedCities = new Set<string>();
   const cleanTexts: string[] = [];
   for (const text of texts) {
-    if (typeof text !== "string") return undefined;
+    if (typeof text !== "string") { pending = true; continue; }
     let invalid = false;
     // The complete observed sentence is the only reviewed labeled grammar. It
     // names a China alternative set; it never proves office versus territory.
@@ -153,7 +129,10 @@ function merckTitleCityScope(raw: Record<string, unknown>, structuredCity: strin
       labels.forEach(city => mentionedCities.add(city));
       return prefix;
     });
-    if (invalid || UNREVIEWED_LOCATION_LABEL.test(cleaned)) return undefined;
+    if (invalid || UNREVIEWED_LOCATION_LABEL.test(cleaned)) pending = true;
+    for (const match of cleaned.matchAll(/(?:Location:|based in|工作(?:地点|城市|地址)[：:])\s*([^.;。；]+)/giu)) {
+      if (explicitlyForeignOrNonMainlandLocation(match[1]!)) return undefined;
+    }
     cleanTexts.push(cleaned);
   }
   const parts = cleanTexts[0]!.trim().split(/[-,，]/u);
@@ -167,11 +146,11 @@ function merckTitleCityScope(raw: Record<string, unknown>, structuredCity: strin
         // The structured mainland location still stands; an unknown title suffix cannot prove a precise city.
         return explicitlyForeignOrNonMainlandLocation(suffix) ? undefined : [CITY_PENDING];
       }
-      if (new Set(labels).size !== labels.length) return undefined;
+      if (new Set(labels).size !== labels.length) pending = true;
       labels.forEach(city => mentionedCities.add(city));
     }
   }
   // Duplicate official text surfaces may repeat or reorder a mainland set. If
   // their positive mainland sets differ, retain the row with city pending.
-  return [...mentionedCities].every(city => city === structuredCity) ? [structuredCity] : [CITY_PENDING];
+  return !pending && [...mentionedCities].every(city => city === structuredCity) ? [structuredCity] : [CITY_PENDING];
 }

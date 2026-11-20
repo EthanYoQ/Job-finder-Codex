@@ -12,19 +12,22 @@ import type { SourceCrawlPlan } from "./sourcePlan";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import type { SourceFetchFunction } from "./runSourceCrawl";
 import type { StrictProfileBoundSourcePolicy } from "./profileBoundSourceEvidence";
+import { retryableHttpTransportFailure, retryableTransportFailureFromError, safeSourceTransportFailureReason, type SourceTransportFailureStage } from "./sourceFetchFailure";
+import type { WorkdayHttpResponse } from "./workdaySourceFetch";
+import { isWorkdayCooldownError } from "./workdayRequestPolicy";
+import {quarantineCompleteList,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
 
 export const AMGEN_MANUAL_WORKDAY_CONFIG = Object.freeze({ policy: "AMGEN_MANUAL_WORKDAY_LOOKUP_V2", pageSize: 12, maxPages: 30, lookupPageSize: 20, lookupMaxPages: 30 } as const);
 export type AmgenManualWorkdayConfig = typeof AMGEN_MANUAL_WORKDAY_CONFIG;
 const ORIGIN = "https://careers.amgen.com", WD = "https://amgen.wd1.myworkdayjobs.com";
 const PAGES = `${ORIGIN}/en/search-jobs/resultspost`, LOOKUP = `${WD}/wday/cxs/amgen/Careers/jobs`;
 const CHAIN = `${ORIGIN}/en/location/china-jobs/87/1814991/2`, CHINA = "6cb77610a8a543aea2d6bc10457e35d4";
-const REPORT = "amgen-v2-binding-report", LIMIT = 32 * 1024 * 1024, WINDOW = 10 * 60 * 1000;
+const REPORT = "amgen-v2-binding-report", LIMIT = 32 * 1024 * 1024, WINDOW = 15 * 60 * 1000;
 const FAILURE = "AMGEN_MANUAL_WORKDAY_INVALID";
 type Request = { url: string; method: "GET" | "POST"; headers: Record<string, string>; body?: string };
-type Response = { body: string; status: number; finalUrl?: string; contentType?: string; capturedAt?: string };
-type Http = (request: Request) => Promise<Response>;
+type Http = (request: Request) => Promise<WorkdayHttpResponse>;
 type Role = "list" | "lookup" | "identity" | "application";
-type Row = { id: string; title: string; url: string };
+type Row = { id: string; title: string; url: string; listRowInvalid?:true };
 type LookupRow = { req: string; title: string; path: string; location: string };
 const { parsePage, pageBody, pageTrace } = amgenNativeListReplay;
 const hash = (v: string | Uint8Array) => createHash("sha256").update(v).digest("hex");
@@ -36,7 +39,7 @@ const json = (v: string) => { assert(hasUniqueJsonObjectKeys(v)); return object(
 const key = (role: Role, index: number) => `amgen-v2-${role}-${String(index).padStart(4, "0")}`;
 const request = (url: string, body?: unknown): Request => ({ url, method: body === undefined ? "GET" : "POST", headers: { Accept: "text/html,application/json", ...(body === undefined ? {} : { "Content-Type": "application/json; charset=utf-8" }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 const lookupRequest = (index: number) => request(LOOKUP, { appliedFacets: { LocationCountry: [CHINA] }, limit: 20, offset: index * 20 });
-const options = { expectedChannelIds: [] as string[], filteredOutput: true, allowPositiveOfficialTotalCountAfterAdapterReconciliation: true as const };
+const options = { expectedChannelIds: [] as string[], filteredOutput: true, ...JOB_QUARANTINE_PAGINATION };
 function exactPlan(plan: SourceCrawlPlan): boolean {
   return plan.adapterId === "official-json" && plan.company.id === "company-amgen-china" && plan.source.id === "source-amgen-china-social" &&
     plan.source.companyId === plan.company.id && plan.company.officialChineseName === "安进中国" && plan.company.category === "FOREIGN_PHARMA" &&
@@ -45,12 +48,14 @@ function exactPlan(plan: SourceCrawlPlan): boolean {
     same(plan.profileBoundSource, { kind: "amgen-manual-workday-lookup", config: AMGEN_MANUAL_WORKDAY_CONFIG }) && same(plan.json, WORKDAY_JSON_CONFIG) &&
     !plan.workday && !plan.officialJsonFetch && !plan.moka && !plan.hotjob && !plan.hotjobLegacy;
 }
-function artifact(role: Role, index: number, req: Request, response: Response, now: string): SourceFetchArtifactDraft {
+function artifact(role: Role, index: number, req: Request, response: WorkdayHttpResponse, now: string): SourceFetchArtifactDraft {
   const mime = role === "lookup" || role === "application" || role === "list" && index > 1 ? /^application\/json(?:;|$)/iu : /^text\/html(?:;|$)/iu;
-  assert(response.status === 200 && response.finalUrl === req.url && typeof response.body === "string" && Buffer.byteLength(response.body) <= 2 * 1024 * 1024 && mime.test(response.contentType ?? ""));
+  assert(Number.isInteger(response.status)&&response.status>=100&&response.status<=599&&response.finalUrl === req.url && typeof response.body === "string" && Buffer.byteLength(response.body) <= 2 * 1024 * 1024 &&
+    typeof response.contentType === "string" && response.contentType.length > 0 &&
+    (response.status !== 200 || mime.test(response.contentType)));
   const capturedAt = response.capturedAt ?? now; assert(Number.isFinite(Date.parse(capturedAt)));
   return { id: key(role, index), logicalKey: key(role, index), kind: role === "list" ? "PAGINATION_PAGE" : role === "identity" ? "ATS_PAGE" : "ATS_API_RESPONSE",
-    requestedUrl: req.url, finalUrl: req.url, httpStatus: 200, contentType: response.contentType!, capturedAt, body: response.body, bodyRepresentation: "EXACT",
+    requestedUrl: req.url, finalUrl: req.url, httpStatus: response.status, contentType: response.contentType, capturedAt, body: response.body, bodyRepresentation: "EXACT",
     extractorLocator: requestContractV2Locator(role === "list" ? "#search-results@data-total-job-results" : role === "lookup" ? "$.jobPostings:lookup-only" : role === "identity" ? "schema:JobPosting:identity-only" : "$.jobPostingInfo", {
       family: role === "lookup" || role === "application" ? "workday" : "html", role: `amgen-manual-workday-v2-${role}`, method: req.method, url: req.url,
       body: req.body ? JSON.parse(req.body) : null, coordinate: { index }
@@ -69,7 +74,7 @@ function lookupPage(body: string, index: number, declared?: number): { total: nu
     assert(china.length === 1 && china[0]!.id === CHINA && china[0]!.descriptor === "China" && china[0]!.count === total);
   }
   const rows = root.jobPostings.map(value => {
-    const r = object(value); assert(nonempty(r.title) && nonempty(r.externalPath) && nonempty(r.locationsText) && nonempty(r.postedOn) && Array.isArray(r.bulletFields) && r.bulletFields.length === 1);
+    const r = object(value); assert(nonempty(r.title) && nonempty(r.externalPath) && nonempty(r.locationsText) && Array.isArray(r.bulletFields) && r.bulletFields.length === 1);
     const req = r.bulletFields[0], match = /^\/job\/[A-Za-z0-9-]+\/[A-Za-z0-9-]+_(R-[1-9]\d*)(?:-[1-9]\d*)?$/u.exec(r.externalPath);
     assert(nonempty(req) && match?.[1] === req && (/^China\s+- /u.test(r.locationsText) || /^[2-9]\d* Locations$/u.test(r.locationsText)));
     return { req, title: clean(r.title), path: r.externalPath, location: r.locationsText };
@@ -93,8 +98,8 @@ function identity(html: string, row: Row) {
 function project(row: Row, html: string, lookup: LookupRow, body: string) {
   const id = identity(html, row), root = json(body), info = object(root.jobPostingInfo), country = object(info.country), requisition = object(info.jobRequisitionLocation), reqCountry = object(requisition.country);
   const officialUrl = `${WD}/Careers${lookup.path}`;
-  assert(id.req === lookup.req && lookup.title === row.title && root.userAuthenticated === false && info.jobReqId === id.req && info.jobPostingId === lookup.path.split("/").at(-1) &&
-    info.jobPostingSiteId === "Careers" && info.externalUrl === officialUrl && info.title === row.title && info.posted === true && info.canApply === true &&
+  assert(id.req === lookup.req && root.userAuthenticated === false && info.jobReqId === id.req && info.jobPostingId === lookup.path.split("/").at(-1) &&
+    info.jobPostingSiteId === "Careers" && info.externalUrl === officialUrl && nonempty(info.title) && info.posted === true && info.canApply === true &&
     country.id === CHINA && country.descriptor === "China" && reqCountry.id === CHINA && reqCountry.descriptor === "China" && reqCountry.alpha2Code === "CN" && nonempty(requisition.descriptor) &&
     nonempty(info.jobDescription) && nonempty(info.location) && (info.additionalLocations === undefined || Array.isArray(info.additionalLocations)));
   // Workday wraps the same complete JD with its category heading and a trailing dot.
@@ -107,12 +112,13 @@ function project(row: Row, html: string, lookup: LookupRow, body: string) {
   assert(lookup.location === info.location && locations.length === 1 || lookup.location === `${locations.length} Locations` && locations.length > 1);
   for (let i = 0; i < locations.length; i++) { const name = (locations[i] as string).replace(/^China\s+- /u, ""), address = id.locations[i]!;
     assert(name === address.addressLocality || name === "Yulin (Shaanxi)" && address.addressLocality === "Yulin" && address.addressRegion === "Shaanxi"); }
-  const cities = projectAmgenNativeCities(row.title, locations as string[], requisition.descriptor); assert(cities);
+  const cities = projectAmgenNativeCities(info.title as string, locations as string[], requisition.descriptor); assert(cities);
   const $ = load(html), heading = clean($("h1").text()), mainJobIds = $("main#content section.job-description[data-selector-name='jobdetails']").map((_, node) => $(node).attr("data-job-id") ?? "").get();
   const applyLinks = $("a.job-apply").toArray().map(node => ({ numericId: $(node).attr("data-job-id") ?? "", orgId: $(node).attr("data-job-organization-id") ?? "", href: $(node).attr("href") ?? "", dataApplyUrl: $(node).attr("data-apply-url") ?? "" }));
   const expectedNativeApplyRoute = `${officialUrl}/apply`; // Comparison only; never fetched or published as observed evidence.
   const hasConflict = heading !== row.title || mainJobIds.some(v => v !== row.id) || applyLinks.some(v => v.numericId !== row.id || v.orgId !== "87" || v.href !== expectedNativeApplyRoute || v.dataApplyUrl !== expectedNativeApplyRoute);
-  return { job: { sourceJobId: `workday:sha256:${hash(lookup.path)}`, title: row.title, officialUrl, locationRaw: locations.join(" | "), cities },
+  // The same requisition can have a newer title at the official application endpoint.
+  return { job: { sourceJobId: `workday:sha256:${hash(lookup.path)}`, title: clean(info.title as string), officialUrl, locationRaw: locations.join(" | "), cities },
     binding: { numericId: row.id, reqId: id.req, externalPath: lookup.path, officialUrl, application: { landingUrl: info.externalUrl, canApply: info.canApply, posted: info.posted }, displayConflict: { heading, mainJobIds, applyLinks, hasConflict } } };
 }
 function reportArtifact(manualTotal: number, catalog: LookupRow[], bindings: ReturnType<typeof project>["binding"][], capturedAt: string): SourceFetchArtifactDraft {
@@ -120,22 +126,23 @@ function reportArtifact(manualTotal: number, catalog: LookupRow[], bindings: Ret
   return { id: REPORT, logicalKey: REPORT, kind: "ORACLE_RESULT", capturedAt, bodyRepresentation: "EXACT", extractorLocator: "amgen-manual-workday-v2:replayed-bindings-and-lookup-only-difference",
     body: JSON.stringify({ policy: AMGEN_MANUAL_WORKDAY_CONFIG.policy, manualTotal, lookupTotal: catalog.length, lookupOnlyReqIds: catalog.filter(r => !selected.has(r.req)).map(r => r.req), bindings }) };
 }
-function assemble(artifacts: SourceFetchArtifactDraft[], pages: ReturnType<typeof parsePage>[], jobs: ReturnType<typeof project>["job"][]): PersistentSourceFetchEvidence {
+function assemble(artifacts: SourceFetchArtifactDraft[], pages: ReturnType<typeof parsePage>[], jobs: ReturnType<typeof project>["job"][],quarantines:JobQuarantine[]=[]): PersistentSourceFetchEvidence {
   let offset = 0;
   const traces = pages.map(page => { const selected = jobs.slice(offset, offset + page.rows.length); offset += page.rows.length; return pageTrace(page, artifacts.find(a => a.logicalKey === key("list", page.page))!, selected); });
   const first = artifacts[0]!;
-  return deriveCanonicalPaginationEvidence({ ...options, evidence: parsePersistentSourceFetchEvidence({ captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts, pages: traces,
+  const evidence=parsePersistentSourceFetchEvidence({ captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts, pages: traces,
     declaredCompleteness: { kind: "OFFICIAL_TOTAL_COUNT", scope: "SOURCE", value: pages[0]!.total, artifactLogicalKey: first.logicalKey, extractorLocator: first.extractorLocator },
-    fetchCounts: { rawCount: jobs.length, parsedCount: jobs.length, validCount: jobs.length, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] }) });
+    fetchCounts: { rawCount: jobs.length, parsedCount: jobs.length, validCount: jobs.length, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] });
+  return deriveCanonicalPaginationEvidence({...options,evidence:quarantineCompleteList(evidence,quarantines)});
 }
 function replay(artifacts: SourceFetchArtifactDraft[]) {
   const map = new Map(artifacts.map(a => [a.logicalKey, a])); assert(map.size === artifacts.length && artifacts.reduce((n, a) => n + Buffer.byteLength(a.body), 0) <= LIMIT);
   let consumed = 0, previous = Date.parse(artifacts[0]!.capturedAt); const start = previous;
   const read = (role: Role, index: number, req: Request) => {
-    const a = map.get(key(role, index)); assert(a && typeof a.body === "string" && a.logicalKey === artifacts[consumed++]?.logicalKey);
+    const a = map.get(key(role, index)); assert(a && typeof a.body === "string" && a.logicalKey === artifacts[consumed]?.logicalKey);
     const time = Date.parse(a.capturedAt); assert(time >= previous && time - start <= WINDOW); previous = time;
     const expected = artifact(role, index, req, { body: a.body, status: a.httpStatus!, finalUrl: a.finalUrl!, contentType: a.contentType!, capturedAt: a.capturedAt }, a.capturedAt);
-    assert(same({ ...a, id: expected.id }, expected)); return a.body;
+    assert(same({ ...a, id: expected.id }, expected));consumed++; assert(a.httpStatus===200); return a.body;
   };
   const entry = read("list", 1, request(AMGEN_NATIVE_ENTRY)), pages = [parsePage(entry, 1)]; pageBody(entry, 2);
   for (let i = 2; i <= pages[0]!.totalPages; i++) pages.push(parsePage(read("list", i, request(PAGES, pageBody(entry, i))), i));
@@ -144,40 +151,117 @@ function replay(artifacts: SourceFetchArtifactDraft[]) {
   const first = lookupPage(read("lookup", 0, lookupRequest(0)), 0), catalog = [...first.rows];
   for (let i = 1; i < Math.ceil(first.total / 20); i++) catalog.push(...lookupPage(read("lookup", i, lookupRequest(i)), i, first.total).rows);
   assert(catalog.length === first.total && new Set(catalog.map(r => r.req)).size === first.total && new Set(catalog.map(r => r.path)).size === first.total);
-  const selected = new Set<string>(), projected = rows.map((row, i) => { const html = read("identity", i, request(row.url)), id = identity(html, row), match = catalog.find(r => r.req === id.req);
-    assert(match && !selected.has(id.req)); selected.add(id.req); return project(row, html, match, read("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`))); });
+  const selected = new Set<string>(), projected:ReturnType<typeof project>[]=[],listJobs:ReturnType<typeof project>['job'][]=[],quarantines:JobQuarantine[]=[];
+  for(const [i,row]of rows.entries()){
+    let match:LookupRow|undefined,result:ReturnType<typeof project>|undefined;
+    try{
+      assert(!row.listRowInvalid);
+      const html=read('identity',i,request(row.url)),id=identity(html,row);match=catalog.find(r=>r.req===id.req);
+      assert(match&&!selected.has(id.req));selected.add(id.req);
+      result=project(row,html,match,read('application',i,request(`${WD}/wday/cxs/amgen/Careers${match.path}`)));
+    }catch{
+      // A failed request may have no bytes. Consume only its own retained originals.
+      for(const role of ['identity','application']as const){
+        const a=map.get(key(role,i));if(!a||artifacts[consumed]?.logicalKey!==a.logicalKey)continue;
+        const req=role==='identity'?request(row.url):match?request(`${WD}/wday/cxs/amgen/Careers${match.path}`):undefined;assert(req);
+        const time=Date.parse(a.capturedAt);assert(time>=previous&&time-start<=WINDOW);previous=time;
+        assert(same({...a,id:key(role,i)},artifact(role,i,req,{body:a.body as string,status:a.httpStatus!,finalUrl:a.finalUrl!,contentType:a.contentType!,capturedAt:a.capturedAt},a.capturedAt)));consumed++;
+      }
+    }
+    if(result){projected.push(result);listJobs.push(result.job);continue;}
+    const sourceJobId=match?`workday:sha256:${hash(match.path)}`:undefined,placeholder=`unidentified:${i}`;
+    const pageSequence=Math.floor(i/12),recordIndex=i%12,validJobId=`sha256:${hash(placeholder)}`;
+    quarantines.push({pageSequence,recordIndex,validJobId,rawLocator:`${key('list',pageSequence+1)}#row:${recordIndex}`,code:'AMGEN_JOB_UNVERIFIED',
+      ...(sourceJobId?{sourceJobId,officialUrl:`${WD}/Careers${match!.path}`}:{})});
+    listJobs.push({sourceJobId:placeholder,title:'',officialUrl:'',locationRaw:'',cities:[]});
+  }
   assert(artifacts.length === consumed + 1);
   const report = reportArtifact(rows.length, catalog, projected.map(p => p.binding), artifacts[consumed - 1]!.capturedAt);
   assert(same(artifacts[consumed], report));
   const jobs = projected.map(p => p.job); assert(new Set(jobs.map(j => j.sourceJobId)).size === jobs.length);
-  return { evidence: assemble(artifacts, pages, jobs), jobs };
+  return { evidence: assemble(artifacts, pages, listJobs,quarantines), jobs };
 }
 export function createAmgenManualWorkdaySourceFetch(deps: { http?: Http; now?: () => Date } = {}): SourceFetchFunction {
   return async plan => {
     const now = deps.now ?? (() => new Date()), startedAt = now().toISOString(), artifacts: SourceFetchArtifactDraft[] = []; let bytes = 0;
+    let failedHttp: WorkdayHttpResponse | undefined;
+    let closedList: ReturnType<typeof parsePage>[] | undefined;
+    let stage: SourceTransportFailureStage = "ENTRY";
     try {
       assert(exactPlan(plan)); const http: Http = deps.http ?? (r => fetchWorkdayMainlandHttp(r.method === "POST" ? { ...r, method: "POST", body: r.body! } : { ...r, method: "GET" }));
-      const acquire = async (role: Role, index: number, req: Request) => { const a = artifact(role, index, req, await http(req), now().toISOString()); bytes += Buffer.byteLength(a.body); assert(bytes <= LIMIT); artifacts.push(a); return a.body as string; };
+      let blocked: WorkdayHttpResponse | undefined;
+      const acquire = async (role: Role, index: number, req: Request) => {
+        assert(!blocked);
+        stage = role === "lookup" ? "FACET_COUNTRY" : role === "list" && index === 1 ? "ENTRY" : "PAGE";
+        const response = await http(req);
+        if (response.status === 403 || response.status === 429) blocked = response;
+        if (response.status !== 200 && (role === "list" || role === "lookup")) failedHttp = response;
+        const a = artifact(role, index, req, response, now().toISOString());
+        bytes += Buffer.byteLength(a.body);
+        assert(bytes <= LIMIT);
+        artifacts.push(a);
+        assert(a.httpStatus === 200);
+        return a.body as string;
+      };
       const entry = await acquire("list", 1, request(AMGEN_NATIVE_ENTRY)), pages = [parsePage(entry, 1)]; pageBody(entry, 2);
       for (let i = 2; i <= pages[0]!.totalPages; i++) pages.push(parsePage(await acquire("list", i, request(PAGES, pageBody(entry, i))), i));
-      const rows = pages.flatMap(p => p.rows); assert(rows.length === pages[0]!.total && new Set(rows.map(r => r.id)).size === rows.length);
+      const rows = pages.flatMap(p => p.rows);
+      assert(pages.every(p => p.total === pages[0]!.total && p.totalPages === pages.length) && rows.length === pages[0]!.total && new Set(rows.map(r => r.id)).size === rows.length);
+      closedList = pages;
       const first = lookupPage(await acquire("lookup", 0, lookupRequest(0)), 0), catalog = [...first.rows];
       for (let i = 1; i < Math.ceil(first.total / 20); i++) catalog.push(...lookupPage(await acquire("lookup", i, lookupRequest(i)), i, first.total).rows);
       assert(catalog.length === first.total && new Set(catalog.map(r => r.req)).size === first.total && new Set(catalog.map(r => r.path)).size === first.total);
       const bindings: ReturnType<typeof project>["binding"][] = [], seen = new Set<string>();
-      for (let i = 0; i < rows.length; i++) { const row = rows[i]!, html = await acquire("identity", i, request(row.url)), id = identity(html, row), match = catalog.find(r => r.req === id.req);
-        assert(match && !seen.has(id.req)); seen.add(id.req);
-        bindings.push(project(row, html, match, await acquire("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`))).binding); }
+      for (const [i, row] of rows.entries()) {
+        try {
+          assert(!row.listRowInvalid);
+          const html = await acquire("identity", i, request(row.url));
+          const id = identity(html, row), match = catalog.find(r => r.req === id.req);
+          assert(match && !seen.has(id.req));
+          seen.add(id.req);
+          const application = await acquire("application", i, request(`${WD}/wday/cxs/amgen/Careers${match.path}`));
+          bindings.push(project(row, html, match, application).binding);
+        } catch (error) {
+          if (isWorkdayCooldownError(error)) throw error;
+          // Replay derives the affected job's quarantine from retained originals.
+        }
+      }
+      if (blocked && bindings.length === 0) {
+        failedHttp = blocked;
+        throw Error(FAILURE);
+      }
       const report = reportArtifact(rows.length, catalog, bindings, artifacts.at(-1)!.capturedAt);
       assert(bytes + Buffer.byteLength(report.body) <= LIMIT); artifacts.push(report);
       const result = replay(artifacts), paginationEvaluation = evaluatePaginationEvidence({ ...options, evidence: result.evidence }); assert(paginationEvaluation.safeCompleteness && paginationEvaluation.verifiedEligible);
       return { ok: true, capturedAt: artifacts[0]!.capturedAt, payload: { jobPostings: result.jobs }, fetchEvidence: result.evidence, paginationEvaluation,
         completeness: { completenessStatus: "NEEDS_MANUAL_COMPLETENESS_REVIEW", expectedJobCount: rows.length, completenessEvidenceKind: "OFFICIAL_TOTAL_COUNT", completenessEvidenceUrl: AMGEN_NATIVE_ENTRY,
           completenessBlockerReason: "Amgen manual denominator and independent Workday lookup/detail replay required", totalPages: pages.length, pageSize: 12, pagesVisited: pages.length } };
-    } catch {
-      const fetchEvidence = artifacts.length ? parsePersistentSourceFetchEvidence({ captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts: artifacts.map(a => a.kind === "ORACLE_RESULT" ? a : { ...a, kind: "ATS_PAGE" }), pages: [], supportingArtifactOnlyFailure: { code: FAILURE },
-        fetchCounts: { rawCount: 0, parsedCount: 0, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] }) : undefined;
-      return { ok: false, capturedAt: startedAt, failureReason: FAILURE, ...(fetchEvidence ? { fetchEvidence } : {}) };
+    } catch (error) {
+      const failure = failedHttp
+        ? retryableHttpTransportFailure(failedHttp.status, failedHttp.retryAfter)
+        : retryableTransportFailureFromError(error);
+      const transportFailure = failure ? { ...failure, stage } : undefined;
+      const failureReason = isWorkdayCooldownError(error) ? error.message
+        : transportFailure ? safeSourceTransportFailureReason(transportFailure)
+        : failedHttp ? `Official JSON source returned HTTP ${failedHttp.status}` : FAILURE;
+      let fetchEvidence: PersistentSourceFetchEvidence | undefined;
+      if (closedList) {
+        const rawCount = closedList.reduce((count, page) => count + page.rows.length, 0), first = artifacts[0]!;
+        // A closed discovery list does not establish Workday identity or application eligibility.
+        fetchEvidence = parsePersistentSourceFetchEvidence({
+          captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts,
+          pages: closedList.map(page => pageTrace(page, artifacts.find(a => a.logicalKey === key("list", page.page))!, [])),
+          fetchCounts: { rawCount, parsedCount: rawCount, validCount: 0, parseDiscardCount: 0, validationDiscardCount: rawCount },
+          fetchLosses: closedList.flatMap(page => page.rows.map((_, recordIndex) => ({
+            stage: "VALIDATION", reason: "Amgen Workday binding was not completed", rawLocator: `${key("list", page.page)}#row:${recordIndex}`,
+            details: { code: "AMGEN_WORKDAY_BINDING_INCOMPLETE", pageSequence: page.page - 1, recordIndex }, recordedAt: first.capturedAt
+          })))
+        });
+      } else if (artifacts.length) {
+        fetchEvidence = parsePersistentSourceFetchEvidence({ captureTool: { name: "amgen-manual-workday-http", version: "2" }, artifacts: artifacts.map(a => a.kind === "ORACLE_RESULT" ? a : { ...a, kind: "ATS_PAGE" }), pages: [], supportingArtifactOnlyFailure: { code: FAILURE },
+          fetchCounts: { rawCount: 0, parsedCount: 0, validCount: 0, parseDiscardCount: 0, validationDiscardCount: 0 }, fetchLosses: [] });
+      }
+      return { ok: false, capturedAt: startedAt, failureReason, ...(transportFailure ? { transportFailure } : {}), ...(fetchEvidence ? { fetchEvidence } : {}) };
     }
   };
 }

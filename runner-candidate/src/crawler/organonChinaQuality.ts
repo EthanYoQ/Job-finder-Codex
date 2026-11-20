@@ -1,3 +1,5 @@
+import { phenomMainlandGeography, phenomPrimaryLocationAgrees } from "./phenomMainlandGeography";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { CITY_PENDING } from "../domain/jobLocation";
 import { load } from "cheerio";
 import { parse } from "@babel/parser";
@@ -8,15 +10,6 @@ import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import { irreversibleOfficialJsonEvidenceId, persistentOfficialJsonJobId } from "./officialJsonEvidence";
 
-// Reviewed source fields, not a requisition, title, or count allowlist. Unknown
-// fields (including shadow geography) require review before this policy expands.
-const RAW_FIELDS = new Set([
-  "subCategory", "ml_skills", "type", "descriptionTeaser", "state", "siteType", "multi_category", "reqId", "city",
-  "latitude", "industry", "multi_location", "address", "applyUrl", "ml_job_parser", "externalApply", "cityState", "country",
-  "visibilityType", "longitude", "jobId", "locale", "title", "jobSeqNo", "postedDate", "workLocation", "dateCreated",
-  "cityStateCountry", "employeeType", "jobVisibility", "location", "category", "isMultiLocation", "multi_location_array",
-  "isMultiCategory", "multi_category_array", "badge"
-]);
 const LOCALITIES = [
   { city:"Shanghai", state:"Shanghai", chinese:"上海", latitude:"31.22222", longitude:"121.45806", path:"CHN---Shanghai---Shanghai" },
   { city:"Wenzhou", state:"Zhejiang", chinese:"温州", latitude:"27.99942", longitude:"120.66682", path:"CHN---Zhejiang---Wenzhou" },
@@ -29,39 +22,18 @@ const LOCALITIES = [
   // primary and nested records. Every redundant field must match this shape.
   { city:"", state:"Chengdu", chinese:"成都", latitude:"30.66667", longitude:"104.06667", path:"CHN---Chengdu" }
 ] as const;
-// These official addresses and work-location labels were independently
-// inspected. Neither wins over other mainland evidence when cities disagree.
-const ADDRESSES = new Map([
-  ["1901 Huashan Lu, One ITC, Shanghai, 200030 Shanghai, China", "上海"],
-  ["3 Xi Yu Jie, East Tower, Chengdu, 610041 Sichuan, China", "成都"],
-  ["28 Zhujiang E Rd, Tianhe Guangzhou, Guangzhou, 510000 Guangdong, China", "广州"]
-]);
-const WORK_LOCATIONS = new Map([
-  ["CHN - Shanghai - Shanghai", "上海"], ["CHN - Zhejiang - Wenzhou", "温州"], ["CHN - Chengdu", "成都"],
-  ["CHN - Guangdong - Guangzhou", "广州"]
-]);
-const PARSER_FIELDS = new Set(["descriptionTeaser", "descriptionTeaser_first200", "descriptionTeaser_keyword", "descriptionTeaser_ats"]);
-const ARRAY_FIELDS = new Set(["ml_skills", "multi_category", "multi_location", "jobVisibility"]);
-const OBJECT_FIELDS = new Set(["ml_job_parser", "multi_location_array", "multi_category_array"]);
 function record(value:unknown): value is Record<string,unknown> { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function exactFields(value:Record<string,unknown>, fields:readonly string[]):boolean {
   return Object.keys(value).length === fields.length && fields.every(field => Object.hasOwn(value,field));
 }
 function cityLabel(value:string):string|undefined { return value === "Chengdu" || value === "成都" ? "成都" : LOCALITIES.find(place => (place.city !== "" && place.city === value) || place.chinese === value)?.chinese; }
 
-function mainlandPlace(raw: Record<string, unknown>) {
-  const known = LOCALITIES.find(place => raw.city === place.city && raw.state === place.state);
-  if (known) return known;
-  const chinese = typeof raw.city === "string" && typeof raw.state === "string" ? reviewedMainlandCity(raw.city, raw.state) : undefined;
-  const coordinate = (value: unknown, max: number) => typeof value === "string" && /^-?\d+(?:\.\d+)?$/u.test(value) && Math.abs(Number(value)) <= max;
-  return chinese && coordinate(raw.latitude, 90) && coordinate(raw.longitude, 180)
-    ? {city: raw.city as string, state: raw.state as string, chinese, latitude: raw.latitude as string, longitude: raw.longitude as string} : undefined;
-}
 function applyCity(path: string): string | undefined {
   const known = LOCALITIES.find(place => place.path === path);
   if (known) return known.chinese;
+  if (!/^CHN---/.test(path) || explicitlyForeignOrNonMainlandLocation(path.replaceAll("-", " "))) return undefined;
   const parts = path.split("---");
-  return parts.length === 3 && parts[0] === "CHN" ? reviewedMainlandCity(parts[2]!, parts[1]!) : undefined;
+  return (parts.length === 3 ? reviewedMainlandCity(parts[2]!, parts[1]!) : undefined) ?? CITY_PENDING;
 }
 
 /** Require matching external requisition identities and an official Workday path
@@ -86,55 +58,16 @@ export function organonOfficialIdentity(raw:Record<string,unknown>):boolean {
  * foreign, unrecognized, missing or structurally ambiguous structured geography fails.
  * Descriptive ambiguity is field-level uncertainty after the structured proof. */
 export function organonOfficialCities(raw:Record<string,unknown>):string[]|undefined {
-  const hasWorkLocation=Object.hasOwn(raw,"workLocation");
-  if (Object.keys(raw).some(field=>!RAW_FIELDS.has(field)) || raw.country !== "China" || raw.isMultiLocation !== true ||
-    typeof raw.title !== "string" || !raw.title.trim() || typeof raw.address !== "string" ||
-    (hasWorkLocation && typeof raw.workLocation !== "string")) return undefined;
-  for (const [field,value] of Object.entries(raw)) {
-    if (ARRAY_FIELDS.has(field)) {if(!Array.isArray(value)||value.some(item=>typeof item!=="string"))return undefined;}
-    else if (!OBJECT_FIELDS.has(field) && field!=="externalApply" && field!=="isMultiLocation" && field!=="isMultiCategory" && field!=="postedDate" && typeof value!=="string") return undefined;
-  }
-  if (Object.hasOwn(raw,"isMultiCategory") && raw.isMultiCategory !== false) return undefined;
-  if (Object.hasOwn(raw,"multi_category_array") && (!Array.isArray(raw.multi_category_array) || raw.multi_category_array.some(value =>
-    !record(value) || !exactFields(value,["category"]) || typeof value.category!=="string"))) return undefined;
-  const primary=mainlandPlace(raw);
-  if(!primary)return undefined;
-  const primaryCityState=[primary.city,primary.state].filter(Boolean).join(", "),location=`${primaryCityState}, China`;
-  if(raw.location!==location || raw.cityStateCountry!==location || raw.cityState!==primaryCityState ||
-    raw.latitude!==primary.latitude || raw.longitude!==primary.longitude || !Array.isArray(raw.multi_location) || !raw.multi_location.length ||
-    !Array.isArray(raw.multi_location_array) || raw.multi_location_array.length!==raw.multi_location.length)return undefined;
-  const cities=new Set<string>([primary.chinese]);
-  for(let index=0;index<raw.multi_location.length;index++){
-    const nested=raw.multi_location_array[index];
-    if(!record(nested)||!exactFields(nested,["country","cityState","city","latlong","latitude","location","state","cityCountry","cityStateCountry","mapQueryLocation","stateCountry","longitude"]))return undefined;
-    // Primary and additional locations share the mainland city/province mapping.
-    const place=mainlandPlace(nested);
-    if(!place)return undefined;
-    const cityState=[place.city,place.state].filter(Boolean).join(", "),expected=`${cityState}, China`;
-    if(nested.country!=="China" || nested.location!==expected || nested.cityStateCountry!==expected || nested.mapQueryLocation!==expected ||
-      nested.cityCountry!==(place.city?`${place.city}, China`:"China") || nested.stateCountry!==`${place.state}, China` || nested.cityState!==cityState ||
-      raw.multi_location[index]!==expected || nested.latitude!==place.latitude || nested.longitude!==place.longitude ||
-      !record(nested.latlong)||!exactFields(nested.latlong,["lat","lon"])||nested.latlong.lat!==Number(place.latitude)||nested.latlong.lon!==Number(place.longitude))return undefined;
-    cities.add(place.chinese);
-  }
-  const address=ADDRESSES.get(raw.address),work=hasWorkLocation?WORK_LOCATIONS.get(raw.workLocation as string):undefined;
-  if(!address||(hasWorkLocation&&!work)||!organonOfficialIdentity(raw))return undefined;
-  cities.add(address);if(work)cities.add(work);
-  const path=new URL(raw.applyUrl as string).pathname.split("/")[3]!;
-  const urlCity=applyCity(path);
-  if(!urlCity)return undefined;
-  cities.add(urlCity);
-  // Audit every permitted descriptive surface; an allowed field name is not
-  // permission to hide new job geography in a label, skill or category.
-  const descriptiveFields = ["title", "descriptionTeaser", "subCategory", "type", "industry", "employeeType", "category", "badge"];
-  const texts:unknown[]=descriptiveFields.filter(field=>Object.hasOwn(raw,field)).map(field=>raw[field]);
-  for(const field of ["ml_skills", "multi_category"])if(Array.isArray(raw[field]))texts.push(...raw[field]);
-  if(Array.isArray(raw.multi_category_array))texts.push(...raw.multi_category_array.map(value=>(value as Record<string,unknown>).category));
-  if(Object.hasOwn(raw,"ml_job_parser")){
-    if(!record(raw.ml_job_parser)||Object.keys(raw.ml_job_parser).some(key=>!PARSER_FIELDS.has(key)))return undefined;
-    texts.push(...Object.values(raw.ml_job_parser));
-  }
-  let pending = !hasWorkLocation;
+  if (!phenomMainlandGeography(raw) || !organonOfficialIdentity(raw) || typeof raw.title !== "string" || !raw.title.trim()) return undefined;
+  const known = LOCALITIES.find(place => raw.city === place.city && raw.state === place.state);
+  const primaryCity = known?.chinese ?? (typeof raw.city === "string" && typeof raw.state === "string"
+    ? reviewedMainlandCity(raw.city, raw.state) : undefined) ?? CITY_PENDING;
+  const cities = new Set<string>([primaryCity]);
+  const texts = [raw.title, raw.descriptionTeaser, ...(record(raw.ml_job_parser) ? Object.values(raw.ml_job_parser) : [])]
+    .filter((value): value is string => typeof value === "string");
+  let pending = primaryCity === CITY_PENDING || !phenomPrimaryLocationAgrees(raw);
+  const urlCity = applyCity(new URL(raw.applyUrl as string).pathname.split("/")[3]!);
+  if (urlCity !== primaryCity) pending = true;
   for (const original of texts) {
     if (typeof original !== "string") return undefined;
     const scope = organonTextLocationScope(original);
@@ -150,7 +83,7 @@ export function organonOfficialCities(raw:Record<string,unknown>):string[]|undef
     if (labels.some(label => !label)) pending = true;
     else labels.forEach(label => cities.add(label!));
   }
-  return !pending && cities.size === 1 ? [primary.chinese] : [CITY_PENDING];
+  return !pending && cities.size === 1 ? [primaryCity] : [CITY_PENDING];
 }
 
 // A known foreign place contradicts China only when it is the target of an
@@ -223,7 +156,7 @@ function organonTextLocationScope(original: string): { pending: boolean; cities:
 /** The original keyword entry carries a server-rendered search snapshot. Only a
  * complete, identity-unique snapshot may prove equivalence to all country pages.
  * A partial/missing snapshot remains HOLD; equal totals alone never suffice. */
-export function organonKeywordCountryEquivalent(html: string | Uint8Array, rows: readonly Record<string,unknown>[]): boolean {
+export function organonKeywordCountryEquivalent(html: string | Uint8Array, rows: readonly unknown[]): boolean {
   try {
     const $ = load(typeof html === "string" ? html : Buffer.from(html).toString("utf8"));
     const assignments: string[] = [];
@@ -255,18 +188,19 @@ export function organonKeywordCountryEquivalent(html: string | Uint8Array, rows:
     if (!record(search) || search.status !== 200 || !Number.isSafeInteger(search.totalHits) || (search.totalHits as number) < 0 ||
       search.hits !== search.totalHits || !record(search.data) || search.data.keywords !== "China" ||
       !Array.isArray(search.data.jobs) || search.data.jobs.length !== search.totalHits || rows.length !== search.totalHits) return false;
-    const keyword = new Map<string,Record<string,unknown>>();
+    // List membership is independent of per-job field validity and presentation changes.
+    const key=(row:unknown)=>record(row)&&typeof row.jobSeqNo==='string'&&row.jobSeqNo.trim()?`id:${row.jobSeqNo}`:'unidentified';
+    const keyword = new Map<string,number>();
     for (const row of search.data.jobs) {
-      if (!record(row) || !organonOfficialIdentity(row) || keyword.has(row.jobSeqNo as string)) return false;
-      keyword.set(row.jobSeqNo as string,row);
+      const id=key(row);if(id!=='unidentified'&&keyword.has(id))return false;keyword.set(id,(keyword.get(id)??0)+1);
     }
-    const country = new Set<string>();
+    const country = new Map<string,number>();
     for (const row of rows) {
-      const id=row.jobSeqNo as string;
-      if (!organonOfficialIdentity(row) || country.has(id) || !isDeepStrictEqual(keyword.get(id),row)) return false;
-      country.add(id);
+      const id=key(row);
+      if (id!=='unidentified'&&country.has(id)||!keyword.has(id)) return false;
+      country.set(id,(country.get(id)??0)+1);
     }
-    return country.size === keyword.size;
+    return country.size===keyword.size&&[...country].every(([id,count])=>keyword.get(id)===count);
   } catch { return false; }
 }
 
@@ -324,7 +258,6 @@ export function organonNativeDetail(raw: Record<string,unknown>, artifact: Sourc
     if (!record(job) || !record(job.identifier) || job.identifier.value !== raw.reqId ||
       typeof job.title !== "string" || typeof raw.title !== "string" || clean(job.title) !== clean(raw.title) ||
       typeof job.description !== "string" || !clean(job.description) ||
-      typeof job.datePosted !== "string" || phenomOfficialPostedDate(raw.postedDate)?.slice(0,10) !== job.datePosted ||
       !record(job.jobLocation) || !record(job.jobLocation.address)) return undefined;
     const address=job.jobLocation.address;
     // A validated native workLocation can differ from the URL locality; the existing city-pending projection remains intact.

@@ -109,13 +109,15 @@ function readCandidateIds(html: string): string[] {
   return ids;
 }
 
+export function redseaNativeJobId(value:unknown):string|undefined{return typeof value==='string'&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(value)?value:undefined;}
+
 export function auditRedseaCandidateScope(html: string, rows: readonly unknown[]) {
   let candidateIds: string[] = [];
   let declarationValid = false;
   try { candidateIds = readCandidateIds(html); declarationValid = true; } catch { /* Keep only safe diagnostic codes. */ }
   const returnedIds = rows.map((row) => row !== null && typeof row === "object" && !Array.isArray(row)
     ? (row as Record<string, unknown>).REQUEST_ID : undefined);
-  const validReturnedIds = returnedIds.filter((id): id is string => typeof id === "string" && safeOfficialJsonId(id));
+  const validReturnedIds = returnedIds.filter((id): id is string => redseaNativeJobId(id)!==undefined);
   const duplicateReturnedIds = [...new Set(validReturnedIds.filter((id, index) => validReturnedIds.indexOf(id) !== index))];
   const unexpectedReturnedIds = declarationValid ? [...new Set(validReturnedIds.filter((id) => !candidateIds.includes(id)))] : [];
   const unexplainedCandidateIds = candidateIds.filter((id) => !validReturnedIds.includes(id));
@@ -138,6 +140,6 @@ export function auditRedseaCandidateScope(html: string, rows: readonly unknown[]
     officialDeclaredTotal: null,
     // Configured IDs are query inputs, not an official active-vacancy total.
     // Absent candidates stay unknown. Independent rendered traversal must still match every returned ID.
-    complete: status === "CANDIDATE_SET_ACCOUNTED" || status === "CANDIDATE_QUERY_SUBSET"
+    complete: declarationValid&&duplicateReturnedIds.length===0&&unexpectedReturnedIds.length===0
   };
 }

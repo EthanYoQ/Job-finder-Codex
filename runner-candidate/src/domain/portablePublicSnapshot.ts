@@ -65,6 +65,7 @@ export interface PortableSourceSelection extends PortableSourceStatus {
   selected: { result: PortableSourceResultRow; receipt: PublicReceipt } | null;
 }
 export interface PortablePublicJob extends DatabaseSearchJobResult {
+  categoryManuallyCorrected?: true;
   companyId: string;
   sourceId: string;
   sourceResultId: string;
@@ -363,7 +364,8 @@ export function projectPortableSourceJobs(
       output.jobs.push({id: row.id, companyId: row.companyId, sourceId: row.sourceId, sourceResultId: selected.result.id,
         title: row.humanCorrectedTitle || row.auxiliaryChineseTitle || row.officialTitle, officialTitle: row.officialTitle,
         officialPublishedAt: row.officialPublishedAt?.toISOString() ?? null, city: row.city, cities: [...row.cities], locationRaw: row.locationRaw,
-        category: fromPrismaJobCategory(row.humanCorrectedCategory ?? row.category), isNew: row.isNew, officialUrl: row.officialUrl,
+        category: fromPrismaJobCategory(row.humanCorrectedCategory ?? row.category),
+        ...(row.humanCorrectedCategory != null ? {categoryManuallyCorrected: true as const} : {}), isNew: row.isNew, officialUrl: row.officialUrl,
         lastSeenAt: row.lastSeenAt.toISOString(), inGrace: missingCount === 1});
     }
     output.jobs.sort((a, b) => compare(a.id, b.id));

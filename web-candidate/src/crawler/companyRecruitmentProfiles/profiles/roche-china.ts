@@ -15,7 +15,7 @@ export const profile_roche_china = {
           },
           officialJsonFetch: {
               kind: "phenom",
-              nativeDetailPolicy: "ROCHE_WORKDAY_NATIVE_V1",
+              nativeDetailPolicy: "ROCHE_PHENOM_LIST_V1",
               detailBaseUrl: "https://careers.roche.com/cn/zh/job",
               allowedApplyOrigins: ["https://roche.wd3.myworkdayjobs.com"],
               mixedLocationScopePolicy: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1",

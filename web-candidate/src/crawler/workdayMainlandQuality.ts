@@ -1,3 +1,4 @@
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual as same } from "node:util";
 import { CITY_PENDING } from "../domain/jobLocation";
@@ -55,18 +56,21 @@ export function exactWorkdayMainlandQualityPlan(plan: SourceCrawlPlan): boolean 
 const CITIES: Readonly<Record<string, string>> = {
   Shanghai: "上海", Beijing: "北京", Guangzhou: "广州", Tianjin: "天津", Wenzhou: "温州", Nantong: "南通", Nanjing: "南京",
   Suzhou: "苏州", Shenzhen: "深圳", Hangzhou: "杭州", Wuhan: "武汉", Chengdu: "成都", Chongqing: "重庆", Zhengzhou: "郑州",
-  Shenyang: "沈阳", Changsha: "长沙", Xuzhou: "徐州", Nanning: "南宁", Guiyang: "贵阳", Yuxi: "玉溪", Jieyang: "揭阳",
+  Shenyang: "沈阳", Changsha: "长沙", Xuzhou: "徐州", Nanning: "南宁", Nanchang: "南昌", Kunming: "昆明", Guiyang: "贵阳", Yuxi: "玉溪", Jieyang: "揭阳",
   Lianyungang: "连云港", Ordos: "鄂尔多斯", Dali: "大理", Yueyang: "岳阳", Qinhuangdao: "秦皇岛", "Yulin (Shaanxi)": "榆林",
   Yichang: "宜昌", Jiaozuo: "焦作", Kaifeng: "开封", Zhumadian: "驻马店", Zhoukou: "周口", Liuzhou: "柳州", Wuhu: "芜湖",
-  Shantou: "汕头", "Xi'an": "西安", Xiamen: "厦门", Urumqi: "乌鲁木齐"
+  Shantou: "汕头", "Xi'an": "西安", Xiamen: "厦门", Urumqi: "乌鲁木齐",
+  Harbin: "哈尔滨", Nanchong: "南充", Xinxiang: "新乡", Neijiang: "内江"
 };
-const PENDING_NAMES = new Set(["Taizhou", "JTaizhou", "Longnan", "Fuyang", "Field/Remote"]);
+const CSL_FIELD_SALES = "APAC, CN, Field Sales, CSL Behring";
+const PENDING_NAMES = new Set(["Taizhou", "JTaizhou", "Longnan", "Fuyang", "Field/Remote", "Xing'an Meng", "Zhaoqing", "Jingmen"]);
 function descriptorCity(p: Profile, descriptor: unknown): string | undefined {
-  if (!text(descriptor)) return undefined;
-  const name = p.tenant === "amgen" ? /^China\s+- ([A-Za-z'() /]+)$/u.exec(descriptor)?.[1]
-    : /^APAC, CN, ([A-Za-z'() ]+), CSL Behring$/u.exec(descriptor)?.[1];
+  if (!text(descriptor) || explicitlyForeignOrNonMainlandLocation(descriptor)) return undefined;
+  if (p.tenant === "csl" && descriptor === CSL_FIELD_SALES) return CITY_PENDING;
+  const name = p.tenant === "amgen" ? /^China\s+- (.+)$/u.exec(descriptor)?.[1]
+    : /^APAC, CN, (.+), CSL Behring$/u.exec(descriptor)?.[1];
   if (!name) return undefined;
-  return CITIES[name] ?? (PENDING_NAMES.has(name) ? CITY_PENDING : undefined);
+  return CITIES[name] ?? CITY_PENDING;
 }
 function titleCities(title: string): string[] {
   const aliases = [...Object.entries(CITIES), ...[...PENDING_NAMES].filter(name => name !== "Field/Remote").map(name => [name, CITY_PENDING] as const)];

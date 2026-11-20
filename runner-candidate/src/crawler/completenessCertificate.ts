@@ -1,4 +1,5 @@
 import { isServierTraversalPlan } from "./servierMokaScope";
+import { jobQuarantineLossesMatch } from './jobQuarantine';
 import { JNJ_DOM_CAPTURE_TOOL } from "./jnjCareersDomContract";
 import { isBayerMedicalTraversalPlan } from "./bayerMokaScope";
 import { isPfizerWorkdayTraversalPlan } from "./pfizerWorkdayTraversal";
@@ -92,7 +93,7 @@ const legalDedupeEntrySchema = z.object({
 const legalScopeExclusionEntrySchema = z.object({
   rawLocatorSha256: SHA256,
   recordIndex: z.number().int().nonnegative(),
-  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE", "ROCHE_DETAIL_DENIED", "LILLY_OFFICIAL_APPLICATION_CLOSED"])
+  code: z.enum(["VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE", "VERIFIED_MOKA_OUT_OF_MAINLAND_SCOPE", "ROCHE_DETAIL_DENIED", "LILLY_OFFICIAL_APPLICATION_CLOSED",'ORGANON_OFFICIAL_APPLICATION_CLOSED'])
 }).strict();
 const certificateSchema = z.object({
   schemaVersion: z.literal(A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION),
@@ -128,6 +129,7 @@ const certificateSchema = z.object({
   }).strict(),
   legalDedupeLedger: z.array(legalDedupeEntrySchema),
   legalScopeExclusionLedger: z.array(legalScopeExclusionEntrySchema).optional(),
+  jobQuarantineLedger: z.array(z.object({rawLocatorSha256:SHA256,pageSequence:z.number().int().nonnegative(),recordIndex:z.number().int().nonnegative()}).strict()).optional(),
   pagination: z.object({
     pageCount: z.number().int().positive(),
     paginationTraceSha256: SHA256,
@@ -291,14 +293,17 @@ export function issueAGradeOfficialTotalCertificate(
     ? replayHengruiScopeExclusionProof(plan, evidence, input.jobs)?.exclusions
     : plan.source.id === "source-roche-china-social"
       // Strict source replay above already verified the exact approved denial and complete list.
-      ? evidence.fetchLosses.map(loss=>({rawLocatorSha256:sha256(loss.rawLocator),recordIndex:loss.details.recordIndex as number,code:"ROCHE_DETAIL_DENIED" as const}))
-      : plan.source.id === "source-lilly-china-social"
+      ? evidence.fetchLosses.filter(loss=>loss.details.code!=='JOB_QUARANTINED').map(loss=>({rawLocatorSha256:sha256(loss.rawLocator),recordIndex:loss.details.recordIndex as number,code:"ROCHE_DETAIL_DENIED" as const}))
+      : plan.source.id === "source-lilly-china-social"||plan.source.id==='source-organon-china-social'
         // Strict source replay above bound every closed shell to its original listed requisition.
-        ? evidence.fetchLosses.map(loss=>({rawLocatorSha256:sha256(loss.rawLocator),
+        ? evidence.fetchLosses.filter(loss=>loss.details.code!=='JOB_QUARANTINED').map(loss=>({rawLocatorSha256:sha256(loss.rawLocator),
           recordIndex:evidence.pages.slice(0,loss.details.pageSequence as number).reduce((n,page)=>n+page.rawJobIds.length,0)+(loss.details.recordIndex as number),
-          code:"LILLY_OFFICIAL_APPLICATION_CLOSED" as const}))
+          code:plan.source.id==='source-organon-china-social'?'ORGANON_OFFICIAL_APPLICATION_CLOSED' as const:"LILLY_OFFICIAL_APPLICATION_CLOSED" as const}))
         : exactGrifolsScopeExclusionLedger(plan, evidence);
-  const legalValidationDiscardCount = legalScopeExclusionLedger?.length ?? 0;
+  const jobQuarantineLedger=jobQuarantineLossesMatch(evidence)?evidence.jobQuarantines!.map(row=>({
+    rawLocatorSha256:sha256(row.rawLocator),pageSequence:row.pageSequence,recordIndex:row.recordIndex
+  })):undefined;
+  const legalValidationDiscardCount = (legalScopeExclusionLedger?.length ?? 0)+(jobQuarantineLedger?.length??0);
   if (evidence.fetchCounts.parseDiscardCount !== 0 || ledger.adapterLosses.length !== 0 ||
       evidence.fetchCounts.validationDiscardCount !== legalValidationDiscardCount ||
       evidence.fetchLosses.length !== legalValidationDiscardCount ||
@@ -367,7 +372,8 @@ export function issueAGradeOfficialTotalCertificate(
       normalizationDiscardCount: 0
     },
     legalDedupeLedger: ledger.collisionGroups,
-    legalScopeExclusionLedger,
+    legalScopeExclusionLedger: legalScopeExclusionLedger ?? [],
+    ...(jobQuarantineLedger ? {jobQuarantineLedger} : {}),
     pagination: {
       pageCount: evidence.pages.length,
       paginationTraceSha256: independentlyEvaluated.paginationTraceSha256,
@@ -483,7 +489,7 @@ function assertCertificateEquations(certificate: AGradeOfficialTotalCertificate)
       counts.rawUniqueOfficialRecordCount > counts.rawObservationCount ||
       counts.rawUniqueOfficialRecordCount < counts.finalUniqueJobCount ||
       counts.legalDedupeCount !== legalDedupeCount ||
-      counts.validationDiscardCount !== legalScopeExclusionLedger.length ||
+      counts.validationDiscardCount !== legalScopeExclusionLedger.length+(certificate.jobQuarantineLedger?.length??0) ||
       counts.officialTotal !== counts.rawObservationCount ||
       counts.officialTotal !== counts.finalUniqueJobCount + counts.legalDedupeCount +
         counts.validationDiscardCount ||
@@ -510,7 +516,7 @@ function exactGrifolsScopeExclusionLedger(
   const indexes = new Set<number>();
   const rows: Array<{ rawLocatorSha256: string; recordIndex: number;
     code: "VERIFIED_DETAIL_OUT_OF_MAINLAND_SCOPE" }> = [];
-  for (const loss of evidence.fetchLosses) {
+  for (const loss of evidence.fetchLosses.filter(loss=>loss.details.code!=='JOB_QUARANTINED')) {
     const recordIndex = loss.details?.recordIndex;
     if (loss.stage !== "VALIDATION" ||
         loss.reason !== "official detail places the job outside mainland China" ||
