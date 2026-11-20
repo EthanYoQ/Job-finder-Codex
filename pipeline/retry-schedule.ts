@@ -137,7 +137,7 @@ export function buildRetrySchedule(input: {
     const actualRequestCount = attemptIncrement === undefined
       ? (activeSlot ? (sameSlot ? old?.actualRequestCount : undefined) : old?.actualRequestCount)
       : priorRequestCount + attemptIncrement;
-    const backoffStartedAt = outcome?.observedActualHttp && outcome.retryAt !== undefined
+    const backoffStartedAt = outcome?.observedActualHttp && (outcome.challenged || outcome.retryAt !== undefined)
       ? (outcome.lastActualRequestAt ?? input.now) : input.now;
     const backoffMs = outcome?.challenged
       ? challengedOffPeakBackoffMs

@@ -43,8 +43,9 @@ test("transport observations retain the longest official retry floor across fail
 });
 
 test("a rejected official Retry-After still exposes the real HTTP response without inventing a floor", async () => {
+  const sourceId = "source-biogen-china-social";
   const observations = [];
-  await assert.rejects(withSourceTransportObservation("generic-source", value => observations.push(value), async () => {
+  await assert.rejects(withSourceTransportObservation(sourceId, value => observations.push(value), async () => {
     await liveResponse(429, "ambiguous");
     throw new Error("source stopped");
   }), /source stopped/);
@@ -52,6 +53,13 @@ test("a rejected official Retry-After still exposes the real HTTP response witho
   assert.equal(observations[0].observedActualHttp, true);
   assert.deepEqual(observations[0].actualHttpStatuses, [429]);
   assert.equal(observations[0].retryAt, undefined);
+  const responseAt = observations[0].lastActualRequestAt;
+  const schedule = buildRetrySchedule({
+    sourceConfigHashes: new Map([[sourceId, "a".repeat(64)]]), completeSourceIds: new Set(),
+    previous: [], attemptedSourceIds: new Set([sourceId]),
+    outcomes: [{ ...observations[0], challenged: true }], now: responseAt + 30 * 60_000
+  });
+  assert.equal(schedule.nextRetryAt, responseAt + 4 * 60 * 60_000);
 });
 
 test("network exceptions and local fetch counters do not imply an HTTP response", async () => {
