@@ -1,6 +1,12 @@
 // Exact official province/locality pairs already reviewed against the public city vocabulary.
 // Province-only, unknown and conflicting labels remain city-pending.
 export const PFIZER_OFFICIAL_LOCALITIES: Readonly<Record<string, string>> = {
+  "CHN - SH - Shanghai (Tier 1)": "上海",
+  "China - Hunan - HuaiHua": "怀化",
+  "China - Jiangxi - Ji'An": "吉安",
+  "China - Hunan - ShaoYang": "邵阳",
+  "China - Shandong - Tai'an": "泰安",
+  "China - Hubei - XiangFan": "襄阳",
   "China - Shanghai - STIT": "上海",
   "China - Hubei - YiChang": "宜昌",
   "CHN - BJ - Beijing Office": "北京",

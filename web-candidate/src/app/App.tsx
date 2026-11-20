@@ -36,7 +36,7 @@ import {
 import type { SortMode } from "./jobSearch";
 import { JOB_CATEGORIES, SEARCH_CITIES } from "../domain/search";
 import { JOB_CATEGORY_GROUPS, matchesJobCategory } from "../domain/jobClassification";
-import { ALL_CITIES, ALL_PROVINCES, CITY_PENDING, MULTI_CITY, NATIONWIDE, PROVINCE_PENDING } from "../domain/jobLocation";
+import { ALL_CITIES, ALL_PROVINCES, CITY_PENDING, MULTI_CITY, NATIONWIDE, PROVINCE_ONLY, PROVINCE_PENDING } from "../domain/jobLocation";
 import "./App.css";
 import { CompanyLogo, CompanyPlate, coordinate, LocationPicker, Modal, type LocationOption } from "./RedesignComponents";
 import { DESIGN_REGIONS } from "./designRegions";
@@ -186,7 +186,7 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
   const nationwideCount = locationCount(NATIONWIDE);
   const allCitiesCount = province === ALL_PROVINCES ? searchResult?.publishedJobSummary?.totalJobs : selectedProvince?.jobCount ?? nationwideCount;
   const cityPendingCount = province === ALL_PROVINCES ? searchResult?.publishedJobSummary?.cityPendingJobs : selectedProvince?.cityPendingJobs;
-  const cityFacets = locationFacets.filter(facet => ![NATIONWIDE, CITY_PENDING, MULTI_CITY, PROVINCE_PENDING].includes(facet.city) &&
+  const cityFacets = locationFacets.filter(facet => ![NATIONWIDE, CITY_PENDING, MULTI_CITY, PROVINCE_ONLY, PROVINCE_PENDING].includes(facet.city) &&
     (province === ALL_PROVINCES || facet.province === province));
 
   const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
@@ -502,6 +502,7 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
   cityOptions.push(
     {value: NATIONWIDE, count: nationwideCount},
     {value: MULTI_CITY, count: province === ALL_PROVINCES ? locationCount(MULTI_CITY) : selectedProvince?.multiCityJobs ?? 0},
+    {value: PROVINCE_ONLY, count: province === ALL_PROVINCES ? locationCount(PROVINCE_ONLY) : selectedProvince?.provinceOnlyJobs ?? 0},
     {value: CITY_PENDING, count: cityPendingCount},
     {value: PROVINCE_PENDING, ...(province === ALL_PROVINCES ? {} : {sub: "查看全部地区"}), count: locationCount(PROVINCE_PENDING)}
   );
@@ -541,7 +542,8 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
             <button className="btn-primary" disabled={isLocked || isSearching} type="submit"><Search className="ic" />{isSearching ? "搜索中" : "搜索职位"}<ArrowRight className="ic go" /></button>
           </div>
           {dataProvider.supportsCityPendingSearch ? <p className="finder-note" id="city-facet-note"><Info className="ic" /><span>{searchResult === null ? "职位加载后可查看已发布地区的职位数量。" : ""}选省份后，「全部城市」包含该省岗位和全国岗位。「省份待核」可单独查看省份未知的岗位。</span></p> : null}
-          {city === CITY_PENDING ? <p className="finder-note">官方地点未明确到城市或存在冲突；城市待核职位不计入具体城市/地区筛选。已明确省份的职位可在该省的全部城市和城市待核中查看。</p> : null}
+          {city === PROVINCE_ONLY ? <p className="finder-note">官网只公布了省份。选该省可查看这些岗位。</p> : null}
+          {city === CITY_PENDING ? <p className="finder-note">官方工作地点有冲突，或缺少可核实的城市信息。</p> : null}
         </form> : <div className="dirbar"><p>全部目标公司均在目录中；状态会明确区分自动更新、核验中与仅提供官方入口。</p><label className="field"><span className="lbl">搜索已覆盖公司</span><span className="control"><Search className="ic" /><input type="search" aria-label="搜索已覆盖公司" placeholder="搜索已覆盖公司" value={coverageKeyword} onChange={event => setCoverageKeyword(event.target.value)} /></span></label></div>}
         {!plateBeforeFinder ? <div className="plate-m">{narrow ? plate : null}</div> : null}
         {activeView === "discover" ? <main className="board" aria-label="职位发现">
@@ -571,7 +573,7 @@ export function App({ dataProvider = defaultProvider }: AppProps) {
                   <div className="co-body"><div className="co-inner" id={`jobs-${company.id}`} inert={!expanded} aria-hidden={!expanded}>{expanded ? <div className="jobs">
                     {company.jobs.slice(0, cap).map((job, index) => <div className="job" key={job.id}><span className="job-idx">{String(index + 1).padStart(2, "0")}</span>
                       <div><h3>{job.title}{job.cityPending ? <span className="badge pend">官方城市尚未核实</span> : job.city === NATIONWIDE ? <span className="badge nat">全国岗位</span> : null}{job.isNew ? <span className="badge new"><Sparkles className="ic" />新增</span> : null}</h3><p className="en">{job.officialTitle}</p></div>
-                      <div className="job-meta"><span><MapPin className="ic" />{job.cityPending ? `官方原始地点：${job.locationRaw}` : job.cities?.join("、") || job.city || job.locationRaw}</span><span><BriefcaseBusiness className="ic" />{job.category}{job.subcategory ? ` · ${job.subcategory}` : ""}</span></div>
+                      <div className="job-meta"><span><MapPin className="ic" />{job.provinceOnly ? `${job.provinceOnly} · 城市未公布` : job.cityPending ? `官方原始地点：${job.locationRaw}` : job.cities?.join("、") || job.city || job.locationRaw}</span><span><BriefcaseBusiness className="ic" />{job.category}{job.subcategory ? ` · ${job.subcategory}` : ""}</span></div>
                       <div className="job-actions"><a className="btn-solid" aria-label={`查看官方职位 ${job.title}`} href={job.officialUrl} rel="noreferrer" target="_blank">查看官方职位<ExternalLink className="ic" /></a><button className="btn-text" aria-label={`反馈此职位 ${job.title}`} onClick={() => openFeedback(company, job)} type="button"><Flag className="ic" />反馈此职位</button></div>
                     </div>)}
                     {company.jobs.length > cap ? <button className="more" type="button" onClick={() => setRowCaps(current => ({...current, [company.id]: company.jobs.length}))}>查看全部 {company.jobs.length} 个职位<ChevronDown className="ic" /></button> : null}

@@ -3,6 +3,7 @@ import { PFIZER_OFFICIAL_LOCALITIES } from "../crawler/pfizerOfficialLocalities"
 
 /** Unresolved official city evidence. The original location remains visible. */
 export const CITY_PENDING = "城市待核";
+export const PROVINCE_ONLY = "仅明确到省";
 export const ALL_PROVINCES = "全部地区";
 export const ALL_CITIES = "全部城市";
 export const NATIONWIDE = "全国";
@@ -95,7 +96,10 @@ const PUBLISHED_CITY_ALIASES = new Map(Object.entries({
   ankang: "安康", hanzhong: "汉中", kelamayi: "克拉玛依", yanan: "延安", yongzhou: "永州",
   pingxiang: "萍乡", suining: "遂宁", shangrao: "上饶", dongying: "东营", liuan: "六安",
   chizhou: "池州", maanshan: "马鞍山", huainan: "淮南", hengshui: "衡水", benxi: "本溪",
-  fuxin: "阜新", siping: "四平"
+  fuxin: "阜新", siping: "四平", shaoyang: "邵阳", zhuzhou: "株洲", liuyang: "浏阳",
+  yueyang: "岳阳", ezhou: "鄂州", kaili: "凯里", qiqihar: "齐齐哈尔", daqing: "大庆",
+  tonghua: "通化", dandong: "丹东", huludao: "葫芦岛", xingtai: "邢台", qinhuangdao: "秦皇岛",
+  huaihua: "怀化", xiangfan: "襄阳", qionghai: "琼海", hohhot: "呼和浩特", jinzhou: "锦州"
 }));
 for (const [label, city] of Object.entries(PFIZER_OFFICIAL_LOCALITIES)) {
   const name = /^China - [^-]+ - (.+)$/u.exec(label)?.[1];
@@ -123,7 +127,7 @@ function cityLabel(location: string): string | null {
   const qualified = parts.length > 1 && isProvince(parts[0]!);
   const place = qualified ? parts[1]! : parts[0]!;
   if (parts.length > 1 && !qualified && !MUNICIPALITIES.has(place) && !/市$/u.test(place)) return null;
-  if (!/^[\p{Script=Han}]{2,18}$/u.test(place) || [CITY_PENDING, ALL_CITIES, NATIONWIDE, "其他", "其它", "中国", "中国大陆", "中华人民共和国"].includes(place)) return null;
+  if (!/^[\p{Script=Han}]{2,18}$/u.test(place) || [CITY_PENDING, PROVINCE_ONLY, ALL_CITIES, NATIONWIDE, "其他", "其它", "中国", "中国大陆", "中华人民共和国"].includes(place)) return null;
   if (/省$|自治区$|县$/u.test(place) || (/区$/u.test(place) && !/地区$/u.test(place))) return null;
   if (!qualified && !/市$/u.test(place) && isProvince(place)) return null;
   return place.replace(/市$/u, "");
@@ -137,7 +141,7 @@ export function normalizePublicSearchCityLabel(location: string): string {
  * explicit parent city in the same official structured location, never geocoding. */
 export function publicSearchCities(job: JobLocation): string[] {
   const locations = structuredLocations(job);
-  if (locations.includes(CITY_PENDING)) return [];
+  if (locations.includes(CITY_PENDING) || locations.includes(PROVINCE_ONLY)) return [];
   const cities = locations.flatMap(location => {
     const direct = cityLabel(location);
     if (direct) return [direct];
@@ -165,6 +169,20 @@ function provinceLabel(value:string):string|null {
 }
 
 const VERIFIED_DETAIL_LOCATIONS: Readonly<Record<string, readonly string[]>> = {
+  "source-amgen-china-social|https://amgen.wd1.myworkdayjobs.com/Careers/job/China---JTaizhou/Biopharmaceutical-Rep-Taizhou_R-256177": ["泰州"],
+  "source-amgen-china-social|https://amgen.wd1.myworkdayjobs.com/Careers/job/China---Longnan/Biopharmaceutical-Rep-Longnan_R-256027": ["陇南"],
+  "source-takeda-china-social|https://jobs.takeda.com/job/suzhou/mcr-gi-suzhou/1113/103382549904": ["苏州"],
+  "source-takeda-china-social|https://jobs.takeda.com/job/suzhou/mcr-obu-nin-suzhou/1113/102550120032": ["苏州"],
+  "source-takeda-china-social|https://jobs.takeda.com/job/fuyang/mcr-obu-st-fuyang/1113/102808137136": ["阜阳"],
+  "source-csl-china-social|https://csl.wd1.myworkdayjobs.com/CSL_External/job/APAC-CN-Field-Sales-CSL-Behring/Product-Specialist--Taiyuan_R-291057-1": ["太原"],
+  "source-qilu-social|https://www.qilu-pharma.com/JobPosting_Detail/c-_detailId%3D10510360.html": ["济南", "北京", "上海"],
+  "source-pfizer-china-social|https://pfizer.wd1.myworkdayjobs.com/PfizerCareers/job/CHN---AH---Anhui/_4967984-2": ["铜陵"],
+  // Novo lists jobState Liaoning and jobCity Chaoyang for this posting.
+  "source-novo-nordisk-china-social|https://www.novonordisk.com.cn/content/nncorp/cn/zh_cn/careers/find-a-job/job-ad.348703.en_GB.html": ["朝阳"],
+  // The Chinese application lists 巴音郭勒蒙古 in the workplace line and title.
+  "source-sanofi-china-social|https://www.ajinga.com/ats/job-detail-new/13537/R2878073/c/?show_policy_popup=1&aj_source=sanofi_careersite&aj_code=radancyjoblist": ["巴音郭楞"],
+  // J10719 operates the Shandong Anshun production line at the Leling site in Dezhou.
+  "source-qilu-social|https://qilu-pharma.zhiye.com/social/detail?jobAdId=0e2d4240-802c-443b-afd7-9958b367338d": ["德州"],
   "source-takeda-china-social|https://jobs.takeda.com/job/shanghai/china-biomarker-lead/1113/101034777968": ["上海", "北京"],
   "source-merck-china-social|https://careers.emdgroup.com/us/en/job/299857": ["上海", "北京"],
   "source-merck-china-social|https://careers.emdgroup.com/us/en/job/305134": ["无锡"],
@@ -183,6 +201,7 @@ const PREFECTURE_LABELS = new Map([
 ]);
 
 const COUNTY_CITY_PROVINCES: Readonly<Record<string, string>> = {
+  浏阳: "湖南", 凯里: "贵州", 琼海: "海南",
   永城: "河南", 海盐: "浙江", 伊宁: "新疆", 启东: "江苏", 宜兴: "江苏", 阆中: "四川",
   天长: "安徽", 界首: "安徽", 台山: "广东", 延吉: "吉林", 张家港: "江苏", 昆山: "江苏"
 };
@@ -205,17 +224,19 @@ const AMBIGUOUS_CITY_PROVINCES = new Map<string, Readonly<Record<string, string>
 
 function knownPublishedCity(part: string, province?: string | null): string | undefined {
   const alias = key(part);
-  const byProvince = AMBIGUOUS_CITY_PROVINCES.get(alias);
+  const unquoted = alias.replace(/[’']/gu, "");
+  const byProvince = AMBIGUOUS_CITY_PROVINCES.get(unquoted);
   if (byProvince) return province ? byProvince[province] : undefined;
-  const city = PREFECTURE_LABELS.get(part) ?? PUBLISHED_CITY_ALIASES.get(alias) ?? cityLabel(part);
+  const city = PREFECTURE_LABELS.get(part) ?? PUBLISHED_CITY_ALIASES.get(alias) ?? PUBLISHED_CITY_ALIASES.get(unquoted) ?? cityLabel(part);
   if (city && publishedCityProvince(city)) return city;
   const municipality = publishedCityProvince(part);
   return municipality && MUNICIPALITIES.has(municipality) ? municipality : undefined;
 }
 
 function explicitPublishedProvince(raw: string): string | null {
+  const tierProvince = /^CHN - ([A-Za-z ]+) \(Tier \d+\)$/iu.exec(raw.trim())?.[1];
   const workdayProvince = /^CHN - [A-Z]{2} - (.+)$/u.exec(raw.trim())?.[1];
-  return provinceLabel(workdayProvince ?? raw) ?? (/^guangdong,gd$/u.test(key(raw)) ? "广东" : null);
+  return provinceLabel(tierProvince ?? workdayProvince ?? raw) ?? (/^guangdong,gd$/u.test(key(raw)) ? "广东" : null);
 }
 
 function publishedLocationParts(label: string): string[] {
@@ -263,7 +284,7 @@ function explicitPublishedCity(raw: string): string | undefined {
 function titleWorkCities(title: string, province: string | null): string[] {
   const text = title.normalize("NFKC").trim().replace(/\(J\d+\)$/iu, "").trim();
   const parentheses = text.match(/\(([^()]+)\)$/u)?.[1];
-  const fields = text.split(/[-–—,，]/u).map(field => field.trim());
+  const fields = text.split(/[-–—+,，]/u).map(field => field.trim());
   const lastField = fields.at(-1);
   const provincialField = province ? fields.find(field => field.startsWith(province) && field.length > province.length) : undefined;
   const office = lastField?.match(/^(.+?) AI Center$/iu)?.[1];
@@ -329,8 +350,13 @@ export function resolvedPublishedJobCities(job: PublishedJobLocation): string[] 
   if (sourceId === "source-novartis-social" && /^Baoji \(Shanxxi Province\)$/iu.test(raw)) return ["宝鸡"];
 
   const titleCities = titleWorkCities(officialTitle, province);
-  if (sourceId === "source-takeda-china-social" && /^(?:Remote|Multiple Locations)$/iu.test(raw) ||
-      sourceId === "source-merck-china-social") return titleCities;
+  if (sourceId === "source-takeda-china-social" && /^(?:Remote|Multiple Locations)$/iu.test(raw)) return titleCities;
+  if (sourceId === "source-merck-china-social") {
+    if (titleCities.length) return titleCities;
+    const cities = rawPublishedCities(raw, /\s*\|\s*/u);
+    return cities.length === 1 ? cities : [];
+  }
+  if (sourceId === "source-msd-china-social" && raw.includes("、")) return rawPublishedCities(raw, /[,，、|]/u);
   if (sourceId === "source-servier-china-social") {
     if (raw === "朝阳区" && titleCities.includes("北京")) return ["北京"];
     if (raw === "下城区（旧）" && titleCities.includes("杭州")) return ["杭州"];
@@ -360,6 +386,13 @@ export function resolvedPublishedJobCities(job: PublishedJobLocation): string[] 
   return rawPublishedCities(raw, /\s*\|\s*/u);
 }
 
+export function confirmedProvinceOnly(job: PublishedJobLocation): string | null {
+  const province = explicitPublishedProvince(job.locationRaw ?? "");
+  if (!province || MUNICIPALITIES.has(province) || !isCityPendingJob(job)) return null;
+  const titleCities = titleWorkCities(job.officialTitle, province);
+  return titleCities.some(city => publishedCityProvince(city) !== province) ? null : province;
+}
+
 export function publicSearchCityProvince(job:JobLocation,city:string):string|null {
   const known=publishedCityProvince(city);
   if(known)return known;
@@ -378,7 +411,7 @@ export function publicSearchCityProvince(job:JobLocation,city:string):string|nul
 }
 export function publicSearchProvinces(job:JobLocation):string[] {
   const locations=structuredLocations(job);
-  if (locations.includes(CITY_PENDING)) {
+  if (locations.includes(CITY_PENDING) || locations.includes(PROVINCE_ONLY)) {
     const raw = job.locationRaw ?? "";
     const enumeratesCities = raw.includes("、");
     return [...new Set(raw.split(/\s*[|、]\s*/u).flatMap(part => {
@@ -399,7 +432,7 @@ export function matchesPortableSearchProvince(job:JobLocation,province:string):b
 
 export function isCityPendingJob(job: JobLocation): boolean {
   const locations = structuredLocations(job);
-  return locations.includes(CITY_PENDING) || (!locations.includes(NATIONWIDE) && publicSearchCities(job).length === 0);
+  return locations.includes(CITY_PENDING) || (!locations.includes(PROVINCE_ONLY) && !locations.includes(NATIONWIDE) && publicSearchCities(job).length === 0);
 }
 
 export function matchesPortableSearchCity(job: JobLocation, selectedCity: string, province = ALL_PROVINCES): boolean {
@@ -409,6 +442,7 @@ export function matchesPortableSearchCity(job: JobLocation, selectedCity: string
   if (selectedCity === ALL_CITIES && nationwide) return true;
   if (!matchesPortableSearchProvince(job,province)) return false;
   if (selectedCity === ALL_CITIES) return true;
+  if (selectedCity === PROVINCE_ONLY) return job.city === PROVINCE_ONLY;
   if (selectedCity === CITY_PENDING) return isCityPendingJob(job);
   const cities = publicSearchCities(job);
   if (selectedCity === MULTI_CITY) return cities.length > 1;
