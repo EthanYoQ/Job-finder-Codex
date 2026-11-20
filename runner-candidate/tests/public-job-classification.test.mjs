@@ -10,8 +10,8 @@ const cases = [
   ["source-novartis-social", "Medical Scientific Liaison - IMMU 北京", "医学事务", "医学联络"],
   ["source-novartis-social", "（高级）医药代表/（资深）产品专员", "销售", "医药销售"],
   ["source-sanofi-china-social", "糖尿病事业部-District Manager-重庆", "销售", "销售管理"],
-  ["source-sanofi-china-social", "特药事业部 医学信息沟通代表 上海", "其他", undefined],
-  ["source-novartis-social", "Product Manager", "其他", undefined],
+  ["source-sanofi-china-social", "特药事业部 医学信息沟通代表 上海", "销售", "医药销售"],
+  ["source-novartis-social", "Product Manager", "市场", "品牌市场"],
   ["fixture", "Clinical Trial Supply Chain Manager", "供应链/采购", "临床供应链"],
   ["fixture", "Clinical Trials Supply Manager", "供应链/采购", "临床供应链"],
   ["fixture", "Quality Engineer", "质量", "质量保证"],
@@ -58,7 +58,7 @@ test("saved snapshots expose evidence-backed parent and child filters without ch
   assert.equal(byId.get("manual-quality").categoryManuallyCorrected, undefined);
   assert.equal(byId.get("manual-other").category, "其他");
   assert.equal(byId.get("manual-other").categoryManuallyCorrected, undefined);
-  assert.equal(query({ categories: ["销售"] }).totalJobs, 2);
+  assert.equal(query({ categories: ["销售"] }).totalJobs, 3);
   assert.equal(query({ categories: ["临床质量"] }).totalJobs, 2);
   assert.equal(query({ keyword: "临床供应链" }).totalJobs, 3);
   assert(oldJobs.every((job) => job.category === "其他"));
@@ -76,7 +76,7 @@ test("verified departments and duties apply to the matching requisition only", (
       id: req, sourceId: "source-sanofi-china-social", category: "其他",
       officialTitle: ["SC Medical Information Communication Manager Beijing", "SC Medical Information Communication Manager Cangzhou", "SC Medical Information Communication Manager Changsha", "SC-Medical Information Communication Repres-上海", "SC-Senior Medical Information Communication Manager(Onco)-广州", "心血管与移植事业部 医学信息沟通代表 上海", "特药事业部 医学信息沟通代表 上海"][index],
       officialUrl: "https://www.ajinga.com/ats/job-detail-new/13537/" + req + "/c/?show_policy_popup=1&aj_source=sanofi_careersite&aj_code=radancyjoblist",
-      expected: index < 5 ? ["销售", "医药销售"] : index === 5 ? ["销售", undefined] : ["其他", undefined],
+      expected: index === 5 ? ["销售", undefined] : ["销售", "医药销售"],
     })),
     {
       id: "bms", sourceId: "source-bms-china-social", category: "其他",
@@ -93,19 +93,19 @@ test("verified departments and duties apply to the matching requisition only", (
     {
       id: "unverified-bms", sourceId: "source-bms-china-social", category: "其他",
       officialTitle: "SMICS", officialUrl: "https://jobs.bms.com/careers/job/999999999999",
-      expected: ["其他", undefined],
+      expected: ["销售", "医药销售"],
     },
     {
       id: "different-origin", sourceId: "source-sanofi-china-social", category: "其他",
       officialTitle: "SC Medical Information Communication Manager Beijing",
       officialUrl: "https://example.com/ats/job-detail-new/13537/R2877042/c/",
-      expected: ["其他", undefined],
+      expected: ["销售", "医药销售"],
     },
     ...["299857", "999999"].map((id) => ({
       id, sourceId: "source-merck-china-social", category: "其他",
       officialTitle: "(高级)产品经理",
       officialUrl: `https://careers.emdgroup.com/us/en/job/${id}`,
-      expected: id === "299857" ? ["市场", "品牌市场"] : ["其他", undefined],
+      expected: ["市场", "品牌市场"],
     })),
     ...["101034777968", "999999999999"].map((id) => ({
       id, sourceId: "source-takeda-china-social", category: "其他",
@@ -137,11 +137,11 @@ test("verified departments and duties apply to the matching requisition only", (
     const job = published.get(id);
     assert.deepEqual([job.category, job.subcategory ?? undefined], expected, id);
   }
-  assert.equal(search(["销售"]).totalJobs, 11);
-  assert.equal(search(["医药销售"]).totalJobs, 7);
+  assert.equal(search(["销售"]).totalJobs, 14);
+  assert.equal(search(["医药销售"]).totalJobs, 10);
   assert.equal(search(["医学事务"]).totalJobs, 0);
   assert.equal(search(["MSAT 技术转移"]).totalJobs, 1);
-  assert.equal(search(["品牌市场"]).totalJobs, 1);
+  assert.equal(search(["品牌市场"]).totalJobs, 2);
   assert.equal(search(["转化医学"]).totalJobs, 1);
 });
 
@@ -164,7 +164,7 @@ test("province and city filters share the same geography for published AbbVie lo
   assert.deepEqual(ids("山东", "青岛"), ["qingdao"]);
   assert.deepEqual(ids("上海", "上海"), ["shanghai"]);
   assert.deepEqual(ids("河南", "城市待核"), ["newtown"]);
-  assert.deepEqual(ids("广东", "城市待核"), ["guangdong"]);
+  assert.deepEqual(ids("广东", "仅明确到省"), ["guangdong"]);
   assert.deepEqual(ids("广东", "广州"), []);
 });
 
@@ -176,7 +176,7 @@ test("the public projection resolves known locations without overriding source c
     ["source-novartis-social", "Haiyan (Zhejiang Province)", "海盐"],
     ["source-shanghai-pharma-social", "上海市·青浦区", "上海"],
     ["source-pfizer-china-social", "CHN - HB - Hubei | China - Hubei - Wuhan", "武汉"],
-    ["source-pfizer-china-social", "CHN - SD - Shandong", "城市待核"],
+    ["source-pfizer-china-social", "CHN - SD - Shandong", "仅明确到省"],
     ["source-pfizer-china-social", "China - Shanxi - Xi'an", "城市待核"],
     ["source-pfizer-china-social", "China - Shanxi - XianYang", "城市待核"],
     ["source-roche-china-social", "抚州, 福建, 中国大陆", "福州"],
@@ -189,10 +189,10 @@ test("the public projection resolves known locations without overriding source c
   const search = (request = {}) => searchPortableSnapshot({ city: "全部城市", ...request }, saved);
   const result = search();
   assert.equal(result.totalJobs, examples.length);
-  assert.equal(result.publishedJobSummary.cityPendingJobs, 5);
+  assert.equal(result.publishedJobSummary.cityPendingJobs, 4);
   assert.equal(search({province: "山西", city: "城市待核"}).totalJobs, 0);
   for (const job of result.companies[0].jobs) assert.equal(job.city, examples[Number(job.id)][2]);
-  assert.equal(search({province: "山东", city: "城市待核"}).totalJobs, 1);
+  assert.equal(search({province: "山东", city: "仅明确到省"}).totalJobs, 1);
   assert.equal(search({province: "山东", city: "青岛"}).totalJobs, 0);
   assert.equal(search({province: "上海"}).totalJobs, 1);
   assert.equal(search({province: "吉林", city: "吉林"}).totalJobs, 1);
@@ -221,7 +221,7 @@ test("province search separates nationwide, confirmed multi-city and unassigned 
   const query = (province, city = "全部城市") => searchPortableSnapshot({ province, city }, saved);
   const ids = (province, city) => query(province, city).companies.flatMap(c => c.jobs.map(job => Number(job.id))).sort((a, b) => a - b);
   assert.deepEqual(ids("山东"), [0, 4, 5]);
-  assert.deepEqual(ids("山东", "城市待核"), [4]);
+  assert.deepEqual(ids("山东", "仅明确到省"), [4]);
   assert.deepEqual(ids("山东", "济宁"), [5]);
   assert.deepEqual(ids("山东", "全国"), [0]);
   assert.deepEqual(ids("河北", "石家庄"), [7]);
@@ -395,11 +395,11 @@ test("Hansoh social search omits the four verified campus vacancies", () => {
     companyName: "豪森", pinyin: "haosen", health: "HEALTHY", publishingSourceIds: [sourceId], sourceIds: [sourceId], jobs: rows }] };
   const search = (request = {}) => searchPortableSnapshot({ city: "全部城市", ...request }, saved);
   const result = search();
-  assert.deepEqual(result.companies[0].jobs.map(job => job.id).sort(), ["different-url", "other-source"]);
-  assert.equal(result.totalJobs, 2);
-  assert.equal(result.publishedJobSummary.totalJobs, 2);
-  assert.equal(result.cityFacets.find(facet => facet.city === "上海").jobCount, 2);
-  assert.equal(result.provinceFacets.find(facet => facet.province === "上海").jobCount, 2);
+  assert.deepEqual(result.companies[0].jobs.map(job => job.id).sort(), ["other-source"]);
+  assert.equal(result.totalJobs, 1);
+  assert.equal(result.publishedJobSummary.totalJobs, 1);
+  assert.equal(result.cityFacets.find(facet => facet.city === "上海").jobCount, 1);
+  assert.equal(result.provinceFacets.find(facet => facet.province === "上海").jobCount, 1);
   assert.equal(search({ keyword: "2027校招" }).totalJobs, 0);
   assert.equal(search({ categories: ["质量"] }).totalJobs, 0);
   const coverage = coverageFromPortableSnapshot({ keyword: "" }, saved);
@@ -410,6 +410,40 @@ test("Hansoh social search omits the four verified campus vacancies", () => {
 
 test("expanded unambiguous pharmaceutical role classifications leave ambiguous titles unchanged", () => {
   const expandedCases = [
+    ["fixture", "Cloud Platform Engineer", "数据/IT", "信息技术"],
+    ["fixture", "Python全栈开发工程师", "数据/IT", "信息技术"],
+    ["fixture", "滴眼剂质量工程师", "质量", "质量保证"],
+    ["fixture", "Statistical Programming Lead", "研发/科学", "生物统计"],
+    ["fixture", "统计编程经理", "研发/科学", "生物统计"],
+    ["fixture", "Director, Statistical Genetics", "研发/科学", "生物统计"],
+    ["fixture", "公用工程设备运维", "生产/工程", "工程技术"],
+    ["source-hengrui-social", "医药信息沟通高级专员", "销售", "医药销售"],
+    ["source-pfizer-china-social", "医学信息沟通主管", "销售", "销售管理"],
+    ["source-roche-china-social", "治疗领域经理", "销售", "医药销售"],
+    ["source-takeda-china-social", "MCR, GI, Suzhou", "销售", "医药销售"],
+    ["source-takeda-china-social", "(S)PM, Oncology", "销售", "销售管理"],
+    ["source-takeda-china-social", "(S)RM, Rare Disease", "销售", "销售管理"],
+    ["source-bayer-healthcare-social", "Medical Specialist", "销售", "医药销售"],
+    ["source-viatris-social", "医学信息沟通代表", "销售", "医药销售"],
+    ["source-shanghai-pharma-social", "医学信息沟通专员", "销售", "医药销售"],
+    ["source-astrazeneca-social", "DSM, CV", "销售", "销售管理"],
+    ["source-astrazeneca-social", "BM-Oncology", "市场", "品牌市场"],
+    ["source-daiichi-sankyo-china-social", "ASM-广州", "销售", "销售管理"],
+    ["fixture", "SAE", "KA", "大客户管理"],
+    ["fixture", "客户解决方案专员", "KA", "大客户管理"],
+    ["fixture", "Assistant Product Manager", "市场", "品牌市场"],
+    ["fixture", "RPM", "市场", "品牌市场"],
+    ["fixture", "临床项目高级经理", "临床运营", "临床研究执行"],
+    ["fixture", "中心稽查", "质量", "临床质量"],
+    ["fixture", "安全医生", "药物警戒/安全", "药物安全"],
+    ["fixture", "RA Operations", "注册", "注册事务"],
+    ["fixture", "医药信息沟通专员", "销售", "医药销售"],
+    ["fixture", "药物发现与药效学", "研发/科学", "药物发现"],
+    ["fixture", "市场准入项目规划", "市场准入/政府事务", "准入与定价"],
+    ["fixture", "数据洞察", "数据/IT", "数据科学"],
+    ["fixture", "投资者关系", "职能", "财务"],
+    ["fixture", "早期研究", "研发/科学", "研发科学"],
+    ["fixture", "灌装操作", "生产/工程", "生产制造"],
     ["source-abbvie-china-social", "District Mgr - Medical Aesth", "销售", "销售管理"],
     ["source-amgen-china-social", "District Manager-CV", "销售", "销售管理"],
     ["source-pfizer-china-social", "零售地区经理", "销售", "销售管理"],
@@ -451,4 +485,82 @@ test("expanded unambiguous pharmaceutical role classifications leave ambiguous t
     const job = byId.get(`exp-${id}`);
     assert.deepEqual([job.category, job.subcategory ?? undefined], [category, subcategory], title);
   }
+});
+
+test("social search filters explicit campus and intern titles before counting jobs and facets", () => {
+  const titles = [
+    ["研究实习", "Research"], ["销售", "销售（校招）"], ["校园招聘技术员", "技术员"],
+    ["行政", "应届岗位"], ["MR INTERN", "MR"], ["Sales", "Brand Internship"],
+    ["管培生", "管培生"], ["International Operations", "Internal Audit"],
+  ];
+  const rows = titles.map(([title, officialTitle], id) => ({ ...oldJobs[0], id: String(id), title, officialTitle }));
+  const saved = { ...snapshot, companies: [{ ...snapshot.companies[0], jobs: rows }] };
+  const original = structuredClone(saved);
+  const result = searchPortableSnapshot({ city: "全部城市" }, saved);
+  assert.deepEqual(result.companies[0].jobs.map(job => job.id).sort(), ["6", "7"]);
+  assert.equal(result.publishedJobSummary.totalJobs, 2);
+  assert.equal(result.cityFacets.find(facet => facet.city === "上海").jobCount, 2);
+  assert.deepEqual(saved, original);
+});
+
+test("public search resolves official locality aliases, Tier labels and distinct work cities", () => {
+  const examples = [
+    ...[
+      ["Shaoyang (Hunan Province)", "邵阳"], ["Zhuzhou (Hunan Province)", "株洲"],
+      ["Liuyang (Hunan Province)", "浏阳"], ["Yueyang (Hunan Province)", "岳阳"],
+      ["Ezhou (Hubei Province)", "鄂州"], ["Kaili (Guizhou Province)", "凯里"],
+      ["Qiqihar (Heilongjiang Province)", "齐齐哈尔"], ["Daqing (Heilongjiang Province)", "大庆"],
+      ["Tonghua (Jilin Province)", "通化"], ["Dandong (Liaoning Province)", "丹东"],
+      ["Huludao (Liaoning Province)", "葫芦岛"], ["Xingtai (Hebei Province)", "邢台"],
+      ["Qinhuangdao (Hebei Province)", "秦皇岛"],
+    ].map(([raw, city]) => ["source-novartis-social", raw, "医药代表", [city]]),
+    ...[
+      ["China - Jiangxi - Ji'An", "吉安"], ["China - Shandong - Tai'an", "泰安"],
+      ["China - Hubei - XiangFan", "襄阳"], ["China - Hunan - HuaiHua", "怀化"],
+      ["China - Hunan - ShaoYang", "邵阳"], ["CHN - SH - Shanghai (Tier 1)", "上海"],
+      ["CHN - Anhui (Tier 3) | China - Anhui - Hefei", "合肥"],
+    ].map(([raw, city]) => ["source-pfizer-china-social", raw, "医学信息沟通专员", [city]]),
+    ["source-pfizer-china-social", "CHN - Hubei (Tier 3)", "辉瑞生物制药+零售关键客户专员+武汉", ["武汉"]],
+    ["source-pfizer-china-social", "CHN - Hunan (Tier 3)", "医学信息沟通专员-武汉", ["城市待核"]],
+    ["source-msd-china-social", "Nanning、Qionghai", "销售代表", ["南宁", "琼海"]],
+    ["source-merck-china-social", "Beijing, Beijing, China", "Product Manager", ["北京"]],
+    ["source-takeda-china-social", "Remote", "MCR, GI, Hohhot", ["呼和浩特"]],
+    ["source-takeda-china-social", "Remote", "MCR, OBU, ST, Jinzhou", ["锦州"]],
+  ];
+  const rows = examples.map(([sourceId, locationRaw, officialTitle], id) => ({
+    ...oldJobs[0], id: String(id), sourceId, officialTitle, locationRaw, city: "城市待核", cities: ["城市待核"],
+  }));
+  const saved = { ...snapshot, companies: [{ ...snapshot.companies[0], jobs: rows }] };
+  const result = searchPortableSnapshot({ city: "全部城市" }, saved);
+  assert.equal(result.totalJobs, examples.length);
+  for (const job of result.companies[0].jobs) {
+    assert.deepEqual(job.cities, examples[Number(job.id)][3], job.locationRaw);
+  }
+});
+
+test("official requisition details disambiguate a city only for the reviewed vacancy", () => {
+  const officialUrl = "https://www.novonordisk.com.cn/content/nncorp/cn/zh_cn/careers/find-a-job/job-ad.348703.en_GB.html";
+  const original = { ...oldJobs[0], sourceId: "source-novo-nordisk-china-social", officialTitle: "医药代表-朝阳",
+    locationRaw: "China, Chaoyang", city: "城市待核", cities: ["城市待核"], officialUrl };
+  const jobs = [original, { ...original, id: "other", officialUrl: officialUrl.replace("348703", "999999") }];
+  const saved = { ...snapshot, companies: [{ ...snapshot.companies[0], jobs }] };
+  const result = searchPortableSnapshot({ city: "全部城市" }, saved);
+  const byId = new Map(result.companies[0].jobs.map(job => [job.id, job]));
+  assert.deepEqual(byId.get(original.id).cities, ["朝阳"]);
+  assert.equal(byId.get("other").cityPending, true);
+});
+
+test("province-only facets match the public province filter and exclude named cities", () => {
+  const row = { ...oldJobs[0], sourceId: "source-pfizer-china-social", officialTitle: "医学信息沟通专员",
+    city: "城市待核", cities: ["城市待核"], locationRaw: "CHN - Shandong (Tier 3)" };
+  const saved = { ...snapshot, companies: [{ ...snapshot.companies[0], jobs: [row] }] };
+  const query = (province, city) => searchPortableSnapshot({ province, city }, saved);
+  const provinceOnly = query("山东", "仅明确到省");
+  assert.equal(provinceOnly.companies[0].jobs[0].provinceOnly, "山东");
+  assert.equal(provinceOnly.publishedJobSummary.provinceOnlyJobs, 1);
+  assert.equal(provinceOnly.publishedJobSummary.cityPendingJobs, 0);
+  assert.equal(provinceOnly.provinceFacets.find(f => f.province === "山东").provinceOnlyJobs, 1);
+  assert.equal(query("江苏", "仅明确到省").totalJobs, 0);
+  assert.equal(query("山东", "济南").totalJobs, 0);
+  assert.equal(query("山东", "城市待核").totalJobs, 0);
 });
