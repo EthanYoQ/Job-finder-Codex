@@ -13,7 +13,7 @@ import {quarantineFetchLosses,quarantineCompleteList,jobQuarantineLoss,JOB_QUARA
 import {sanitizeEvidenceHttpUrl,parsePersistentSourceFetchEvidence} from './sourceFetchEvidence';
 import {phenomJobQuarantine} from './phenomJobQuarantine';
 import {exactFosunHongKongOnlyScope,exactQiluUnitedStatesOrHongKongScope} from './strictSourceScopeExclusionProof';
-import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap } from "./organonOfficialPostedDate";
+import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap, isOrganonPhenomOnlyPlan } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, isLillyPhenomOnlyPlan, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyPhenomListProjection, lillyClosedLoss } from "./lillyChinaQuality";
@@ -108,7 +108,7 @@ export type OfficialJsonFetchConfig =
       kind: "phenom";
       postedDatePolicy?: "UCB_PHENOM_POSTED_DATE_V1" | "MERCK_CHINA_PHENOM_POSTED_DATE_V1" | "ORGANON_PHENOM_POSTED_DATE_V1" | "LILLY_CHINA_PHENOM_POSTED_DATE_V1";
       cityScopePolicy?: "UCB_PRIMARY_CITY_AGREEMENT_V1" | "MERCK_CHINA_LOCATION_TITLE_PENDING_V2" | "ORGANON_MAINLAND_LOCATION_PENDING_V1" | "LILLY_CHINA_REVIEWED_LOCATION_PENDING_V1";
-      publicVisibilityPolicy?: "MERCK_CHINA_PUBLIC_VISIBILITY_V1" | "ORGANON_PUBLIC_VISIBILITY_V1" | "LILLY_CHINA_PUBLIC_VISIBILITY_V1" | "LILLY_CHINA_PHENOM_ONLY_V1";
+      publicVisibilityPolicy?: "MERCK_CHINA_PUBLIC_VISIBILITY_V1" | "ORGANON_PUBLIC_VISIBILITY_V1" | "ORGANON_PHENOM_ONLY_V1" | "LILLY_CHINA_PUBLIC_VISIBILITY_V1" | "LILLY_CHINA_PHENOM_ONLY_V1";
       detailBaseUrl: string;
       derivedDetailIdField?: "reqId" | "jobSeqNo";
       mixedLocationScopePolicy?: "EXACTLY_ONE_MAINLAND_ALTERNATIVE_V1";
@@ -3825,6 +3825,7 @@ async function fetchPhenomWidgets({
     return failedWithEvidence(capturedAt, "Organon quality policy requires the exact source and bootstrap",
       phenomEntryFailureEvidence(unavailableEntryArtifact));
   }
+  const organonPhenomOnly = preserveOrganonQuality && isOrganonPhenomOnlyPlan(plan);
   const preserveLillyQuality = requiresLillyChinaQuality(plan);
   if (preserveLillyQuality && (!exactLillyChinaQualityPlan(plan) || !exactLillyChinaBootstrap(pageConfig))) {
     return failedWithEvidence(capturedAt, "Lilly China quality policy requires the exact source and bootstrap",
@@ -4524,10 +4525,14 @@ async function fetchPhenomWidgets({
       if (jobIndex >= 0) jobs.splice(jobIndex, 1);
     }
   }
-  if(preserveOrganonQuality||preserveRocheQuality||preserveLillyQuality&&!lillyPhenomOnly){
+  if (preserveOrganonQuality) {
+    const listed = pages.flatMap(page => JSON.parse(artifacts.find(a => a.logicalKey === page.artifactLogicalKey)!.body as string).refineSearch.data.jobs);
+    if (!organonKeywordCountryEquivalent(entry.body, listed)) {
+      return phenomFailure(capturedAt, "ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD", artifacts, pages, counts, losses, declaredCompleteness);
+    }
+  }
+  if ((preserveOrganonQuality && !organonPhenomOnly) || preserveRocheQuality || (preserveLillyQuality && !lillyPhenomOnly)) {
     const rows=[...firstRawByOfficialId.values()].map(value=>({...value,raw:JSON.parse(value.serialized) as Record<string,unknown>}));
-    const listed=pages.flatMap(page=>JSON.parse(artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!.body as string).refineSearch.data.jobs);
-    if(preserveOrganonQuality&&!organonKeywordCountryEquivalent(entry.body,listed))return phenomFailure(capturedAt,'ORGANON_KEYWORD_COUNTRY_SCOPE_UNKNOWN_PRESERVE_LAST_GOOD',artifacts,pages,counts,losses,declaredCompleteness);
     if(preserveRocheQuality)for(const artifact of artifacts)artifact.bodyRepresentation='EXACT';
     let blocked = false;
     const family = preserveOrganonQuality ? "organon" : preserveLillyQuality ? "lilly" : "roche";

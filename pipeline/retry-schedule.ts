@@ -30,6 +30,8 @@ export type RetryOutcome = {sourceId: string; retryAt?: number; lastActualReques
   observedActualHttp?: boolean; locallyDeferred?: boolean; challenged?: boolean};
 export const sourceRetryBackoffMs = 5 * 60_000;
 export const maxDailyTransientRetries = 2;
+export const maxDailyChallengedRetries = 1;
+export const challengedOffPeakBackoffMs = 4 * 60 * 60_000;
 const retryBackoffStepsMs = [5 * 60_000, 15 * 60_000] as const;
 
 /** Progressive backoff starting at 5m, stepping to 15m before deferring to the next daily slot. */
@@ -136,12 +138,24 @@ export function buildRetrySchedule(input: {
       : priorRequestCount + outcome.actualRequestCount;
     const backoffStartedAt = outcome?.observedActualHttp && outcome.retryAt !== undefined
       ? (outcome.lastActualRequestAt ?? input.now) : input.now;
-    const backoffMs = backoffForFailureCount(priorRequestCount);
+    const challengedAttempts = outcome?.challenged
+      ? (outcome.actualRequestCount === undefined ? priorRequestCount + 1 : actualRequestCount!)
+      : 0;
+    const backoffMs = outcome?.challenged
+      ? challengedOffPeakBackoffMs
+      : backoffForFailureCount(priorRequestCount);
     const deferToNextDay = nextSlotAt !== undefined &&
-      (Boolean(outcome?.challenged) || (actualRequestCount ?? 0) > maxDailyTransientRetries);
+      ((Boolean(outcome?.challenged) && challengedAttempts > maxDailyChallengedRetries) ||
+       (actualRequestCount ?? 0) > maxDailyTransientRetries);
+    const targetRetryAt = locallyDeferred
+      ? input.now
+      : deferToNextDay
+        ? nextSlotAt
+        : nextSlotAt !== undefined
+          ? Math.min(nextSlotAt, backoffStartedAt + backoffMs)
+          : backoffStartedAt + backoffMs;
     const retryAt = attempted
-      ? Math.max(old?.retryAt ?? 0, outcome?.retryAt ?? 0,
-          locallyDeferred ? input.now : deferToNextDay ? nextSlotAt : backoffStartedAt + backoffMs)
+      ? Math.max(old?.retryAt ?? 0, outcome?.retryAt ?? 0, targetRetryAt)
       : old?.retryAt ?? input.now;
     const lastActualRequestAt = outcome?.lastActualRequestAt ?? old?.lastActualRequestAt;
     const slot = activeSlot && (attempted || sameSlot) ? activeSlot : !activeSlot ? old?.slot : undefined;

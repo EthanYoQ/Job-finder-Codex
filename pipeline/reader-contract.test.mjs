@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { loadDirectPlans } from '../runner-candidate/scripts/direct-round.ts';
 import { candidateCompanies } from '../web-candidate/src/data/companyRegistry.ts';
 import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256 } from '../web-candidate/src/crawler/sourcePlan.ts';
-import { getSourceQualityPolicy } from '../web-candidate/src/crawler/sourceQualityAdmission.ts';
+import { getSourceQualityPolicy, SOURCE_QUALITY_POLICY_ID, SOURCE_QUALITY_RECEIPT_SCHEMA } from '../web-candidate/src/crawler/sourceQualityAdmission.ts';
 import { selectPortableSourceSnapshots, verifiedMembers, projectPortableSourceJobs } from '../web-candidate/src/domain/portablePublicSnapshot.ts';
 import { hashJobPersistedProjection } from '../web-candidate/src/domain/jobProjectionDeltaReceipt.ts';
 import { validateSavedSnapshot } from '../web-candidate/src/server/savedPublicSnapshot.ts';
@@ -314,4 +314,45 @@ test('Pfizer transition from prior B-grade to A-grade Delta preserves prior visi
   const projectedGrace = projected.jobs.find(job => job.id === 'grace');
   assert.equal(projectedGrace.inGrace, true);
   assert.equal(projectedGrace.lastConfirmedObservedAt, priorAt);
+});
+
+test('Organon PRIOR_COMMITTED_CONFIG_HASHES keeps prior config snapshot readable after switching to ORGANON_PHENOM_ONLY_V1', () => {
+  const route = routes.find(row => row.sourceId === 'source-organon-china-social');
+  const plan = reader.find(item => item.source.id === route.sourceId);
+  const priorAt = '2026-11-18T20:07:00.000Z';
+  const priorHash = 'd56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2';
+  const priorRow = {
+    id: 'organon-prior-row',
+    releaseCandidateId: 'instabox-synthetic',
+    batchId: 'organon-prior-batch',
+    sourceId: route.sourceId,
+    sourceConfigHash: priorHash,
+    transportState: 'SUCCEEDED',
+    adapterState: 'SUCCEEDED',
+    completenessState: 'VERIFIED',
+    atomicCommitState: 'COMMITTED',
+    failureCode: null,
+    failureReason: null,
+    blockerCode: null,
+    blockerReason: null,
+    startedAt: new Date(priorAt),
+    finishedAt: new Date(priorAt),
+    dedupeOutputCount: 3,
+    canonicalCurrentJobSetSha256: hashCanonicalStringSet(['k1', 'k2', 'k3']),
+    canonicalGraceJobSetSha256: hashCanonicalStringSet([]),
+    canonicalVisibleJobSetSha256: hashCanonicalStringSet(['k1', 'k2', 'k3']),
+    observations: [{ crawledAt: new Date(priorAt) }],
+    completenessCertificateSha256: 'c'.repeat(64),
+    completenessCertificate: {
+      schemaVersion: SOURCE_QUALITY_RECEIPT_SCHEMA,
+      policyId: SOURCE_QUALITY_POLICY_ID,
+      observation: { crawledAt: priorAt },
+      counts: { finalUniqueJobCount: 3, validationDiscardCount: 0 }
+    },
+    batch: { id: 'organon-prior-batch', releaseCandidateId: 'instabox-synthetic', kind: 'SCHEDULED', status: 'SUCCESS' }
+  };
+  const selected = selectPortableSourceSnapshots([plan], [priorRow], { currentTime: new Date(priorAt) })[0];
+  assert.equal(selected.state, 'PUBLISHING', JSON.stringify(selected.reasons));
+  assert.equal(selected.health, 'HEALTHY');
+  assert.equal(selected.selectedSourceResultId, priorRow.id);
 });

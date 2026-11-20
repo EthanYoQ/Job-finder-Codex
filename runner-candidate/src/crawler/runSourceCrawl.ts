@@ -24,7 +24,7 @@ import { mokaDetailLocations, mokaNativeListScope } from "./mokaSourceFetch";
 import { auditRedseaCandidateScope } from "./redseaCandidateScope";
 import { hasBeisenDetailDatePlan, replayBeisenDetailDates } from "./beisenDetailDates";
 import { replayWorkdayMainlandQuality } from "./workdayMainlandQuality";
-import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap, organonBootstrapLocator } from "./organonOfficialPostedDate";
+import { requiresOrganonPostedDate, exactOrganonPostedDatePlan, exactOrganonPostedDateBootstrap, isOrganonPhenomOnlyPlan, organonBootstrapLocator } from "./organonOfficialPostedDate";
 import { organonOfficialCities, organonOfficialIdentity, organonKeywordCountryEquivalent, organonNativeDetail, organonClosedLoss } from "./organonChinaQuality";
 import { phenomOfficialPostedDate } from "./phenomOfficialPostedDate";
 import { requiresLillyChinaQuality, exactLillyChinaQualityPlan, exactLillyChinaBootstrap, isLillyPhenomOnlyPlan, lillyOfficialCities, lillyOfficialPostedDate, lillyPageEnvelopeValid, lillyNativeDetail, lillyPhenomListProjection, lillyClosedLoss } from "./lillyChinaQuality";
@@ -2277,6 +2277,7 @@ function strictPhenomRequestContracts(
   const merckOutputs = new Map<string, StrictUcbDateOutput>();
   const preserveOrganonQuality = requiresOrganonPostedDate(plan);
   if (preserveOrganonQuality && (!exactOrganonPostedDatePlan(plan) || !exactOrganonPostedDateBootstrap(pageConfig))) return false;
+  const organonPhenomOnly = preserveOrganonQuality && isOrganonPhenomOnlyPlan(plan);
   // Exact Organon bootstrap provenance, including the source attempt's maximum
   // legal runtime window. Absent bodyRepresentation retains the legacy exact
   // bytes default; REDACTED bodies are already rejected above.
@@ -2490,6 +2491,7 @@ function strictPhenomRequestContracts(
       if (total === undefined || envelope.totalHits !== total || page.sequence !== pageIndex ||
         page.artifactLogicalKey !== `phenom-page-${String(pageIndex).padStart(4, "0")}` ||
         evidence.pages.length !== Math.max(1, Math.ceil(total / pageSize)) ||
+        (organonPhenomOnly && nativeCount("organon") !== 0) ||
         evidence.artifacts.length !== evidence.pages.length + 1 + nativeCount('organon') || offset > total ||
         envelope.jobs.length !== Math.min(pageSize, total - offset) ||
         (envelope.hasOwnFrom ? envelope.from !== offset || page.returnedOffset !== offset : page.returnedOffset !== null)) return false;
@@ -2501,14 +2503,14 @@ function strictPhenomRequestContracts(
       for (const [recordIndex, value] of envelope.jobs.entries()) {
         const raw = strictRecord(value);
         const cities = raw && organonOfficialCities(raw);
-        const nativeArtifact = raw && artifacts.get(`organon-detail-${raw.reqId}`);
-        const native = raw && organonNativeDetail(raw, nativeArtifact, capturedAt);
+        const nativeArtifact = !organonPhenomOnly && raw ? artifacts.get(`organon-detail-${raw.reqId}`) : undefined;
+        const native = !organonPhenomOnly && raw ? organonNativeDetail(raw, nativeArtifact, capturedAt) : undefined;
         const date = raw && phenomOfficialPostedDate(raw.postedDate);
         const title = raw && strictNonblankText(raw.title)?.replace(/\s+/gu, " ");
         rawIds.push(irreversibleOfficialJsonEvidenceId(phenomRawId(value)??[pageIndex,recordIndex,value]));
         organonRows.push(value);
         if(held.some(q=>q.pageSequence===pageIndex&&q.recordIndex===recordIndex))continue;
-        if (!raw || !cities || !title || !organonOfficialIdentity(raw) || !native) return false;
+        if (!raw || !cities || !title || !organonOfficialIdentity(raw) || (!organonPhenomOnly && !native)) return false;
         const rawId = raw.jobSeqNo as string, sourceJobId = persistentOfficialJsonJobId(rawId);
         if (organonIds.has(sourceJobId)) return false;
         organonIds.add(sourceJobId);
@@ -4395,7 +4397,7 @@ function strictPlanUrlRules(plan: SourceCrawlPlan): StrictUrlRule[] | undefined 
       if (plan.source.id === "source-roche-china-social" && strategy.nativeDetailPolicy === ROCHE_NATIVE_DETAIL_POLICY) {
         rules.push(prefixEndpointRule("roche-native-detail", new URL("https://roche.wd3.myworkdayjobs.com/wday/cxs/roche/roche-ext/job/")));
       }
-      if (exactOrganonPostedDatePlan(plan)) {
+      if (exactOrganonPostedDatePlan(plan) && !isOrganonPhenomOnlyPlan(plan)) {
         rules.push(prefixEndpointRule("organon-native-detail", new URL("https://organon.wd5.myworkdayjobs.com/SearchJobs/job/")));
       }
       if (exactLillyChinaQualityPlan(plan) && !isLillyPhenomOnlyPlan(plan)) {

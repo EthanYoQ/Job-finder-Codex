@@ -31,8 +31,10 @@ async function capture(mode='present',location='Shanghai (Shanghai)',alternative
 }
 const c=await capture();if(!c.fetched.ok)console.log(c.fetched.failureReason,c.fetched.fetchEvidence?.artifacts.map(a=>a.logicalKey));assert(c.fetched.ok);assert.equal(c.fetched.fetchEvidence.fetchCounts.validCount,3);
 const e=c.fetched.fetchEvidence;const audit=replayNovartisNativePartitions(plan,e).audit;assert.equal(audit.indexDeclaredTotal,2);assert.equal(audit.observedUniqueCount,3);assert(!c.requests.some(u=>u.includes('moseeker')));
-assert.equal(e.captureTool.version,'14');
+assert.equal(e.captureTool.version,'15');
 assert.equal(audit.noOmissionVerified,true);
+const version14=structuredClone(e);version14.captureTool.version='14';
+assert.equal(replayNovartisNativePartitions(plan,version14).audit.noOmissionVerified,true);
 const drift=(await capture('present','Shanghai (Shanghai)','','China',1)).fetched;
 assert.equal(drift.ok,true);
 assert.equal(drift.fetchEvidence.artifacts.find(row=>row.logicalKey==='novartis-partitions-audit').extractorLocator,NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR);
@@ -113,13 +115,17 @@ test('archived default discovery exhaustion keeps closed partitions and marks ab
  assert.equal(fetched.ok,true,fetched.failureReason);
  assert.equal(calls.length,49,'Root, one closed primary partition and 47 existing default pages; no extra requests');
  const projected=replayNovartisNativePartitions(plan,fetched.fetchEvidence);
- assert.equal(fetched.fetchEvidence.captureTool.version,'14');
+ assert.equal(fetched.fetchEvidence.captureTool.version,'15');
  assert.equal(projected.counts.validCount,1);assert.equal(projected.unboundUnknown,true);
  assert.equal(projected.audit.noOmissionVerified,false);
  assert.ok(projected.audit.anomalyCodes.includes('NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED'));
  assert.equal(projected.audit.partitions[0].uniqueCount,1);
  const last=fetched.fetchEvidence.artifacts.find(a=>a.logicalKey==='novartis-partitions-default-46');
  assert.equal(last.body,fixture.html,'Keep the archived fragment unchanged');
+ const replayV14=structuredClone(fetched.fetchEvidence);replayV14.captureTool.version='14';
+ const projectedV14=replayNovartisNativePartitions(plan,replayV14);
+ assert.equal(projectedV14.unboundUnknown,true);
+ assert.equal(projectedV14.audit.noOmissionVerified,false);
  for(const version of ['4','5','6','7','8','9']){
   const legacy=structuredClone(fetched.fetchEvidence);legacy.captureTool.version=version;
   assert.throws(()=>replayNovartisNativePartitions(plan,legacy));
@@ -128,4 +134,39 @@ test('archived default discovery exhaustion keeps closed partitions and marks ab
   const bad=await capture(mode);assert.equal(bad.fetched.ok,false,mode);
  }
  assert.equal(JSON.stringify(plan),originalPlan,'The configured source plan stays unchanged');
+});
+
+test('v15 allows multi-page default-discovery shrinkage (e.g. page=64 on 629 results / 63 pages) while v14 rejects it',async()=>{
+ const plan=buildStagedSourceCrawlPlans(candidateCompanies).find(p=>p.source.id==='source-novartis-social');
+ const id='REQ-10000001';
+ const row=`<tr><td class="views-field-field-job-title"><a href="/careers/career-search/job/details/${id.toLowerCase()}-synthetic">Synthetic role</a></td><td class="views-field-field-job-country">China</td><td class="views-field-field-job-work-location">Shanghai (Shanghai)</td></tr>`;
+ const list=(count=1)=>`<div class="view-header">Showing ${count} results</div><table class="views-table"><tbody>${row}</tbody></table>`;
+ const root=list()+'<select name="functional_area[]"><option value="FCT_QA">QA</option></select><select name="country[]"><option value="LOC_CN" selected>China</option></select><select name="field_job_posted_date"><option value="All" selected>All</option></select>';
+ const emptyShrunk=(count,activePage,outOf)=>`<div class="view-header">Showing ${count} results</div><table class="views-table"><tbody><tr><td colspan="5" class="empty message">No content has been found.</td></tr></tbody></table><nav class="pagination"><li class="active"><span class="page-link" title="page ${activePage} 活跃 out of ${outOf} pages"></span></li><li class="page-item pager__item--next"><a class="page-link btn disabled" rel="next" href="" title="转到下一页"></a></li></nav>`;
+ async function run(count=629,activePage=63,outOf=65){
+  return acquireNovartisNativePartitions(plan,async request=>{
+   const u=new URL(request.url),page=Number(u.searchParams.get('page')??0),partition=u.searchParams.has('functional_area[0]');
+   let html;
+   if(request.url===plan.source.officialEntryUrl)html=root;
+   else if(partition)html=list(1);
+   else if(page===64)html=emptyShrunk(count,activePage,outOf);
+   else{
+    const next=new URL(u);next.searchParams.set('page',String(page+1));
+    html=list(641)+`<nav class="pagination"><li class="active"><span class="page-link" title="page ${page+1} 活跃 out of 65 pages"></span></li><a rel="next" href="${next.href}">Next</a></nav>`;
+   }
+   return {status:200,contentType:'text/html',body:html,finalUrl:request.url,capturedAt:'2026-11-19T17:50:46.358Z'};
+  });
+ }
+ const good=await run();
+ assert.equal(good.ok,true,good.failureReason);
+ assert.equal(good.fetchEvidence.captureTool.version,'15');
+ const projected=replayNovartisNativePartitions(plan,good.fetchEvidence);
+ assert.equal(projected.counts.validCount,1);
+ assert.equal(projected.audit.noOmissionVerified,false);
+ assert.ok(projected.audit.anomalyCodes.includes('NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED'));
+ const v14=structuredClone(good.fetchEvidence);v14.captureTool.version='14';
+ assert.throws(()=>replayNovartisNativePartitions(plan,v14),'v14 rejects 2-page shrinkage');
+ assert.equal((await run(629,64,65)).ok,false,'mismatched active page fails');
+ assert.equal((await run(650,63,65)).ok,false,'in-range empty page fails');
+ assert.equal((await run(629,65,65)).ok,false,'active page 65 on 629 results fails');
 });
