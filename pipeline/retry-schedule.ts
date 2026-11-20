@@ -30,6 +30,8 @@ export type RetryOutcome = {sourceId: string; retryAt?: number; lastActualReques
   observedActualHttp?: boolean; locallyDeferred?: boolean; challenged?: boolean};
 export const sourceRetryBackoffMs = 5 * 60_000;
 export const maxDailyTransientRetries = 2;
+export const maxDailyChallengedRetries = 1;
+export const challengedOffPeakBackoffMs = 4 * 60 * 60_000;
 const retryBackoffStepsMs = [5 * 60_000, 15 * 60_000] as const;
 
 /** Progressive backoff starting at 5m, stepping to 15m before deferring to the next daily slot. */
@@ -131,17 +133,27 @@ export function buildRetrySchedule(input: {
     const locallyDeferred = outcome?.locallyDeferred && !outcome.observedActualHttp;
     const sameSlot = activeSlot !== undefined && old?.slot === activeSlot;
     const priorRequestCount = activeSlot ? (sameSlot ? (old?.actualRequestCount ?? 0) : 0) : (old?.actualRequestCount ?? 0);
-    const actualRequestCount = outcome?.actualRequestCount === undefined
+    const attemptIncrement = outcome?.actualRequestCount ?? (outcome?.challenged ? 1 : undefined);
+    const actualRequestCount = attemptIncrement === undefined
       ? (activeSlot ? (sameSlot ? old?.actualRequestCount : undefined) : old?.actualRequestCount)
-      : priorRequestCount + outcome.actualRequestCount;
-    const backoffStartedAt = outcome?.observedActualHttp && outcome.retryAt !== undefined
+      : priorRequestCount + attemptIncrement;
+    const backoffStartedAt = outcome?.observedActualHttp && (outcome.challenged || outcome.retryAt !== undefined)
       ? (outcome.lastActualRequestAt ?? input.now) : input.now;
-    const backoffMs = backoffForFailureCount(priorRequestCount);
+    const backoffMs = outcome?.challenged
+      ? challengedOffPeakBackoffMs
+      : backoffForFailureCount(priorRequestCount);
     const deferToNextDay = nextSlotAt !== undefined &&
-      (Boolean(outcome?.challenged) || (actualRequestCount ?? 0) > maxDailyTransientRetries);
+      ((Boolean(outcome?.challenged) && (actualRequestCount ?? 0) > maxDailyChallengedRetries) ||
+       (actualRequestCount ?? 0) > maxDailyTransientRetries);
+    const targetRetryAt = locallyDeferred
+      ? input.now
+      : deferToNextDay
+        ? nextSlotAt
+        : nextSlotAt !== undefined
+          ? Math.min(nextSlotAt, backoffStartedAt + backoffMs)
+          : backoffStartedAt + backoffMs;
     const retryAt = attempted
-      ? Math.max(old?.retryAt ?? 0, outcome?.retryAt ?? 0,
-          locallyDeferred ? input.now : deferToNextDay ? nextSlotAt : backoffStartedAt + backoffMs)
+      ? Math.max(old?.retryAt ?? 0, outcome?.retryAt ?? 0, targetRetryAt)
       : old?.retryAt ?? input.now;
     const lastActualRequestAt = outcome?.lastActualRequestAt ?? old?.lastActualRequestAt;
     const slot = activeSlot && (attempted || sameSlot) ? activeSlot : !activeSlot ? old?.slot : undefined;

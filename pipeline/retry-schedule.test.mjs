@@ -205,19 +205,49 @@ test('progressive retry backoff scales 5m -> 15m and caps at 15m without a daily
   }
 });
 
-test('daily schedule allows two quick transient retries (5m -> 15m), defers challenges to next 00:01, and resets count next day',()=>{
+test('daily schedule allows two quick transient retries (5m -> 15m), one 4h off-peak challenge retry, and resets count next day',()=>{
   const slotNumber=slotAt(now),slot=String(slotNumber),nextSlotAt=slotNumber+dailySlotMs;
   const targetHashes=new Map([['source-pfizer',hashes.get('source-amgen')],['source-jnj',hashes.get('source-roche')]]);
 
-  // Challenged (403/429) source defers immediately on first failure to tomorrow's 00:01 slot (or longer Retry-After).
-  const challenged=buildRetrySchedule({
+  // First challenged (403/429) failure schedules an off-peak retry (+4h, capped at nextSlotAt), even on live checkpoint observation before actualRequestCount is added.
+  const challengedLiveCheckpoint=buildRetrySchedule({
+    sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:[],
+    attemptedSourceIds:new Set(['source-pfizer']),
+    outcomes:[{sourceId:'source-pfizer',observedActualHttp:true,challenged:true,lastActualRequestAt:now,retryAt:now+1800_000}],
+    now,slot
+  });
+  assert.equal(challengedLiveCheckpoint.nextRetryAt,now+4*60*60_000);
+  const challengedFirst=buildRetrySchedule({
     sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:[],
     attemptedSourceIds:new Set(['source-pfizer']),
     outcomes:[{sourceId:'source-pfizer',observedActualHttp:true,challenged:true,actualRequestCount:1,lastActualRequestAt:now,retryAt:now+1800_000}],
     now,slot
   });
-  assert.equal(challenged.nextRetryAt,nextSlotAt);
-  assert.equal(challenged.retrySources[0].slot,slot);
+  assert.deepEqual(challengedLiveCheckpoint,challengedFirst);
+  assert.equal(challengedFirst.nextRetryAt,now+4*60*60_000);
+  assert.equal(challengedFirst.retrySources[0].slot,slot);
+  assert.equal(challengedFirst.retrySources[0].actualRequestCount,1);
+
+  // Second challenged failure in the same daily slot defers to tomorrow's 00:01 slot (both live checkpoint & round summary).
+  const t2=now+4*60*60_000+1000;
+  const challengedSecondLive=buildRetrySchedule({
+    sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:challengedLiveCheckpoint.retrySources,
+    attemptedSourceIds:new Set(['source-pfizer']),
+    outcomes:[{sourceId:'source-pfizer',observedActualHttp:true,challenged:true,lastActualRequestAt:t2,retryAt:t2+1800_000}],
+    now:t2,slot
+  });
+  assert.equal(challengedSecondLive.nextRetryAt,nextSlotAt);
+  const challengedSecond=buildRetrySchedule({
+    sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:challengedLiveCheckpoint.retrySources,
+    attemptedSourceIds:new Set(['source-pfizer']),
+    outcomes:[{sourceId:'source-pfizer',observedActualHttp:true,challenged:true,actualRequestCount:1,lastActualRequestAt:t2,retryAt:t2+1800_000}],
+    now:t2,slot
+  });
+  assert.deepEqual(challengedSecondLive,challengedSecond);
+  assert.equal(challengedSecond.nextRetryAt,nextSlotAt);
+  assert.equal(challengedSecond.retrySources[0].actualRequestCount,2);
+
+  // Explicit longer Retry-After overrides +4h and nextSlotAt.
   const longChallenged=buildRetrySchedule({
     sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:[],
     attemptedSourceIds:new Set(['source-pfizer']),

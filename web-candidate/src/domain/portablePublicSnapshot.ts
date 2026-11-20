@@ -154,6 +154,10 @@ const PRIOR_COMMITTED_CONFIG_HASHES: Readonly<Record<string, { current: string; 
   "source-pfizer-china-social": {
     current: "44247af9aeabbb56f362594c2442bf609347ef0754533157fed387bc35bb8e81",
     prior: [PFIZER_PRIOR_B_GRADE_HASH]
+  },
+  "source-organon-china-social": {
+    current: "7530360f37f40c1df05d41622813666e217f42fb04751d410d42253f543ac8c8",
+    prior: ["d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2"]
   }
 });
 

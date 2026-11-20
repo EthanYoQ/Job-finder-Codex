@@ -20,7 +20,7 @@ import { NOVO_NATIVE_RETRY } from "../src/crawler/novoNativeGatewayRetry";
 
 type Route = { sourceId: string; companyId: string; route: "PORTABLE" | "TRUE_A" | "TRUE_B"; sourceConfigSha256: string };
 const workdaySources = new Set([
-  "source-biogen-china-social", "source-organon-china-social"
+  "source-biogen-china-social"
 ]);
 
 function interleaveWorkday<T extends { sourceId: string }>(routes: readonly T[]): T[] {
