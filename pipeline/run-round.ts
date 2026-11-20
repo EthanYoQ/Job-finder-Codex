@@ -66,8 +66,9 @@ try {
         if(observation.observedActualHttp&&observation.lastActualRequestAt!==undefined)
           outcome.lastActualRequestAt=Math.max(outcome.lastActualRequestAt??0,observation.lastActualRequestAt);
         if(!old)outcomes.push(outcome);
+        // Each notification describes the same acquisition. Count it against the pre-wave state.
         const observed=buildRetrySchedule({sourceConfigHashes,
-          completeSourceIds:new Set(sourceIds.filter(id=>id!==observation.sourceId)),previous:checkpoint,
+          completeSourceIds:new Set(sourceIds.filter(id=>id!==observation.sourceId)),previous,
           attemptedSourceIds:new Set([observation.sourceId]),outcomes:[outcome],now:Date.now(),slot});
         checkpoint=mergeRetrySources(checkpoint,observed.retrySources);
         saveRetryCheckpoint(checkpointFile,checkpoint);

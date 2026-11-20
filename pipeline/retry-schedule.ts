@@ -133,19 +133,17 @@ export function buildRetrySchedule(input: {
     const locallyDeferred = outcome?.locallyDeferred && !outcome.observedActualHttp;
     const sameSlot = activeSlot !== undefined && old?.slot === activeSlot;
     const priorRequestCount = activeSlot ? (sameSlot ? (old?.actualRequestCount ?? 0) : 0) : (old?.actualRequestCount ?? 0);
-    const actualRequestCount = outcome?.actualRequestCount === undefined
+    const attemptIncrement = outcome?.actualRequestCount ?? (outcome?.challenged ? 1 : undefined);
+    const actualRequestCount = attemptIncrement === undefined
       ? (activeSlot ? (sameSlot ? old?.actualRequestCount : undefined) : old?.actualRequestCount)
-      : priorRequestCount + outcome.actualRequestCount;
+      : priorRequestCount + attemptIncrement;
     const backoffStartedAt = outcome?.observedActualHttp && outcome.retryAt !== undefined
       ? (outcome.lastActualRequestAt ?? input.now) : input.now;
-    const challengedAttempts = outcome?.challenged
-      ? (outcome.actualRequestCount === undefined ? priorRequestCount + 1 : actualRequestCount!)
-      : 0;
     const backoffMs = outcome?.challenged
       ? challengedOffPeakBackoffMs
       : backoffForFailureCount(priorRequestCount);
     const deferToNextDay = nextSlotAt !== undefined &&
-      ((Boolean(outcome?.challenged) && challengedAttempts > maxDailyChallengedRetries) ||
+      ((Boolean(outcome?.challenged) && (actualRequestCount ?? 0) > maxDailyChallengedRetries) ||
        (actualRequestCount ?? 0) > maxDailyTransientRetries);
     const targetRetryAt = locallyDeferred
       ? input.now

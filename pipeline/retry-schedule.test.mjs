@@ -223,6 +223,7 @@ test('daily schedule allows two quick transient retries (5m -> 15m), one 4h off-
     outcomes:[{sourceId:'source-pfizer',observedActualHttp:true,challenged:true,actualRequestCount:1,lastActualRequestAt:now,retryAt:now+1800_000}],
     now,slot
   });
+  assert.deepEqual(challengedLiveCheckpoint,challengedFirst);
   assert.equal(challengedFirst.nextRetryAt,now+4*60*60_000);
   assert.equal(challengedFirst.retrySources[0].slot,slot);
   assert.equal(challengedFirst.retrySources[0].actualRequestCount,1);
@@ -230,18 +231,19 @@ test('daily schedule allows two quick transient retries (5m -> 15m), one 4h off-
   // Second challenged failure in the same daily slot defers to tomorrow's 00:01 slot (both live checkpoint & round summary).
   const t2=now+4*60*60_000+1000;
   const challengedSecondLive=buildRetrySchedule({
-    sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:challengedFirst.retrySources,
+    sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:challengedLiveCheckpoint.retrySources,
     attemptedSourceIds:new Set(['source-pfizer']),
     outcomes:[{sourceId:'source-pfizer',observedActualHttp:true,challenged:true,lastActualRequestAt:t2,retryAt:t2+1800_000}],
     now:t2,slot
   });
   assert.equal(challengedSecondLive.nextRetryAt,nextSlotAt);
   const challengedSecond=buildRetrySchedule({
-    sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:challengedFirst.retrySources,
+    sourceConfigHashes:targetHashes,completeSourceIds:new Set(['source-jnj']),previous:challengedLiveCheckpoint.retrySources,
     attemptedSourceIds:new Set(['source-pfizer']),
     outcomes:[{sourceId:'source-pfizer',observedActualHttp:true,challenged:true,actualRequestCount:1,lastActualRequestAt:t2,retryAt:t2+1800_000}],
     now:t2,slot
   });
+  assert.deepEqual(challengedSecondLive,challengedSecond);
   assert.equal(challengedSecond.nextRetryAt,nextSlotAt);
   assert.equal(challengedSecond.retrySources[0].actualRequestCount,2);
 
