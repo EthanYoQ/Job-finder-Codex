@@ -49,7 +49,7 @@ export interface PublishedJobSummary {
 }
 
 function isSocialExcludedInternOrCampus(job: { title?: string; officialTitle: string }): boolean {
-  const explicit = /实习|校招|校园招聘|应届|\bintern(?:ship)?\b/iu;
+  const explicit = /实习|校招|校园招聘|应届|\bintern(?:ship)?\b|(?:^|\b20\d{2}\s+)campus recruitment\s*(?:[-:：–—|]|$)/iu;
   return explicit.test(job.officialTitle.normalize("NFKC")) || explicit.test(job.title?.normalize("NFKC") ?? "");
 }
 

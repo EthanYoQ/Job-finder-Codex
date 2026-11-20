@@ -410,6 +410,10 @@ test("Hansoh social search omits the four verified campus vacancies", () => {
 
 test("expanded unambiguous pharmaceutical role classifications leave ambiguous titles unchanged", () => {
   const expandedCases = [
+    ["fixture", "GMP Manufacturing Operator", "生产/工程", "生产制造"],
+    ["fixture", "GMP QA Specialist", "质量", "质量保证"],
+    ["source-pfizer-china-social", "医学信息沟通高级经理", "销售", "销售管理"],
+    ["source-pfizer-china-social", "医学信息沟通资深专员", "销售", "医药销售"],
     ["fixture", "Cloud Platform Engineer", "数据/IT", "信息技术"],
     ["fixture", "Python全栈开发工程师", "数据/IT", "信息技术"],
     ["fixture", "滴眼剂质量工程师", "质量", "质量保证"],
@@ -492,14 +496,16 @@ test("social search filters explicit campus and intern titles before counting jo
     ["研究实习", "Research"], ["销售", "销售（校招）"], ["校园招聘技术员", "技术员"],
     ["行政", "应届岗位"], ["MR INTERN", "MR"], ["Sales", "Brand Internship"],
     ["管培生", "管培生"], ["International Operations", "Internal Audit"],
+    ["Medical Representative", "2027 Campus Recruitment - Medical Representative"],
+    ["Campus Recruitment Manager", "Campus Recruitment Manager"],
   ];
   const rows = titles.map(([title, officialTitle], id) => ({ ...oldJobs[0], id: String(id), title, officialTitle }));
   const saved = { ...snapshot, companies: [{ ...snapshot.companies[0], jobs: rows }] };
   const original = structuredClone(saved);
   const result = searchPortableSnapshot({ city: "全部城市" }, saved);
-  assert.deepEqual(result.companies[0].jobs.map(job => job.id).sort(), ["6", "7"]);
-  assert.equal(result.publishedJobSummary.totalJobs, 2);
-  assert.equal(result.cityFacets.find(facet => facet.city === "上海").jobCount, 2);
+  assert.deepEqual(result.companies[0].jobs.map(job => job.id).sort(), ["6", "7", "9"]);
+  assert.equal(result.publishedJobSummary.totalJobs, 3);
+  assert.equal(result.cityFacets.find(facet => facet.city === "上海").jobCount, 3);
   assert.deepEqual(saved, original);
 });
 
