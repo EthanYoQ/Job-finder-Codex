@@ -218,7 +218,9 @@ test("runDirectRound skips Biogen during paused slot (35 calls) and restores all
     crawlBatch: { findFirst: async () => null },
     capture: async plans => { calls.push(plans[0].source.id); return { status: "SUCCESS" }; }
   };
-  const workspaceRoot = await mkdtemp(join(fileURLToPath(new URL("../.runtime/.cache/", import.meta.url)), "biogen-direct-"));
+  const cache = fileURLToPath(new URL("../.runtime/.cache/", import.meta.url));
+  await mkdir(cache, { recursive: true });
+  const workspaceRoot = await mkdtemp(join(cache, "biogen-direct-"));
   try {
     const pausedSlot = String(Date.parse("2026-11-22T00:01:00+08:00"));
     const duringResults = await runDirectRound({
