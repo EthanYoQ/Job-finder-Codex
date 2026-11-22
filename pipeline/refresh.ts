@@ -12,6 +12,7 @@ import { searchPortableSnapshot, coverageFromPortableSnapshot } from "../web-can
 import { dailySlotMs, slotAt } from "./frequency.mjs";
 import { startActivityLease } from "./activity-lease.mjs";
 import { retryReceiptFields, retrySourcesSchema, roundIdSchema } from "./retry-schedule";
+import { isSourceTemporarilyPaused } from "../web-candidate/src/release/portableSourceCoverageHolds";
 
 const exec = promisify(execFile);
 const machine = "m_agqzacofwxyhtea4rr7b6tvbba";
@@ -32,7 +33,8 @@ const receiptSchema = z.object({
   manualIntervention: z.boolean().optional(),
   snapshotFile: z.string(), sha256: shaSchema, lastUpdatedAt: z.string().nullable(), totalJobs: z.number().int().nonnegative(),
   capturedSources: z.array(z.object({sourceId:z.string(),batchId:z.string()})),
-  retrySources: retrySourcesSchema
+  retrySources: retrySourcesSchema,
+  pausedSources: z.array(z.string().regex(/^source-[a-z0-9-]{1,100}$/)).max(36).optional()
 }).refine(receipt => receipt.snapshotFile === `/data/job-finder/snapshots/public-${receipt.sha256}.json`);
 const sourceCatalogSchema = z.object({rows:z.array(z.object({sourceId:z.string()})).length(36)});
 const attemptFields = {
@@ -73,8 +75,16 @@ let stopInvalidReceipt: (() => Promise<void>) | undefined;
 let releaseActivityLease: (() => Promise<void>) | undefined;
 type Receipt = z.infer<typeof receiptSchema>;
 function validateReceiptCoverage(receipt:Receipt, sourceIds:ReadonlySet<string>) {
+  const slotMs = Number(receipt.slot);
+  const expectedPaused = new Set([...sourceIds].filter(id => isSourceTemporarilyPaused(id, slotMs)));
+  const reportedPaused = receipt.pausedSources ?? [];
+  if (reportedPaused.length !== expectedPaused.size || new Set(reportedPaused).size !== reportedPaused.length ||
+      reportedPaused.some(id => !expectedPaused.has(id))) {
+    throw Error("ROUND_RECEIPT_SOURCE_COVERAGE_MISMATCH");
+  }
+  const activeIds = new Set([...sourceIds].filter(id => !expectedPaused.has(id)));
   const listed=[...receipt.capturedSources,...receipt.retrySources].map(row=>row.sourceId);
-  if(listed.length!==sourceIds.size || new Set(listed).size!==sourceIds.size || listed.some(id=>!sourceIds.has(id)))
+  if(listed.length!==activeIds.size || new Set(listed).size!==activeIds.size || listed.some(id=>!activeIds.has(id)))
     throw Error("ROUND_RECEIPT_SOURCE_COVERAGE_MISMATCH");
   if(receipt.complete) {
     if(receipt.retrySources.length || receipt.nextRetryAt!==undefined)
@@ -256,7 +266,9 @@ async function refresh() {
   const verifiedAt=clock(), complete=receipt.complete && slotAt(verifiedAt)===Number(slot);
   state.records.push({slot,kind:"live",trigger:manualInSlot?"manual":active.trigger,complete,
     quarantinedJobCount:receipt.quarantinedJobCount,unresolvedCoverage:receipt.unresolvedCoverage,
-    webReadback:true,capturedSourceIds:receipt.capturedSources.map(row=>row.sourceId),sha256:receipt.sha256,verifiedAt:new Date(verifiedAt).toISOString()});
+    webReadback:true,capturedSourceIds:receipt.capturedSources.map(row=>row.sourceId),
+    ...(receipt.pausedSources?.length ? {pausedSourceIds:receipt.pausedSources} : {}),
+    sha256:receipt.sha256,verifiedAt:new Date(verifiedAt).toISOString()});
   state.timerSlots=state.timerSlots.filter(value=>Number(value)>Number(slot)-8*dailySlotMs);
   state.progress={slot,nextRetryAt:receipt.complete?null:receipt.nextRetryAt??(clock()+infrastructureBackoffMs)};
   delete state.active;

@@ -17,6 +17,7 @@ import type { SourceTransportObservation } from "../src/crawler/sourceFetchFailu
 import { dailySlotMs, slotAt } from "../../pipeline/frequency.mjs";
 import { readSourceCompletion } from "../../pipeline/round-coverage";
 import { NOVO_NATIVE_RETRY } from "../src/crawler/novoNativeGatewayRetry";
+import { isSourceTemporarilyPaused } from "../src/release/portableSourceCoverageHolds";
 
 type Route = { sourceId: string; companyId: string; route: "PORTABLE" | "TRUE_A" | "TRUE_B"; sourceConfigSha256: string };
 const workdaySources = new Set([
@@ -98,9 +99,12 @@ export async function runDirectRound(input: { db: PrismaClient; leaseDb: Portabl
   prioritizeSelectedSources?: boolean; stopAtSlotEnd?: boolean; allowEmptySelection?: boolean;
   onSourceTransportObservation?: (observation: SourceTransportObservation) => void }) {
   const routes = await loadDirectPlans(), sourceIds = routes.map(row => row.sourceId);
-  const selectedRoutes = input.allowEmptySelection && input.onlySourceIds?.length===0 ? [] : selectDirectRoutes(routes,input.onlySourceIds);
   const windowStart = Number(input.slot ?? slotAt());
   if (!Number.isSafeInteger(windowStart) || slotAt(windowStart) !== windowStart) throw Error("INVALID_SCHEDULE_SLOT");
+  const activeRoutes = input.onlySourceIds === undefined
+    ? routes.filter(row => !isSourceTemporarilyPaused(row.sourceId, windowStart))
+    : routes;
+  const selectedRoutes = input.allowEmptySelection && input.onlySourceIds?.length===0 ? [] : selectDirectRoutes(activeRoutes,input.onlySourceIds);
   if (!input.candidateId.startsWith("instabox-")) throw Error("NEW_INSTABOX_CANDIDATE_REQUIRED");
   if (input.db === input.leaseDb) throw Error("SEPARATE_LEASE_CONNECTION_REQUIRED");
   return withPortableCrawlLease(input.leaseDb, lease => withWorkdayRequestPolicy(resolve(input.workspaceRoot), async () => {

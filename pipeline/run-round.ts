@@ -18,6 +18,7 @@ import { savePublicSnapshot } from "../web-candidate/src/server/public-snapshot-
 import { archiveInactiveSnapshots, selectRoundSnapshotHandle } from "./snapshot-handle";
 import { buildRetrySchedule, mergeRetrySources, readRetryCheckpoint, readRetrySources, roundIdSchema, roundManualIntervention, saveRetryCheckpoint,
   selectDueSourceIds, shouldCountRoundRetryAttempt, type RetryOutcome } from "./retry-schedule";
+import { isSourceTemporarilyPaused } from "../runner-candidate/src/release/portableSourceCoverageHolds";
 
 const run = promisify(execFile);
 const stateRoot = resolve(process.env.JOBFINDER_STATE_ROOT ?? "/data/job-finder");
@@ -40,9 +41,16 @@ try {
   leaseDb = new PrismaClient({datasources:{db:{url:url.href}}});
   const slot = process.env.JOBFINDER_SLOT ?? null;
   if (roundId && slot === null) throw Error("SCHEDULED_ROUND_SLOT_REQUIRED");
-  const routes = await loadDirectPlans(), sourceIds = routes.map(row=>row.sourceId);
-  const sourceConfigHashes = new Map(routes.map(row=>[row.sourceId,row.sourceConfigSha256]));
-  const selected = selectDirectRoutes(routes, onlySourceIds).map(row=>row.sourceId);
+  const routes = await loadDirectPlans();
+  const effectiveSlotMs = slot !== null && /^\d{13}$/.test(slot) ? Number(slot) : Date.now();
+  const pausedSourceIds = routes
+    .filter(row => isSourceTemporarilyPaused(row.sourceId, effectiveSlotMs))
+    .map(row => row.sourceId);
+  const pausedSet = new Set(pausedSourceIds);
+  const activeRoutes = routes.filter(row => !pausedSet.has(row.sourceId));
+  const sourceIds = activeRoutes.map(row => row.sourceId);
+  const sourceConfigHashes = new Map(activeRoutes.map(row => [row.sourceId, row.sourceConfigSha256]));
+  const selected = selectDirectRoutes(activeRoutes, onlySourceIds).map(row => row.sourceId);
   const snapshots = join(stateRoot, "snapshots");
   let previousReceipt: unknown;
   try { previousReceipt = JSON.parse(await readFile(join(snapshots,"latest.json"),"utf8")); }
@@ -100,6 +108,7 @@ try {
     } : undefined;
   const receipt = {status:"SNAPSHOT_SAVED", slot, complete, quarantinedJobCount, unresolvedCoverage, ...handle,
     manualIntervention:roundManualIntervention(slot,roundId,previousReceipt,snapshots),
+    ...(pausedSourceIds.length ? {pausedSources:pausedSourceIds} : {}),
     ...retrySchedule,...(roundId ? {roundId} : {}),
     capturedSources,
     sources:results.map(row=>({sourceId:row.sourceId,status:row.status}))};

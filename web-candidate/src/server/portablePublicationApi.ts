@@ -30,6 +30,10 @@ function sourceScopeNote(sourceIds: readonly string[], snapshot: PortablePublicS
   }
   const servier = snapshot.sources.find(source => source.sourceId === "source-servier-china-social" && source.state === "PUBLISHING")?.sourceScopeSummary;
   if (servier) notes["source-servier-china-social"] = `施维雅中国 Moka 社会招聘门户（47734）：门户职位 ${servier.portalJobCount} 个，明确中国工作地 ${servier.verifiedChinaJobCount} 个，国家待核 ${servier.unknownCountryJobCount} 个（官方标记在招，未计入中国职位）；仅覆盖此门户。`;
+  const biogen = snapshot.sources.find(source => source.sourceId === "source-biogen-china-social");
+  if (biogen?.state === "HOLD" && biogen.reasons.includes("SOURCE_COVERAGE_REVIEW_PENDING")) {
+    notes["source-biogen-china-social"] = "因官网上游访问校验限制，自 2026-11-22 起暂停采集并暂时下线一周（预计 2026-11-29 恢复检查）；请通过官方招聘入口直接浏览。";
+  }
   const note = sourceIds.flatMap(id => notes[id] ? [notes[id]] : []).join(" ");
   return note ? { sourceScopeNote: note } : {};
 }
