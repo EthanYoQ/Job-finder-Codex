@@ -278,7 +278,7 @@ export function selectPortableSourceSnapshots(
     const base: PortableSourceSelection = {companyId: plan.company.id, sourceId: plan.source.id, currentConfigSha256, policyId,
       state: "HOLD", health: "UNVERIFIED", freshness: "UNKNOWN", reasons: [], visibilityFloor: null,
       selectedSourceResultId: null, lastAttemptAt: null, lastAcceptedAt: null, lastSuccessAt: null, lastAcceptedJobCount: null, selected: null};
-    const coverageHold = getPortableSourceCoverageHold(plan.source.id);
+    const coverageHold = getPortableSourceCoverageHold(plan.source.id, options.currentTime.getTime());
     if (coverageHold) return {...base, reasons: [coverageHold]};
     if (policyId === null) return {...base, reasons: ["UNSUPPORTED_CURRENT_POLICY"] as PortableSnapshotReason[]};
     const sanofiTransition = isSanofiPublicTransitionPlan(plan);

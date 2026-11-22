@@ -13,6 +13,7 @@ const record = z.object({
   complete: z.boolean(),
   webReadback: z.boolean(),
   capturedSourceIds: z.array(z.string().refine(id => sourceIds.has(id))).max(sourceIds.size),
+  pausedSourceIds: z.array(z.string().refine(id => sourceIds.has(id))).max(sourceIds.size).optional(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   verifiedAt: timestamp
 });

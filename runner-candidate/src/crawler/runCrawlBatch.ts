@@ -485,7 +485,7 @@ export async function runP0CrawlBatch(
       const policyHold = portableMode ? (
         getPortableCoverageScope().exclusions.some(excluded=>excluded.sourceId===plan.source.id)
           ? "USER_AUTHORIZED_COVERAGE_EXCLUSION"
-          : getPortableSourceCoverageHold(plan.source.id) ??
+          : getPortableSourceCoverageHold(plan.source.id, batchStartedAt.getTime()) ??
             (getSourceQualityPolicy(plan) ? null : "SOURCE_QUALITY_POLICY_NOT_REVIEWED")
       ) : null;
       if(policyHold){
