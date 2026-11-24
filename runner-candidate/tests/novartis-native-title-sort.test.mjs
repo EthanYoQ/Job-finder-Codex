@@ -31,7 +31,7 @@ async function capture(mode='present',location='Shanghai (Shanghai)',alternative
 }
 const c=await capture();if(!c.fetched.ok)console.log(c.fetched.failureReason,c.fetched.fetchEvidence?.artifacts.map(a=>a.logicalKey));assert(c.fetched.ok);assert.equal(c.fetched.fetchEvidence.fetchCounts.validCount,3);
 const e=c.fetched.fetchEvidence;const audit=replayNovartisNativePartitions(plan,e).audit;assert.equal(audit.indexDeclaredTotal,2);assert.equal(audit.observedUniqueCount,3);assert(!c.requests.some(u=>u.includes('moseeker')));
-assert.equal(e.captureTool.version,'16');
+assert.equal(e.captureTool.version,'17');
 assert.equal(audit.noOmissionVerified,true);
 const version14=structuredClone(e);version14.captureTool.version='14';
 assert.equal(replayNovartisNativePartitions(plan,version14).audit.noOmissionVerified,true);
@@ -115,7 +115,7 @@ test('archived default discovery exhaustion keeps closed partitions and marks ab
  assert.equal(fetched.ok,true,fetched.failureReason);
  assert.equal(calls.length,49,'Root, one closed primary partition and 47 existing default pages; no extra requests');
  const projected=replayNovartisNativePartitions(plan,fetched.fetchEvidence);
- assert.equal(fetched.fetchEvidence.captureTool.version,'16');
+ assert.equal(fetched.fetchEvidence.captureTool.version,'17');
  assert.equal(projected.counts.validCount,1);assert.equal(projected.unboundUnknown,true);
  assert.equal(projected.audit.noOmissionVerified,false);
  assert.ok(projected.audit.anomalyCodes.includes('NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED'));
@@ -159,7 +159,7 @@ test('v15 allows multi-page default-discovery shrinkage (e.g. page=64 on 629 res
  }
  const good=await run();
  assert.equal(good.ok,true,good.failureReason);
- assert.equal(good.fetchEvidence.captureTool.version,'16');
+ assert.equal(good.fetchEvidence.captureTool.version,'17');
  const projected=replayNovartisNativePartitions(plan,good.fetchEvidence);
  assert.equal(projected.counts.validCount,1);
  assert.equal(projected.audit.noOmissionVerified,false);
@@ -193,13 +193,15 @@ test('v16 preserves partition jobs when default discovery hits an unpaginated ze
   return {status:200,contentType:'text/html',body:html,finalUrl:request.url,capturedAt:'2026-11-24T04:35:00.000Z'};
  });
  assert.equal(fetched.ok,true,fetched.failureReason);
- assert.equal(fetched.fetchEvidence.captureTool.version,'16');
+ assert.equal(fetched.fetchEvidence.captureTool.version,'17');
  const projected=replayNovartisNativePartitions(plan,fetched.fetchEvidence);
  assert.equal(projected.unboundUnknown,true);
  assert.equal(projected.counts.validCount,11);
  assert.equal(projected.audit.noOmissionVerified,false);
  assert.ok(projected.audit.anomalyCodes.includes('NOVARTIS_DEFAULT_DISCOVERY_EXHAUSTED'));
  assert.equal(fetched.fetchEvidence.artifacts.find(a=>a.logicalKey==='novartis-partitions-audit')?.extractorLocator,NOVARTIS_UNRESOLVED_DISCOVERY_LOCATOR);
+ const v16=structuredClone(fetched.fetchEvidence);v16.captureTool.version='16';
+ assert.equal(replayNovartisNativePartitions(plan,v16).counts.validCount,11);
  const v15=structuredClone(fetched.fetchEvidence);v15.captureTool.version='15';
  assert.throws(()=>replayNovartisNativePartitions(plan,v15),'v15 rejects unpaginated zero-result mid-page');
 });
