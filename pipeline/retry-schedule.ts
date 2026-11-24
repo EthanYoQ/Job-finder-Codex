@@ -29,12 +29,12 @@ export type RetrySource = z.infer<typeof retrySourceSchema>;
 export type RetryOutcome = {sourceId: string; retryAt?: number; lastActualRequestAt?: number; actualRequestCount?: number;
   observedActualHttp?: boolean; locallyDeferred?: boolean; challenged?: boolean};
 export const sourceRetryBackoffMs = 5 * 60_000;
-export const maxDailyTransientRetries = 2;
+export const maxDailyTransientRetries = 3;
 export const maxDailyChallengedRetries = 1;
 export const challengedOffPeakBackoffMs = 4 * 60 * 60_000;
-const retryBackoffStepsMs = [5 * 60_000, 15 * 60_000] as const;
+const retryBackoffStepsMs = [5 * 60_000, 15 * 60_000, 2 * 60 * 60_000] as const;
 
-/** Progressive backoff starting at 5m, stepping to 15m before deferring to the next daily slot. */
+/** Progressive backoff starting at 5m, stepping to 15m and a 2h off-peak retry before deferring to the next daily slot. */
 export function backoffForFailureCount(priorActualRequests = 0): number {
   const index = Math.max(0, Math.min(priorActualRequests, retryBackoffStepsMs.length - 1));
   return retryBackoffStepsMs[index]!;

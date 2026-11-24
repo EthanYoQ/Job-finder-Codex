@@ -245,7 +245,7 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
     artifacts.push(a);
     if(captureCacheDiagnostics&&r.cacheDiagnostics)listCache.set(key,r.cacheDiagnostics);
     artifactOk(a,url,role);if(artifacts.length===1)capturedAt=a.capturedAt;return a;};
-  try{requireValue(hasNovartisOfficialPresencePlan(plan));const {fields}=readRoot(plan,await capture(plan.source.officialEntryUrl,"novartis-partitions-root","novartis-native-partition-root-v1"));const primary=new Set<string>(),ascendingDiscoveries=new Map<string,Row>();
+  try{requireValue(hasNovartisOfficialPresencePlan(plan));const {total:indexTotal,fields}=readRoot(plan,await capture(plan.source.officialEntryUrl,"novartis-partitions-root","novartis-native-partition-root-v1"));const primary=new Set<string>(),ascendingDiscoveries=new Map<string,Row>();
     for(const field of fields){
       const read=async(url:string,prefix=""):Promise<PartitionTraversal>=>{const own:Row[]=[],counts:number[]=[],traces:PartitionTrace[]=[];let first:SourceFetchArtifactDraft|undefined,terminal=false;
         for(let p=0;p<100;p++){const a=await capture(url,`novartis-partition-${field}-${prefix}${p}`,"novartis-native-functional-page-v1",`novartis:${field}`),parsed=parsedPage(a,url,p,"novartis-native-functional-page-v1");
@@ -270,8 +270,9 @@ export async function acquireNovartisNativePartitions(plan:SourceCrawlPlan,http:
       }
       requireValue(traversal.closed);for(const row of traversal.own)primary.add(row.id);
     }
+    requireValue(indexTotal===0||primary.size>0);
     const defaults=new Map<string,Row>();let url=NOVARTIS_DEFAULT_ENTRY;
-    for(let p=0;p<100;p++){const a=await capture(url,`novartis-partitions-default-${p}`,"novartis-partition-default-discovery-v1"),parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1",true,true);for(const row of parsed.rows)defaults.set(row.id,row);if(!parsed.next)break;url=parsed.next;}
+    for(let p=0;p<100;p++){const a=await capture(url,`novartis-partitions-default-${p}`,"novartis-partition-default-discovery-v1"),parsed=parsedPage(a,url,p,"novartis-partition-default-discovery-v1",true,true);requireValue(primary.size>0||parsed.count===0);for(const row of parsed.rows)defaults.set(row.id,row);if(!parsed.next)break;url=parsed.next;}
     for(const row of ascendingDiscoveries.values())if(!primary.has(row.id)&&!defaults.has(row.id))defaults.set(row.id,row);
     let detailsBlocked=false;
     for(const row of [...defaults.values()].filter(r=>!primary.has(r.id)&&!r.quarantined).sort((a,b)=>a.id.localeCompare(b.id))){

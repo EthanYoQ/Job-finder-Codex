@@ -256,3 +256,37 @@ test('Sales multi-page partition reconciles terminal traversals with cached head
  assert.equal(result.truth.completenessVerified,true);
  assert.equal(result.jobs.length,21);
 });
+
+test('fails fast without default discovery when root declares positive jobs but all functional partitions return 0 rows',async()=>{
+ const at=new Date().toISOString(),requests=[];
+ const emptyHtml='<div class="view-header">Showing 0 results</div><table class="views-table"><tbody><tr><td class="empty message">No content has been found.</td></tr></tbody></table>';
+ const fetched=await acquireNovartisNativePartitions(plan,async req=>{
+  requests.push(req.url);
+  const body=req.url===plan.source.officialEntryUrl
+   ?'<div class="view-header">Showing 11 results</div><select name="functional_area[]"><option value="FCT_RD">Research</option></select><select name="country[]"><option value="LOC_CN" selected>China</option></select><select name="field_job_posted_date"><option value="All" selected>All</option></select>'
+   :emptyHtml;
+  return {status:200,body,finalUrl:req.url,contentType:'text/html',capturedAt:at};
+ });
+ assert.equal(fetched.ok,false);
+ assert.equal(fetched.failureReason,'NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE');
+ const defaultRequests=requests.filter(url=>{const u=new URL(url);return url!==plan.source.officialEntryUrl&&!u.searchParams.has('functional_area[0]');});
+ assert.equal(defaultRequests.length,0);
+});
+
+test('fails fast on default page 0 when partitions return 0 rows while default discovery declares positive jobs',async()=>{
+ const at=new Date().toISOString(),requests=[];
+ const emptyHtml='<div class="view-header">Showing 0 results</div><table class="views-table"><tbody><tr><td class="empty message">No content has been found.</td></tr></tbody></table>';
+ const fetched=await acquireNovartisNativePartitions(plan,async req=>{
+  requests.push(req.url);
+  const u=new URL(req.url),field=u.searchParams.get('functional_area[0]');
+  if(req.url===plan.source.officialEntryUrl){
+   return {status:200,body:'<div class="view-header">Showing 0 results</div><select name="functional_area[]"><option value="FCT_RD">Research</option></select><select name="country[]"><option value="LOC_CN" selected>China</option></select><select name="field_job_posted_date"><option value="All" selected>All</option></select>',finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  }
+  const body=field?emptyHtml:page(req.url,ids.slice(0,10),11,Number(u.searchParams.get('page')??0),false);
+  return {status:200,body,finalUrl:req.url,contentType:'text/html',capturedAt:at};
+ });
+ assert.equal(fetched.ok,false);
+ assert.equal(fetched.failureReason,'NOVARTIS_NATIVE_PARTITIONS_INCOMPLETE');
+ const defaultRequests=requests.filter(url=>{const u=new URL(url);return url!==plan.source.officialEntryUrl&&!u.searchParams.has('functional_area[0]');});
+ assert.equal(defaultRequests.length,1);
+});
