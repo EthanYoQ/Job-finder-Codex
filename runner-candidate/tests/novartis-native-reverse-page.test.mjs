@@ -77,7 +77,7 @@ test('a complete date-ascending list needs no reverse or title traversal',async(
 test('only an advertised, independently complete reverse traversal can replace overlapping pages',async()=>{
  const {fetched,requests}=await capture();assert(fetched.ok,fetched.failureReason);
  const evidence=fetched.fetchEvidence,projected=replayNovartisNativePartitions(plan,evidence);
- assert.equal(evidence.captureTool.version,'16');assert.equal(evidence.fetchCounts.validCount,11);
+ assert.equal(evidence.captureTool.version,'17');assert.equal(evidence.fetchCounts.validCount,11);
  const legacy=legacySortEvidence(evidence,'6','站点');assert.equal(replayNovartisNativePartitions(plan,legacy).counts.validCount,projected.counts.validCount);
  assert.equal(projected.audit.partitions[0].selectedSort,'desc');assert.equal(projected.audit.partitions[0].discardedAscending.unique,10);
  assert.equal(requests.filter(url=>new URL(url).searchParams.get('sort')==='desc').length,2);
@@ -146,7 +146,7 @@ test('Sales starts with title and tries each native date order at most once',asy
   if(mode==='date-reverse-complete')expected.push('发布日期:desc','发布日期:desc');
   assert.deepEqual(partitionRequests.map(u=>`${u.searchParams.get('order')}:${u.searchParams.get('sort')}`),expected);
   const evidence=fetched.fetchEvidence,projected=replayNovartisNativePartitions(plan,evidence),audit=projected.audit.partitions[0];
-  assert.equal(evidence.captureTool.version,'16');assert.equal(audit.uniqueCount,11);
+  assert.equal(evidence.captureTool.version,'17');assert.equal(audit.uniqueCount,11);
   assert.equal(audit.selectedOrder,mode==='title-complete'?'职位名称':'发布日期');
   assert.equal(audit.selectedSort,mode==='date-reverse-complete'?'desc':'asc');
   assert.equal(audit.discardedTitleAscending?.unique,mode==='title-complete'?undefined:10);
@@ -181,7 +181,7 @@ test(`an advertised ${fieldId} ${prefix} traversal can replace two incomplete da
    continue;
   }
   assert(fetched.ok,fetched.failureReason);const evidence=fetched.fetchEvidence,projected=replayNovartisNativePartitions(plan,evidence);
-  assert.equal(evidence.captureTool.version,'16');assert.equal(projected.audit.partitions[0].selectedOrder,fallbackOrder);assert.equal(projected.audit.partitions[0].selectedSort,'asc');assert.equal(projected.audit.partitions[0].discardedDateReverse.unique,10);
+  assert.equal(evidence.captureTool.version,'17');assert.equal(projected.audit.partitions[0].selectedOrder,fallbackOrder);assert.equal(projected.audit.partitions[0].selectedSort,'asc');assert.equal(projected.audit.partitions[0].discardedDateReverse.unique,10);
   assert.equal(requests.filter(url=>new URL(url).searchParams.get('functional_area[0]')===fieldId).length,6);
   assert.equal(evidence.pages.filter(p=>p.channelId===`novartis:${fieldId}`).length,2);assert(evidence.pages.filter(p=>p.channelId===`novartis:${fieldId}`).every(p=>p.artifactLogicalKey.includes(`-${prefix}-`)));
   const result=await runSourceCrawl(plan,{fetch:async()=>fetched,isBaseline:false});assert.equal(result.truth.completenessVerified,true);assert.equal(result.jobs.length,11);
@@ -255,6 +255,36 @@ test('Sales multi-page partition reconciles terminal traversals with cached head
  assert.equal(result.status,'SUCCESS');
  assert.equal(result.truth.completenessVerified,true);
  assert.equal(result.jobs.length,21);
+});
+
+test('v17 reconciles Sales title and date-ascending traversals without requesting broken sort=desc',async()=>{
+ const salesIds=Array.from({length:21},(_,i)=>`REQ-${10091000+i}`);
+ const page3=(url,rows,total,p)=>{
+  const pages=Math.ceil(total/10);
+  const next=new URL(url);next.searchParams.set('page',String(p+1));
+  const reverse=new URL(url);reverse.searchParams.delete('page');reverse.searchParams.set('order','发布日期');reverse.searchParams.set('sort','desc');
+  const dateAsc=new URL(url);dateAsc.searchParams.delete('page');dateAsc.searchParams.set('order','发布日期');dateAsc.searchParams.set('sort','asc');
+  return `<div class="view-header">Showing ${total} results</div><table class="views-table"><thead><tr><th><a href="${dateAsc.href}">日期升序</a></th><th><a href="${reverse.href}">日期降序</a></th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table><div class="pagination"><span class="active"><a class="page-link" title="page ${p+1} out of ${pages} pages"></a></span><a rel="next" ${p+1===pages?'class="disabled"':`href="${next.href}"`}></a></div>`;
+ };
+ const at=new Date().toISOString(),requests=[];
+ const fetched=await acquireNovartisNativePartitions(plan,async req=>{
+  requests.push(req.url);
+  const u=new URL(req.url),field=u.searchParams.get('functional_area[0]'),p=Number(u.searchParams.get('page')??0),title=field&&u.searchParams.get('order')==='职位名称',reverse=u.searchParams.get('sort')==='desc';
+  if(req.url===plan.source.officialEntryUrl)return {status:200,body:'<div class="view-header">Showing 21 results</div><select name="functional_area[]"><option value="FCT_SA">Sales</option></select><select name="country[]"><option value="LOC_CN" selected>China</option></select><select name="field_job_posted_date"><option value="All" selected>All</option></select>',finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  if(u.pathname.includes('/job/details/'))return {status:200,body:`<h1>Job ${salesIds[20]}</h1><article>Job ID ${salesIds[20]}<p>A current substantive description for this Sales job.</p><a href="https://platform.moseeker.com/m/customize/page/novartis?job_number=${salesIds[20]}">Apply to Job</a></article>`,finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  if(reverse)return {status:200,body:'<html><body><header>chrome</header><main></main><footer>footer</footer></body></html>',finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  if(!field)return {status:200,body:page3(req.url,p===0?salesIds.slice(0,10):p===1?salesIds.slice(10,20):[salesIds[20]],21,p),finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  if(title)return {status:200,body:page3(req.url,p===0?salesIds.slice(0,10):p===1?[salesIds[9],...salesIds.slice(10,19)]:[salesIds[19]],21,p),finalUrl:req.url,contentType:'text/html',capturedAt:at};
+  return {status:200,body:page3(req.url,p===0?salesIds.slice(0,10):p===1?[...salesIds.slice(0,5),...salesIds.slice(15,20)]:[salesIds[20]],21,p),finalUrl:req.url,contentType:'text/html',capturedAt:at};
+ });
+ assert.equal(fetched.ok,true,fetched.failureReason);
+ assert.equal(fetched.fetchEvidence.captureTool.version,'17');
+ assert.equal(requests.some(url=>new URL(url).searchParams.get('sort')==='desc'),false);
+ const projected=replayNovartisNativePartitions(plan,fetched.fetchEvidence);
+ assert.equal(projected.audit.observedUniqueCount,21);
+ assert.equal(projected.audit.partitions[0].reconciledMultiSort,true);
+ const v16=structuredClone(fetched.fetchEvidence);v16.captureTool.version='16';
+ assert.throws(()=>replayNovartisNativePartitions(plan,v16),'v16 still requires reverse-0 before reconciling');
 });
 
 test('fails fast without default discovery when root declares positive jobs but all functional partitions return 0 rows',async()=>{
