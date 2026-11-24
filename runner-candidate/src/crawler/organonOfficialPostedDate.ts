@@ -6,6 +6,7 @@ export const ORGANON_POSTED_DATE_POLICY = "ORGANON_PHENOM_POSTED_DATE_V1" as con
 
 export const ORGANON_CITY_SCOPE_POLICY = "ORGANON_MAINLAND_LOCATION_PENDING_V1" as const;
 export const ORGANON_PUBLIC_VISIBILITY_POLICY = "ORGANON_PUBLIC_VISIBILITY_V1" as const;
+export const ORGANON_PHENOM_ONLY_POLICY = "ORGANON_PHENOM_ONLY_V1" as const;
 export const ORGANON_OFFSET_POLICY = "ORGANON_REQUEST_BOUND_OMITTED_OFFSET_V1" as const;
 
 export function requiresOrganonPostedDate(plan: SourceCrawlPlan): boolean {
@@ -14,7 +15,13 @@ export function requiresOrganonPostedDate(plan: SourceCrawlPlan): boolean {
       (plan.officialJsonFetch.postedDatePolicy === ORGANON_POSTED_DATE_POLICY ||
        plan.officialJsonFetch.cityScopePolicy === ORGANON_CITY_SCOPE_POLICY ||
        plan.officialJsonFetch.publicVisibilityPolicy === ORGANON_PUBLIC_VISIBILITY_POLICY ||
+       plan.officialJsonFetch.publicVisibilityPolicy === ORGANON_PHENOM_ONLY_POLICY ||
        plan.officialJsonFetch.requestBoundOmittedOffsetPolicy === ORGANON_OFFSET_POLICY));
+}
+
+export function isOrganonPhenomOnlyPlan(plan: SourceCrawlPlan): boolean {
+  return exactOrganonPostedDatePlan(plan) && plan.adapterId === "official-json" &&
+    plan.officialJsonFetch?.kind === "phenom" && plan.officialJsonFetch.publicVisibilityPolicy === ORGANON_PHENOM_ONLY_POLICY;
 }
 
 export function exactOrganonPostedDatePlan(plan: SourceCrawlPlan): boolean {
@@ -28,7 +35,8 @@ export function exactOrganonPostedDatePlan(plan: SourceCrawlPlan): boolean {
     plan.source.officialEntryUrl === "https://jobs.organon.com/cn/zh/search-results?keywords=China" &&
     plan.source.officialChainEvidenceUrl === "https://jobs.organon.com/cn/zh/home" &&
     config.postedDatePolicy === ORGANON_POSTED_DATE_POLICY && config.cityScopePolicy === ORGANON_CITY_SCOPE_POLICY &&
-    config.publicVisibilityPolicy === ORGANON_PUBLIC_VISIBILITY_POLICY && config.countryFilter === "China" &&
+    (config.publicVisibilityPolicy === ORGANON_PUBLIC_VISIBILITY_POLICY ||
+     config.publicVisibilityPolicy === ORGANON_PHENOM_ONLY_POLICY) && config.countryFilter === "China" &&
     config.detailBaseUrl === "https://jobs.organon.com/cn/zh/job" &&
     config.allowedApplyOrigins?.length === 1 && config.allowedApplyOrigins[0] === "https://organon.wd5.myworkdayjobs.com" &&
     config.pageSize === 50 && config.maxPages === 5 && config.allowOmittedOffsetForSinglePage === undefined &&

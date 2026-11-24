@@ -65,6 +65,7 @@ export interface PortableSourceSelection extends PortableSourceStatus {
   selected: { result: PortableSourceResultRow; receipt: PublicReceipt } | null;
 }
 export interface PortablePublicJob extends DatabaseSearchJobResult {
+  categoryManuallyCorrected?: true;
   companyId: string;
   sourceId: string;
   sourceResultId: string;
@@ -249,7 +250,7 @@ export function selectPortableSourceSnapshots(
     const base: PortableSourceSelection = {companyId: plan.company.id, sourceId: plan.source.id, currentConfigSha256, policyId,
       state: "HOLD", health: "UNVERIFIED", freshness: "UNKNOWN", reasons: [], visibilityFloor: null,
       selectedSourceResultId: null, lastAttemptAt: null, lastAcceptedAt: null, lastSuccessAt: null, lastAcceptedJobCount: null, selected: null};
-    const coverageHold = getPortableSourceCoverageHold(plan.source.id);
+    const coverageHold = getPortableSourceCoverageHold(plan.source.id, options.currentTime.getTime());
     if (coverageHold) return {...base, reasons: [coverageHold]};
     if (policyId === null) return {...base, reasons: ["UNSUPPORTED_CURRENT_POLICY"] as PortableSnapshotReason[]};
     const attempts = rows.filter(row => row.sourceId === plan.source.id && row.sourceConfigHash === currentConfigSha256 && row.batch.kind === "SCHEDULED");
@@ -363,7 +364,8 @@ export function projectPortableSourceJobs(
       output.jobs.push({id: row.id, companyId: row.companyId, sourceId: row.sourceId, sourceResultId: selected.result.id,
         title: row.humanCorrectedTitle || row.auxiliaryChineseTitle || row.officialTitle, officialTitle: row.officialTitle,
         officialPublishedAt: row.officialPublishedAt?.toISOString() ?? null, city: row.city, cities: [...row.cities], locationRaw: row.locationRaw,
-        category: fromPrismaJobCategory(row.humanCorrectedCategory ?? row.category), isNew: row.isNew, officialUrl: row.officialUrl,
+        category: fromPrismaJobCategory(row.humanCorrectedCategory ?? row.category),
+        ...(row.humanCorrectedCategory != null ? {categoryManuallyCorrected: true as const} : {}), isNew: row.isNew, officialUrl: row.officialUrl,
         lastSeenAt: row.lastSeenAt.toISOString(), inGrace: missingCount === 1});
     }
     output.jobs.sort((a, b) => compare(a.id, b.id));

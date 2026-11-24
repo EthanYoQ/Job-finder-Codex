@@ -7,6 +7,7 @@ export const GILEAD_PUBLIC_AGE_POLICY = "GILEAD_PUBLIC_AGE_PRESERVATION_V1" as c
 export const GILEAD_YELLO_BOARD = "v42vD4vKxb3AkKvV93YsrQ";
 
 const ageClassificationSchema = z.discriminatedUnion("kind", [
+  z.object({kind: z.literal("UNKNOWN")}).strict(),
   z.object({kind: z.literal("NEW_MARKER")}).strict(),
   z.object({kind: z.literal("RELATIVE_DAYS"), amount: z.number().int().positive().safe()}).strict(),
   z.object({kind: z.literal("RELATIVE_WEEKS"), amount: z.number().int().positive().safe()}).strict(),
@@ -15,7 +16,7 @@ const ageClassificationSchema = z.discriminatedUnion("kind", [
 ]);
 export const gileadPublicAgeEvidenceSchema = z.object({
   policy: z.literal(GILEAD_PUBLIC_AGE_POLICY),
-  rawLabel: z.string().min(1),
+  rawLabel: z.string(),
   classification: ageClassificationSchema,
   exactDateStatus: z.literal("UNKNOWN"),
   timeWindowStatus: z.literal("TIME_WINDOW_UNAVAILABLE"),
@@ -29,7 +30,7 @@ export type GileadPublicAgeEvidence = z.infer<typeof gileadPublicAgeEvidenceSche
 
 /** Grammar deliberately limited to reviewed public labels; rounding and year are unknown.
  * February 29 is plausible in an unknown year. Observation month/day never supplies that year. */
-export function classifyGileadPublicAge(rawLabel: string): GileadPublicAgeClassification | undefined {
+export function classifyGileadPublicAge(rawLabel: string): GileadPublicAgeClassification {
   const label = rawLabel.trim();
   // NEW is an official display marker, not proof of publication today.
   if (label === "NEW") return {kind: "NEW_MARKER"};
@@ -37,14 +38,14 @@ export function classifyGileadPublicAge(rawLabel: string): GileadPublicAgeClassi
   if (relative) {
     const amount = Number(relative[1]);
     return Number.isSafeInteger(amount)
-      ? {kind: relative[2] === "d" ? "RELATIVE_DAYS" : relative[2] === "w" ? "RELATIVE_WEEKS" : "RELATIVE_YEARS", amount} : undefined;
+      ? {kind: relative[2] === "d" ? "RELATIVE_DAYS" : relative[2] === "w" ? "RELATIVE_WEEKS" : "RELATIVE_YEARS", amount} : {kind: "UNKNOWN"};
   }
   const date = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) ([1-9]|[12]\d|3[01])$/u.exec(label);
-  if (!date) return undefined;
+  if (!date) return {kind: "UNKNOWN"};
   const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].indexOf(date[1]!) + 1;
   const day = Number(date[2]);
   return day <= [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]!
-    ? {kind: "YEARLESS_MONTH_DAY", month, day} : undefined;
+    ? {kind: "YEARLESS_MONTH_DAY", month, day} : {kind: "UNKNOWN"};
 }
 
 export function exactGileadPublicAgePlan(plan: SourceCrawlPlan): boolean {

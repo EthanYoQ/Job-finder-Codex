@@ -17,7 +17,7 @@ export const profile_organon_china = {
               kind: "phenom",
               postedDatePolicy: "ORGANON_PHENOM_POSTED_DATE_V1",
               cityScopePolicy: "ORGANON_MAINLAND_LOCATION_PENDING_V1",
-              publicVisibilityPolicy: "ORGANON_PUBLIC_VISIBILITY_V1",
+              publicVisibilityPolicy: "ORGANON_PHENOM_ONLY_V1",
               requestBoundOmittedOffsetPolicy: "ORGANON_REQUEST_BOUND_OMITTED_OFFSET_V1",
               detailBaseUrl: "https://jobs.organon.com/cn/zh/job",
               countryFilter: "China",

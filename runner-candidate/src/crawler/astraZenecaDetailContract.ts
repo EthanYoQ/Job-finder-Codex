@@ -4,7 +4,8 @@ import { z } from 'zod';
 export const ASTRAZENECA_DETAIL_CONFIG = Object.freeze({
   policy: 'ASTRAZENECA_OWNED_DETAILS_V1' as const,
   extractor: 'ASTRAZENECA_JOBPOSTING_DOM_V1' as const,
-  maxDetails: 375, maxBodyBytes: 256 * 1024, maxRetainedBytes: 24 * 1024 * 1024,
+  maxDetails: 375, // Frozen plan identity only; runtime work uses time and byte budgets.
+  maxBodyBytes: 256 * 1024, maxRetainedBytes: 24 * 1024 * 1024,
   concurrency: 2 as const, httpTimeoutMs: 45_000, sourceTimeoutMs: 600_000, abortDrainMs: 30_000,
   pendingCity: '城市待核' as const,
   scopeReview: 'EXPLICIT_EARLY_CAREER_V1' as const,
@@ -36,12 +37,12 @@ export type AstraZenecaFailure = z.infer<typeof astraZenecaFailureSchema>;
 export const astraZenecaDetailEnvelopeSchema = z.object({
   schemaVersion:z.literal('astrazeneca-owned-details-v1'),policy:z.literal(ASTRAZENECA_DETAIL_CONFIG.policy),
   sourceConfigSha256:z.string().regex(/^[a-f0-9]{64}$/u),
-  listArtifactLogicalKeys:z.array(z.string().min(1)).min(1).max(25),
+  listArtifactLogicalKeys:z.array(z.string().min(1)).min(1),
   entries:z.array(z.object({sourceJobId:z.string().regex(/^\d+$/u),officialUrl:z.string().url(),artifactLogicalKey:z.string().min(1).optional(),applicationArtifactLogicalKey:z.string().min(1).optional(),
     outcome:z.discriminatedUnion('ok',[
       z.object({ok:z.literal(true),evidence:astraZenecaDetailClaimSchema}).strict(),
       z.object({ok:z.literal(false),code:astraZenecaFailureSchema}).strict()
-    ])}).strict()).max(ASTRAZENECA_DETAIL_CONFIG.maxDetails)
+    ])}).strict())
 }).strict();
 export const astraZenecaJobEvidenceSchema = z.object({
   country:z.literal('中国').optional(),sourceCountryContext:z.literal('中国').optional(),status:z.enum(['CITY_SPECIFIC','CITY_PENDING','UNRESOLVED']),

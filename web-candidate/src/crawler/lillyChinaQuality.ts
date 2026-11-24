@@ -1,19 +1,26 @@
 import { load as loadHtml } from "cheerio";
 import type { SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import { CITY_PENDING } from "../domain/jobLocation";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import type { SourceCrawlPlan } from "./sourcePlan";
 import { ucbOfficialPostedDate } from "./ucbOfficialPostedDate";
 
 export const LILLY_POSTED_DATE_POLICY = "LILLY_CHINA_PHENOM_POSTED_DATE_V1" as const;
 export const LILLY_CITY_SCOPE_POLICY = "LILLY_CHINA_REVIEWED_LOCATION_PENDING_V1" as const;
 export const LILLY_PUBLIC_VISIBILITY_POLICY = "LILLY_CHINA_PUBLIC_VISIBILITY_V1" as const;
+export const LILLY_PHENOM_ONLY_POLICY = "LILLY_CHINA_PHENOM_ONLY_V1" as const;
 export const lillyOfficialPostedDate = ucbOfficialPostedDate;
 
 export function requiresLillyChinaQuality(plan: SourceCrawlPlan): boolean {
   if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "phenom") return false;
   const config = plan.officialJsonFetch;
   return plan.source.id === "source-lilly-china-social" || config.postedDatePolicy === LILLY_POSTED_DATE_POLICY ||
-    config.cityScopePolicy === LILLY_CITY_SCOPE_POLICY || config.publicVisibilityPolicy === LILLY_PUBLIC_VISIBILITY_POLICY;
+    config.cityScopePolicy === LILLY_CITY_SCOPE_POLICY || config.publicVisibilityPolicy === LILLY_PUBLIC_VISIBILITY_POLICY ||
+    config.publicVisibilityPolicy === LILLY_PHENOM_ONLY_POLICY;
+}
+export function isLillyPhenomOnlyPlan(plan: SourceCrawlPlan): boolean {
+  return exactLillyChinaQualityPlan(plan) && plan.adapterId === "official-json" &&
+    plan.officialJsonFetch?.kind === "phenom" && plan.officialJsonFetch.publicVisibilityPolicy === LILLY_PHENOM_ONLY_POLICY;
 }
 export function exactLillyChinaQualityPlan(plan: SourceCrawlPlan): boolean {
   if (plan.adapterId !== "official-json" || plan.officialJsonFetch?.kind !== "phenom") return false;
@@ -25,7 +32,8 @@ export function exactLillyChinaQualityPlan(plan: SourceCrawlPlan): boolean {
     plan.source.officialEntryUrl === "https://careers.lilly.com/us/en/search-results?keywords=China" &&
     plan.source.officialChainEvidenceUrl === "https://careers.lilly.com/global/zh/china" &&
     config.postedDatePolicy === LILLY_POSTED_DATE_POLICY && config.cityScopePolicy === LILLY_CITY_SCOPE_POLICY &&
-    config.publicVisibilityPolicy === LILLY_PUBLIC_VISIBILITY_POLICY && config.countryFilter === "China" &&
+    (config.publicVisibilityPolicy === LILLY_PUBLIC_VISIBILITY_POLICY || config.publicVisibilityPolicy === LILLY_PHENOM_ONLY_POLICY) &&
+    config.countryFilter === "China" &&
     config.detailBaseUrl === "https://careers.lilly.com/us/en/job" && config.pageSize === 50 && config.maxPages === 10 &&
     JSON.stringify(config.allowedApplyOrigins) === JSON.stringify(["https://lilly.wd115.myworkdayjobs.com"]) &&
     exactFields(config, ["kind", "postedDatePolicy", "cityScopePolicy", "publicVisibilityPolicy", "countryFilter", "detailBaseUrl", "pageSize", "maxPages", "allowedApplyOrigins"]) &&
@@ -71,7 +79,10 @@ function officialUrlLocation(raw: Record<string, unknown>): string | undefined {
   let url: URL; try { url = new URL(raw.applyUrl); } catch { return undefined; }
   if (url.origin !== "https://lilly.wd115.myworkdayjobs.com" || url.username || url.password || url.search || url.hash || url.href !== raw.applyUrl) return undefined;
   const match = /^\/LLY\/job\/([^/]+)\/([A-Za-z0-9_-]*)_(R-\d+)(?:-\d+)?\/apply$/u.exec(url.pathname);
-  return match && match[3] === raw.reqId && URL_MAINLAND_LOCATIONS.has(match[1]!) ? match[1] : undefined;
+  return match && match[3] === raw.reqId &&
+    (URL_MAINLAND_LOCATIONS.has(match[1]!) ||
+      /^(?:China|CN)-[A-Za-z-]+$/u.test(match[1]!) && !explicitlyForeignOrNonMainlandLocation(match[1]!.replaceAll("-", " ")))
+    ? match[1] : undefined;
 }
 
 // The exact contextual HQ introduction is company background. Remove only that
@@ -246,8 +257,23 @@ const NATIVE_CITIES: Readonly<Record<string, string>> = {
   "Zhu Hai":"珠海", "Chong Qing":"重庆", "Nan Chang":"南昌", "Fu Zhou - Fu Jian":"福州", "Xia Men":"厦门",
   "Wu Han":"武汉", "Shen Zhen":"深圳", "He Ze":"菏泽", "Shi Jia Zhuang":"石家庄", "An Shan":"鞍山",
   "Cang Zhou":"沧州", "Si Ping":"四平", "Wu Hai":"乌海", "E Er Duo Si":"鄂尔多斯",
-  "Zhu Ma Dian":"驻马店", "Lang Fang":"廊坊", "Ning Bo":"宁波"
+  "Zhu Ma Dian":"驻马店", "Lang Fang":"廊坊", "Ning Bo":"宁波",
+  "Ka Shi":"喀什", "Lan Zhou":"兰州", "Nan Yang":"南阳", "Shanghai-LAL":"上海", "Shanghai":"上海",
+  "Beijing":"北京", "Suzhou":"苏州", "Hangzhou":"杭州", "Nanjing":"南京", "Dalian":"大连",
+  "Ningbo":"宁波", "Zhengzhou":"郑州", "Cangzhou":"沧州"
 };
+
+/** Projects verified Lilly China Phenom list rows directly using structured URL locality tokens without fetching Workday. */
+export function lillyPhenomListProjection(raw: Record<string, unknown>): { cities: string[]; locationRaw: string } | undefined {
+  if (!lillyOfficialCities(raw)) return undefined;
+  const slug = officialUrlLocation(raw);
+  if (!slug) return undefined;
+  const trimmed = slug.replace(/^(?:China|CN)-/u, "").replace(/-+$/u, "");
+  if (!trimmed) return undefined;
+  const spaced = trimmed.replaceAll("-", " ");
+  const city = NATIVE_CITIES[trimmed] ?? NATIVE_CITIES[spaced];
+  return { cities: [city ?? CITY_PENDING], locationRaw: `${spaced}, China` };
+}
 export function lillyNativeDetail(raw: Record<string, unknown>, artifact: SourceFetchArtifactDraft | undefined,
   startedAt: string): {cities: string[]; locationRaw: string} | undefined {
   if (!artifact || !officialUrlLocation(raw) || artifact.logicalKey !== `lilly-detail-${raw.reqId}` ||

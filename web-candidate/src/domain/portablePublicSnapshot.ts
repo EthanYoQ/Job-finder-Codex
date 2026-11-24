@@ -28,7 +28,7 @@ const B_GRADE_PUBLIC_POLICY = "STRICT_PLAN_BOUND_INDEPENDENT_TRAVERSAL_REPLAY_V2
 // Only reviewed source-specific COMPLETE_PAGE_TRAVERSAL integrations are public here.
 const B_GRADE_PUBLIC_CONFIGS: Readonly<Record<string, string>> = Object.freeze(Object.fromEntries(
   buildStagedSourceCrawlPlans(candidateCompanies).filter(plan =>
-    ["source-pfizer-china-social", "source-bayer-healthcare-social", "source-servier-china-social", "source-sanofi-china-social"].includes(plan.source.id) &&
+    ["source-bayer-healthcare-social", "source-servier-china-social", "source-sanofi-china-social"].includes(plan.source.id) &&
     getPortableCoverageScope().requiredSourceIds.includes(plan.source.id) && requiresBGradeTraversalCertificate(plan))
     .map(plan => [plan.source.id, sourcePlanConfigSha256(plan)])));
 interface PublicReceipt {
@@ -36,7 +36,7 @@ interface PublicReceipt {
   policyId?: typeof SOURCE_QUALITY_POLICY_ID;
   observedAt?: string;
   observation?: {crawledAt: string};
-  counts: {finalUniqueJobCount: number; validationDiscardCount: number};
+  counts: {finalUniqueJobCount: number; validationDiscardCount: number;quarantinedJobCount?:number};
   mainTraversal?: {matchKeyKind: string; canonicalMatchKeySetSha256: string};
 }
 type CommittedDelta = Pick<JobProjectionDeltaReceipt, "binding" | "verifiedAt" | "observedAt" | "members">;
@@ -51,7 +51,8 @@ export function compactCommittedCertificate(value: unknown, includeMembers = tru
     legacyCertificate: compactCommittedCertificate(c.legacyCertificate)};
   return {schemaVersion: c.schemaVersion, policyId: c.policyId, observedAt: c.observedAt,
     observation: c.observation && {crawledAt: c.observation.crawledAt},
-    counts: c.counts && {finalUniqueJobCount: c.counts.finalUniqueJobCount, validationDiscardCount: c.counts.validationDiscardCount},
+    counts: c.counts && {finalUniqueJobCount: c.counts.finalUniqueJobCount, validationDiscardCount: c.counts.validationDiscardCount,
+      quarantinedJobCount:c.counts.quarantinedJobCount??(Array.isArray(c.jobQuarantineLedger)?c.jobQuarantineLedger.length:Array.isArray(c.mainTraversal?.jobQuarantine?.ledger)?c.mainTraversal.jobQuarantine.ledger.length:0)},
     mainTraversal: c.mainTraversal && {matchKeyKind: c.mainTraversal.matchKeyKind, canonicalMatchKeySetSha256: c.mainTraversal.canonicalMatchKeySetSha256}};
 }
 
@@ -95,6 +96,7 @@ interface AcceptedPortableSource {
   historicalObservations?: Map<string, AcceptedPortableSource>;
 }
 export interface PortablePublicJob extends DatabaseSearchJobResult {
+  categoryManuallyCorrected?: true;
   companyId: string;
   sourceId: string;
   sourceResultId: string;
@@ -127,13 +129,52 @@ function supportsPublicAGrade(plan: SourceCrawlPlan): boolean {
 }
 /** Merck's reviewed page-capacity change preserves the same China publication scope.
  * Old commits remain readable only under this exact successor; issuer policy stays current. */
+const PFIZER_PRIOR_B_GRADE_HASH = "84aaab8bad3579630eec1b12d3f09236755b3a25d0b7751ca8584a9a53a83413";
+const PRIOR_COMMITTED_CONFIG_HASHES: Readonly<Record<string, { current: string; prior: readonly string[] }>> = Object.freeze({
+  "source-merck-china-social": {
+    current: "1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212",
+    prior: ["3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38"]
+  },
+  "source-roche-china-social": {
+    current: "d84047f262920676132c26481016cff2f60f52565d5389a1a0bf7d8701516d9c",
+    prior: ["d0e8002bbc03e3da46bbb02c30b533b5b968f38ac5db2c357c009de2eb4066ed"]
+  },
+  "source-lilly-china-social": {
+    current: "1869f5510dc347c72a64798730a11434068232a08c5ee4d1870335cf9dad12c6",
+    prior: ["34ac4d47a1b69389e567b53df64062f10ed50a1d34cb0b4876d3c9af85e68c97"]
+  },
+  "source-amgen-china-social": {
+    current: "2ca6edec5291679101ed23f0c3ee0a1963b1d9dee09aab5a63bd95108ad84672",
+    prior: ["1854166be2d563e3e9cc075df017d3f04e1f65e3b06186bb64c95a3c8676f6a6"]
+  },
+  "source-csl-china-social": {
+    current: "deea9515efd3d9327c3dce84aaf48056c2114c037783b21293888b796a182854",
+    prior: ["eb4583bc629171783b293f162837776c6f68e63b7e81cc40540b83aed6e06694"]
+  },
+  "source-pfizer-china-social": {
+    current: "44247af9aeabbb56f362594c2442bf609347ef0754533157fed387bc35bb8e81",
+    prior: [PFIZER_PRIOR_B_GRADE_HASH]
+  },
+  "source-organon-china-social": {
+    current: "7530360f37f40c1df05d41622813666e217f42fb04751d410d42253f543ac8c8",
+    prior: ["d56e212c03224c44b0be11afc07709ae9b2fbfd2a69c24ce773c0f192fa603d2"]
+  }
+});
+
 export function portableCommittedConfigHashes(plan: SourceCrawlPlan): readonly string[] {
   const current = sourcePlanConfigSha256(plan);
-  return plan.source.id === "source-merck-china-social" && current === "1f4b28ecba11e7fd299e51d7cd351529983d086ef18a2b5bd005e431812db212"
-    ? [current, "3bce85185c99c4513a907f87fe3da9e8297392a8e0b9b1c52f57da09f2fe7d38"] : [current];
+  const entry = PRIOR_COMMITTED_CONFIG_HASHES[plan.source.id];
+  return entry && entry.current === current ? [current, ...entry.prior] : [current];
 }
 export function supportsPublicBGrade(plan: SourceCrawlPlan): boolean {
   return B_GRADE_PUBLIC_CONFIGS[plan.source.id] === sourcePlanConfigSha256(plan);
+}
+function isPriorPfizerBGradeCommit(row: PortableSourceResultRow, plan: SourceCrawlPlan, schemaVersion: unknown): boolean {
+  return plan.source.id === "source-pfizer-china-social" &&
+    supportsPublicAGrade(plan) &&
+    row.sourceConfigHash === PFIZER_PRIOR_B_GRADE_HASH &&
+    portableCommittedConfigHashes(plan).includes(row.sourceConfigHash) &&
+    isCurrentBGradeCertificateSchema(schemaVersion);
 }
 function observedAt(receipt: PublicReceipt, row: PortableSourceResultRow): string {
   return receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? receipt.observedAt! :
@@ -168,7 +209,7 @@ function claimedReceipt(row: PortableSourceResultRow, plan: SourceCrawlPlan): bo
   }
   return isJobProjectionDeltaReceipt(receipt) || receipt?.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA || receipt?.policyId === SOURCE_QUALITY_POLICY_ID ||
     receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION && supportsPublicAGrade(plan) ||
-    isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && supportsPublicBGrade(plan);
+    isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && (supportsPublicBGrade(plan) || isPriorPfizerBGradeCommit(row, plan, receipt?.schemaVersion));
 }
 function readCommittedSource(row: PortableSourceResultRow, plan: SourceCrawlPlan, now: Date): AcceptedPortableSource {
   const certificate = compactCommittedCertificate(row.completenessCertificate) as PublicReceipt & CommittedDelta & {legacyCertificate?: PublicReceipt};
@@ -178,7 +219,7 @@ function readCommittedSource(row: PortableSourceResultRow, plan: SourceCrawlPlan
   if (historicalSanofi) assertSanofiHistoricalPublicRow(row, plan);
   const supported = receipt?.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA ? receipt.policyId === getSourceQualityPolicy(plan) :
     receipt?.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? historicalSanofi || supportsPublicAGrade(plan) :
-    isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && supportsPublicBGrade(plan);
+    isCurrentBGradeCertificateSchema(receipt?.schemaVersion) && (supportsPublicBGrade(plan) || isPriorPfizerBGradeCommit(row, plan, receipt?.schemaVersion));
   // Keep the read boundary and current publication rules; COMMITTED owns evidence admission.
   if (!supported || receipt.schemaVersion === BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION && plan.source.id !== "source-bayer-healthcare-social" || row.sourceId !== plan.source.id || (!historicalSanofi && !portableCommittedConfigHashes(plan).includes(row.sourceConfigHash)) ||
       row.batch.id !== row.batchId || row.batch.releaseCandidateId !== row.releaseCandidateId || row.batch.kind !== "SCHEDULED" ||
@@ -237,7 +278,7 @@ export function selectPortableSourceSnapshots(
     const base: PortableSourceSelection = {companyId: plan.company.id, sourceId: plan.source.id, currentConfigSha256, policyId,
       state: "HOLD", health: "UNVERIFIED", freshness: "UNKNOWN", reasons: [], visibilityFloor: null,
       selectedSourceResultId: null, lastAttemptAt: null, lastAcceptedAt: null, lastSuccessAt: null, lastAcceptedJobCount: null, selected: null};
-    const coverageHold = getPortableSourceCoverageHold(plan.source.id);
+    const coverageHold = getPortableSourceCoverageHold(plan.source.id, options.currentTime.getTime());
     if (coverageHold) return {...base, reasons: [coverageHold]};
     if (policyId === null) return {...base, reasons: ["UNSUPPORTED_CURRENT_POLICY"] as PortableSnapshotReason[]};
     const sanofiTransition = isSanofiPublicTransitionPlan(plan);
@@ -271,7 +312,8 @@ export function selectPortableSourceSnapshots(
     if (selected) {
       const {receipt, result} = selected;
       try { bindHistoricalObservations(selected, attempts, plan); } catch { integrityHold = true; }
-      const firstSameSchema = accepted.find(entry => entry.receipt.schemaVersion === receipt.schemaVersion || plan.source.id === "source-bayer-healthcare-social" && [entry.receipt.schemaVersion, receipt.schemaVersion].every(schema => schema === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION || schema === BAYER_COMPACT_CERTIFICATE_SCHEMA_VERSION))!;
+      const firstSameSchema = accepted.find(entry => entry.receipt.schemaVersion === receipt.schemaVersion ||
+        [entry.receipt.schemaVersion, receipt.schemaVersion].every(isCurrentBGradeCertificateSchema))!;
       Object.assign(base, {selected, visibilityFloor: acceptedAt(firstSameSchema), selectedSourceResultId: result.id,
         policyId: receipt.schemaVersion === A_GRADE_COMPLETENESS_CERTIFICATE_SCHEMA_VERSION ? A_GRADE_PUBLIC_POLICY : isCurrentBGradeCertificateSchema(receipt.schemaVersion) ? (receipt.schemaVersion === B_GRADE_TRAVERSAL_CERTIFICATE_SCHEMA_VERSION ? B_GRADE_PUBLIC_POLICY : COMPACT_PUBLIC_POLICY) : receipt.policyId!,
         lastAcceptedAt: acceptedAt(selected), lastSuccessAt: observedAt(receipt, result), lastAcceptedJobCount: receipt.counts.finalUniqueJobCount,
@@ -330,7 +372,7 @@ export function verifiedMembers(selected: NonNullable<PortableSourceSelection["s
       key.startsWith(`${result.sourceId}:`) ? key.slice(result.sourceId.length + 1) : "");
     if (keys.some(key => !key) || hashCanonicalStringSet(keys) !== traversal.canonicalMatchKeySetSha256) throw new Error("PUBLIC_B_GRADE_FINAL_MEMBER_DRIFT");
   }
-  return selected.deltaReceipt || selected.receipt.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA ? sets.VISIBLE : sets.CURRENT;
+  return selected.deltaReceipt || selected.receipt.schemaVersion === SOURCE_QUALITY_RECEIPT_SCHEMA ||(selected.receipt.counts.quarantinedJobCount??0)>0 ? sets.VISIBLE : sets.CURRENT;
 }
 
 function verifiedDeltaMembers(selected: AcceptedPortableSource, members: readonly PortableLifecycleMemberRow[],
@@ -407,7 +449,8 @@ export function projectPortableSourceJobs(
       output.jobs.push({id: row.id, companyId: row.companyId, sourceId: row.sourceId, sourceResultId: selected.result.id,
         title: row.humanCorrectedTitle || row.auxiliaryChineseTitle || row.officialTitle, officialTitle: row.officialTitle,
         officialPublishedAt: row.officialPublishedAt?.toISOString() ?? null, city: row.city, cities: [...row.cities], locationRaw: row.locationRaw,
-        category: fromPrismaJobCategory(row.humanCorrectedCategory ?? row.category), isNew: row.isNew, officialUrl: row.officialUrl,
+        category: fromPrismaJobCategory(row.humanCorrectedCategory ?? row.category),
+        ...(row.humanCorrectedCategory != null ? {categoryManuallyCorrected: true as const} : {}), isNew: row.isNew, officialUrl: row.officialUrl,
         lastSeenAt, ...(deltaMember ? {lastConfirmedObservedAt: deltaMember.lastConfirmedObservedAt} : {}), inGrace: missingCount === 1});
     }
     output.jobs.sort((a, b) => compare(a.id, b.id));

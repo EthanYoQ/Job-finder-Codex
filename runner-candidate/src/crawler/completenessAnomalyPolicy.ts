@@ -1,4 +1,5 @@
 import type { SourceCrawlPlan } from "./sourcePlan";
+import {jobQuarantineLossesMatch} from './jobQuarantine';
 import type { SourceCrawlResult } from "./runSourceCrawl";
 
 export const DEFAULT_COMPLETENESS_DROP_PERCENT = 40;
@@ -329,7 +330,8 @@ export function evaluateCompletenessAnomalyForCrawl(
     : undefined;
   return evaluateCompletenessAnomaly({
     baseline,
-    currentJobCount: result.jobs.length,
+    // Isolation reduces new writes, not the inventory observed on the complete list.
+    currentJobCount: result.jobs.length+(result.truth.completenessVerified&&result.fetchEvidence&&jobQuarantineLossesMatch(result.fetchEvidence)?result.fetchEvidence.jobQuarantines!.length:0),
     ...(result.paginationEvaluation ? {
       paginationAnomalyCodes: result.paginationEvaluation.derivedAnomalyCodes
     } : {}),

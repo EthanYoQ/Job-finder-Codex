@@ -1,4 +1,7 @@
 import { fetchPfizerWorkdayTraversal, PFIZER_TRAVERSAL_POLICY } from "./pfizerWorkdayTraversal";
+import {hasWorkdayJobQuarantine,isolateWorkdayJobRows,workdayRawObservationId} from './workdayJobQuarantine';
+import {JOB_QUARANTINE_PAGINATION} from './jobQuarantine';
+import type {MainlandWorkdayRow} from './workdayMainlandQuality';
 import { exactWorkdayMainlandQualityPlan, requiresWorkdayMainlandQuality, parseWorkdayMainlandRow, projectWorkdayMainlandRow,
   projectWorkdayMainlandEvidence, workdayMainlandDetailUrl, workdayMainlandDetailLocator, fetchWorkdayMainlandHttp,
   WORKDAY_MAINLAND_BODY_LIMIT, WORKDAY_MAINLAND_DETAIL_BODY_LIMIT, WORKDAY_MAINLAND_SOURCE_BODY_LIMIT, WORKDAY_MAINLAND_MAX_DETAILS, type AMGEN_MAINLAND_POLICY, type CSL_MAINLAND_POLICY } from "./workdayMainlandQuality";
@@ -17,11 +20,14 @@ import {
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
 import {
+  parseOfficialRetryAfter,
   retryableHttpTransportFailure,
   retryableTransportFailureFromError,
   safeSourceTransportFailureReason,
+  type OfficialRetryAfter,
   type SourceTransportFailure
 } from "./sourceFetchFailure";
+import { isWorkdayCooldownError, workdayRetryAfterHeader } from "./workdayRequestPolicy";
 
 export interface WorkdayFetchConfig {
   traversalScopePolicy?: typeof PFIZER_TRAVERSAL_POLICY;
@@ -99,6 +105,7 @@ export interface WorkdayHttpResponse {
   finalUrl?: string;
   contentType?: string;
   capturedAt?: string;
+  retryAfter?: OfficialRetryAfter;
 }
 
 export type WorkdayHttpClient = (request: WorkdayHttpRequest) => Promise<WorkdayHttpResponse>;
@@ -663,6 +670,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       const artifacts: SourceFetchArtifactDraft[] = [];
       const pages: SourceFetchPageTrace[] = [];
       let mainlandRetainedBytes = 0, mainlandDetailCount = 0;
+      const pendingMainland:Array<{row:MainlandWorkdayRow;pageSequence:number;recordIndex:number;rawLocator:string;capturedAt:string}>=[];
       const fetchLosses: PersistentSourceFetchEvidence["fetchLosses"] = [];
       const pageSize = normalizePageSize(plan.workday.pageSize);
       const maxPages = Math.max(1, plan.workday.maxPages ?? DEFAULT_MAX_PAGES);
@@ -703,7 +711,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         });
         const preflight = await http(preflightRequest);
         if (preflight.status < 200 || preflight.status >= 300) {
-          const transportFailure = retryableHttpTransportFailure(preflight.status);
+          const transportFailure = retryableHttpTransportFailure(preflight.status, preflight.retryAfter);
           return failed(capturedAt, transportFailure
             ? safeSourceTransportFailureReason(transportFailure)
             : `Workday jobs API returned HTTP ${preflight.status}`, undefined, undefined, transportFailure);
@@ -744,7 +752,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         });
         const facetPreflight = await http(facetPreflightRequest);
         if (facetPreflight.status < 200 || facetPreflight.status >= 300) {
-          const transportFailure = retryableHttpTransportFailure(facetPreflight.status);
+          const transportFailure = retryableHttpTransportFailure(facetPreflight.status, facetPreflight.retryAfter);
           return failed(capturedAt, transportFailure
             ? safeSourceTransportFailureReason(transportFailure)
             : `Workday jobs API returned HTTP ${facetPreflight.status}`, undefined, undefined, transportFailure);
@@ -814,16 +822,16 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           latestEvidence = workdayInPageFailureEvidence({ artifacts, pages, artifactLogicalKey, pageIndex, offset, pageSize,
             rawJobIds: [], validJobIds: [], declaredTotal: undefined, response, rawCount, parsedCount, validCount,
             parseDiscardCount, validationDiscardCount, fetchLosses });
-          if (response.status !== 200 || response.finalUrl !== url || !/^application\/json(?:\s*;|$)/iu.test(response.contentType ?? "")) {
-            return failed(capturedAt, "Workday mainland list HTTP status, URL or content type is invalid", latestEvidence);
+          if (response.status === 200 && (response.finalUrl !== url || !/^application\/json(?:\s*;|$)/iu.test(response.contentType ?? ""))) {
+            return failed(capturedAt, "Workday mainland list URL or content type is invalid", latestEvidence);
           }
         }
 
-        if (response.status < 200 || response.status >= 300) {
-          const transportFailure = retryableHttpTransportFailure(response.status);
+        if (mainlandQuality ? response.status !== 200 : response.status < 200 || response.status >= 300) {
+          const transportFailure = retryableHttpTransportFailure(response.status, response.retryAfter);
           return failed(capturedAt, transportFailure
             ? safeSourceTransportFailureReason(transportFailure)
-            : `Workday jobs API returned HTTP ${response.status}`, undefined, undefined, transportFailure);
+            : `Official JSON source returned HTTP ${response.status}`, latestEvidence, undefined, transportFailure);
         }
 
         assertEvidenceResponse(response);
@@ -888,7 +896,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         for (let recordIndex = 0; recordIndex < parsed.jobPostings.length; recordIndex += 1) {
           const raw = parsed.jobPostings[recordIndex];
           const rawLocator = workdayRawLocator(raw, artifactLogicalKey, pageIndex, recordIndex);
-          rawJobIds.push(irreversibleEvidenceId(raw));
+          rawJobIds.push(hasWorkdayJobQuarantine(plan)?workdayRawObservationId(plan,raw,pageIndex,recordIndex):irreversibleEvidenceId(raw));
           rawCount += 1;
           if (!isRecord(raw) || Array.isArray(raw)) {
             parseDiscardCount += 1;
@@ -957,40 +965,18 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           }
           let normalized: ReturnType<typeof enrichWorkdayJob>;
           if (mainlandQuality) {
-            let detailResponse: WorkdayHttpResponse | undefined;
             try {
-              currentOfficialSourceAttemptSignal()?.throwIfAborted();
               const row = parseWorkdayMainlandRow(plan, raw);
               if (!row) throw Error("List identity, fields or mainland location are unresolved");
-              if (row.requiresDetail) {
-                if (!detailHttp) throw Error("An injected Workday POST transport requires an explicit detail client");
-                if (mainlandDetailCount >= WORKDAY_MAINLAND_MAX_DETAILS) throw Error("Workday mainland required detail count budget exceeded");
-                mainlandDetailCount += 1;
-                const detailUrl = workdayMainlandDetailUrl(plan, row);
-                detailResponse = await requestWorkdayDetail({ http: detailHttp, url: detailUrl, referer: plan.source.officialEntryUrl });
-                currentOfficialSourceAttemptSignal()?.throwIfAborted();
-                const bytes = Buffer.byteLength(detailResponse.body, "utf8");
-                if (bytes > WORKDAY_MAINLAND_DETAIL_BODY_LIMIT || mainlandRetainedBytes + bytes > WORKDAY_MAINLAND_SOURCE_BODY_LIMIT) throw Error("Workday mainland detail/source body byte budget exceeded");
-                mainlandRetainedBytes += bytes;
-                artifacts.push(workdayArtifact(`workday-detail-${String(pageIndex).padStart(4, "0")}-${String(recordIndex).padStart(4, "0")}`,
-                  "ATS_API_RESPONSE", detailUrl, detailResponse, workdayMainlandDetailLocator(plan, row, pageIndex, recordIndex)));
-                if (detailResponse.status !== 200 || detailResponse.finalUrl !== detailUrl ||
-                  !/^application\/json(?:\s*;|$)/iu.test(detailResponse.contentType ?? "")) throw Error("Detail HTTP status, final URL or content type is invalid");
-              }
-              const projected = projectWorkdayMainlandRow(plan, row, detailResponse?.body);
-              if (!projected) throw Error("Detail identity, posting state, country or complete locations are unresolved");
-              const { locations: _locations, ...job } = projected;
-              normalized = [job];
-            } catch (error) {
+              pendingMainland.push({row,pageSequence:pageIndex,recordIndex,rawLocator,capturedAt:response.capturedAt!});
+              validCount++;validJobIds.push(irreversibleEvidenceId(sourceJobId(row.path)));
+            } catch {
               validationDiscardCount += 1;
               fetchLosses.push({ stage: "VALIDATION", reason: "Workday mainland row or required detail validation failed", rawLocator,
                 details: { code: "MAINLAND_DETAIL_VALIDATION_FAILED", pageSequence: pageIndex, recordIndex },
-                recordedAt: detailResponse?.capturedAt ?? response.capturedAt });
-              latestEvidence = workdayInPageFailureEvidence({ artifacts, pages, artifactLogicalKey, pageIndex, offset, pageSize,
-                rawJobIds, validJobIds, declaredTotal: parsed.total, response, rawCount, parsedCount, validCount,
-                parseDiscardCount, validationDiscardCount, fetchLosses });
-              return failed(capturedAt, `Workday mainland quality validation failed: ${error instanceof Error ? error.message : String(error)}`, latestEvidence);
+                recordedAt: response.capturedAt });
             }
+            continue;
           } else if (!hasRecordLevelChinaEvidence(raw, plan.workday.cityHints)) {
             const opaqueLocationCount = exactOpaqueMultiLocationCount(raw.locationsText);
             if (opaqueMultiLocationDetailPolicy && opaqueLocationCount !== undefined) {
@@ -1144,8 +1130,36 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         }
       }
 
+      // Close the original list before requesting native details.
+      let detailAccessFailure: WorkdayHttpResponse | undefined;
+      for(const {row,pageSequence,recordIndex,rawLocator,capturedAt:listedAt} of pendingMainland){
+        let detailResponse:WorkdayHttpResponse|undefined;
+        try{
+          if(row.requiresDetail){
+            if(detailAccessFailure||!detailHttp)throw Error('WORKDAY_DETAIL_UNAVAILABLE');
+            currentOfficialSourceAttemptSignal()?.throwIfAborted();
+            if(mainlandDetailCount>=WORKDAY_MAINLAND_MAX_DETAILS)throw Error('WORKDAY_DETAIL_BUDGET');mainlandDetailCount++;
+            const detailUrl=workdayMainlandDetailUrl(plan,row);
+            detailResponse=await requestWorkdayDetail({http:detailHttp,url:detailUrl,referer:plan.source.officialEntryUrl});
+            if(detailResponse.status===403||detailResponse.status===429)detailAccessFailure=detailResponse;
+            const bytes=Buffer.byteLength(detailResponse.body,'utf8');
+            if(bytes>WORKDAY_MAINLAND_DETAIL_BODY_LIMIT||mainlandRetainedBytes+bytes>WORKDAY_MAINLAND_SOURCE_BODY_LIMIT)throw Error('WORKDAY_DETAIL_BUDGET');
+            mainlandRetainedBytes+=bytes;
+            artifacts.push(workdayArtifact(`workday-detail-${String(pageSequence).padStart(4,'0')}-${String(recordIndex).padStart(4,'0')}`,'ATS_API_RESPONSE',detailUrl,detailResponse,workdayMainlandDetailLocator(plan,row,pageSequence,recordIndex)));
+            if(detailResponse.status!==200||detailResponse.finalUrl!==detailUrl||!/^application\/json(?:\s*;|$)/iu.test(detailResponse.contentType??''))throw Error('WORKDAY_DETAIL_UNAVAILABLE');
+          }
+          const projected=projectWorkdayMainlandRow(plan,row,detailResponse?.body);if(!projected)throw Error('WORKDAY_DETAIL_UNVERIFIED');
+          const {locations:_locations,...job}=projected;if(emittedCredentialField(job))throw Error('WORKDAY_UNSAFE_ROW');
+          jobs.push(job);
+        }catch(error){
+          if (isWorkdayCooldownError(error)) throw error;
+          validCount--;pages[pageSequence]!.validJobIds=pages[pageSequence]!.validJobIds.filter(id=>id!==irreversibleEvidenceId(sourceJobId(row.path)));
+          validationDiscardCount++;fetchLosses.push({stage:'VALIDATION',reason:'Workday mainland row or required detail validation failed',rawLocator,
+            details:{code:'MAINLAND_DETAIL_VALIDATION_FAILED',pageSequence,recordIndex},recordedAt:detailResponse?.capturedAt??listedAt});
+        }
+      }
       const firstOfficialTotalPage = pages.find((page) => page.declaredTotal !== null && page.declaredTotal !== undefined);
-      const rawEvidence = parsePersistentSourceFetchEvidence({
+      const rawEvidence = isolateWorkdayJobRows(plan,parsePersistentSourceFetchEvidence({
         captureTool: { name: "job-search-workday-fetch", version: "1" },
         artifacts,
         pages,
@@ -1164,7 +1178,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
           : {}),
         fetchCounts: { rawCount, parsedCount, validCount, parseDiscardCount, validationDiscardCount },
         fetchLosses
-      });
+      }));
       latestEvidence = rawEvidence;
       const allowLaterZeroDeclaredTotalAfterExactReconciliation = allowsAuditedLaterZeroTotal && sawLaterZeroTotal &&
         strictLaterZeroPageEnvelopes && expectedJobCount !== undefined && expectedJobCount > 0;
@@ -1172,6 +1186,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         evidence: rawEvidence,
         expectedChannelIds: [],
         filteredOutput: Object.keys(appliedFacets).length > 0 || Boolean(searchText),
+        ...(rawEvidence.jobQuarantines?.length?JOB_QUARANTINE_PAGINATION:{}),
         ...(allowLaterZeroDeclaredTotalAfterExactReconciliation
           ? { allowLaterZeroDeclaredTotalAfterExactReconciliation: true }
           : {})
@@ -1181,11 +1196,18 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
         evidence,
         expectedChannelIds: [],
         filteredOutput: Object.keys(appliedFacets).length > 0 || Boolean(searchText),
+        ...(rawEvidence.jobQuarantines?.length?JOB_QUARANTINE_PAGINATION:{}),
         ...(allowLaterZeroDeclaredTotalAfterExactReconciliation
           ? { allowLaterZeroDeclaredTotalAfterExactReconciliation: true }
           : {})
       });
       latestEvaluation = paginationEvaluation;
+      if (detailAccessFailure && validCount === 0) {
+        const transportFailure = retryableHttpTransportFailure(detailAccessFailure.status, detailAccessFailure.retryAfter);
+        return failed(capturedAt, transportFailure
+          ? safeSourceTransportFailureReason(transportFailure)
+          : `Official JSON source returned HTTP ${detailAccessFailure.status}`, evidence, paginationEvaluation, transportFailure);
+      }
       if (mainlandQuality && !projectWorkdayMainlandEvidence(plan, evidence)) {
         return failed(capturedAt, "Workday mainland raw rows, countries, alternatives, totals or details did not reconcile; complete source held", evidence, paginationEvaluation);
       }
@@ -1255,7 +1277,7 @@ export function createWorkdaySourceFetch(deps: WorkdaySourceFetchDeps = {}): Sou
       const transportFailure = retryableTransportFailureFromError(error);
       return failed(
         capturedAt,
-        transportFailure
+        isWorkdayCooldownError(error) ? error.message : transportFailure
           ? safeSourceTransportFailureReason(transportFailure)
           : error instanceof Error ? error.message : String(error),
         latestEvidence,
@@ -1664,16 +1686,7 @@ async function defaultWorkdayHttpClient(
     headers: request.headers,
     body: request.body
   });
-
-  return {
-    status: response.status,
-    body: await response.text(),
-    finalUrl: response.url,
-    ...(response.headers.get("content-type")
-      ? { contentType: response.headers.get("content-type")! }
-      : {}),
-    capturedAt: new Date().toISOString()
-  };
+  return readWorkdayHttpResponse(response);
 }
 
 async function defaultWorkdayDetailHttpClient(
@@ -1683,13 +1696,18 @@ async function defaultWorkdayDetailHttpClient(
     method: request.method,
     headers: request.headers
   });
+  return readWorkdayHttpResponse(response);
+}
+
+async function readWorkdayHttpResponse(response: Response): Promise<WorkdayHttpResponse> {
+  const retryAfter = parseOfficialRetryAfter(workdayRetryAfterHeader(response), Date.now());
+  const contentType = response.headers.get("content-type");
   return {
     status: response.status,
     body: await response.text(),
     finalUrl: response.url,
-    ...(response.headers.get("content-type")
-      ? { contentType: response.headers.get("content-type")! }
-      : {}),
+    ...(contentType ? { contentType } : {}),
+    ...(retryAfter ? { retryAfter } : {}),
     capturedAt: new Date().toISOString()
   };
 }

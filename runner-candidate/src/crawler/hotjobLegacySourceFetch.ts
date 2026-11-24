@@ -20,12 +20,16 @@ import {
   type HotjobEvidenceState
 } from "./hotjobEvidence";
 import {
+  sanitizeEvidenceHttpUrl,
   type PersistentSourceFetchEvidence,
   type SourceFetchPageTrace
 } from "./sourceFetchEvidence";
 import type { PaginationEvaluation } from "./paginationEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import type { NormalizedJobRecord } from "./normalizedJob";
+import {isDeepStrictEqual} from 'node:util';
+import {quarantineFetchLosses,jobQuarantineLossesMatch,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
+import {deriveCanonicalPaginationEvidence,evaluatePaginationEvidence} from './paginationEvidence';
 
 export interface HotjobLegacyFetchConfig {
   listUrl: string;
@@ -262,7 +266,15 @@ export function createHotjobLegacySourceFetch(deps: HotjobLegacySourceFetchDeps 
       }
 
       const declared = declaredLegacyCompleteness(state, officialRowCount, officialTotalPages);
-      const finalized = finalizeHotjobEvidence({ state, ...(declared ? { declaredCompleteness: declared } : {}) });
+      const rawFinalized = finalizeHotjobEvidence({ state, ...(declared ? { declaredCompleteness: declared } : {}) });
+      const isolated=quarantineFetchLosses(rawFinalized.evidence,loss=>{
+        const sequence=loss.details.pageSequence,index=loss.details.recordIndex;
+        if(sequence===undefined||index===undefined||loss.details.code.startsWith('DUPLICATE_'))return undefined;
+        const page=rawFinalized.evidence.pages[sequence]!,artifact=rawFinalized.evidence.artifacts.find(a=>a.logicalKey===page.artifactLogicalKey)!;
+        return legacyJobQuarantine(plan,parseResponse(artifact.body as string).details[index],sequence,index,page.artifactLogicalKey,loss.details.code);
+      });
+      const evidence=deriveCanonicalPaginationEvidence({evidence:isolated,expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION});
+      const finalized={evidence,evaluation:evaluatePaginationEvidence({evidence,expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION})};
       latestEvidence = finalized.evidence;
       latestEvaluation = finalized.evaluation;
       if (!finalized.evaluation.safeCompleteness) {
@@ -408,8 +420,8 @@ export function validateStrictHotjobLegacyEvidence(
   try {
     if (plan.adapterId !== "official-json" || plan.executionAuthority !== "STAGED" ||
       !plan.hotjobLegacy || plan.hotjobLegacy.paginationMode !== "query-page" ||
-      evidence.supportingArtifactOnlyFailure || evidence.fetchLosses.length !== 0 ||
-      evidence.fetchCounts.parseDiscardCount !== 0 || evidence.fetchCounts.validationDiscardCount !== 0 ||
+      evidence.supportingArtifactOnlyFailure ||(evidence.fetchLosses.length>0&&!jobQuarantineLossesMatch(evidence))||
+      evidence.fetchLosses.some(loss=>loss.details.code!=='JOB_QUARANTINED')||evidence.fetchCounts.parseDiscardCount!==0||evidence.fetchCounts.validationDiscardCount!==(evidence.jobQuarantines?.length??0)||
       evidence.pages.length === 0 || evidence.artifacts.length !== evidence.pages.length) return false;
     const declaration = evidence.declaredCompleteness;
     if (declaration?.kind !== "OFFICIAL_TOTAL_COUNT" || declaration.scope !== "SOURCE" ||
@@ -434,7 +446,7 @@ export function validateStrictHotjobLegacyEvidence(
         (parsed.rowSize !== undefined && parsed.rowSize !== pageSize) ||
         artifact.extractorLocator !== legacyLocator(artifact.logicalKey, index + 1, pageSize, parsed) ||
         page.declaredTotal !== declaration.value || page.declaredPages !== parsed.totalPages ||
-        page.rawJobIds.length !== parsed.details.length || page.validJobIds.length !== parsed.details.length) return false;
+        page.rawJobIds.length !== parsed.details.length) return false;
       totalPages = parsed.totalPages;
       const rawIds: string[] = [];
       const validIds: string[] = [];
@@ -443,11 +455,14 @@ export function validateStrictHotjobLegacyEvidence(
         const officialId = readOfficialId(raw);
         const title = isRecord(raw) ? readString(raw.PostName) ?? readString(raw.postName) : undefined;
         const locationRaw = isRecord(raw) ? readString(raw.WorkPlace) ?? readString(raw.workPlace) : undefined;
+        rawIds.push(irreversibleHotjobId([officialId, recordIndex, raw]));
+        const quarantine=evidence.jobQuarantines?.find(q=>q.pageSequence===index&&q.recordIndex===recordIndex);
         if (!officialId || !title || !locationRaw || !safeHotjobOfficialId(officialId) ||
           explicitlyOutsideChina(locationRaw) || sensitiveOutputField({ sourceJobId: officialId, title, locationRaw })) {
-          return false;
+          if(!quarantine||!isDeepStrictEqual(quarantine,legacyJobQuarantine(plan,raw,index,recordIndex,page.artifactLogicalKey,quarantine.code)))return false;
+          continue;
         }
-        rawIds.push(irreversibleHotjobId([officialId, recordIndex, raw]));
+        if(quarantine)return false;
         validIds.push(irreversibleHotjobId(officialId));
         expectedJobs.push({
           sourceJobId: persistentHotjobId(officialId),
@@ -462,7 +477,7 @@ export function validateStrictHotjobLegacyEvidence(
     }
     if (totalPages !== evidence.pages.length || rawCount !== declaration.value ||
       evidence.fetchCounts.rawCount !== rawCount || evidence.fetchCounts.parsedCount !== rawCount ||
-      evidence.fetchCounts.validCount !== rawCount || declaration.artifactLogicalKey !== evidence.pages[0]!.artifactLogicalKey ||
+      evidence.fetchCounts.validCount !== expectedJobs.length||expectedJobs.length+(evidence.jobQuarantines?.length??0)!==rawCount||declaration.artifactLogicalKey !== evidence.pages[0]!.artifactLogicalKey ||
       declaration.extractorLocator !== evidence.artifacts.find(
         (artifact) => artifact.logicalKey === declaration.artifactLogicalKey
       )?.extractorLocator || outputJobs.length !== expectedJobs.length) return false;
@@ -475,6 +490,12 @@ export function validateStrictHotjobLegacyEvidence(
   } catch {
     return false;
   }
+}
+
+function legacyJobQuarantine(plan:Parameters<SourceFetchFunction>[0],raw:unknown,pageSequence:number,recordIndex:number,pageKey:string,code:string):JobQuarantine{
+  const id=readOfficialId(raw),known=id&&safeHotjobOfficialId(id)&&!sensitiveOutputField({id})?id:undefined;
+  return {pageSequence,recordIndex,rawLocator:hotjobRawLocator(raw,pageKey,pageSequence,recordIndex),code,validJobId:known?irreversibleHotjobId(known):`unidentified:${pageSequence}:${recordIndex}`,
+    ...(known?{sourceJobId:persistentHotjobId(known),officialUrl:sanitizeEvidenceHttpUrl(legacyDetailUrl(plan,safeEntryUrl(plan.source.officialEntryUrl),known))}:{})};
 }
 
 // The CR Pharma native renderer uses this route, not the generic SPA fragment.

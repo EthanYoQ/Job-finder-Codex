@@ -1,25 +1,68 @@
+import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
+import { reviewedMainlandCityLabel } from "./reviewedMainlandCity";
+import { CITY_PENDING } from "../domain/jobLocation";
 import { createHash } from "node:crypto";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import { validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
 import { parsePersistentSourceFetchEvidence, sanitizeEvidenceHttpUrl, type PersistentSourceFetchEvidence, type SourceFetchArtifactDraft } from "./sourceFetchEvidence";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { BI_API_URL, BI_DETAIL_URL, BI_ENTRY_URL, BI_SCRIPT_URL, BI_UI_RECONSTRUCTION_POLICY, replayBiUiSemanticContract } from "./biUiSemanticContract";
+import {jobQuarantineLoss,quarantineIndependentRows,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
+import {evaluatePaginationEvidence} from './paginationEvidence';
+import type {SourceFetchResult} from './runSourceCrawl';
+import {irreversibleOfficialJsonEvidenceId,officialJsonRawLocator,persistentOfficialJsonJobId} from './officialJsonEvidence';
 
 const SOURCE = "source-boehringer-ingelheim-china-social";
 const COMPANY = "company-boehringer-ingelheim-china";
 const CHAIN = "https://www.boehringer-ingelheim.cn/careers/jobs";
 const API_LOCATOR = "51job-coapi-v1|jsonp:$.resultbody.joblist|total:$.resultbody.totalnum|ui:sxsPosCode";
-// Exact labels from the 2026-10-01, 2026-10-18 and 2026-10-29 captures, reviewed against the existing
-// mainland prefecture vocabulary. No prefixes, suffix stripping or runtime extension.
-const FULL_MAINLAND_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  "上海": "Shanghai", "信阳": "Xinyang", "北京": "Beijing", "南昌": "Nanchang",
-  "成都": "Chengdu", "杭州": "Hangzhou", "武汉": "Wuhan", "泰州": "Taizhou",
-  "秦皇岛": "Qinhuangdao", "银川": "Yinchuan", "长沙": "Changsha", "驻马店": "Zhumadian",
-  "六安": "Luan", "宿州": "Suzhou", "漯河": "Luohe",
-  "合肥": "Hefei", "乌鲁木齐": "Urumqi", "张掖": "Zhangye"
-});
-const ROW_FIELDS = "address coid coname ctmid degreefrom divid divname edegreefrom efuntype ejobareaname eworkareaname eworkyearname funtype issuedate jkeyword jobareaname jobid jobname jobnum joborder monthlysalary poscode providesalarname term workareaname workyearname".split(" ");
 const MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
+
+export function biJobId(raw:unknown):string|undefined{
+  return record(raw)&&id(raw.jobid)?raw.jobid as string:undefined;
+}
+export function biRawObservationId(raw:unknown,index:number):string{
+  return irreversibleOfficialJsonEvidenceId(biJobId(raw)??[index,raw]);
+}
+export function biJobQuarantine(raw:unknown,index:number,domCode?:'BI_DOM_ROW_UNVERIFIED'|'BI_DOM_IDENTITY_UNRESOLVED'):JobQuarantine|undefined{
+  if(!domCode&&record(raw)&&raw.ctmid==='3479'&&text(raw.jobname)&&biJobId(raw)&&id(raw.coid)&&text(raw.coname)&&hasBiMainlandGeography(raw))return;
+  const jobId=biJobId(raw),bound=domCode!=='BI_DOM_IDENTITY_UNRESOLVED',sourceJobId=jobId?persistentOfficialJsonJobId(jobId):undefined;
+  const url=jobId?new URL(BI_DETAIL_URL):undefined;if(url)url.searchParams.set('jobId',jobId!);
+  return {pageSequence:0,recordIndex:index,rawLocator:officialJsonRawLocator(raw,index),code:domCode??'BI_JOB_ROW_UNVERIFIED',
+    validJobId:sourceJobId?irreversibleOfficialJsonEvidenceId(sourceJobId):`unidentified:0:${index}`,
+    ...(sourceJobId&&bound?{sourceJobId}:{}),...(url&&bound?{officialUrl:sanitizeEvidenceHttpUrl(url.href)}:{})};
+}
+
+/** Supplemental DOM defects keep the same native API positions and original bodies. */
+export function isolateBiDomJobs(fetched:SourceFetchResult,failedIndices:readonly number[],unboundIndices:readonly number[]):SourceFetchResult{
+ if(!fetched.ok||!fetched.fetchEvidence||!failedIndices.length)return fetched;
+ const evidence=fetched.fetchEvidence,api=evidence.artifacts.find(a=>a.logicalKey==='51job-page-0001')!;
+ const raw=JSON.parse(/^\s*jsoncallback\((.*)\)\s*;?\s*$/s.exec(String(api.body))![1]!).resultbody.joblist;
+ const added=[...new Set(failedIndices)].map(index=>biJobQuarantine(raw[index],index,unboundIndices.includes(index)?'BI_DOM_IDENTITY_UNRESOLVED':undefined)??biJobQuarantine(raw[index],index,'BI_DOM_ROW_UNVERIFIED')!);
+ const reviewed=quarantineIndependentRows(evidence,added),held=new Set(added.flatMap(q=>{const id=biJobId(raw[q.recordIndex]);return id?[persistentOfficialJsonJobId(id)]:[];}));
+ reviewed.fetchLosses.sort((a,b)=>(a.details.recordIndex??0)-(b.details.recordIndex??0));
+ const payload='payload'in fetched?fetched.payload as {jobs:Array<{sourceJobId:string}>}:undefined;
+ return {...fetched,...(payload?{payload:{...payload,jobs:payload.jobs.filter(job=>!held.has(job.sourceJobId))}}:{}),fetchEvidence:reviewed,
+  paginationEvaluation:evaluatePaginationEvidence({evidence:reviewed,expectedChannelIds:[],filteredOutput:true,...JOB_QUARANTINE_PAGINATION})};
+}
+
+export function hasBiMainlandGeography(raw: Record<string, unknown>): boolean {
+  if (typeof raw.jobareaname !== "string" || !raw.jobareaname.trim() ||
+    [raw.jobareaname, raw.workareaname, raw.ejobareaname, raw.eworkareaname].some(value =>
+      typeof value === "string" && explicitlyForeignOrNonMainlandLocation(value.replace(/[·・]/gu, ",")))) return false;
+  // CoAPI's per-job address can prove a province/country without naming a canonical city.
+  return hasExactFosunMainlandGeography({ LocNames: [raw.jobareaname] }) ||
+    hasExactFosunMainlandGeography({ LocNames: [raw.address] });
+}
+
+export function biDisplayCities(raw: Record<string, unknown>): string[] {
+  if (raw.workareaname !== undefined && raw.workareaname !== raw.jobareaname ||
+    raw.eworkareaname !== undefined && raw.eworkareaname !== raw.ejobareaname) return [CITY_PENDING];
+  const cities=mainlandDisplayCities([String(raw.jobareaname)]);
+  const english=reviewedMainlandCityLabel(String(raw.ejobareaname),"China");
+  return cities.length===1 && cities[0]===english ? cities : [CITY_PENDING];
+}
 
 export interface BiSemanticReplay {
   policyId: typeof BI_UI_RECONSTRUCTION_POLICY;
@@ -84,19 +127,24 @@ export function replayBiSemanticCompleteness(
     if (!same(evidence.declaredCompleteness, { kind: "OFFICIAL_TOTAL_COUNT", value: total,
       artifactLogicalKey: api.logicalKey, extractorLocator: api.extractorLocator, scope: "SOURCE" })) return undefined;
     const rawIds: string[] = [], validIds: string[] = [], excludedRecordIndexes: number[] = [];
-    const expected = new Map<string, { title: string; location: string; url: string }>();
+    const expected = new Map<string, { title: string; location: string; cities: string[]; url: string }>();
     const seen = new Set<string>();
     const losses: PersistentSourceFetchEvidence["fetchLosses"] = [];
+    const quarantines:JobQuarantine[]=[];
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index];
-      if (!record(row) || !exactKeys(row, ROW_FIELDS) || Object.values(row).some(v => typeof v !== "string") ||
+      const rawId=biJobId(row);if(rawId){if(seen.has(rawId))return;seen.add(rawId);}
+      rawIds.push(biRawObservationId(row,index));
+      const held=evidence.jobQuarantines?.find(q=>q.pageSequence===0&&q.recordIndex===index);
+      const domCode=held?.code==='BI_DOM_ROW_UNVERIFIED'||held?.code==='BI_DOM_IDENTITY_UNRESOLVED'?held.code:undefined;
+      const quarantine=biJobQuarantine(row,index,domCode);
+      if(quarantine){quarantines.push(quarantine);losses.push(jobQuarantineLoss(quarantine,api.capturedAt));continue;}
+      if (!record(row) ||
           row.ctmid !== "3479" || !text(row.jobname) || !id(row.jobid) || !id(row.coid) || !text(row.coname) ||
-          seen.has(row.jobid as string)) return undefined;
+          !rawId) return undefined;
       const location = row.jobareaname as string;
-      const english = Object.hasOwn(FULL_MAINLAND_LABELS, location) ? FULL_MAINLAND_LABELS[location] : undefined;
-      if (!english || row.workareaname !== location || row.ejobareaname !== english || row.eworkareaname !== english) return undefined;
+      if (!hasBiMainlandGeography(row)) return undefined;
       const jobId = row.jobid as string;
-      seen.add(jobId); rawIds.push(`sha256:${hash(JSON.stringify(jobId))}`);
       if (ui.exclusions.some(rule => (row.jobname as string).includes(rule.code) && location.includes(rule.jobareaname))) {
         excludedRecordIndexes.push(index);
         losses.push({ stage: "VALIDATION", reason: "51job record excluded by official recruitment UI",
@@ -106,12 +154,13 @@ export function replayBiSemanticCompleteness(
         const sourceId = `official-json:sha256:${hash(JSON.stringify(jobId))}`;
         validIds.push(`sha256:${hash(JSON.stringify(sourceId))}`);
         const url = new URL(BI_DETAIL_URL); url.searchParams.set("jobId", jobId);
-        expected.set(sourceId, { title: clean(row.jobname as string), location, url: url.toString() });
+        expected.set(sourceId, { title: clean(row.jobname as string), location, cities:biDisplayCities(row), url: url.toString() });
       }
     }
     if (!sameSet(rawIds, page.rawJobIds) || !sameSet(validIds, page.validJobIds) ||
         !same(evidence.fetchCounts, { rawCount: total, parsedCount: total, validCount: expected.size,
-          parseDiscardCount: 0, validationDiscardCount: excludedRecordIndexes.length }) ||
+          parseDiscardCount: 0, validationDiscardCount: excludedRecordIndexes.length+quarantines.length }) ||
+        !same(evidence.jobQuarantines??[],quarantines) ||
         !same(losses, evidence.fetchLosses) || outputJobs.length !== expected.size ||
         new Set(outputJobs.map(j => j.sourceJobId)).size !== expected.size) return undefined;
     for (const job of outputJobs) {
@@ -120,7 +169,7 @@ export function replayBiSemanticCompleteness(
         companyId: COMPANY, sourceId: SOURCE, sourceKind: "SOCIAL", atsKind: "OFFICIAL_JSON",
         officialChineseCompanyName: plan.company.officialChineseName, officialTitle: target.title,
         officialUrl: target.url, listUrl: BI_ENTRY_URL, sourceJobId: job.sourceJobId,
-        locationRaw: target.location, cities: [target.location], category: "其他", isBaseline: job.isBaseline,
+        locationRaw: target.location, cities: target.cities, category: "其他", isBaseline: job.isBaseline,
         evidence: { officialEntryUrl: BI_ENTRY_URL, officialChainEvidenceUrl: CHAIN, capturedAt }
       }) || typeof job.isBaseline !== "boolean") return undefined;
     }

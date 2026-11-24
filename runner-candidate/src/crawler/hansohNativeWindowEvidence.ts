@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
+import {verifyBeisenListQuarantines,beisenRawObservationId} from './beisenJobQuarantine';
 import type { SourceCrawlPlan } from "./sourcePlan";
 import type { PersistentSourceFetchEvidence } from "./sourceFetchEvidence";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import { requestContractV2Locator } from "./strictPageRequestContract";
-import { hasExactFosunMainlandGeography } from "./fosunScopeGeography";
+import { hasExactFosunMainlandGeography, mainlandDisplayCities } from "./fosunScopeGeography";
 import { containsSensitiveAdapterValue } from "./adapters/safeAdapterValue";
 
 const ENTRY = "https://hspharm.zhiye.com/social";
@@ -43,9 +44,10 @@ export function validateStrictHansohNativeWindowEvidence(
   plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence, jobs: readonly NormalizedJobRecord[]
 ): boolean {
   try {
+    if(evidence.jobQuarantines?.length&&!verifyBeisenListQuarantines(plan,evidence))return false;
     if (!hasStrictHansohNativeWindowPlan(plan) || evidence.supportingArtifactOnlyFailure ||
         evidence.pages.length === 0 || evidence.pages.length > 10 ||
-        evidence.artifacts.length !== evidence.pages.length || evidence.fetchLosses.length !== 0) return false;
+        evidence.artifacts.length !== evidence.pages.length || evidence.fetchLosses.some(loss=>loss.details.code!=='JOB_QUARANTINED')) return false;
     const declaration = evidence.declaredCompleteness;
     if (declaration?.kind !== "OFFICIAL_TOTAL_COUNT" || declaration.scope !== "SOURCE" ||
         declaration.channelId !== undefined || declaration.artifactLogicalKey !== evidence.pages[0]!.artifactLogicalKey) return false;
@@ -85,27 +87,29 @@ export function validateStrictHansohNativeWindowEvidence(
         coordinate: {sequence, requestedPage: sequence, requestedPageSize: 100}});
       if (artifact.extractorLocator !== locator || sequence === 0 && declaration.extractorLocator !== locator) return false;
       const rawIds: string[] = []; const validIds: string[] = [];
-      for (const raw of root.Data) {
+      for (const [recordIndex,raw] of root.Data.entries()) {
+        rawIds.push(beisenRawObservationId(raw,sequence,recordIndex));
+        if(evidence.jobQuarantines?.some(q=>q.pageSequence===sequence&&q.recordIndex===recordIndex))continue;
         if (!record(raw) || typeof raw.Id !== "string" ||
             !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(raw.Id) ||
             seen.has(raw.Id) || typeof raw.JobAdName !== "string" || !raw.JobAdName.trim() ||
             containsSensitiveAdapterValue(raw.JobAdName) || raw.Category !== "社会招聘" ||
-            raw.CategoryId !== "1" || raw.Status !== 1 || !socialKind(raw.Kind) || !realProjectedPostDate(raw.PostDate) ||
+            raw.CategoryId !== "1" || raw.Status !== 1 || !socialKind(raw.Kind) ||
             !mainlandGeography(raw)) return false;
-        seen.add(raw.Id); rows.push(raw); rawIds.push(irreversible(raw.Id)); validIds.push(irreversible(persistentId(raw.Id)));
+        seen.add(raw.Id); rows.push(raw); validIds.push(irreversible(persistentId(raw.Id)));
       }
       if (!equal(page.rawJobIds, rawIds) || !equal(page.validJobIds, validIds)) return false;
     }
     const counts = evidence.fetchCounts;
-    if (total !== rows.length || evidence.pages.length !== Math.max(1, Math.ceil(total / 100)) ||
-        counts.rawCount !== total || counts.parsedCount !== total || counts.validCount !== total ||
-        counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== 0 || jobs.length !== total ||
+    const quarantined=evidence.jobQuarantines?.length??0;
+    if (total !== rows.length+quarantined || evidence.pages.length !== Math.max(1, Math.ceil(total / 100)) ||
+        counts.rawCount !== total || counts.parsedCount !== total || counts.validCount+quarantined !== total ||
+        counts.parseDiscardCount !== 0 || counts.validationDiscardCount !== quarantined || jobs.length+quarantined !== total ||
         new Set(jobs.map(job => job.sourceJobId)).size !== jobs.length) return false;
     const byId = new Map(jobs.map(job => [job.sourceJobId, job]));
     return rows.every(raw => {
       const parts = (raw.LocNames as string[]).map(value => value.trim());
-      const cities = [...new Set(parts.flatMap(value => value.split(/[/,，;；、]/u).map(value => value.trim()).filter(Boolean)
-        .map(value => value.split("·").map(part => part.trim()).filter(Boolean).at(-1)!)))].map(clean);
+      const cities = mainlandDisplayCities(parts);
       const job = byId.get(persistentId(raw.Id as string)); const url = new URL("/social/detail", ENTRY);
       url.searchParams.set("jobAdId", raw.Id as string);
       return job !== undefined && job.sourceId === plan.source.id && job.companyId === plan.company.id &&
@@ -121,29 +125,9 @@ function socialKind(value: unknown): boolean {
     typeof value === "string" && !/(?:校园|校招|campus)/iu.test(value);
 }
 
-// Only a well-formed real projected date is required. The native server filter
-// defines membership; no local 180/183-day calculation or ChangeDate fallback.
-function realProjectedPostDate(value: unknown): boolean {
-  if (typeof value !== "string" || !/^[1-9]\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?$/u.test(value)) return false;
-  const time = Date.parse(`${value}Z`);
-  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 19) === value.slice(0, 19);
-}
-
-// Reuse the independently replayed positive province/prefecture vocabulary,
-// with exact observed Hansoh hierarchy aliases. This is validation only:
-// original location strings and output cities remain unchanged.
-const HANSOH_HIERARCHIES = new Map([
-  ["江苏省·连云港市·连云区", "江苏省·连云港市"],
-  ["湖南省·长沙市·浏阳市", "湖南省·长沙市"],
-  ["江苏省·淮安市·淮安区", "江苏省·淮安市"],
-  ["江苏省·常州市·新北区", "江苏省·常州市"],
-  ["云南省·大理白族自治州", "云南省·大理"]
-]);
+// The native request filter owns window membership; projected dates are optional.
 function mainlandGeography(raw: Record<string, unknown>): boolean {
-  if (!Array.isArray(raw.LocNames)) return false;
-  const normalize = (value: unknown) => typeof value === "string" ? HANSOH_HIERARCHIES.get(value) ?? value : value;
-  return hasExactFosunMainlandGeography({...raw, LocNames: raw.LocNames.map(normalize),
-    LocName: normalize(raw.LocName), LocationName: normalize(raw.LocationName), City: normalize(raw.City)});
+  return hasExactFosunMainlandGeography(raw);
 }
 function record(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function count(value: unknown): value is number { return typeof value === "number" && Number.isSafeInteger(value) && value >= 0; }
@@ -160,7 +144,7 @@ export function hasUnrecognizedHansohLocation(evidence: PersistentSourceFetchEvi
   try {
     return evidence.pages.some(page => {
       const artifact = evidence.artifacts.find(item => item.logicalKey === page.artifactLogicalKey);
-      const root: unknown = JSON.parse(artifact?.body ?? "");
+      const root: unknown = JSON.parse(typeof artifact?.body === "string" ? artifact.body : Buffer.from(artifact?.body ?? []).toString("utf8"));
       return record(root) && Array.isArray(root.Data) &&
         root.Data.some(raw => record(raw) && !mainlandGeography(raw));
     });

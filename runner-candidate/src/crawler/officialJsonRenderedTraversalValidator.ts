@@ -6,6 +6,7 @@ import { capturePfizerRenderedTraversal, replayPfizerRenderedRow, assertPfizerRe
 import { BAYER_MOKA_ENTRY } from "./bayerMokaScope";
 import { replayBayerHybridTraversal, BAYER_HYBRID_RETRIEVAL_PATH } from "./bayerMokaRenderedTraversal";
 import { acquireBrowserSourcePermit } from "./browserSourceConcurrency";
+import { assertWorkdayAvailable } from "./workdayRequestPolicy";
 import {
   B_GRADE_SAFE_VALIDATOR_STAGE_MESSAGES,
   tagBGradeIndependentTraversalFailure
@@ -186,14 +187,14 @@ export async function captureOfficialJsonRenderedTraversal(
     const dom = await captureLocalHybridDom(input.sourceId, input.signal);
     if (dom.schemaVersion === "sanofi-cn-cua-dom-list-v1") {
       const { captureSanofiChineseIndependent } = await import("./sanofiChineseRenderedTraversal");
-      return captureSanofiChineseIndependent({ dom });
+      return captureSanofiChineseIndependent({ dom,...(input.signal?{signal:input.signal}:{}) });
     }
     if (dom.schemaVersion === "bayer-cua-dom-list-v1") {
       const { captureBayerIndependentDetails } = await import("./bayerMokaRenderedTraversal");
-      return captureBayerIndependentDetails({ dom });
+      return captureBayerIndependentDetails({ dom,...(input.signal?{signal:input.signal}:{}) });
     }
     const { captureServierIndependentDetails } = await import("./servierMokaRenderedTraversal");
-    return captureServierIndependentDetails({ dom });
+    return captureServierIndependentDetails({ dom,...(input.signal?{signal:input.signal}:{}) });
   }
   const release = await acquireBrowserSourcePermit(input.signal);
   try {
@@ -216,6 +217,7 @@ export async function captureOfficialJsonRenderedTraversal(
 async function captureOfficialJsonRenderedTraversalOnce(
   input: OfficialJsonRenderedTraversalCaptureInput
 ): Promise<{ observedAt: string; pages: OfficialJsonRenderedPageCapture[] }> {
+  if (input.sourceId === "source-pfizer-china-social") assertWorkdayAvailable(input.entryUrl);
   const browser = await (input.launchBrowser ?? launchProductionBrowser)();
   let closePromise: Promise<void> | undefined;
   const closeBrowser = () => closePromise ??= browser.close();

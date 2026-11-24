@@ -1,15 +1,25 @@
 import { reviewedMainlandCityProvince } from "../crawler/hengruiMainlandGeography";
+import { PFIZER_OFFICIAL_LOCALITIES } from "../crawler/pfizerOfficialLocalities";
 
 /** Unresolved official city evidence. The original location remains visible. */
 export const CITY_PENDING = "城市待核";
+export const PROVINCE_ONLY = "仅明确到省";
 export const ALL_PROVINCES = "全部地区";
 export const ALL_CITIES = "全部城市";
 export const NATIONWIDE = "全国";
+export const MULTI_CITY = "多城市";
+export const PROVINCE_PENDING = "省份待核";
 
 interface JobLocation {
   city: string;
   cities: readonly string[];
   locationRaw?: string;
+}
+
+interface PublishedJobLocation extends JobLocation {
+  sourceId: string;
+  officialTitle: string;
+  officialUrl: string;
 }
 
 function structuredLocations(job: JobLocation): string[] {
@@ -25,7 +35,7 @@ const ENGLISH_CITIES: ReadonlyArray<readonly [string, string, string]> = [
   ["Changchun", "长春", "Jilin Province"], ["Changsha", "长沙", "Hunan Province"],
   ["Changshu", "常熟", "Jiangsu Province"], ["Chengdu", "成都", "Sichuan Province"],
   ["Chongqing", "重庆", "Chongqing Province"], ["Eerduosi", "鄂尔多斯", "Neimenggu Province"],
-  ["Foshan", "佛山", "Guangdong Province"], ["Fuzhou", "福州", "Fujian Province"],
+  ["Deyang", "德阳", "Sichuan Province"], ["Foshan", "佛山", "Guangdong Province"], ["Fuzhou", "福州", "Fujian Province"],
   ["Guangzhou", "广州", "Guangdong Province"], ["Guiyang", "贵阳", "Guizhou Province"],
   ["Hangzhou", "杭州", "Zhejiang Province"], ["Harbin", "哈尔滨", "Heilongjiang Province"],
   ["Hefei", "合肥", "Anhui Province"], ["Hengyang", "衡阳", "Hunan Province"],
@@ -34,7 +44,7 @@ const ENGLISH_CITIES: ReadonlyArray<readonly [string, string, string]> = [
   ["Kunming", "昆明", "Yunnan Province"], ["Liaocheng", "聊城", "Shandong Province"],
   ["Linyi", "临沂", "Shandong Province"], ["Maoming", "茂名", "Guangdong Province"],
   ["Nanchang", "南昌", "Jiangxi Province"], ["Nanjing", "南京", "Jiangsu Province"],
-  ["Nanning", "南宁", "Guangxi Province"], ["Ningbo", "宁波", "Zhejiang Province"],
+  ["Nanning", "南宁", "Guangxi Province"], ["Puyang", "濮阳", "Henan Province"], ["Qingdao", "青岛", "Shandong Province"], ["Ningbo", "宁波", "Zhejiang Province"],
   ["Shanghai", "上海", "Shanghai"], ["Shenyang", "沈阳", "Liaoning Province"],
   ["Shenzhen", "深圳", "Guangdong Province"], ["Shijiazhuang", "石家庄", "Hebei Province"],
   ["Suzhou", "苏州", "Jiangsu Province"], ["Taiyuan", "太原", "Shanxi Province"],
@@ -57,6 +67,47 @@ ENGLISH_ALIASES.set(key("Hengyang Shi"), "衡阳");
 ENGLISH_ALIASES.set(key("深圳-罗湖区"), "深圳");
 ENGLISH_ALIASES.set(key("郑州-经开区"), "郑州");
 
+const PUBLISHED_CITY_ALIASES = new Map(Object.entries({
+  haerbin: "哈尔滨", changpingcounty: "北京", yinchuan: "银川", xinxiang: "新乡",
+  xining: "西宁", zhoukou: "周口", datong: "大同", sanya: "三亚", jining: "济宁",
+  binzhou: "滨州", taian: "泰安", luzhou: "泸州", haiyan: "海盐", chaozhou: "潮州",
+  qingyuan: "清远", jieyang: "揭阳", linfen: "临汾", "guang'an": "广安", xinzhou: "忻州",
+  longnan: "陇南", leshan: "乐山", baoshan: "保山", jiangmen: "江门", quzhou: "衢州",
+  nantong: "南通", baoding: "保定", nanyang: "南阳", kashi: "喀什", lanzhou: "兰州",
+  xiaogan: "孝感", yuncheng: "运城", wuwei: "武威", anqing: "安庆", yichun: "宜春",
+  chuzhou: "滁州", "ma'anshan": "马鞍山", "beijinginnovationhub": "北京",
+  shanghaiqiantanplaza: "上海", liangshanyiautonomousprefecture: "凉山",
+  anshun: "安顺", baise: "百色", beihai: "北海", dezhou: "德州", guilin: "桂林",
+  handan: "邯郸", heze: "菏泽", huaibei: "淮北", jiamusi: "佳木斯", jilin: "吉林",
+  jingmen: "荆门", meizhou: "梅州", mudanjiang: "牡丹江", putian: "莆田",
+  qinzhou: "钦州", rizhao: "日照", shizuishan: "石嘴山", weinan: "渭南",
+  wuzhong: "吴忠", xichang: "西昌", xinyang: "信阳", yanbian: "延边",
+  yangjiang: "阳江", yining: "伊宁", zhanjiang: "湛江", zhaoqing: "肇庆",
+  zhaotong: "昭通", zibo: "淄博", jincheng: "晋城", lvliang: "吕梁", dazhou: "达州",
+  yibin: "宜宾", zigong: "自贡", dali: "大理", chifeng: "赤峰",
+  baoji: "宝鸡", xianyang: "咸阳", chengde: "承德", liuzhou: "柳州", urumuqi: "乌鲁木齐", wulumuqi: "乌鲁木齐",
+  tianjing: "天津", xian: "西安", "xi'an": "西安", wenzhou: "温州", bengbu: "蚌埠",
+  dongguan: "东莞", nanchong: "南充", neijiang: "内江", guangan: "广安",
+  liaoyang: "辽阳", yangquan: "阳泉", luoyang: "洛阳", zhangjiakou: "张家口",
+  zhangjiagang: "张家港", fushun: "抚顺", kunshan: "昆山", jinzhong: "晋中",
+  panjin: "盘锦", qianxinan: "黔西南",
+  sanming: "三明", ningde: "宁德", hebi: "鹤壁", yongcheng: "永城", lincang: "临沧",
+  kaifeng: "开封", ziyang: "资阳", sanmenxia: "三门峡", shangqiu: "商丘",
+  ankang: "安康", hanzhong: "汉中", kelamayi: "克拉玛依", yanan: "延安", yongzhou: "永州",
+  pingxiang: "萍乡", suining: "遂宁", shangrao: "上饶", dongying: "东营", liuan: "六安",
+  chizhou: "池州", maanshan: "马鞍山", huainan: "淮南", hengshui: "衡水", benxi: "本溪",
+  fuxin: "阜新", siping: "四平", shaoyang: "邵阳", zhuzhou: "株洲", liuyang: "浏阳",
+  yueyang: "岳阳", ezhou: "鄂州", kaili: "凯里", qiqihar: "齐齐哈尔", daqing: "大庆",
+  tonghua: "通化", dandong: "丹东", huludao: "葫芦岛", xingtai: "邢台", qinhuangdao: "秦皇岛",
+  huaihua: "怀化", xiangfan: "襄阳", qionghai: "琼海", hohhot: "呼和浩特", jinzhou: "锦州"
+}));
+for (const [label, city] of Object.entries(PFIZER_OFFICIAL_LOCALITIES)) {
+  const name = /^China - [^-]+ - (.+)$/u.exec(label)?.[1];
+  if (name && name !== "STIT" && !PUBLISHED_CITY_ALIASES.has(key(name))) {
+    PUBLISHED_CITY_ALIASES.set(key(name), city);
+  }
+}
+
 function isProvince(label: string): boolean {
   return PROVINCES.has(label.replace(/(?:省|壮族自治区|回族自治区|维吾尔自治区|自治区)$/u, ""));
 }
@@ -65,12 +116,18 @@ function cityLabel(location: string): string | null {
   const label = location.normalize("NFKC").trim();
   const english = ENGLISH_ALIASES.get(key(label));
   if (english) return english;
+  const pair = /^(.*?)[,，]\s*([^,，]+)$|^(.*?)\s*\(([^()]*)\)$/u.exec(label);
+  if (pair) {
+    const city = ENGLISH_ALIASES.get(key(pair[1] ?? pair[3] ?? ""));
+    const province = provinceLabel(pair[2] ?? pair[4] ?? "");
+    if (city && province && publishedCityProvince(city) === province) return city;
+  }
   // Only parse explicit administrative components; never search prose for a city.
   const parts = label.split(/[-·]/u);
   const qualified = parts.length > 1 && isProvince(parts[0]!);
   const place = qualified ? parts[1]! : parts[0]!;
   if (parts.length > 1 && !qualified && !MUNICIPALITIES.has(place) && !/市$/u.test(place)) return null;
-  if (!/^[\p{Script=Han}]{2,18}$/u.test(place) || [CITY_PENDING, ALL_CITIES, NATIONWIDE, "中国", "中国大陆", "中华人民共和国"].includes(place)) return null;
+  if (!/^[\p{Script=Han}]{2,18}$/u.test(place) || [CITY_PENDING, PROVINCE_ONLY, ALL_CITIES, NATIONWIDE, "其他", "其它", "中国", "中国大陆", "中华人民共和国"].includes(place)) return null;
   if (/省$|自治区$|县$/u.test(place) || (/区$/u.test(place) && !/地区$/u.test(place))) return null;
   if (!qualified && !/市$/u.test(place) && isProvince(place)) return null;
   return place.replace(/市$/u, "");
@@ -84,10 +141,11 @@ export function normalizePublicSearchCityLabel(location: string): string {
  * explicit parent city in the same official structured location, never geocoding. */
 export function publicSearchCities(job: JobLocation): string[] {
   const locations = structuredLocations(job);
-  if (locations.includes(CITY_PENDING)) return [];
+  if (locations.includes(CITY_PENDING) || locations.includes(PROVINCE_ONLY)) return [];
   const cities = locations.flatMap(location => {
     const direct = cityLabel(location);
     if (direct) return [direct];
+    if (location === "吉林" && explicitPublishedCity(job.locationRaw ?? "") === "吉林") return [location];
     const parts = job.locationRaw?.split("·").map(part => part.trim()) ?? [];
     if (!parts.includes(location) || !/区$|县$/u.test(location)) return [];
     return parts.filter(part => /市$/u.test(part)).flatMap(part => cityLabel(part) ?? []);
@@ -106,10 +164,237 @@ const ENGLISH_PROVINCES: Readonly<Record<string,string>> = {
 function provinceLabel(value:string):string|null {
   const label=value.normalize("NFKC").trim().replace(/(?:省|壮族自治区|回族自治区|维吾尔自治区|自治区|市)$/u, "");
   if(PROVINCES.has(label)||MUNICIPALITIES.has(label))return label;
-  return ENGLISH_PROVINCES[key(value).replace(/(?:province|municipality|zhuangautonomousregion|autonomousregion)$/u, "")]??null;
+  const english = key(value).replace(/(?:province|municipality|zhuangautonomousregion|autonomousregion)$/u, "");
+  return Object.hasOwn(ENGLISH_PROVINCES, english) ? ENGLISH_PROVINCES[english]! : null;
 }
+
+const VERIFIED_DETAIL_LOCATIONS: Readonly<Record<string, readonly string[]>> = {
+  "source-amgen-china-social|https://amgen.wd1.myworkdayjobs.com/Careers/job/China---JTaizhou/Biopharmaceutical-Rep-Taizhou_R-256177": ["泰州"],
+  "source-amgen-china-social|https://amgen.wd1.myworkdayjobs.com/Careers/job/China---Longnan/Biopharmaceutical-Rep-Longnan_R-256027": ["陇南"],
+  "source-takeda-china-social|https://jobs.takeda.com/job/suzhou/mcr-gi-suzhou/1113/103382549904": ["苏州"],
+  "source-takeda-china-social|https://jobs.takeda.com/job/suzhou/mcr-obu-nin-suzhou/1113/102550120032": ["苏州"],
+  "source-takeda-china-social|https://jobs.takeda.com/job/fuyang/mcr-obu-st-fuyang/1113/102808137136": ["阜阳"],
+  "source-csl-china-social|https://csl.wd1.myworkdayjobs.com/CSL_External/job/APAC-CN-Field-Sales-CSL-Behring/Product-Specialist--Taiyuan_R-291057-1": ["太原"],
+  "source-qilu-social|https://www.qilu-pharma.com/JobPosting_Detail/c-_detailId%3D10510360.html": ["济南", "北京", "上海"],
+  "source-pfizer-china-social|https://pfizer.wd1.myworkdayjobs.com/PfizerCareers/job/CHN---AH---Anhui/_4967984-2": ["铜陵"],
+  // Novo lists jobState Liaoning and jobCity Chaoyang for this posting.
+  "source-novo-nordisk-china-social|https://www.novonordisk.com.cn/content/nncorp/cn/zh_cn/careers/find-a-job/job-ad.348703.en_GB.html": ["朝阳"],
+  // The Chinese application lists 巴音郭勒蒙古 in the workplace line and title.
+  "source-sanofi-china-social|https://www.ajinga.com/ats/job-detail-new/13537/R2878073/c/?show_policy_popup=1&aj_source=sanofi_careersite&aj_code=radancyjoblist": ["巴音郭楞"],
+  // J10719 operates the Shandong Anshun production line at the Leling site in Dezhou.
+  "source-qilu-social|https://qilu-pharma.zhiye.com/social/detail?jobAdId=0e2d4240-802c-443b-afd7-9958b367338d": ["德州"],
+  "source-takeda-china-social|https://jobs.takeda.com/job/shanghai/china-biomarker-lead/1113/101034777968": ["上海", "北京"],
+  "source-merck-china-social|https://careers.emdgroup.com/us/en/job/299857": ["上海", "北京"],
+  "source-merck-china-social|https://careers.emdgroup.com/us/en/job/305134": ["无锡"],
+  // Native detail R543371, captured 2026-11-13, confirms CHN - Hangzhou.
+  "source-organon-china-social|https://organon.wd5.myworkdayjobs.com/SearchJobs/job/CHN---Hangzhou/Sr-District-Manager_R543371/apply": ["杭州"]
+};
+const CHINA = /^(?:中国大陆|中国|中华人民共和国|China|CN|CHN)$/iu;
+const NOVO_TITLE_CORROBORATED_CITIES = new Map([
+  ["longnan", "陇南"], ["xianning", "咸宁"], ["qiqihaer", "齐齐哈尔"]
+]);
+
+const PREFECTURE_LABELS = new Map([
+  ["恩施土家族苗族自治州", "恩施"], ["黔西南布依族苗族自治州", "黔西南"],
+  ["湘西土家族苗族自治州", "湘西"], ["大理白族自治州", "大理"],
+  ["红河哈尼族彝族自治州", "红河"]
+]);
+
+const COUNTY_CITY_PROVINCES: Readonly<Record<string, string>> = {
+  浏阳: "湖南", 凯里: "贵州", 琼海: "海南",
+  永城: "河南", 海盐: "浙江", 伊宁: "新疆", 启东: "江苏", 宜兴: "江苏", 阆中: "四川",
+  天长: "安徽", 界首: "安徽", 台山: "广东", 延吉: "吉林", 张家港: "江苏", 昆山: "江苏"
+};
+
+function publishedCityProvince(city: string): string | null {
+  return reviewedMainlandCityProvince(city) ?? COUNTY_CITY_PROVINCES[city] ?? null;
+}
+
+const AMBIGUOUS_CITY_PROVINCES = new Map<string, Readonly<Record<string, string>>>([
+  ["jian", { 江西: "吉安" }],
+  ["chaoyang", { 辽宁: "朝阳" }],
+  ["jilin", { 吉林: "吉林" }],
+  ["fuyang", { 安徽: "阜阳" }],
+  ["longnan", { 甘肃: "陇南" }],
+  ["yulin", { 广西: "玉林", 陕西: "榆林" }],
+  ["suzhou", { 江苏: "苏州", 安徽: "宿州" }],
+  ["taizhou", { 浙江: "台州", 江苏: "泰州" }],
+  ["fuzhou", { 福建: "福州", 江西: "抚州" }]
+]);
+
+function knownPublishedCity(part: string, province?: string | null): string | undefined {
+  const alias = key(part);
+  const unquoted = alias.replace(/[’']/gu, "");
+  const byProvince = AMBIGUOUS_CITY_PROVINCES.get(unquoted);
+  if (byProvince) return province ? byProvince[province] : undefined;
+  const city = PREFECTURE_LABELS.get(part) ?? PUBLISHED_CITY_ALIASES.get(alias) ?? PUBLISHED_CITY_ALIASES.get(unquoted) ?? cityLabel(part);
+  if (city && publishedCityProvince(city)) return city;
+  const municipality = publishedCityProvince(part);
+  return municipality && MUNICIPALITIES.has(municipality) ? municipality : undefined;
+}
+
+function explicitPublishedProvince(raw: string): string | null {
+  const tierProvince = /^CHN - ([A-Za-z ]+) \(Tier \d+\)$/iu.exec(raw.trim())?.[1];
+  const workdayProvince = /^CHN - [A-Z]{2} - (.+)$/u.exec(raw.trim())?.[1];
+  return provinceLabel(tierProvince ?? workdayProvince ?? raw) ?? (/^guangdong,gd$/u.test(key(raw)) ? "广东" : null);
+}
+
+function publishedLocationParts(label: string): string[] {
+  const qualified = label.match(/^(.+?)\s*\(([^()]+)\)$/u);
+  return (qualified ? [qualified[1]!, qualified[2]!] : label.split(/\s*[,，·]\s*|\s+-\s+/u))
+    .map(part => part.trim()).filter(part => part && !CHINA.test(part));
+}
+
+function pendingLocationProvince(raw: string): string | null {
+  const standalone = explicitPublishedProvince(raw);
+  if (standalone) return standalone;
+  const parts = publishedLocationParts(raw.normalize("NFKC").trim());
+  if (parts.length !== 2) return null;
+  const leading = provinceLabel(parts[0]!);
+  const trailing = provinceLabel(parts[1]!);
+  if (leading && trailing && leading !== trailing) return null;
+  const province = leading ?? trailing;
+  if (!province) return null;
+  const locality = knownPublishedCity(leading ? parts[1]! : parts[0]!, province);
+  return !locality || publishedCityProvince(locality) === province ? province : null;
+}
+
+function explicitPublishedCity(raw: string): string | undefined {
+  const label = raw.normalize("NFKC").trim().replace(/^CN:\s*/iu, "");
+  if (Object.hasOwn(PFIZER_OFFICIAL_LOCALITIES, label)) return PFIZER_OFFICIAL_LOCALITIES[label];
+  const parts = publishedLocationParts(label);
+  if (!parts.length) return undefined;
+  const provinceAndCity = parts.length === 1 ? /^(.+?省)(.+?市)/u.exec(parts[0]!) : null;
+  if (provinceAndCity) {
+    const city = knownPublishedCity(provinceAndCity[2]!);
+    return city && provinceLabel(provinceAndCity[1]!) === publishedCityProvince(city) ? city : undefined;
+  }
+  if (parts.length === 1) return knownPublishedCity(parts[0]!);
+  const trailingProvince = provinceLabel(parts[1]!);
+  const city = knownPublishedCity(parts[0]!, trailingProvince);
+  if (city && trailingProvince === publishedCityProvince(city) && parts.length === 2) return city;
+  const province = provinceLabel(parts[0]!);
+  if (!province) return undefined;
+  const locality = knownPublishedCity(parts[1]!, province);
+  if (locality && province === publishedCityProvince(locality) &&
+      parts.slice(2).every(part => /(?:区|县)$/u.test(part) || knownPublishedCity(part, province) === locality)) return locality;
+  return parts.length === 2 && MUNICIPALITIES.has(province) && /(?:区|县)$/u.test(parts[1]!) ? province : undefined;
+}
+
+function titleWorkCities(title: string, province: string | null): string[] {
+  const text = title.normalize("NFKC").trim().replace(/\(J\d+\)$/iu, "").trim();
+  const parentheses = text.match(/\(([^()]+)\)$/u)?.[1];
+  const fields = text.split(/[-–—+,，]/u).map(field => field.trim());
+  const lastField = fields.at(-1);
+  const provincialField = province ? fields.find(field => field.startsWith(province) && field.length > province.length) : undefined;
+  const office = lastField?.match(/^(.+?) AI Center$/iu)?.[1];
+  const prefix = text.match(/^([\p{Script=Han}]{2,5}?)(?:皮肤科)?(?:代表招聘|医学信息沟通专员)/u)?.[1];
+  const trailingCity = text.match(/\s+([\p{Script=Han}]{2,8})$/u)?.[1];
+  for (const candidate of [parentheses, office, lastField, provincialField, prefix, trailingCity]) {
+    if (!candidate || candidate === text) continue;
+    const labels = candidate.trim().split(/\s*[/、]\s*/u);
+    const cities = labels.map(label => {
+      const name = label.trim().replace(/\d+$/u, "");
+      if (name === "全国") return NATIONWIDE;
+      if (name === "淮南-凤台" && province === "安徽") return "淮南";
+      const city = knownPublishedCity(name, province);
+      if (city) return city;
+      if (province && name.startsWith(province)) return knownPublishedCity(name.slice(province.length), province);
+      if (name === "黄冈蕲春县" && province === "湖北") return "黄冈";
+      return undefined;
+    });
+    if (cities.every(city => city !== undefined)) return [...new Set(cities)];
+  }
+  return [];
+}
+
+function rawPublishedCities(raw: string, separator: RegExp): string[] {
+  const parts = raw.split(separator).map(part => part.trim()).filter(part => part && !CHINA.test(part));
+  const cities = parts.map(explicitPublishedCity);
+  const resolved = cities.flatMap(city => city ?? []);
+  const provinces = new Set(resolved.map(publishedCityProvince));
+  if (cities.some((city, index) => !city && !provinces.has(explicitPublishedProvince(parts[index]!)))) return [];
+  return [...new Set(resolved)];
+}
+
+export function resolvedPublishedJobCities(job: PublishedJobLocation): string[] {
+  const raw = job.locationRaw?.trim();
+  if (!raw) return [];
+  const { sourceId, officialTitle } = job;
+  const pending = isCityPendingJob(job);
+  const province = explicitPublishedProvince(raw);
+  if (sourceId === "source-astrazeneca-social" || sourceId === "source-amgen-china-social") {
+    const titleCities = titleWorkCities(officialTitle, province);
+    if (titleCities.length) {
+      const verifiedCities = publicSearchCities(job);
+      if (verifiedCities.length > 1 && titleCities.every(city => verifiedCities.includes(city))) return [];
+      return titleCities;
+    }
+  }
+  if (sourceId === "source-cspc-social" && raw === "中华人民共和国" || sourceId === "source-hengrui-social" && raw === "中国") {
+    return [NATIONWIDE];
+  }
+  // These feeds delimit distinct work locations with commas or enumeration marks.
+  if (sourceId === "source-cspc-social" || sourceId === "source-daiichi-sankyo-china-social" ||
+      sourceId === "source-hengrui-social" && pending && raw.includes("、")) {
+    const cities = rawPublishedCities(raw, /[,，、|]/u);
+    if (cities.length) return cities;
+  }
+  if (sourceId === "source-pfizer-china-social" && raw.includes("CHN - BJ - Beijing R&D Center")) {
+    const cities = rawPublishedCities(raw, /\s*\|\s*/u);
+    if (cities.length) return cities;
+  }
+  if (!pending) return [];
+  const detail = VERIFIED_DETAIL_LOCATIONS[`${sourceId}|${job.officialUrl}`];
+  if (detail) return [...detail];
+  if (sourceId === "source-novartis-social" && /^Baoji \(Shanxxi Province\)$/iu.test(raw)) return ["宝鸡"];
+
+  const titleCities = titleWorkCities(officialTitle, province);
+  if (sourceId === "source-takeda-china-social" && /^(?:Remote|Multiple Locations)$/iu.test(raw)) return titleCities;
+  if (sourceId === "source-merck-china-social") {
+    if (titleCities.length) return titleCities;
+    const cities = rawPublishedCities(raw, /\s*\|\s*/u);
+    return cities.length === 1 ? cities : [];
+  }
+  if (sourceId === "source-msd-china-social" && raw.includes("、")) return rawPublishedCities(raw, /[,，、|]/u);
+  if (sourceId === "source-servier-china-social") {
+    if (raw === "朝阳区" && titleCities.includes("北京")) return ["北京"];
+    if (raw === "下城区（旧）" && titleCities.includes("杭州")) return ["杭州"];
+  }
+  if (province && titleCities.length && titleCities.every(city => publishedCityProvince(city) === province)) return titleCities;
+  if (sourceId === "source-novo-nordisk-china-social") {
+    const alias = /^China,\s*([a-z]+)$/iu.exec(raw)?.[1]?.toLowerCase();
+    const city = alias && NOVO_TITLE_CORROBORATED_CITIES.get(alias);
+    if (city && titleCities.includes(city)) return [city];
+  }
+  if (sourceId === "source-amgen-china-social") return raw === "China - Harbin" ? ["哈尔滨"] : [];
+  if (sourceId === "source-organon-china-social") {
+    const verifiedNanchang = raw === "Nanchang, Jiangxi, China" &&
+      job.officialUrl === "https://organon.wd5.myworkdayjobs.com/SearchJobs/job/CHN---Jiangxi---Nanchang/Sr-Pharmaceutical-Info-Specialist_R543217-2/apply";
+    return verifiedNanchang || /^(?:Taiyuan, Shanxi|Zhengzhou, Henan), China$/iu.test(raw)
+      ? rawPublishedCities(raw, /\s*\|\s*/u)
+      : [];
+  }
+  if (sourceId === "source-astrazeneca-social") return [];
+  if (sourceId === "source-abbvie-china-social" && !/^(?:deyang,\s*sichuan|puyang,\s*henan)$/iu.test(raw)) return [];
+  if (sourceId === "source-viatris-social" && raw === "大连-沙河口区" && titleCities.includes("大连")) return ["大连"];
+  if (sourceId === "source-roche-china-social") {
+    // The owner confirmed the Fujian label is Fuzhou despite the official typo.
+    const reviewed = raw.split("|").map(part => part.trim().replace(/^抚州, 福建, 中国大陆$/u, "福州, 福建, 中国大陆")).join(" | ");
+    return rawPublishedCities(reviewed, /\s*\|\s*/u);
+  }
+  return rawPublishedCities(raw, /\s*\|\s*/u);
+}
+
+export function confirmedProvinceOnly(job: PublishedJobLocation): string | null {
+  const province = explicitPublishedProvince(job.locationRaw ?? "");
+  if (!province || MUNICIPALITIES.has(province) || !isCityPendingJob(job)) return null;
+  const titleCities = titleWorkCities(job.officialTitle, province);
+  return titleCities.some(city => publishedCityProvince(city) !== province) ? null : province;
+}
+
 export function publicSearchCityProvince(job:JobLocation,city:string):string|null {
-  const known=reviewedMainlandCityProvince(city);
+  const known=publishedCityProvince(city);
   if(known)return known;
   const english=ENGLISH_CITIES.find(([,chinese])=>chinese===city);
   if(english)return provinceLabel(english[2]);
@@ -126,7 +411,16 @@ export function publicSearchCityProvince(job:JobLocation,city:string):string|nul
 }
 export function publicSearchProvinces(job:JobLocation):string[] {
   const locations=structuredLocations(job);
-  if(locations.includes(CITY_PENDING))return [];
+  if (locations.includes(CITY_PENDING) || locations.includes(PROVINCE_ONLY)) {
+    const raw = job.locationRaw ?? "";
+    const enumeratesCities = raw.includes("、");
+    return [...new Set(raw.split(/\s*[|、]\s*/u).flatMap(part => {
+      const province = pendingLocationProvince(part);
+      if (province) return [province];
+      const city = enumeratesCities ? explicitPublishedCity(part) : undefined;
+      return city ? publishedCityProvince(city) ?? [] : [];
+    }))];
+  }
   return [...new Set([
     ...publicSearchCities(job).flatMap(city=>publicSearchCityProvince(job,city)??[]),
     ...locations.flatMap(location=>provinceLabel(location.split(/[-·]/u)[0]!)??provinceLabel(/\(([^()]*)\)$/u.exec(location)?.[1]??"")??[])
@@ -138,15 +432,19 @@ export function matchesPortableSearchProvince(job:JobLocation,province:string):b
 
 export function isCityPendingJob(job: JobLocation): boolean {
   const locations = structuredLocations(job);
-  return locations.includes(CITY_PENDING) || (!locations.includes(NATIONWIDE) && publicSearchCities(job).length === 0);
+  return locations.includes(CITY_PENDING) || (!locations.includes(PROVINCE_ONLY) && !locations.includes(NATIONWIDE) && publicSearchCities(job).length === 0);
 }
 
 export function matchesPortableSearchCity(job: JobLocation, selectedCity: string, province = ALL_PROVINCES): boolean {
+  const nationwide = structuredLocations(job).includes(NATIONWIDE);
+  if (selectedCity === NATIONWIDE) return nationwide;
+  if (selectedCity === PROVINCE_PENDING) return province === ALL_PROVINCES && isCityPendingJob(job) && publicSearchProvinces(job).length === 0;
+  if (selectedCity === ALL_CITIES && nationwide) return true;
   if (!matchesPortableSearchProvince(job,province)) return false;
   if (selectedCity === ALL_CITIES) return true;
+  if (selectedCity === PROVINCE_ONLY) return job.city === PROVINCE_ONLY;
   if (selectedCity === CITY_PENDING) return isCityPendingJob(job);
-  const locations = structuredLocations(job);
-  if (locations.includes(CITY_PENDING)) return false;
-  if (selectedCity === NATIONWIDE) return locations.includes(NATIONWIDE);
-  return (province===ALL_PROVINCES&&locations.includes(NATIONWIDE)) || publicSearchCities(job).some(city=>city===selectedCity&&(province===ALL_PROVINCES||publicSearchCityProvince(job,city)===province));
+  const cities = publicSearchCities(job);
+  if (selectedCity === MULTI_CITY) return cities.length > 1;
+  return (province===ALL_PROVINCES&&nationwide) || cities.some(city=>city===selectedCity&&(province===ALL_PROVINCES||publicSearchCityProvince(job,city)===province));
 }

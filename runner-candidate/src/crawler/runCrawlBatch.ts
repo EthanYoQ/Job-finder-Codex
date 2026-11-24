@@ -1,3 +1,4 @@
+import { isolateIndependentJobs } from './independentJobQuarantine';
 import { isProvenUnstartedBatchAbort } from "../domain/unstartedBatchAbort";
 import { getPortableCoverageScope } from "../release/portableCoveragePolicy";
 import { getPortableSourceCoverageHold } from "../release/portableSourceCoverageHolds";
@@ -46,7 +47,8 @@ import {
 } from "./runtimeBatchIdentity";
 import { isSourceDueForScheduledRun } from "./schedule";
 import { sourcePlanConfigSha256, validateExecutablePlanChannelBinding, type SourceCrawlPlan } from "./sourcePlan";
-import { safeSourceTransportFailureReason } from "./sourceFetchFailure";
+import { retryableTransportFailureFromError, safeSourceTransportFailureReason,
+  withSourceTransportObservation, type SourceTransportObservation } from "./sourceFetchFailure";
 import { sourceFetchDiagnostic } from "./sourceFetchDiagnostics";
 import {
   atomicEvidencePersistenceStage,
@@ -279,6 +281,7 @@ export interface RunP0CrawlBatchDeps {
   portableLease?: PortableCrawlLease;
   getFirstAcceptedCurrentPolicyReceipt?(sourceId: string, sourceConfigSha256: string): Promise<SourceQualityPublicationInput["firstAcceptedCurrentPolicyReceipt"]>;
   sourceAttemptTimeoutMs?: number;
+  onSourceTransportObservation?: (observation: SourceTransportObservation) => void;
   createBatchId?: () => string;
   workspaceRoot?: string;
   evidenceSubdirectory?: string;
@@ -325,6 +328,15 @@ async function captureIndependentTraversal(plan: SourceCrawlPlan, pending: { sou
       channelIds: pending.officialChannelIds,
       signal: deps.portableLease ? AbortSignal.any([controller.signal, deps.portableLease.signal]) : controller.signal
     });
+  } catch (error) {
+    if (plan.source.id === "source-sanofi-china-social") {
+      if (error instanceof Error && Object.isExtensible(error) && !("sourceFetchStage" in error)) {
+        Object.assign(error, { sourceFetchStage: "SANOFI_INDEPENDENT_TRAVERSAL" });
+      }
+      try { console.error(JSON.stringify(sourceFetchDiagnostic(plan.source.id, { error }))); }
+      catch { /* Reporting must preserve the original independent-capture failure. */ }
+    }
+    throw error;
   } finally { clearTimeout(timer); }
 }
 
@@ -369,6 +381,32 @@ async function archiveAndVerifyRuntimeEvidence(input: {
     formalRelease: deps.identity.batchKind === "FULL_RELEASE",
     artifacts: archived.artifacts
   });
+}
+
+async function archiveIndependentOriginal(input: {
+  deps: RunP0CrawlBatchDeps;
+  batchId: string;
+  plan: SourceCrawlPlan;
+  pending: { id: string };
+  validation: Extract<BGradeIndependentTraversalValidation, { schemaVersion: "official-json-browser-network-traversal-v1" }>;
+  onArchived?: (artifacts: readonly ArchivedEvidenceArtifact[]) => void;
+}) {
+  const { deps, batchId, plan, pending, validation } = input;
+  const bayer = plan.source.id === "source-bayer-healthcare-social";
+  const locator = bayer ? BAYER_INDEPENDENT_ORIGINAL_LOCATOR : SANOFI_INDEPENDENT_ORIGINAL_LOCATOR;
+  const body = Buffer.from(JSON.stringify(validation));
+  const tuple = { releaseCandidateId: deps.identity.releaseCandidateId, batchId, sourceId: plan.source.id, sourceResultId: pending.id };
+  const archiveInput = { ...tuple, workspaceRoot: deps.workspaceRoot ?? process.cwd(),
+    evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence" };
+  const archived = await (deps.archiveEvidence ?? archiveSourceEvidence)({ ...archiveInput,
+    captureTool: { name: "playwright-core-local-chromium", version: "1" },
+    artifacts: bindRuntimeEvidenceArtifactIds({ ...tuple, artifacts: [{ id: locator, logicalKey: locator,
+      extractorLocator: locator, kind: "COMMAND_OUTPUT", body, bodyRepresentation: "EXACT",
+      capturedAt: bayer ? bayerHybridFinishedAt(validation.pages) : sanofiChineseIndependentFinishedAt(validation.pages) }] }) });
+  input.onArchived?.(archived.artifacts);
+  const artifacts = await (deps.verifyArchive ?? verifyArchivedSourceEvidence)({ ...archiveInput, artifacts: archived.artifacts });
+  return { artifacts, binding: { sha256: createHash("sha256").update(body).digest("hex"), byteCount: body.length,
+    canonicalArtifactSha256: validation.artifactSha256 } };
 }
 
 export async function runP0CrawlBatch(
@@ -447,7 +485,7 @@ export async function runP0CrawlBatch(
       const policyHold = portableMode ? (
         getPortableCoverageScope().exclusions.some(excluded=>excluded.sourceId===plan.source.id)
           ? "USER_AUTHORIZED_COVERAGE_EXCLUSION"
-          : getPortableSourceCoverageHold(plan.source.id) ??
+          : getPortableSourceCoverageHold(plan.source.id, batchStartedAt.getTime()) ??
             (getSourceQualityPolicy(plan) ? null : "SOURCE_QUALITY_POLICY_NOT_REVIEWED")
       ) : null;
       if(policyHold){
@@ -458,18 +496,18 @@ export async function runP0CrawlBatch(
           failureCode:policyHold,failureReason:PORTABLE_SKIP_REASONS[policyHold]!},deps);
         terminalSourceIds.add(plan.source.id);skippedSourceCount+=1;continue;
       }
-      const recentObservations = await deps.getRecentObservations(plan.source.id);
-      const sourceState = toSourceScheduleState(plan.source.id, recentObservations);
-
       if (
         deps.identity.batchKind !== "FULL_RELEASE" &&
         !deps.force &&
-        !isSourceDueForScheduledRun(sourceState, batchStartedAt)
+        !isSourceDueForScheduledRun(
+          toSourceScheduleState(plan.source.id, await deps.getRecentObservations(plan.source.id)),
+          batchStartedAt
+        )
       ) {
         const pending = plannedBatch.sources.find((source) => source.sourceId === plan.source.id)!;
         await terminateRuntimeSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id, sourceId: plan.source.id, transportState: "SKIPPED", adapterState: "SKIPPED",
-          completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED", finishedAt: portableMode ? new Date() : batchStartedAt,
+          completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED", finishedAt: new Date(),
           failureCode: "SOURCE_NOT_DUE", failureReason: "Source was not due for this scheduled batch" }, deps);
         terminalSourceIds.add(plan.source.id);
         skippedSourceCount += 1;
@@ -499,19 +537,21 @@ export async function runP0CrawlBatch(
       let crawlResult: Awaited<ReturnType<typeof runSourceCrawl>>;
       let preCapturedValidation: BGradeIndependentTraversalValidation | undefined;
       try {
-        // Compact dual-chain certificates bind every main artifact after this DOM observation.
-        if (lastGoodMode && ["source-bayer-healthcare-social", "source-sanofi-china-social"].includes(plan.source.id)) {
-          markInitialSourceFetchAttempt(attemptTracker);
-          preCapturedValidation = await captureIndependentTraversal(plan, pending, deps, sourceTimeoutMs);
-        }
-        crawlResult = await runWithOfficialSourceAttemptTimeout(
-          () => {
-            const acquire = () => runSourceCrawl(plan, { fetch: deps.fetch,
-              isBaseline: !baselineCompletedBeforeCrawl, attemptTracker });
-            return deps.portableLease ? runWithOfficialSourceCancellation(deps.portableLease.signal, acquire) : acquire();
-          },
-          sourceTimeoutMs
-        );
+        crawlResult = await withSourceTransportObservation(plan.source.id, deps.onSourceTransportObservation, async () => {
+          // Compact dual-chain certificates bind every main artifact after this DOM observation.
+          if (lastGoodMode && ["source-bayer-healthcare-social", "source-sanofi-china-social"].includes(plan.source.id)) {
+            markInitialSourceFetchAttempt(attemptTracker);
+            preCapturedValidation = await captureIndependentTraversal(plan, pending, deps, sourceTimeoutMs);
+          }
+          return runWithOfficialSourceAttemptTimeout(
+            () => {
+              const acquire = () => runSourceCrawl(plan, { fetch: deps.fetch,
+                isBaseline: !baselineCompletedBeforeCrawl, attemptTracker });
+              return deps.portableLease ? runWithOfficialSourceCancellation(deps.portableLease.signal, acquire) : acquire();
+            },
+            sourceTimeoutMs
+          );
+        });
       } catch (error) {
         const sourceTimedOut = isOfficialSourceAttemptTimeout(error);
         if (sourceTimedOut || error instanceof SourceCrawlStageError && error.stage === "FETCH") {
@@ -521,21 +561,24 @@ export async function runP0CrawlBatch(
           adapterFailedSourceCount += 1;
         }
         const sourceError = error instanceof SourceCrawlStageError ? error.cause : error;
+        const transportFailure = error instanceof SourceCrawlStageError && error.stage === "ADAPTER"
+          ? undefined : retryableTransportFailureFromError(sourceError);
         sourceErrors.push(sourceError);
         await terminateRuntimeSourceResult({ id: pending.id, releaseCandidateId: deps.identity.releaseCandidateId,
           batchId: batch.id, sourceId: plan.source.id,
           transportState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "SUCCEEDED" : "FAILED",
           adapterState: error instanceof SourceCrawlStageError && error.stage === "ADAPTER" ? "FAILED" : "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
-          finishedAt: portableMode ? new Date() : batchStartedAt,
+          finishedAt: new Date(),
           failureCode: sourceTimedOut
             ? "SOURCE_ATTEMPT_TIMEOUT"
             : error instanceof SourceCrawlStageError && error.stage === "ADAPTER"
               ? "SOURCE_ADAPTER_EXECUTION_FAILED"
-              : sourceExecutionFailureCode(sourceError),
+              : transportFailure ? "SOURCE_TRANSPORT_FAILED" : sourceExecutionFailureCode(sourceError),
           failureReason: sourceTimedOut
             ? "Source execution exceeded the per-source time limit before atomic evidence commit"
-            : "Source execution failed before atomic evidence commit",
+            : transportFailure ? safeSourceTransportFailureReason(transportFailure)
+              : "Source execution failed before atomic evidence commit",
           ...(sourceTimedOut
             ? sourceFailureDiagnosticBundle(
                 "SOURCE_TIME_LIMIT_REACHED",
@@ -548,7 +591,8 @@ export async function runP0CrawlBatch(
                   "ADAPTER_EXECUTION_FAILED",
                   attemptTracker
                 )
-              : sourceFailureDiagnosticBundle(
+              : transportFailure ? transportFailureDiagnosticBundle(transportFailure, attemptTracker)
+                : sourceFailureDiagnosticBundle(
                   "UNCLASSIFIED_SOURCE_FAILURE",
                   "FETCH_EXECUTION_FAILED",
                   attemptTracker
@@ -568,14 +612,13 @@ export async function runP0CrawlBatch(
         ? evaluateCompletenessAnomalyForCrawl(plan, crawlResult, trustedCompletenessBaseline)
         : { independentValidationRequired: false, triggerCodes: [], countChange: null };
       const completenessAnomalyTriggerCodes: readonly string[] = anomaly.triggerCodes;
-      if (!portableMode && requiresBGradeTraversalCertificate(plan)) {
+      if (!portableMode && crawlResult.truth.transportSuccess && requiresBGradeTraversalCertificate(plan)) {
         independentTraversalValidationTrigger = selectCompletenessValidationTrigger({
           baseline: trustedCompletenessBaseline,
           currentSourceConfigSha256: pending.sourceConfigHash,
           anomaly
         });
-        const mainPathCanBeCertified = crawlResult.truth.transportSuccess && crawlResult.truth.adapterSuccess;
-        if (mainPathCanBeCertified || anomaly.independentValidationRequired) {
+        if (crawlResult.truth.adapterSuccess || anomaly.independentValidationRequired) {
           if (!independentTraversalValidation && independentTraversalValidationTrigger === "STABLE_RUN" &&
               trustedCompletenessBaseline?.certificateGrade === "B") {
             try {
@@ -637,7 +680,7 @@ export async function runP0CrawlBatch(
           adapterState: transportFailed ? "SKIPPED" : "FAILED",
           completenessState: "FAILED",
           atomicCommitState: "NOT_ATTEMPTED",
-          finishedAt: crawlResult.observation.crawledAt,
+          finishedAt: new Date(),
           failureCode: transportFailed ? "SOURCE_TRANSPORT_FAILED" : "SOURCE_ADAPTER_FAILED",
           failureReason: transportFailed
             ? crawlResult.transportFailure
@@ -653,6 +696,15 @@ export async function runP0CrawlBatch(
               ))
         };
         if (crawlResult.fetchEvidence) {
+          if (plan.source.id === "source-sanofi-china-social" &&
+              preCapturedValidation?.schemaVersion === "official-json-browser-network-traversal-v1") {
+            try {
+              // Retain the completed observation for diagnosis, outside the failed fetch evidence commit.
+              await archiveIndependentOriginal({ deps, batchId: batch.id, plan, pending, validation: preCapturedValidation });
+            } catch (error) {
+              console.error(JSON.stringify(sourceFetchDiagnostic(plan.source.id, { error })));
+            }
+          }
           let retainedFailureArtifacts: readonly ArchivedEvidenceArtifact[] = [];
           let failedCommit: ReturnType<typeof buildFailedRuntimeEvidenceCommit> | undefined;
           try {
@@ -738,6 +790,8 @@ export async function runP0CrawlBatch(
       let commit: AtomicSourceEvidenceCommit | undefined;
       let atomicFailureCode = "ATOMIC_COMMIT_BUILD_FAILED";
       try {
+        if(independentTraversalValidation?.schemaVersion==='official-json-browser-network-traversal-v1')
+          crawlResult=isolateIndependentJobs(plan,crawlResult,independentTraversalValidation.pages);
         if (!crawlResult.fetchEvidence) throw new Error("strict fetch evidence is required for atomic runtime commit");
         if (isSanofiChinesePlan(plan) && independentTraversalValidation) {
           crawlResult.fetchEvidence = bindSanofiChineseIndependentArtifact(plan, crawlResult.fetchEvidence, independentTraversalValidation.artifactSha256);
@@ -761,22 +815,10 @@ export async function runP0CrawlBatch(
         const compactSource = plan.source.id === "source-bayer-healthcare-social" ? "bayer"
           : plan.source.id === "source-sanofi-china-social" ? "sanofi" : null;
         if (compactSource && independentTraversalValidation?.schemaVersion === "official-json-browser-network-traversal-v1") {
-          const body = Buffer.from(JSON.stringify(independentTraversalValidation));
-          const locator = compactSource === "bayer" ? BAYER_INDEPENDENT_ORIGINAL_LOCATOR : SANOFI_INDEPENDENT_ORIGINAL_LOCATOR;
-          const tuple = { releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id, sourceId: plan.source.id, sourceResultId: pending.id };
-          const archiveInput = { ...tuple, workspaceRoot: deps.workspaceRoot ?? process.cwd(),
-            evidenceSubdirectory: deps.evidenceSubdirectory ?? "phase-1/runtime-evidence" };
-          const archived = await (deps.archiveEvidence ?? archiveSourceEvidence)({ ...archiveInput,
-            captureTool: { name: "playwright-core-local-chromium", version: "1" },
-            artifacts: bindRuntimeEvidenceArtifactIds({ ...tuple, artifacts: [{ id: locator, logicalKey: locator,
-              extractorLocator: locator, kind: "COMMAND_OUTPUT", body, bodyRepresentation: "EXACT",
-              capturedAt: compactSource === "bayer" ? bayerHybridFinishedAt(independentTraversalValidation.pages)
-                : sanofiChineseIndependentFinishedAt(independentTraversalValidation.pages) }] }) });
-          retainedArtifacts = [...verifiedArtifacts, ...archived.artifacts];
-          const checked = await (deps.verifyArchive ?? verifyArchivedSourceEvidence)({ ...archiveInput, artifacts: archived.artifacts });
-          verifiedArtifacts.push(...checked);
-          independentOriginal = { sha256: createHash("sha256").update(body).digest("hex"), byteCount: body.length,
-            canonicalArtifactSha256: independentTraversalValidation.artifactSha256 };
+          const original = await archiveIndependentOriginal({ deps, batchId: batch.id, plan, pending, validation: independentTraversalValidation,
+            onArchived: artifacts => { retainedArtifacts = [...verifiedArtifacts, ...artifacts]; } });
+          verifiedArtifacts.push(...original.artifacts);
+          independentOriginal = original.binding;
         }
         atomicFailureCode = "ATOMIC_COMMIT_BUILD_FAILED";
         const qualityAdmission = qualityRequired ? await issueSourceQualityAdmission({ plan, result: crawlResult,
@@ -858,7 +900,7 @@ export async function runP0CrawlBatch(
                 releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id,
                 sourceId: plan.source.id, transportState: "SUCCEEDED", adapterState: "SUCCEEDED",
                 completenessState: "FAILED", atomicCommitState: "ROLLED_BACK",
-                finishedAt: crawlResult.observation.crawledAt,
+                finishedAt: new Date(),
                 failureCode: atomicFailureCode, failureReason: "Atomic evidence processing failed",
                 ...sourceFailureDiagnosticBundle(
                   "EVIDENCE_PERSISTENCE_FAILURE",
@@ -916,7 +958,7 @@ export async function runP0CrawlBatch(
               ? (crawlResult.truth.adapterSuccess ? "SUCCEEDED" : "FAILED") : "SKIPPED",
             completenessState: "FAILED",
             atomicCommitState: crawlResult.truth.transportSuccess && crawlResult.truth.adapterSuccess ? "ROLLED_BACK" : "NOT_ATTEMPTED",
-            finishedAt: crawlResult.observation.crawledAt,
+            finishedAt: new Date(),
             failureCode: atomicFailureCode, failureReason: "Atomic evidence processing failed",
             ...sourceFailureDiagnosticBundle(
               "EVIDENCE_PERSISTENCE_FAILURE",
@@ -972,7 +1014,7 @@ export async function runP0CrawlBatch(
           releaseCandidateId: deps.identity.releaseCandidateId, batchId: batch.id,
           sourceId: pending.sourceId, transportState: portableMode && !sourceExecutionStarted ? "SKIPPED" : "FAILED", adapterState: "SKIPPED",
           completenessState: "FAILED", atomicCommitState: "NOT_ATTEMPTED",
-          finishedAt: portableMode ? new Date() : batchStartedAt, failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
+          finishedAt: new Date(), failureCode: "BATCH_ABORTED_BEFORE_SOURCE_TERMINAL",
           failureReason: sourceExecutionStarted
             ? "Source execution started but did not reach a persisted terminal result"
             : "Batch aborted before this source reached a terminal state",

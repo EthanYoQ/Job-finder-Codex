@@ -2,19 +2,16 @@ import { SANOFI_HISTORICAL_PUBLIC_RECEIPT } from "../crawler/sanofiHistoricalPub
 import {readNovoSingleClosures} from "./novoSingleClosureRepository";
 import {NOVO_CLOSURE_SOURCE,NOVO_CLOSURE_COMPANY,novoSingleClosureRemoves} from "../domain/novoSingleJobClosure";
 import { isJobProjectionDeltaReceipt, parseJobProjectionDeltaReceipt } from "../domain/jobProjectionDeltaReceipt";
-import { portableSnapshotIdentities } from "./portableDisplayIdentity";
 import { SANOFI_COMPACT_CERTIFICATE_SCHEMA_VERSION, sanofiCertificateArtifactLocators, type SanofiArtifactCommitment } from "../crawler/traversalCertificate";
 import { isSanofiPublicTransitionPlan, isSanofiHistoricalPublicCandidate } from "../domain/sanofiPublicTransition";
-import type { PublicSnapshotRefresh } from "../domain/publicSnapshotRefresh";
 import type { Prisma } from "@prisma/client";
-import { buildStagedSourceCrawlPlans, sourcePlanConfigSha256, type SourceCrawlPlan } from "../crawler/sourcePlan";
+import { buildStagedSourceCrawlPlans, type SourceCrawlPlan } from "../crawler/sourcePlan";
 import { candidateCompanies } from "../data/companyRegistry";
 import { getPortableCoverageScope, PORTABLE_COVERAGE_POLICY_ID } from "../release/portableCoveragePolicy";
 import { P0_LAUNCH_MANIFEST, selectLaunchCompanies, validateLaunchManifest } from "../release/launchManifest";
 import { portableCommittedConfigHashes, supportsPublicBGrade, compactCommittedCertificate, verifiedMembers, selectPortableSourceSnapshots, projectPortableSourceJobs, type PortableProjectedSource, type PortablePublicJob, type PortableSnapshotOptions } from "../domain/portablePublicSnapshot";
 import { SOURCE_QUALITY_POLICY_ID } from "../crawler/sourceQualityAdmission";
 import { DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS } from "../domain/publicationEligibility";
-import { PortableSnapshotCache, PORTABLE_SNAPSHOT_VERSION_SQL, portableSnapshotVersion, portableSnapshotValidUntil } from "./portableSnapshotCache";
 
 export const portableSourceResultSelect = {
   id: true, releaseCandidateId: true, batchId: true, sourceId: true, sourceConfigHash: true, adapterVersion: true,
@@ -55,26 +52,35 @@ export function portableCommittedResultsSql(plans: readonly SourceCrawlPlan[]): 
   const candidateScope = plans.map(plan => `(r."sourceId"=${quote(plan.source.id)} AND (${configScope(plan)}${isSanofiPublicTransitionPlan(plan) ? ` OR r.id=${quote(SANOFI_HISTORICAL_PUBLIC_RECEIPT.binding.sourceResultId)}` : ""}))`).join(" OR ") || "FALSE";
   const scalars = Object.entries(portableSourceResultSelect).filter(([key, value]) => value === true && key !== "completenessCertificate").map(([key]) => `r."${key}"`).join(",");
   const object = (alias: string, fields: object) => `jsonb_build_object(${Object.keys(fields).map(key => `${quote(key)},${alias}."${key}"`).join(",")})`;
-  const legacy = `jsonb_build_object('schemaVersion',c.value->'schemaVersion','policyId',c.value->'policyId','observedAt',c.value->'observedAt',
-    'observation',CASE WHEN c.value->'observation' IS NOT NULL THEN jsonb_build_object('crawledAt',c.value#>'{observation,crawledAt}') END,
-    'counts',jsonb_build_object('finalUniqueJobCount',c.value#>'{counts,finalUniqueJobCount}','validationDiscardCount',c.value#>'{counts,validationDiscardCount}'),
-    'mainTraversal',CASE WHEN c.value->'mainTraversal' IS NOT NULL THEN jsonb_build_object('matchKeyKind',c.value#>'{mainTraversal,matchKeyKind}','canonicalMatchKeySetSha256',c.value#>'{mainTraversal,canonicalMatchKeySetSha256}') END)`;
+  const legacy = (alias: string) => `jsonb_build_object('schemaVersion',${alias}."schemaVersion",'policyId',${alias}."policyId",'observedAt',${alias}."observedAt",
+    'observation',CASE WHEN ${alias}.observation IS NOT NULL THEN jsonb_build_object('crawledAt',${alias}.observation->'crawledAt') END,
+    'counts',jsonb_build_object('finalUniqueJobCount',${alias}.counts->'finalUniqueJobCount','validationDiscardCount',${alias}.counts->'validationDiscardCount',
+      'quarantinedJobCount',jsonb_array_length(COALESCE(${alias}."jobQuarantineLedger",${alias}."mainTraversal"#>'{jobQuarantine,ledger}','[]'::jsonb))),
+    'mainTraversal',CASE WHEN ${alias}."mainTraversal" IS NOT NULL THEN jsonb_build_object('matchKeyKind',${alias}."mainTraversal"->'matchKeyKind','canonicalMatchKeySetSha256',${alias}."mainTraversal"->'canonicalMatchKeySetSha256') END)`;
+  const certificateColumns = `"schemaVersion" jsonb,binding jsonb,"verifiedAt" jsonb,"observedAt" jsonb,members jsonb,"legacyCertificate" jsonb,"policyId" jsonb,observation jsonb,counts jsonb,"jobQuarantineLedger" jsonb,"mainTraversal" jsonb`;
+  const notDuePredicate = `r."failureCode"='SOURCE_NOT_DUE' AND r."transportState"='SKIPPED' AND r."adapterState"='SKIPPED' AND r."completenessState"='FAILED' AND r."atomicCommitState"='NOT_ATTEMPTED' AND r."finishedAt" IS NOT NULL AND r."startedAt" <= r."finishedAt" AND r."dedupeOutputCount"=0 AND r."expectedJobCount" IS NULL AND r."completenessCertificate" IS NULL`;
   const relations = {transportAttempts:"TransportAttemptEvidence",evidenceArtifacts:"EvidenceArtifact",observations:"CrawlObservation",paginationEvidence:"PaginationEvidence",lossLedgerEntries:"LossLedgerEntry",lifecycleSetMembers:"LifecycleSetEvidenceMember"};
   return `WITH latest AS (SELECT DISTINCT ON (r."sourceId") r.id FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
     WHERE (${candidateScope}) AND b.kind='SCHEDULED' AND r."atomicCommitState"='COMMITTED' AND r."completenessState"='VERIFIED'
-    ORDER BY r."sourceId",r."finishedAt" DESC,r.id DESC)
+    ORDER BY r."sourceId",r."finishedAt" DESC,r.id DESC),
+  latest_not_due AS (SELECT DISTINCT ON (r."sourceId") r.id FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
+    WHERE (${scope}) AND b.kind='SCHEDULED' AND (${notDuePredicate})
+    ORDER BY r."sourceId",GREATEST(r."startedAt",r."finishedAt") DESC,r.id DESC)
   SELECT ${scalars},
-    CASE WHEN r."completenessCertificate" IS NULL THEN NULL WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1'
-      THEN jsonb_build_object('schemaVersion',r."completenessCertificate"->'schemaVersion','binding',r."completenessCertificate"->'binding',
-        'verifiedAt',r."completenessCertificate"->'verifiedAt','observedAt',r."completenessCertificate"->'observedAt',
-        'members',CASE WHEN r.id IN (SELECT id FROM latest) THEN r."completenessCertificate"->'members' ELSE '[]'::jsonb END,'legacyCertificate',${legacy})
-      ELSE ${legacy} END AS "completenessCertificate",
+    CASE WHEN r."completenessCertificate" IS NULL THEN NULL WHEN d."schemaVersion"='"job-projection-delta-receipt-v1"'::jsonb
+      THEN jsonb_build_object('schemaVersion',d."schemaVersion",'binding',d.binding,
+        'verifiedAt',d."verifiedAt",'observedAt',d."observedAt",
+        'members',CASE WHEN r.id IN (SELECT id FROM latest) THEN d.members ELSE '[]'::jsonb END,'legacyCertificate',${legacy("l")})
+      ELSE ${legacy("d")} END AS "completenessCertificate",
     ${object("b", portableSourceResultSelect.batch.select)} AS batch,
-    (SELECT coalesce(jsonb_agg(${object("o", portableSourceResultSelect.observations.select)}),'[]'::jsonb) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id) AS observations,
+    CASE WHEN r."atomicCommitState"='COMMITTED' AND r."completenessState"='VERIFIED'
+      THEN (SELECT coalesce(jsonb_agg(${object("o", portableSourceResultSelect.observations.select)}),'[]'::jsonb) FROM public."CrawlObservation" o WHERE o."sourceResultId"=r.id)
+      ELSE '[]'::jsonb END AS observations,
     CASE WHEN r."failureCode"='BATCH_ABORTED_BEFORE_SOURCE_TERMINAL' THEN jsonb_build_object(${Object.entries(relations).map(([key, table]) => `${quote(key)},(SELECT count(*) FROM public."${table}" e WHERE e."sourceResultId"=r.id)`).join(",")}) ELSE '{}'::jsonb END AS "_count"
   FROM public."CrawlBatchSourceResult" r JOIN public."CrawlBatch" b ON b.id=r."batchId"
-  CROSS JOIN LATERAL (SELECT CASE WHEN r."completenessCertificate"->>'schemaVersion'='job-projection-delta-receipt-v1' THEN r."completenessCertificate"->'legacyCertificate' ELSE r."completenessCertificate" END AS value) c
-  WHERE (${scope}) AND b.kind='SCHEDULED' ORDER BY r."startedAt",r.id`;
+  LEFT JOIN LATERAL jsonb_to_record(CASE WHEN jsonb_typeof(r."completenessCertificate")='object' THEN r."completenessCertificate" END) AS d(${certificateColumns}) ON r."completenessCertificate" IS NOT NULL
+  LEFT JOIN LATERAL jsonb_to_record(CASE WHEN d."schemaVersion"='"job-projection-delta-receipt-v1"'::jsonb AND jsonb_typeof(d."legacyCertificate")='object' THEN d."legacyCertificate" END) AS l(${certificateColumns}) ON d."schemaVersion"='"job-projection-delta-receipt-v1"'::jsonb
+  WHERE (${scope}) AND b.kind='SCHEDULED' AND (NOT ((${notDuePredicate}) IS TRUE) OR r.id IN (SELECT id FROM latest_not_due)) ORDER BY r."startedAt",r.id`;
 }
 
 const lifecycleMemberSelect = {
@@ -152,38 +158,15 @@ export async function bindSanofiPersistedArtifacts(tx: PortableSnapshotTransacti
     a.releaseCandidateId===row.releaseCandidateId && a.batchId===row.batchId && a.sourceResultId===row.id && a.sourceId===row.sourceId);
 }
 
-/** Additive opt-in API: do not inject this into the legacy eligible-source-only search reader.
- * All source receipts, lifecycle membership and mutable jobs share one repeatable-read snapshot.
- * No database writes, credential loading or production route changes occur here. */
-export async function readPortablePublicSnapshot(
-  db: PortableSnapshotDb,
-  options: Partial<PortableSnapshotOptions> = {},
-  plans: readonly SourceCrawlPlan[] = buildStagedSourceCrawlPlans(selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies)),
-  cache?: PortableSnapshotCache,
-  onRefreshRequired?: () => void,
-  yieldAfterSource?: () => Promise<void>
-): Promise<PortablePublicSnapshot> {
-  return (await readPortablePublicSnapshotWithStatus(db, options, plans, cache, onRefreshRequired, yieldAfterSource)).snapshot;
-}
-
-export interface PortableSnapshotRead {
-  snapshot: PortablePublicSnapshot;
-  snapshotRefresh: PublicSnapshotRefresh;
-}
-
 /** Request-owned, numeric diagnostics. Never receives identities or query data. */
 export type SnapshotReadTiming = (phase: string, durationMs: number) => void;
 
-/** The response status travels with the selected projection across every await. */
-export async function readPortablePublicSnapshotWithStatus(
+/** All source receipts, lifecycle membership and mutable jobs share one repeatable-read snapshot. */
+export async function readPortablePublicSnapshot(
   db: PortableSnapshotDb,
   options: Partial<PortableSnapshotOptions> = {},
-  plans: readonly SourceCrawlPlan[] = buildStagedSourceCrawlPlans(selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies)),
-  cache?: PortableSnapshotCache,
-  onRefreshRequired?: () => Exclude<PublicSnapshotRefresh["state"], "CURRENT"> | void,
-  yieldAfterSource?: () => Promise<void>,
-  timing?: {startedAt: number; record: SnapshotReadTiming}
-): Promise<PortableSnapshotRead> {
+  plans: readonly SourceCrawlPlan[] = buildStagedSourceCrawlPlans(selectLaunchCompanies(P0_LAUNCH_MANIFEST, candidateCompanies))
+): Promise<PortablePublicSnapshot> {
   if (typeof db.$transaction !== "function") throw new Error("REPEATABLE_READ_PORTABLE_SNAPSHOT_REQUIRED");
   // The old 60-company registry is a catalog; the current runtime manifest owns the public roster.
   // Historical count/evidence fields in the manifest are not used as publication authority.
@@ -207,35 +190,7 @@ export async function readPortablePublicSnapshotWithStatus(
   const emptySelections = selectPortableSourceSnapshots(immutablePlans, [], readOptions);
   const requiredPlans = immutablePlans.filter(plan => !excludedSourceIds.has(plan.source.id));
   const identities = new Map(requiredPlans.map(plan => [plan.source.id, {companyId: plan.company.id, configs: portableCommittedConfigHashes(plan), sanofiTransition: isSanofiPublicTransitionPlan(plan)}]));
-  const cacheScope = JSON.stringify({plans: immutablePlans.map(plan => [plan.company.id, plan.source.id, sourcePlanConfigSha256(plan)]),
-    freshnessMaximumMs: readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS});
-  const transactionStartedAt = performance.now();
-  timing?.record("planPrep", transactionStartedAt - timing.startedAt);
-  const data = await db.$transaction(async tx => {
-    timing?.record("txAcquire", performance.now() - transactionStartedAt);
-    // Check freshness in the same database snapshot used on a miss. Failure of
-    // this query rejects the public request, including the opt-in display path.
-    let version: string | undefined;
-    if (cache && tx.$queryRawUnsafe) {
-      const versionStartedAt = performance.now();
-      const rows = await tx.$queryRawUnsafe(PORTABLE_SNAPSHOT_VERSION_SQL);
-      timing?.record("versionSQL", performance.now() - versionStartedAt);
-      version = portableSnapshotVersion(rows);
-    }
-    const cloneStartedAt = performance.now();
-    const cached = version === undefined ? undefined : cache!.getRead(version, cacheScope, readOptions.currentTime.getTime());
-    if (cached) {
-      timing?.record("cacheClone", performance.now() - cloneStartedAt);
-      return {cached};
-    }
-    // Only the HTTP display reader opts into an older verified projection. A
-    // successful current version check is mandatory; errors still reject.
-    const previous = version === undefined || !onRefreshRequired ? undefined :
-      cache!.getPreviousRead(cacheScope, readOptions.currentTime.getTime());
-    if (previous) {
-      timing?.record("cacheClone", performance.now() - cloneStartedAt);
-      return {cached: previous, refreshRequired: true};
-    }
+  const {results, members, jobs, novoClosed} = await db.$transaction(async tx => {
     const rawResults = tx.$queryRawUnsafe
       ? await tx.$queryRawUnsafe(portableCommittedResultsSql(requiredPlans))
       : await tx.crawlBatchSourceResult.findMany({
@@ -295,30 +250,11 @@ export async function readPortablePublicSnapshotWithStatus(
       if (!Array.isArray(rawJobs)) throw new Error("INVALID_PORTABLE_JOB_ROWS");
       jobs = rawJobs as PortableJobRow[];
     }
-    return {results, members, jobs, version, novoClosed};
-  }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 30_000});
-  timing?.record("tx", performance.now() - transactionStartedAt);
-  if (data.cached) {
-    const state = data.refreshRequired ? onRefreshRequired!() ?? "UPDATING" : "CURRENT";
-    const {snapshot, ...identity} = data.cached;
-    return {snapshot, snapshotRefresh: {state, ...identity}};
-  }
-  const {results, members, jobs, version, novoClosed} = data;
-  const rebuildStartedAt = performance.now();
+    return {results, members, jobs, novoClosed};
+  }, {isolationLevel: "RepeatableRead", maxWait: 5_000, timeout: 120_000});
   // Current membership and mutable Job projection checks use the same owned snapshot.
   // Original source evidence was admitted by the atomic publisher.
-  let selections: ReturnType<typeof selectPortableSourceSnapshots>;
-  if (yieldAfterSource) {
-    selections = [];
-    // Plan ownership/options were validated together before I/O. Each source
-    // consumes the same owned transaction rows and fixed time, in its original
-    // history order. Never expose partial work or update the cache at a yield.
-    for (const plan of requiredPlans) {
-      selections.push(...selectPortableSourceSnapshots([plan], results, readOptions));
-      await yieldAfterSource();
-    }
-    selections.sort((left, right) => Buffer.compare(Buffer.from(left.sourceId), Buffer.from(right.sourceId)));
-  } else selections = selectPortableSourceSnapshots(requiredPlans, results, readOptions);
+  const selections = selectPortableSourceSnapshots(requiredPlans, results, readOptions);
   // Closure identity is backed by the original committed metadata and complete
   // membership set, not a title match or mutable Job.visible flag.
   for (const closure of novoClosed) {
@@ -349,7 +285,6 @@ export async function readPortablePublicSnapshotWithStatus(
         Date.parse(job.lastConfirmedObservedAt ?? job.lastSeenAt) > maximumAge).length;
     }
     sources.push(projected);
-    if (yieldAfterSource) await yieldAfterSource();
   }
   for (const excluded of emptySelections.filter(source => excludedSourceIds.has(source.sourceId))) {
     const {selected: _selected, ...status} = excluded;
@@ -369,14 +304,10 @@ export async function readPortablePublicSnapshotWithStatus(
       jobs: available.flatMap(source => source.jobs)};
   });
   const published = sources.filter(source => source.state === "PUBLISHING");
-  const snapshot: PortablePublicSnapshot = {schemaVersion: "portable-public-snapshot-v1", policyId: SOURCE_QUALITY_POLICY_ID, coveragePolicyId: scope.policyId, generatedAt: readOptions.currentTime.toISOString(),
+  return {schemaVersion: "portable-public-snapshot-v1", policyId: SOURCE_QUALITY_POLICY_ID, coveragePolicyId: scope.policyId, generatedAt: readOptions.currentTime.toISOString(),
     sources, companies, totalJobs: published.reduce((n, source) => n + source.jobs.length, 0),
     lastUpdatedAt: published.map(source => source.lastSuccessAt!).sort().at(-1) ?? null,
     coverage: {companyCount: companies.length, requiredCompanyCount: scope.requiredCompanyIds.length, excludedCompanyCount: scope.exclusions.length, requiredSourceCount: scope.requiredSourceIds.length, excludedSourceCount: scope.exclusions.length, expectedSourceCount: P0_LAUNCH_MANIFEST.companies.length, sourceCount: sources.length,
       unplannedSourceCount: P0_LAUNCH_MANIFEST.companies.filter(company => !sources.some(source => source.sourceId === company.source.sourceId)).length, publishingSourceCount: published.length,
       unsupportedSourceCount: sources.filter(source => source.policyId === null && source.state !== "EXCLUDED").length, heldSourceCount: sources.filter(source => source.state === "HOLD").length}};
-  const identity = version !== undefined ? cache!.setRead(version, cacheScope, portableSnapshotValidUntil({results, jobs},
-    readOptions.currentTime.getTime(), readOptions.freshnessMaximumMs ?? DAILY_PUBLICATION_FRESHNESS_MAXIMUM_MS, snapshot), snapshot) : portableSnapshotIdentities(snapshot);
-  timing?.record("rebuild", performance.now() - rebuildStartedAt);
-  return {snapshot, snapshotRefresh: {state: "CURRENT", ...identity}};
 }

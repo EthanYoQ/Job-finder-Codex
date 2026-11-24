@@ -38,7 +38,7 @@ function exactPlan(plan:SourceCrawlPlan):plan is Extract<SourceCrawlPlan,{adapte
 function listPlan(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,cn=false){const table=structuredClone(plan.table);delete table.sanofiNativePolicy;delete table.sanofiChineseEntryUrl;if(cn)table.fields.officialUrl={selector:"a[data-job-id]",attribute:"href"};return {...plan,source:{...plan.source,officialEntryUrl:cn?SANOFI_CHINESE_ENTRY:ENGLISH},table};}
 function json(value:string):Record<string,unknown>{assert(hasUniqueJsonObjectKeys(value));const parsed=rec(JSON.parse(value));assert(parsed);return parsed!;}
 function listRows(plan:Extract<SourceCrawlPlan,{adapterId:"html-table"}>,evidence:PersistentSourceFetchEvidence):NormalizedJobRecord[]{
- const html=evidence.pages.map(p=>{const a=evidence.artifacts.find(a=>a.logicalKey===p.artifactLogicalKey)!;const raw=json(body(a));assert(text(raw.results));return raw.results as string;}).join("\n");
+ const html=evidence.pages.map(p=>{const a=evidence.artifacts.find(a=>a.logicalKey===p.artifactLogicalKey)!;if(a.kind==='OFFICIAL_COMPANY_PAGE')return body(a);const raw=json(body(a));assert(text(raw.results));return raw.results as string;}).join("\n");
  const result=htmlTableAdapter.extract({company:plan.company,source:plan.source,table:plan.table,html,capturedAt:evidence.artifacts[0]!.capturedAt,isBaseline:true});
  assert(result.status==="SUCCESS"&&result.reconciliation?.adapterLosses.length===0&&result.jobs.length===evidence.fetchCounts.rawCount&&new Set(result.jobs.map(j=>j.sourceJobId)).size===result.jobs.length);return result.jobs;
 }

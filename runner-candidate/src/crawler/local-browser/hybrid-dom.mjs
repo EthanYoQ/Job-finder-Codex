@@ -10,10 +10,13 @@ export async function captureHybridDom(sourceId, cua) {
   const pages = [];
   try {
     if (sanofi) await runtime.start(); else await runtime.start(name);
-    for (let index = 0; index < (sanofi ? 25 : 100); index++) {
+    let pageLimit = sanofi ? 1 : 100;
+    for (let index = 0; index < pageLimit; index++) {
       const value = await runtime.readPage();
+      if (sanofi && index === 0) pageLimit = value.totalPages;
       pages.push(sanofi ? value.page : value);
       if (value.nextDisabled) return { schemaVersion: `${sanofi ? 'sanofi-cn' : name}-cua-dom-list-v1`, observedAt: pages[0].capturedAt, pages };
+      if (sanofi && index + 1 === pageLimit) break;
       await runtime.advance();
     }
     throw Error('HYBRID_DOM_PAGE_LIMIT');

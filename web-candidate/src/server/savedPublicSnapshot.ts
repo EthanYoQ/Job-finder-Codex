@@ -13,7 +13,7 @@ const count = z.number().int().nonnegative();
 const health = z.enum(["HEALTHY", "DEGRADED", "UNVERIFIED", "NOT_APPLICABLE"]);
 const job = z.object({
   id: z.string(), title: z.string(), officialTitle: z.string(), officialPublishedAt: time.nullable(),
-  city: z.string(), cities: z.array(z.string()), locationRaw: z.string(), category: z.enum(JOB_CATEGORIES),
+  city: z.string(), cities: z.array(z.string()), locationRaw: z.string(), category: z.enum(JOB_CATEGORIES), categoryManuallyCorrected: z.literal(true).optional(),
   isNew: z.boolean(), officialUrl: z.string().url().refine(value => /^https?:\/\//.test(value)),
   companyId: z.string(), sourceId: z.string(), sourceResultId: z.string(), lastSeenAt: time,
   lastConfirmedObservedAt: time.optional(), inGrace: z.boolean(), cityPending: z.boolean().optional()

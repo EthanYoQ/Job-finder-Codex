@@ -1,7 +1,12 @@
 import { isDeepStrictEqual } from "node:util";
 import { ASTELLAS_PDF_CITY_CONFIG, astellasPdfCityEnvelopeSchema } from "./astellasPdfCityContract";
 import { assertAstellasPdfArtifact, inspectAstellasPdfRuntime, ASTELLAS_PDF_LIMITS, extractAstellasPdfLocationEvidence, fetchAstellasPdfLocation, type AstellasPdfLocationEvidence } from "./astellasPdfLocations";
-import { htmlTableAdapter } from "./adapters/htmlTable";
+import {readField} from './adapters/htmlTable';
+import {load} from 'cheerio';
+import {selectHtmlTableRows} from './htmlTableRows';
+import {reviewHtmlJobRows} from './htmlJobQuarantine';
+import {quarantineCompleteList,restoreQuarantinedList,JOB_QUARANTINE_PAGINATION,type JobQuarantine} from './jobQuarantine';
+import {evaluatePaginationEvidence} from './paginationEvidence';
 import { validateStrictHtmlCompletenessProof } from "./strictHtmlCompletenessProof";
 import { sourcePlanConfigSha256, type SourceCrawlPlan } from "./sourcePlan";
 import { parsePersistentSourceFetchEvidence, type PersistentSourceFetchEvidence } from "./sourceFetchEvidence";
@@ -16,10 +21,10 @@ function listJobs(plan: SourceCrawlPlan, evidence: PersistentSourceFetchEvidence
   if (!hasAstellasPdfCityPlan(plan) || plan.adapterId !== "html-table" || !validateStrictHtmlCompletenessProof(plan,evidence)) throw Error("ASTELLAS_LIST_PROOF_INVALID");
   const artifact=evidence.artifacts[0]!;
   if (typeof artifact.body!=="string") throw Error("ASTELLAS_LIST_BODY_INVALID");
-  const r=htmlTableAdapter.extract({company:plan.company,source:plan.source,table:plan.table,html:artifact.body,capturedAt,isBaseline});
-  if(r.status!=="SUCCESS" || r.jobs.length!==evidence.fetchCounts.rawCount || r.jobs.length>ASTELLAS_PDF_CITY_CONFIG.maxDocuments ||
-    r.jobs.some(j=>!j.sourceJobId) || new Set(r.jobs.map(j=>j.officialUrl)).size!==r.jobs.length) throw Error("ASTELLAS_LIST_IDENTITY_INVALID");
-  return r.jobs;
+  const reviewed=reviewHtmlJobRows(plan,evidence,capturedAt,isBaseline),jobs=reviewed.jobs;
+  if(jobs.length+reviewed.quarantines.length!==evidence.fetchCounts.rawCount||evidence.fetchCounts.rawCount>ASTELLAS_PDF_CITY_CONFIG.maxDocuments||
+    jobs.some(j=>!j.sourceJobId)||new Set(jobs.map(j=>j.officialUrl)).size!==jobs.length)throw Error('ASTELLAS_LIST_IDENTITY_INVALID');
+  return jobs;
 }
 /** Called only by the ordinary owned route, without injected transport. Every URL
  * comes from this acquisition's verified HTML. Sequential parsing caps subprocess
@@ -51,23 +56,28 @@ export async function acquireAstellasPdfCities(plan: SourceCrawlPlan, fetched: S
     entries.push({sourceJobId:job.sourceJobId!,officialUrl:job.officialUrl,...(artifact?{artifactLogicalKey:artifact.logicalKey}:{}),
       outcome:captured.ok?{ok:true,evidence:captured.evidence}:{ok:false,code:captured.code}});
   }
-  return {...fetched,fetchEvidence:parsePersistentSourceFetchEvidence({...list,artifacts,astellasPdfLocations:{
-    schemaVersion:"astellas-owned-pdf-cities-v1",runtimeCapability,sourceConfigSha256:sourcePlanConfigSha256(plan),listArtifactLogicalKey:list.artifacts[0]!.logicalKey,entries}})};
+  const evidence=parsePersistentSourceFetchEvidence({...list,artifacts,astellasPdfLocations:{
+    schemaVersion:"astellas-owned-pdf-cities-v1",runtimeCapability,sourceConfigSha256:sourcePlanConfigSha256(plan),listArtifactLogicalKey:list.artifacts[0]!.logicalKey,entries}});
+  const replay=await replayAstellasPdfCities(plan,evidence,fetched.capturedAt,true);
+  const fetchEvidence={...replay.listEvidence,artifacts,astellasPdfLocations:evidence.astellasPdfLocations!};
+  return {...fetched,fetchEvidence,paginationEvaluation:evaluatePaginationEvidence({evidence:fetchEvidence,expectedChannelIds:[],filteredOutput:true,allowMissingReturnedPage:true,...JOB_QUARANTINE_PAGINATION})};
 }
 
 /** Fully validates the explicit envelope before exposing its one-list projection.
  * Generic HTML replay remains unchanged and rejects the multi-artifact envelope.
  * No caller-provided city map, success boolean or text artifact grants authority. */
 export async function replayAstellasPdfCities(plan: SourceCrawlPlan, supplied: PersistentSourceFetchEvidence,
-  capturedAt: string, isBaseline: boolean):Promise<{listEvidence:PersistentSourceFetchEvidence;jobs:NormalizedJobRecord[];hasUnreviewedLocation:boolean;runtimeAvailable:boolean}> {
-  if(!hasAstellasPdfCityPlan(plan))throw Error("ASTELLAS_PDF_PLAN_INVALID");
+  capturedAt: string, isBaseline: boolean):Promise<{listEvidence:PersistentSourceFetchEvidence;jobs:NormalizedJobRecord[]}> {
+  if(!hasAstellasPdfCityPlan(plan)||plan.adapterId!=='html-table')throw Error("ASTELLAS_PDF_PLAN_INVALID");
   const evidence=parsePersistentSourceFetchEvidence(structuredClone(supplied));
   const envelope=astellasPdfCityEnvelopeSchema.parse(evidence.astellasPdfLocations);
   if(envelope.sourceConfigSha256!==sourcePlanConfigSha256(plan))throw Error("ASTELLAS_PDF_CONFIG_INVALID");
   const listArtifact=evidence.artifacts.find(a=>a.logicalKey===envelope.listArtifactLogicalKey);
   if(!listArtifact||typeof listArtifact.body!=="string")throw Error("ASTELLAS_LIST_ARTIFACT_INVALID");
   const {astellasPdfLocations:_envelope,...base}=evidence;
-  const listEvidence=parsePersistentSourceFetchEvidence({...base,artifacts:[listArtifact]});
+  const rawList=restoreQuarantinedList(parsePersistentSourceFetchEvidence({...base,artifacts:[listArtifact]}));
+  const listReview=reviewHtmlJobRows(plan,rawList,capturedAt,isBaseline);
+  const listEvidence=quarantineCompleteList(rawList,listReview.quarantines);
   const jobs=listJobs(plan,listEvidence,capturedAt,isBaseline);
   if(envelope.entries.length!==jobs.length)throw Error("ASTELLAS_PDF_ROW_COUNT_INVALID");
   const expectedKeys=[envelope.listArtifactLogicalKey,...envelope.entries.flatMap(e=>e.artifactLogicalKey?[e.artifactLogicalKey]:[])];
@@ -78,7 +88,8 @@ export async function replayAstellasPdfCities(plan: SourceCrawlPlan, supplied: P
     const actual=await inspectAstellasPdfRuntime();
     if(!actual.available||!isDeepStrictEqual(actual,envelope.runtimeCapability))throw Error("ASTELLAS_PDF_RUNTIME_UNAVAILABLE");
   } else if(envelope.entries.some(e=>e.artifactLogicalKey||e.outcome.ok||e.outcome.code!=="PDF_RUNTIME_UNAVAILABLE"))throw Error("ASTELLAS_PDF_RUNTIME_OUTCOME_INVALID");
-  let retained=0,hasUnreviewedLocation=false;
+  let retained=0;const quarantines:JobQuarantine[]=[],accepted:NormalizedJobRecord[]=[];
+  const $=load(listArtifact.body),rawRows=selectHtmlTableRows($,plan.table);
   for(let i=0;i<jobs.length;i++){
     const job=jobs[i]!,entry=envelope.entries[i]!;
     if(entry.sourceJobId!==job.sourceJobId||entry.officialUrl!==job.officialUrl)throw Error("ASTELLAS_PDF_ROW_BINDING_INVALID");
@@ -101,13 +112,16 @@ export async function replayAstellasPdfCities(plan: SourceCrawlPlan, supplied: P
     if(status==="CITY_SPECIFIC"){
       job.cities=[...result!.cities];job.locationRaw=result!.fields[0]!.rawValue.trim();
     }
-    if(status==="UNREVIEWED_LOCATION"){
-      hasUnreviewedLocation=true;
-      job.locationRaw=result!.fields.map(field=>field.rawValue.trim()).join(" | ").trim()||"地点待核实";
-      job.cities=["地点待核实"];
+    if(status!=='CITY_SPECIFIC'&&status!=='COUNTRY_ONLY'){
+      const recordIndex=rawRows.findIndex(row=>readField($,row,plan.table.fields.sourceJobId!)===job.sourceJobId);
+      if(recordIndex<0)throw Error('ASTELLAS_PDF_LIST_POSITION_INVALID');
+      quarantines.push({sourceJobId:job.sourceJobId!,officialUrl:job.officialUrl,pageSequence:0,recordIndex,validJobId:listEvidence.pages[0]!.rawJobIds[recordIndex]!,rawLocator:`${listEvidence.pages[0]!.artifactLogicalKey}#row:${recordIndex}`,code:'ASTELLAS_PDF_UNVERIFIED'});continue;
     }
     job.evidence.astellasPdfLocation={...(status==="CITY_SPECIFIC"||status==="COUNTRY_ONLY"?{country:"中国" as const}:{sourceCountryContext:"中国" as const}),status,...(artifact?{artifactLogicalKey:artifact.logicalKey}:{}),
       ...(claim?{pdfSha256:claim.pdfSha256}:{})};
+    accepted.push(job);
   }
-  return {listEvidence,jobs,hasUnreviewedLocation,runtimeAvailable};
+  const isolated=quarantineCompleteList(listEvidence,quarantines);
+  if(evidence.jobQuarantines?.some(q=>q.code==='ASTELLAS_PDF_UNVERIFIED')&&!isDeepStrictEqual(evidence.jobQuarantines,isolated.jobQuarantines))throw Error('ASTELLAS_PDF_QUARANTINE_INVALID');
+  return {listEvidence:isolated,jobs:accepted};
 }

@@ -1,0 +1,362 @@
+{
+  "provenance": {
+    "failedBatch": "18deec40-8298-40f5-a830-a46e88d1fc6e",
+    "failedPages": "Hash-verified archived REQ/total projection. Test HTML is synthesized.",
+    "sitePages": "2026-11-13 15:27 Beijing, direct official responses. Retains title, link, country, location and page coordinates; drops all other HTML. Test HTML is synthesized from the projection."
+  },
+  "failed": [
+    {
+      "key": "novartis-partition-FCT_MM-0.html",
+      "sha256": "6cf8e044896ff943140c99d686e4bbc3c43cffa90f777cde0860641c271a21d0",
+      "total": 33,
+      "ids": [
+        "REQ-10080456",
+        "REQ-10085971",
+        "REQ-10085307",
+        "REQ-10087715",
+        "REQ-10079287",
+        "REQ-10089582",
+        "REQ-10090907",
+        "REQ-10090912",
+        "REQ-10090916",
+        "REQ-10090976"
+      ]
+    },
+    {
+      "key": "novartis-partition-FCT_MM-1.html",
+      "sha256": "4c7d28298040067ba5e22ef5a75a0cb3df9908aadbd71fad7ce041106884ae77",
+      "total": 32,
+      "ids": [
+        "REQ-10090922",
+        "REQ-10091293",
+        "REQ-10091458",
+        "REQ-10091466",
+        "REQ-10091472",
+        "REQ-10091462",
+        "REQ-10091469",
+        "REQ-10091682",
+        "REQ-10091660",
+        "REQ-10091850"
+      ]
+    },
+    {
+      "key": "novartis-partition-FCT_MM-2.html",
+      "sha256": "affd5ea5fcb3795c3b80d03d5925cbe05eb6fed03b5cfc5c98907925d049e7c7",
+      "total": 33,
+      "ids": [
+        "REQ-10091654",
+        "REQ-10091872",
+        "REQ-10091873",
+        "REQ-10092151",
+        "REQ-10091470",
+        "REQ-10092152",
+        "REQ-10091464",
+        "REQ-10092307",
+        "REQ-10092415",
+        "REQ-10092443"
+      ]
+    },
+    {
+      "key": "novartis-partition-FCT_MM-3.html",
+      "sha256": "e27e07defa201175090841501caaa18e9aace2450f3c5874beed108b8cd9433e",
+      "total": 33,
+      "ids": [
+        "REQ-10092559",
+        "REQ-10092683",
+        "REQ-10092310"
+      ]
+    },
+    {
+      "key": "novartis-partition-FCT_MM-reverse-0.html",
+      "sha256": "c681aae3e3937e03219064a3ec8b31dd3c0624f2cd01960c27de07cb1466e6fc",
+      "total": 33,
+      "ids": [
+        "REQ-10092683",
+        "REQ-10092557",
+        "REQ-10092559",
+        "REQ-10092415",
+        "REQ-10092443",
+        "REQ-10092307",
+        "REQ-10091470",
+        "REQ-10092152",
+        "REQ-10091464",
+        "REQ-10091654"
+      ]
+    },
+    {
+      "key": "novartis-partition-FCT_MM-reverse-1.html",
+      "sha256": "b9e030a8b05585a2f43b29e58b4d956eb4af66141e8757f79c78eff65c59a147",
+      "total": 33,
+      "ids": [
+        "REQ-10091872",
+        "REQ-10091873",
+        "REQ-10092151",
+        "REQ-10091682",
+        "REQ-10091660",
+        "REQ-10091850",
+        "REQ-10091458",
+        "REQ-10091466",
+        "REQ-10091472",
+        "REQ-10091462"
+      ]
+    },
+    {
+      "key": "novartis-partition-FCT_MM-reverse-2.html",
+      "sha256": "6d3f46ff89ee0cc308aaf90f279c62704505ba240e40ddf3830a6b33040d951a",
+      "total": 32,
+      "ids": [
+        "REQ-10091293",
+        "REQ-10090976",
+        "REQ-10090922",
+        "REQ-10090912",
+        "REQ-10090916",
+        "REQ-10090907",
+        "REQ-10089582",
+        "REQ-10079287",
+        "REQ-10087715",
+        "REQ-10085971"
+      ]
+    },
+    {
+      "key": "novartis-partition-FCT_MM-reverse-3.html",
+      "sha256": "8beae8c01680a3ef821c262e10afbf1ad09befa1a388ea2f5036b2671b16f825",
+      "total": 32,
+      "ids": [
+        "REQ-10085307",
+        "REQ-10080456"
+      ]
+    }
+  ],
+  "site": [
+    {
+      "url": "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&op=Submit&field_job_posted_date=All&country%5B0%5D=LOC_CN&functional_area%5B0%5D=FCT_MM&sort=asc&order=%E7%AB%99%E7%82%B9",
+      "sha256": "a06deb172eb6ce255776d64f77284a47109bbc58b7127c4131aa5f66a33ad438",
+      "capturedAt": "2026-11-13T07:27:43.019Z",
+      "total": 33,
+      "rows": [
+        {
+          "url": "/careers/career-search/job/details/req-10092443-senior-area-marketing-manager-zh-cn",
+          "title": "(Senior) Area Marketing Manager",
+          "country": "China",
+          "location": "Beijing (Beijing)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091469-senior-area-marketing-manager-zh-cn",
+          "title": "(Senior) Area Marketing Manager",
+          "country": "China",
+          "location": "Chengdu (Sichuan Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091873-senior-area-marketing-manager-zh-cn",
+          "title": "(Senior) Area Marketing Manager",
+          "country": "China",
+          "location": "Chengdu (Sichuan Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091466-gaojiquyushichangjingli-zh-cn",
+          "title": "(高级）区域市场经理",
+          "country": "China",
+          "location": "Fuzhou (Fujian Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10090912-gaojiquyushichangjingli",
+          "title": "（高级）区域市场经理",
+          "country": "China",
+          "location": "Guangzhou (Guangdong Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10092307-senior-area-marketing-manager",
+          "title": "Senior Area Marketing Manager",
+          "country": "China",
+          "location": "Haerbin (Heilongjiang Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091464-area-marketing-manager-zh-cn",
+          "title": "Area Marketing Manager",
+          "country": "China",
+          "location": "Haerbin (Heilongjiang Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10092557-senior-area-marketing-manager-pc",
+          "title": "( Senior) Area Marketing Manager-PC",
+          "country": "China",
+          "location": "Hangzhou (Zhejiang Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10092151-senior-area-marketing-manager-bc-zh-cn",
+          "title": "(Senior) Area Marketing Manager-BC",
+          "country": "China",
+          "location": "Hangzhou (Zhejiang Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091470-area-marketing-manager-zh-cn",
+          "title": "Area Marketing Manager",
+          "country": "China",
+          "location": "Jinan (Shandong Province)"
+        }
+      ]
+    },
+    {
+      "url": "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&op=Submit&field_job_posted_date=All&country%5B0%5D=LOC_CN&functional_area%5B0%5D=FCT_MM&sort=asc&order=%E7%AB%99%E7%82%B9&page=1",
+      "sha256": "00296f108d8af6ce9ae46f2a2eaf1167b78f5e7c97b4702a44fa48f8bd3cf508",
+      "capturedAt": "2026-11-13T07:27:49.391Z",
+      "total": 33,
+      "rows": [
+        {
+          "url": "/careers/career-search/job/details/req-10092559-senior-area-marketing-manager-pc",
+          "title": "(Senior) Area Marketing Manager-PC",
+          "country": "China",
+          "location": "Nanjing (Jiangsu Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091850-senior-area-marketing-manager-htn-zh-cn",
+          "title": "(Senior) Area Marketing Manager-HTN",
+          "country": "China",
+          "location": "Nanjing (Jiangsu Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091472-quyushichangjingli-zh-cn",
+          "title": "区域市场经理",
+          "country": "China",
+          "location": "Nanning (Guangxi Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10092683-senior-brand-manager-rheum",
+          "title": "(Senior ) Brand Manager-Rheum",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10090976-senior-marketing-manager-hema",
+          "title": "（ Senior ） Marketing Manager-Hema",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091293-senior-brand-manager",
+          "title": "(Senior) Brand Manager",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091654-retail-brand-manager",
+          "title": "Retail Brand Manager",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10090907-group-area-marketing-manager",
+          "title": "Group Area Marketing Manager",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10080456-data-management-infrastructure-lead",
+          "title": "Data Management & Infrastructure Lead",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10087715-senior-brand-manager-renal",
+          "title": "(Senior) Brand Manager- Renal",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        }
+      ]
+    },
+    {
+      "url": "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&op=Submit&field_job_posted_date=All&country%5B0%5D=LOC_CN&functional_area%5B0%5D=FCT_MM&sort=asc&order=%E7%AB%99%E7%82%B9&page=2",
+      "sha256": "775f243a449963ac6cb3851577765f4f12005912d3422caf0901458aa7472064",
+      "capturedAt": "2026-11-13T07:27:54.027Z",
+      "total": 33,
+      "rows": [
+        {
+          "url": "/careers/career-search/job/details/req-10085971-senior-brand-manager-immu-zh-cn",
+          "title": "(Senior) Brand Manager-IMMU",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10085307-senior-brand-manager-bc-zh-cn",
+          "title": "(Senior) Brand Manager- BC",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10079287-senior-brand-manager-bc-zh-cn",
+          "title": "(Senior) Brand Manager-BC",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10089582-senior-brand-manager-pc-zh-cn",
+          "title": "(Senior) Brand Manager -PC",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10090916-commercial-portfolio-manager-zh-cn",
+          "title": "Commercial Portfolio Manager",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10090922-senior-brand-manager-ipa-zh-cn",
+          "title": "( Senior ）Brand Manager-IPA",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091682-senior-area-marketing-manager-bc-zh-cn",
+          "title": "(Senior) Area Marketing Manager-BC",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091660-group-area-marketing-manager-zh-cn",
+          "title": "Group Area Marketing Manager",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10092415-seniorbrand-manager-immu-zh-cn",
+          "title": "(Senior)Brand Manager-IMMU",
+          "country": "China",
+          "location": "Shanghai (Shanghai)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091458-quyushichangjingli-zh-cn",
+          "title": "区域市场经理",
+          "country": "China",
+          "location": "Shenzhen (Guangdong Province)"
+        }
+      ]
+    },
+    {
+      "url": "https://www.novartis.com.cn/careers/career-search?search_api_fulltext=&op=Submit&field_job_posted_date=All&country%5B0%5D=LOC_CN&functional_area%5B0%5D=FCT_MM&sort=asc&order=%E7%AB%99%E7%82%B9&page=3",
+      "sha256": "fcf35dfe7c15995199314f9a8ede0b20fcbcffbf285a496d3a3260ea05e39e71",
+      "capturedAt": "2026-11-13T07:27:57.972Z",
+      "total": 33,
+      "rows": [
+        {
+          "url": "/careers/career-search/job/details/req-10092310-senior-area-marketing-manager",
+          "title": "Senior Area Marketing Manager",
+          "country": "China",
+          "location": "Shijiazhuang (Hebei Province)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10092152-senior-area-marketing-manager-bc-zh-cn",
+          "title": "(Senior) Area Marketing Manager-BC",
+          "country": "China",
+          "location": "Tianjin (Tianjin)"
+        },
+        {
+          "url": "/careers/career-search/job/details/req-10091462-senior-area-marketing-manager-zh-cn",
+          "title": "(Senior) Area Marketing Manager",
+          "country": "China",
+          "location": "Xi an (Shaanxi Province)"
+        }
+      ]
+    }
+  ]
+}

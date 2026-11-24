@@ -1,3 +1,5 @@
+import { CITY_PENDING } from "../domain/jobLocation";
+import { explicitlyForeignOrNonMainlandLocation } from "./officialJsonEvidence";
 import type { SourceCrawlPlan } from "./sourcePlan";
 
 /** Preservation only: this policy selects no temporal eligibility bound and authorizes no publication. */
@@ -108,12 +110,13 @@ const UCB_CITY_ALIASES: ReadonlyArray<readonly [string, string]> = [
  * An unknown province/locality relationship needs separate source review. A raw
  * city must name the same exact locality; it never adds another city to the job. */
 export function ucbOfficialCities(primary: unknown, rawCity: unknown): string[] | undefined {
-  if (typeof primary !== "string" || typeof rawCity !== "string") return undefined;
+  if (typeof primary !== "string") return undefined;
   const clean = (value: string) => value.normalize("NFKC").trim().toLowerCase();
   const resolve = (value: string) => UCB_CITY_ALIASES.find(([alias]) => clean(alias) === clean(value))?.[1];
   const segments = primary.split(/[,，]/u).map(clean);
   if ((segments.length !== 2 && segments.length !== 3) || segments.at(-1) !== "china") return undefined;
   const city = resolve(segments[0]!);
-  if (!city || resolve(rawCity) !== city || (segments.length === 3 && resolve(segments[1]!) !== city)) return undefined;
+  if (explicitlyForeignOrNonMainlandLocation(primary) || typeof rawCity === "string" && explicitlyForeignOrNonMainlandLocation(rawCity)) return undefined;
+  if (!city || typeof rawCity !== "string" || resolve(rawCity) !== city || (segments.length === 3 && resolve(segments[1]!) !== city)) return [CITY_PENDING];
   return [city];
 }

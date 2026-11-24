@@ -1,22 +1,33 @@
+import {isolateRedseaJobs} from './redseaJobQuarantine';
 import { captureLocalOfficialDom } from './local-browser/official-dom.mjs';
-import { reviewCspcDomHttp } from './local-browser/cspc-dom-http-review';
+import { reviewCspcDomHttp,reviewCspcNativeHttp } from './local-browser/cspc-dom-http-review';
 import { reviewBiDomHttp } from './local-browser/bi-dom-http-review';
+import {isolateBiDomJobs} from './biSemanticCompleteness';
 import { replayBiUiSemanticContract } from './biUiSemanticContract';
 import { createJnjCareersDomSourceFetch } from './jnjCareersDomEvidence';
 import type { SourceFetchFunction } from './runSourceCrawl';
 import { currentOfficialSourceAttemptSignal } from './officialHttpRuntimeLimits';
 import {isRetryableSourceTransportFailure,safeSourceTransportFailureReason} from './sourceFetchFailure';
-import {reportSourceFetchFailure} from './sourceFetchDiagnostics';
+import {reportSourceFetchFailure,sourceFetchDiagnostic} from './sourceFetchDiagnostics';
 
-/** Fresh DOM is mandatory for these routes; a failed browser never falls back to HTTP. */
+/** Fresh browser evidence supplements HTTP; CSPC can use its matching native response when the table fails to render. */
 export function withLocalOfficialDom(http: SourceFetchFunction, captureDom = captureLocalOfficialDom): SourceFetchFunction {
   return async (plan, tracker) => {
     const sourceId = plan.source.id;
     if (!['source-cspc-social', 'source-boehringer-ingelheim-china-social', 'source-johnson-innovative-medicine-social'].includes(sourceId)) return http(plan, tracker);
     const runStartedAt = new Date().toISOString();
+    let httpResult;
+    if(sourceId==='source-cspc-social'){httpResult=await http(plan,tracker);if(!httpResult.ok||httpResult.paginationEvaluation?.safeCompleteness!==true)return httpResult;}
     let capture;
     try {capture=await captureDom(sourceId, runStartedAt, currentOfficialSourceAttemptSignal());}
     catch(error) {
+      if(sourceId==='source-cspc-social'&&httpResult?.ok&&error instanceof Error&&error.message==='CSPC_DOM_LOADING_TIMEOUT'&&'cspcNativeResponse'in error){
+        let review;
+        try{review=reviewCspcNativeHttp({...error.cspcNativeResponse as any,plan,replayedEvidence:httpResult.fetchEvidence,runStartedAt,now:new Date().toISOString()});}
+        catch{throw error;} // Preserve the saved original observation when recovery cannot establish completeness.
+        console.info(JSON.stringify({event:'CSPC_NATIVE_RESPONSE_RECOVERY',...review,domFailure:sourceFetchDiagnostic(sourceId,{error})}));
+        return isolateRedseaJobs(plan,httpResult,review.quarantinedRecordIndices);
+      }
       const failure=error instanceof Error && 'transportFailure' in error?error.transportFailure:undefined;
       if(sourceId!=='source-johnson-innovative-medicine-social'||!isRetryableSourceTransportFailure(failure))throw error;
       reportSourceFetchFailure(sourceId,{error});
@@ -27,15 +38,16 @@ export function withLocalOfficialDom(http: SourceFetchFunction, captureDom = cap
       if (!capture.lists || !capture.details) throw Error('JNJ_DOM_CAPTURE_REQUIRED');
       return createJnjCareersDomSourceFetch({ lists: capture.lists, details: capture.details })(plan, tracker);
     }
-    const result = await http(plan, tracker);
+    const result = httpResult??await http(plan, tracker);
     if (!result.ok || !result.fetchEvidence) return result;
     const input = { ...capture, plan, replayedEvidence: result.fetchEvidence, runStartedAt,
       now: new Date().toISOString(), dispatchBefore: new Date(Date.parse(runStartedAt) + 30 * 60_000).toISOString() };
-    if (sourceId === 'source-cspc-social') reviewCspcDomHttp({ ...input, dom: capture.dom, applications: capture.applications });
+    if (sourceId === 'source-cspc-social') {const review=reviewCspcDomHttp({ ...input, dom: capture.dom, applications: capture.applications });return isolateRedseaJobs(plan,result,review.quarantinedRecordIndices,review.unboundDomRecordIndices);}
     else {
       const script = result.fetchEvidence.artifacts.find(a => a.logicalKey === '51job-ui-script');
       if (!script || typeof script.body !== 'string') throw Error('BI_DOM_NATIVE_SCRIPT_REQUIRED');
-      reviewBiDomHttp({ ...input, uiContract: replayBiUiSemanticContract(script.body) });
+      const review=reviewBiDomHttp({ ...input, uiContract: replayBiUiSemanticContract(script.body) });
+      return isolateBiDomJobs(result,review.quarantinedRecordIndices,review.unboundDomRecordIndices);
     }
     return result;
   };

@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { classifyGileadPublicAge, exactGileadPublicAgePlan, GILEAD_PUBLIC_AGE_POLICY, GILEAD_YELLO_BOARD, gileadOfficialCities, type GileadPublicAgeClassification, type GileadPublicAgeEvidence } from "./gileadPublicAge";
 import type { NormalizedJobRecord } from "./normalizedJob";
 import type { SourceCrawlPlan } from "./sourcePlan";
-import type { PersistentSourceFetchEvidence, SourceFetchArtifactDraft } from "./sourceFetchEvidence";
+import {sanitizeEvidenceHttpUrl,type PersistentSourceFetchEvidence,type SourceFetchArtifactDraft} from './sourceFetchEvidence';
+import {type JobQuarantine} from './jobQuarantine';
 import { hasUniqueJsonObjectKeys } from "./strictJsonObjectKeys";
 import {
   explicitlyForeignOrNonMainlandLocation,
@@ -11,6 +12,7 @@ import {
   persistentOfficialJsonJobId,
   officialJsonRawLocator
 } from "./officialJsonEvidence";
+import {irreversibleOfficialJsonEvidenceId} from './officialJsonEvidence';
 
 export interface YelloJobBoardConfig {
   kind: "yello-job-board";
@@ -38,12 +40,19 @@ export interface ParsedYelloExcludedJob extends ParsedYelloIdentity {
   scopeDecision: "EXCLUDED_HONG_KONG";
   publicAgeStatus: "NOT_EVALUATED_OUT_OF_SCOPE";
 }
-
-export class YelloPublicAgeError extends Error {
-  constructor(readonly rawRows: string[], readonly rowIndex: number) {
-    super(`GILEAD_PUBLIC_AGE_INVALID:row:${rowIndex}`);
-    this.name = "YelloPublicAgeError";
-  }
+export interface ParsedYelloQuarantinedJob{
+  scopeDecision:'QUARANTINED';rowIndex:number;rawHtml:string;code:string;officialId?:string;officialUrl?:string;
+}
+function rowIdentity(row:ReturnType<ReturnType<typeof load>>,config:YelloJobBoardConfig):{officialId:string;officialUrl:string}|undefined{
+  try{const link=row.find('a.search-results__req_title');if(link.length!==1)return undefined;
+    const url=new URL(link.attr('href')?.trim()??'','https://gilead.yello.co'),id=/^\/jobs\/([A-Za-z0-9_-]{22})$/u.exec(url.pathname)?.[1],query=[...url.searchParams];
+    return id&&url.origin==='https://gilead.yello.co'&&!url.username&&!url.password&&!url.hash&&query.length===1&&query[0]![0]==='job_board_id'&&query[0]![1]===config.boardId?{officialId:id,officialUrl:url.href}:undefined;
+  }catch{return undefined;}
+}
+export function yelloJobQuarantine(row:ParsedYelloQuarantinedJob):JobQuarantine{
+ return {pageSequence:0,recordIndex:row.rowIndex,rawLocator:officialJsonRawLocator(row.rawHtml,row.rowIndex),code:row.code,
+  validJobId:row.officialId?irreversibleOfficialJsonEvidenceId(persistentOfficialJsonJobId(row.officialId)):`unidentified:0:${row.rowIndex}`,
+  ...(row.officialId?{sourceJobId:persistentOfficialJsonJobId(row.officialId)}:{}),...(row.officialUrl?{officialUrl:sanitizeEvidenceHttpUrl(row.officialUrl)}:{})};
 }
 
 export class YelloScopeReviewError extends Error {
@@ -73,9 +82,10 @@ export function yelloJobBoardBinding(entryUrl: string, config: YelloJobBoardConf
 
 export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardConfig): {
   declaredTotal: number;
-  rows: Array<ParsedYelloJob | ParsedYelloExcludedJob>;
+  rows: Array<ParsedYelloJob | ParsedYelloExcludedJob|ParsedYelloQuarantinedJob>;
   jobs: ParsedYelloJob[];
   excludedJobs: ParsedYelloExcludedJob[];
+  quarantinedJobs:ParsedYelloQuarantinedJob[];
 } {
   yelloJobBoardBinding(`https://gilead.yello.co/job_boards/${GILEAD_YELLO_BOARD}`, config);
   if (!hasUniqueJsonObjectKeys(body)) throw new Error("Yello response is not strict JSON");
@@ -94,90 +104,55 @@ export function parseYelloJobBoardResponse(body: string, config: YelloJobBoardCo
   if (rows.length !== count) throw new Error("Yello result count does not match rendered rows");
   const seen = new Set<string>();
   const rawRows = rows.map(element => $.html(element));
-  const parsedRows = rows.map((element, rowIndex): ParsedYelloJob | ParsedYelloExcludedJob => {
+  const parsedRows = rows.map((element, rowIndex): ParsedYelloJob | ParsedYelloExcludedJob|ParsedYelloQuarantinedJob => {
     const row = $(element);
+    const bound=rowIdentity(row,config);
+    if(bound){if(seen.has(bound.officialId))throw Error('YELLO_DUPLICATE_OFFICIAL_ID');seen.add(bound.officialId);}
+    try{
     const link = row.find("a.search-results__req_title");
     const jobInfo = row.find(".search-results__jobinfo");
     const locationContainer = jobInfo.children("div");
     const locationSpans = locationContainer.children("span");
     const flag = row.find(".search-results__flag img");
-    const unexpectedLocationContent = locationContainer.contents().toArray().some(node =>
-      node.type === "text" ? /\S/u.test(node.data) : node.type !== "tag" || node.name !== "span");
-    const unexpectedJobInfoContent = jobInfo.contents().toArray().some(node =>
-      node.type === "text" ? /\S/u.test(node.data) : node.type !== "tag" || !["a", "div"].includes(node.name));
-    if (link.length !== 1 || jobInfo.length !== 1 || jobInfo.children().length !== 2 ||
-        jobInfo.children("a.search-results__req_title").length !== 1 || locationContainer.length !== 1 ||
-        locationSpans.length < 1 || locationContainer.children().length !== locationSpans.length ||
-        unexpectedLocationContent || unexpectedJobInfoContent || locationSpans.first().children().length !== 0 || flag.length !== 1) {
+    if (link.length !== 1 || jobInfo.length !== 1 || locationContainer.length !== 1 || locationSpans.length < 1) {
       throw new Error("Yello result row structure is invalid");
     }
     const title = link.text().trim();
     const locationRaw = locationSpans.first().text().trim();
-    const officialUrl = new URL(link.attr("href")?.trim() ?? "", "https://gilead.yello.co");
-    const officialId = officialUrl.pathname.match(/^\/jobs\/([A-Za-z0-9_-]{22})$/u)?.[1];
-    const query = [...officialUrl.searchParams.entries()];
-    if (!title || !officialId || seen.has(officialId) || officialUrl.origin !== "https://gilead.yello.co" ||
-        officialUrl.username || officialUrl.password || officialUrl.hash || query.length !== 1 || query[0]![0] !== "job_board_id" ||
-        query[0]![1] !== config.boardId) {
-      throw new Error("Yello result row identity or China scope is invalid");
-    }
-    seen.add(officialId);
+    if(!title||!bound)throw new Error('Yello result identity or title is invalid');
+    const {officialId,officialUrl}=bound;
     const age = row.find(".search-results__post-time");
     const publicAgeRaw = age.text();
-    const identity = { rowIndex, officialId, title, officialUrl: officialUrl.toString(), locationRaw,
+    const identity = { rowIndex, officialId, title, officialUrl, locationRaw,
       rawHtml: rawRows[rowIndex]!, publicAgeRaw };
     // Only this exact, mutually consistent location/flag pair is a proven exclusion.
-    // A China filter is not a mainland guarantee. Mixed, contradictory or unknown
-    // geography still holds the source; it cannot justify missing-job lifecycle changes.
+    // A China filter is not a mainland guarantee; unresolved rows retain prior data.
     if (locationRaw === "China - Hong Kong" && flag.attr("alt") === "Hong Kong flag" &&
         flag.attr("src") === "/assets/images/flags/hk.png" && locationSpans.length === 3 &&
         locationSpans.toArray().every(span => $(span).children().length === 0)) {
-      if (age.length !== 1 || age.children().length !== 0) throw new Error("Yello result row structure is invalid");
-      // Only the reviewed complete row shape proves Hong Kong-only geography.
-      // Unknown nodes or semantic attributes may carry another location. Hold them,
-      // without interpreting city words in ordinary titles or department text.
-      const shell = row.children("div.clearfix");
-      const flagBlock = shell.children("div.search-results__flag");
-      const onlyAttributes = (node: typeof row, names: readonly string[]) =>
-        Object.keys(node.attr() ?? {}).every(name => names.includes(name));
-      const classes = (node: typeof row, expected: string) =>
-        (node.attr("class") ?? "").trim().split(/\s+/u).sort().join(" ") === expected.split(" ").sort().join(" ");
-      const onlyElementChildren = (node: typeof row) => node.contents().toArray().every(child =>
-        child.type === "tag" || child.type === "text" && !/\S/u.test(child.data));
-      const onlyTextChildren = (node: typeof row) => node.contents().toArray().every(child => child.type === "text");
-      const expectedChildren = [flagBlock[0], jobInfo[0], age[0]];
-      const reviewedStructure = row.children().length === 1 && shell.length === 1 && shell.children().length === 3 &&
-        jobInfo.is("div") && age.is("div") &&
-        jobInfo.children()[0] === link[0] && jobInfo.children()[1] === locationContainer[0] &&
-        shell.children().toArray().every((child, index) => child === expectedChildren[index]) &&
-        flagBlock.length === 1 && flagBlock.children().length === 1 && flagBlock.children()[0] === flag[0] &&
-        onlyElementChildren(row) && onlyElementChildren(shell) && onlyElementChildren(flagBlock) &&
-        onlyTextChildren(link) && onlyTextChildren(age) && locationSpans.toArray().every(span => onlyTextChildren($(span))) &&
-        onlyAttributes(row, ["class"]) && classes(row, "search-results__item") &&
-        onlyAttributes(shell, ["class"]) && classes(shell, "clearfix") &&
-        onlyAttributes(flagBlock, ["class"]) && classes(flagBlock, "search-results__flag pull-left") &&
-        onlyAttributes(flag, ["alt", "src"]) &&
-        onlyAttributes(jobInfo, ["class"]) && classes(jobInfo, "search-results__jobinfo pull-left") &&
-        onlyAttributes(link, ["class", "href", "lang"]) && classes(link, "search-results__req_title") &&
-        onlyAttributes(locationContainer, []) && locationSpans.toArray().every(span => onlyAttributes($(span), [])) &&
-        onlyAttributes(age, ["class"]) && classes(age, "search-results__post-time pull-right");
-      if (!reviewedStructure) throw new YelloScopeReviewError(rawRows, rowIndex);
+      // The location container and flag establish the exclusion, not age/CSS decoration.
+      if (row.find('img[alt$="flag"]').length !== 1 || locationContainer.length !== 1) throw new YelloScopeReviewError(rawRows, rowIndex);
+      const extraContent = row.clone();
+      extraContent.find(".search-results__flag, .search-results__jobinfo, .search-results__post-time").remove();
+      const locationMarker = /\b(?:location|country|city)\b/iu;
+      const locationClassToken = /(?:^|[\s_-])location(?:[\s_-]|$)|(?:^|[\s_-])(?:country|city)(?=\s|$)/iu;
+      const additionalLocation = extraContent.find("*").addBack().toArray().some(node => "attribs" in node && Object.entries(node.attribs).some(([name, value]) =>
+        locationMarker.test(name) || ["class", "role"].includes(name) && locationClassToken.test(value)));
+      if (additionalLocation || /\bChina\s*-\s*\S/iu.test(extraContent.text())) throw new YelloScopeReviewError(rawRows, rowIndex);
       return { ...identity, scopeDecision: "EXCLUDED_HONG_KONG", publicAgeStatus: "NOT_EVALUATED_OUT_OF_SCOPE" };
     }
-    if (flag.attr("alt") !== "China flag" || flag.attr("src") !== "/assets/images/flags/cn.png" ||
-        !/^China - \S/u.test(locationRaw) || explicitlyForeignOrNonMainlandLocation(locationRaw) ||
+    if (!/^China - \S/u.test(locationRaw) || explicitlyForeignOrNonMainlandLocation(locationRaw) ||
         explicitlyGenericOrAmbiguousLocation(locationRaw)) {
       throw new YelloScopeReviewError(rawRows, rowIndex);
     }
     const publicAgeClassification = classifyGileadPublicAge(publicAgeRaw);
-    if (age.length !== 1 || age.children().length !== 0 || !publicAgeClassification) {
-      throw new YelloPublicAgeError(rawRows, rowIndex);
-    }
     return { ...identity, scopeDecision: "INCLUDED_MAINLAND", cities: gileadOfficialCities(locationRaw), publicAgeClassification };
+    }catch(error){return {scopeDecision:'QUARANTINED',rowIndex,rawHtml:rawRows[rowIndex]!,code:error instanceof YelloScopeReviewError?'GILEAD_JOB_SCOPE_UNRESOLVED':'GILEAD_JOB_ROW_UNVERIFIED',...(bound??{})};}
   });
   return { declaredTotal: count, rows: parsedRows,
     jobs: parsedRows.filter((row): row is ParsedYelloJob => row.scopeDecision === "INCLUDED_MAINLAND"),
-    excludedJobs: parsedRows.filter((row): row is ParsedYelloExcludedJob => row.scopeDecision === "EXCLUDED_HONG_KONG") };
+    excludedJobs: parsedRows.filter((row): row is ParsedYelloExcludedJob => row.scopeDecision === "EXCLUDED_HONG_KONG"),
+    quarantinedJobs:parsedRows.filter((row):row is ParsedYelloQuarantinedJob=>row.scopeDecision==='QUARANTINED') };
 }
 
 /** The original artifact retains the official ID, full row and unclassified age.
