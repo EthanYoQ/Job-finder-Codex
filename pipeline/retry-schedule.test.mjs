@@ -188,10 +188,10 @@ test('source Retry-After checkpoint survives a crash before the wave receipt is 
   assert.equal(restored[0].lastActualRequestAt,now);
 });
 
-test('progressive retry backoff scales 5m -> 15m and caps at 15m without a daily slot',()=>{
+test('progressive retry backoff scales 5m -> 15m -> 2h and caps at 2h without a daily slot',()=>{
   assert.equal(sourceRetryBackoffMs,5*60_000);
-  assert.equal(maxDailyTransientRetries,2);
-  const expected=[5,15,15];
+  assert.equal(maxDailyTransientRetries,3);
+  const expected=[5,15,120,120];
   let previous=[];
   for(const [attempt,minutes] of expected.entries()) {
     const schedule=buildRetrySchedule({
@@ -205,7 +205,7 @@ test('progressive retry backoff scales 5m -> 15m and caps at 15m without a daily
   }
 });
 
-test('daily schedule allows two quick transient retries (5m -> 15m), one 4h off-peak challenge retry, and resets count next day',()=>{
+test('daily schedule allows three transient retries (5m -> 15m -> 2h), one 4h off-peak challenge retry, and resets count next day',()=>{
   const slotNumber=slotAt(now),slot=String(slotNumber),nextSlotAt=slotNumber+dailySlotMs;
   const targetHashes=new Map([['source-pfizer',hashes.get('source-amgen')],['source-jnj',hashes.get('source-roche')]]);
 
@@ -256,9 +256,9 @@ test('daily schedule allows two quick transient retries (5m -> 15m), one 4h off-
   });
   assert.equal(longChallenged.nextRetryAt,now+36*3600_000);
 
-  // Transient error retries at 5m, 15m, then after the 3rd attempt (2nd retry fails) defers to tomorrow's 00:01 slot.
+  // Transient error retries at 5m, 15m, and 2h off-peak before deferring to tomorrow's 00:01 slot after the 4th failure.
   let prev=[];
-  const expectedTargets=[now+5*60_000,now+15*60_000,nextSlotAt];
+  const expectedTargets=[now+5*60_000,now+15*60_000,now+2*60*60_000,nextSlotAt];
   for(const [attempt,expectedTarget] of expectedTargets.entries()) {
     const sched=buildRetrySchedule({
       sourceConfigHashes:new Map([['source-jnj',hashes.get('source-roche')]]),
